@@ -180,18 +180,27 @@ function viewHome(){
   `;
 }
 
-function paceHTML(o){
+/* 宿題の進捗率 − 夏休みの経過率 から、進み具合を判定する */
+function verdictOf(gap){
+  if(gap >= 8)   return { cls:'v-good', msg:'よゆうだね！このちょうし！' };
+  if(gap <= -18) return { cls:'v-hmm',  msg:'きょうは がんばりどき！' };
+  if(gap <= -6)  return { cls:'v-hmm',  msg:'すこし いそごう！' };
+  return { cls:'v-ok', msg:'いいペース！' };
+}
+
+/* 夏休みの経過率（％） */
+function natsuPct(){
   const st = parseLocal(config.startAt), en = parseLocal(config.endAt);
-  const now = new Date();
   const span = en - st;
-  const natsu = span > 0 ? clamp((now - st) / span * 100, 0, 100) : 0;
+  return span > 0 ? clamp((new Date() - st) / span * 100, 0, 100) : 0;
+}
+
+function paceHTML(o){
+  const natsu = natsuPct();
   const todo = o.pct;
   const gap = todo - natsu;
 
-  let cls = 'v-ok', msg = 'いいペース！';
-  if(gap >= 8){ cls='v-good'; msg='よゆうだね！このちょうし！'; }
-  else if(gap <= -18){ cls='v-hmm'; msg='きょうは がんばりどき！'; }
-  else if(gap <= -6){ cls='v-hmm'; msg='すこし いそごう！'; }
+  const v = verdictOf(gap), cls = v.cls, msg = v.msg;
 
   return `
   <div class="pace">
@@ -400,7 +409,7 @@ function viewSettings(){
         <label class="lab" style="font-size:16px">だんかいの こうもく（1行に 1つ）
           <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea>
         </label>` : ''}
-      ${t.type==='count' ? `
+      ${t.type!=='daily' ? `
         <label class="lab" style="font-size:16px">きろくのとき 出す しつもん（1行に 1つ・なくても OK）
           <textarea data-f="questions" rows="3" placeholder="れい：はっぱの 形は どんな かんじ？">${esc((t.questions||[]).join('\n'))}</textarea>
         </label>` : ''}
@@ -431,6 +440,32 @@ function viewSettings(){
     <div class="paper" id="taskEditor">${taskRows}</div>
     <div class="set-actions">
       <button class="btn btn-sm" id="addTask" type="button">＋ こうもくを ふやす</button>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>進捗サマリー</h2></div>
+    <div class="paper">
+      <p class="set-note">今の進み具合をテキストにします。コピーしてメールやメッセージに貼れます。</p>
+      <div class="set-actions">
+        <label style="font-size:16px;font-weight:900;display:flex;align-items:center;gap:8px">記録の範囲
+          <select id="sumDays" style="width:auto;min-width:130px;padding:8px 10px">
+            <option value="7">直近7日</option>
+            <option value="30">直近30日</option>
+            <option value="0">全期間</option>
+            <option value="-1">記録は含めない</option>
+          </select>
+        </label>
+        <button class="btn btn-sm btn-do" id="sumMake" type="button">サマリーを作る</button>
+      </div>
+      <div style="padding:0 16px 4px">
+        <textarea id="sumOut" rows="14" readonly placeholder="「サマリーを作る」を押すと ここに出ます"
+          style="font-family:var(--font-num);font-size:14px;line-height:1.7"></textarea>
+      </div>
+      <div class="set-actions">
+        <button class="btn btn-sm" id="sumCopy" type="button">コピー</button>
+        <button class="btn btn-sm" id="sumSave" type="button">.txt で保存</button>
+      </div>
     </div>
   </section>
 
@@ -473,20 +508,6 @@ function openSheet(id){
       <p class="sel-say" id="selSay">${selSayText(t, sheetSel)}</p>
       <div class="nums" id="nums">${numsHTML(t, sheetSel)}</div>
     </div>`;
-    if((t.questions||[]).length){
-      body += `<div class="field">
-        <span class="lab">かんさつ してみよう</span>
-        <p class="hint">わかるところだけで いいよ。こえで 入れても OK。</p>
-        ${t.questions.map((q,i)=>`
-          <div class="q">
-            <p class="q-t"><span class="qn">${i+1}</span>${esc(q)}</p>
-            <div class="mic-row">
-              <textarea data-q="${i}" rows="2" placeholder="かいてみよう"></textarea>
-              ${micBtn('q'+i)}
-            </div>
-          </div>`).join('')}
-      </div>`;
-    }
   }
   else if(t.type === 'step'){
     sheetSteps = (t.steps||[]).map((_,i)=> !!(p.arr && p.arr[i]));
@@ -507,6 +528,22 @@ function openSheet(id){
         ${Array.from({length:max+1},(_,i)=>
           `<button class="tally-btn${i===sheetSel?' sel':''}" data-n="${i}" type="button">${i}</button>`).join('')}
       </div>
+    </div>`;
+  }
+
+  // 観察の観点。count と step のどちらでも出す
+  if((t.questions||[]).length){
+    body += `<div class="field">
+      <span class="lab">かんさつ してみよう</span>
+      <p class="hint">わかるところだけで いいよ。こえで 入れても OK。</p>
+      ${t.questions.map((q,i)=>`
+        <div class="q">
+          <p class="q-t"><span class="qn">${i+1}</span>${esc(q)}</p>
+          <div class="mic-row">
+            <textarea data-q="${i}" rows="2" placeholder="かいてみよう"></textarea>
+            ${micBtn('q'+i)}
+          </div>
+        </div>`).join('')}
     </div>`;
   }
 
@@ -732,6 +769,23 @@ function bindSettings(){
     saveCfg(); render();
   });
 
+  $('#sumMake').addEventListener('click', ()=>{
+    $('#sumOut').value = buildSummary(+$('#sumDays').value);
+    toast('サマリーを作りました');
+  });
+  $('#sumCopy').addEventListener('click', ()=>{
+    const ta = $('#sumOut');
+    if(!ta.value){ toast('先に「サマリーを作る」を押してください'); return; }
+    copyText(ta);
+  });
+  $('#sumSave').addEventListener('click', ()=>{
+    const text = $('#sumOut').value || buildSummary(+$('#sumDays').value);
+    // Excel やメモ帳で文字化けしないよう BOM を付ける
+    const blob = new Blob(['﻿' + text], {type:'text/plain;charset=utf-8'});
+    downloadBlob(blob, 'shukudai-summary-' + dayKey(new Date()) + '.txt');
+    toast('保存しました');
+  });
+
   $('#expBtn').addEventListener('click', exportData);
   $('#impBtn').addEventListener('click', ()=> $('#impFile').click());
   $('#impFile').addEventListener('change', importData);
@@ -748,15 +802,114 @@ function bindSettings(){
   });
 }
 
-function exportData(){
-  const blob = new Blob([JSON.stringify({config, state}, null, 2)], {type:'application/json'});
+/* ---------------------------------------------------------
+   進捗サマリー（保護者向けのテキスト出力）
+   --------------------------------------------------------- */
+const GROUP_LABEL = { must:'かならずやる', option:'できればやる', daily:'まいにち' };
+
+function summaryLine(t){
+  const p = prog(t);
+  const pct = Math.round(p.pct);
+
+  if(t.type === 'daily'){
+    const mark = p.isDone ? '✓ ' : '・';
+    return mark + t.name + '  今日 ' + p.done + '/' + p.total + (t.targetUnit||'')
+         + (p.streak > 0 ? '  ' + p.streak + '日連続' : '  連続なし');
+  }
+  if(p.isDone) return '✓ ' + t.name + '  ' + p.text + '  完了';
+
+  const nx = nextLabel(t);
+  const next = nx ? '  次は ' + (nx.num ? nx.num : '') + nx.tail : '';
+  return '・' + t.name + '  ' + p.text + '  ' + pct + '%' + next;
+}
+
+function buildSummary(logDays){
+  const now = new Date();
+  const en = parseLocal(config.endAt);
+  const ms = en - now;
+  const o = natsuPct();
+  const s = overall('must');
+  const so = overall('option');
+  const L = [];
+
+  L.push('■ ' + config.title);
+  L.push(fmtDate(now) + ' ' + fmtTime(now) + ' 時点');
+  L.push('');
+
+  if(ms > 0){
+    L.push('夏休み終了まで  あと ' + Math.floor(ms/86400000) + '日'
+         + (Math.floor(ms/3600000) % 24) + '時間');
+  }else{
+    L.push('夏休みは終了しました');
+  }
+  L.push('夏休みの経過  ' + Math.round(o) + '%');
+  L.push('必須の宿題    ' + Math.round(s.pct) + '%  (' + s.done + '/' + s.total + ')');
+  if(so.total) L.push('できればやる  ' + Math.round(so.pct) + '%  (' + so.done + '/' + so.total + ')');
+  L.push('判定  ' + verdictOf(s.pct - o).msg);
+
+  ['must','option','daily'].forEach(g=>{
+    const list = config.tasks.filter(t=>t.group===g);
+    if(!list.length) return;
+    L.push('');
+    L.push('【' + GROUP_LABEL[g] + '】');
+    list.forEach(t=> L.push(summaryLine(t)));
+  });
+
+  if(logDays !== -1){
+    const from = new Date();
+    from.setHours(0,0,0,0);
+    if(logDays > 0) from.setDate(from.getDate() - (logDays - 1));
+    else from.setTime(0);
+
+    const rows = state.logs.filter(l => new Date(l.at) >= from);
+    L.push('');
+    L.push('【記録' + (logDays > 0 ? '（直近' + logDays + '日）' : '（全期間）') + '　' + rows.length + '件】');
+    if(!rows.length){
+      L.push('（記録なし）');
+    }else{
+      const byDay = {};
+      rows.forEach(l=>{ const k = dayKey(new Date(l.at)); (byDay[k] = byDay[k] || []).push(l); });
+      Object.keys(byDay).sort().reverse().forEach(k=>{
+        L.push(fmtDate(keyToDate(k)));
+        byDay[k].slice().reverse().forEach(l=>{
+          L.push('  ' + fmtTime(new Date(l.at)) + '  ' + l.name + ' … ' + l.what);
+          if(l.memo) l.memo.split('\n').forEach(line=> L.push('      ' + line));
+        });
+      });
+    }
+  }
+
+  return L.join('\n');
+}
+
+function downloadBlob(blob, filename){
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const d = new Date();
-  a.href = url;
-  a.download = 'natsuyasumi-' + dayKey(d) + '.json';
+  a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+/* iPad Safari では clipboard API が使えない場面があるので選択方式も残す */
+function copyText(ta){
+  const done = ()=> toast('コピーしました');
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(ta.value).then(done, ()=> legacy());
+  }else legacy();
+
+  function legacy(){
+    ta.removeAttribute('readonly');
+    ta.focus(); ta.setSelectionRange(0, ta.value.length);
+    let ok = false;
+    try{ ok = document.execCommand('copy'); }catch(e){}
+    ta.setAttribute('readonly','');
+    ok ? done() : toast('長おしして コピーしてください');
+  }
+}
+
+function exportData(){
+  const blob = new Blob([JSON.stringify({config, state}, null, 2)], {type:'application/json'});
+  downloadBlob(blob, 'natsuyasumi-' + dayKey(new Date()) + '.json');
   toast('書き出しました');
 }
 
