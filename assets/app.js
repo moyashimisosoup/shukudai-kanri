@@ -380,44 +380,44 @@ function viewSettings(){
     <div class="set-task" data-i="${i}">
       <div class="set-task-top">
         <input type="text" data-f="name" value="${esc(t.name)}">
-        <button class="icon-btn" data-move="-1" title="上へ" type="button">↑</button>
-        <button class="icon-btn" data-move="1" title="下へ" type="button">↓</button>
-        <button class="icon-btn del" data-del="1" title="けす" type="button">🗑</button>
+        <button class="icon-btn" data-move="-1" title="上へ移動" type="button">↑</button>
+        <button class="icon-btn" data-move="1" title="下へ移動" type="button">↓</button>
+        <button class="icon-btn del" data-del="1" title="削除" type="button">🗑</button>
       </div>
       <div class="set-grid">
-        <label>くぶん
+        <label>区分
           <select data-f="group">
-            ${t2opt('must',t.group,'かならず やる')}
-            ${t2opt('option',t.group,'できれば やる')}
-            ${t2opt('daily',t.group,'まいにち')}
+            ${t2opt('must',t.group,'必ずやる')}
+            ${t2opt('option',t.group,'できればやる')}
+            ${t2opt('daily',t.group,'毎日')}
           </select>
         </label>
-        <label>すすめかた
+        <label>進め方
           <select data-f="type">
-            ${t2opt('count',t.type,'番号・かず')}
-            ${t2opt('step',t.type,'だんかい式')}
-            ${t2opt('daily',t.type,'まいにちノルマ')}
+            ${t2opt('count',t.type,'番号・数')}
+            ${t2opt('step',t.type,'段階式')}
+            ${t2opt('daily',t.type,'毎日のノルマ')}
           </select>
         </label>
         ${t.type==='count' ? `
-          <label>ぜんぶで <input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
-          <label>たんい <input type="text" data-f="unit" value="${esc(t.unit||'')}" style="width:96px"></label>
-          <label><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> ①②で 出す</label>
+          <label>全体量 <input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
+          <label>単位 <input type="text" data-f="unit" value="${esc(t.unit||'')}" style="width:96px"></label>
+          <label><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> ①②で表示</label>
         ` : ''}
         ${t.type==='daily' ? `
-          <label>1日の ノルマ <input type="number" data-f="target" min="1" max="20" value="${t.target|0}"></label>
-          <label>たんい <input type="text" data-f="targetUnit" value="${esc(t.targetUnit||'')}" style="width:110px"></label>
+          <label>1日のノルマ <input type="number" data-f="target" min="1" max="20" value="${t.target|0}"></label>
+          <label>単位 <input type="text" data-f="targetUnit" value="${esc(t.targetUnit||'')}" style="width:110px"></label>
         ` : ''}
       </div>
       ${t.type==='step' ? `
-        <label class="lab" style="font-size:16px">だんかいの こうもく（1行に 1つ）
+        <label class="lab" style="font-size:16px">段階の項目（1行に1つ・子どもに表示されます）
           <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea>
         </label>` : ''}
       ${t.type!=='daily' ? `
-        <label class="lab" style="font-size:16px">きろくのとき 出す しつもん（1行に 1つ・なくても OK）
-          <textarea data-f="questions" rows="3" placeholder="れい：はっぱの 形は どんな かんじ？">${esc((t.questions||[]).join('\n'))}</textarea>
+        <label class="lab" style="font-size:16px">記録時に表示する質問（1行に1つ・任意）
+          <textarea data-f="questions" rows="3" placeholder="例：はっぱの 形や 色は どんな かんじ？">${esc((t.questions||[]).join('\n'))}</textarea>
         </label>` : ''}
-      <label class="lab" style="font-size:16px">メモらんの 見出し
+      <label class="lab" style="font-size:16px">メモ欄の見出し（子どもに表示されます）
         <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう">
       </label>
     </div>`).join('');
@@ -425,38 +425,38 @@ function viewSettings(){
   return `
   <div class="paper parent-head">
     <div>
-      <h2>おうちの人のページ</h2>
-      <p>設定の変更と進捗サマリーの書き出しができます。</p>
+      <h2>保護者用ページ</h2>
+      <p>設定の変更と、進捗サマリーの書き出しができます。</p>
     </div>
-    <a class="btn btn-sm" href="#home">こどもの画面へ</a>
+    <a class="btn btn-sm" href="#home">子ども画面へ</a>
   </div>
 
   <section class="sec">
-    <div class="sec-head"><h2>きほんの せってい</h2></div>
+    <div class="sec-head"><h2>基本設定</h2></div>
     <div class="paper">
       <div class="set-row"><span class="lab">タイトル</span>
         <input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
-      <div class="set-row"><span class="lab">なつやすみ<br>はじまり</span>
+      <div class="set-row"><span class="lab">夏休みの開始</span>
         <input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
-      <div class="set-row"><span class="lab">なつやすみ<br>おわり</span>
+      <div class="set-row"><span class="lab">夏休みの終了</span>
         <input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
-      <p class="set-note">「おわり」は カウントダウンと ペースメーターの もとに なります。
-      学校から わたされた 日づけに 合わせてください。</p>
+      <p class="set-note">終了日時はカウントダウンの基準になります。開始日時と合わせて、
+      ペースメーターの「夏休みの経過率」の算出にも使われます。学校から配布された日程に合わせてください。</p>
     </div>
   </section>
 
   <section class="sec">
-    <div class="sec-head"><h2>しゅくだいの こうもく</h2><span class="sec-note">${config.tasks.length}こ</span></div>
+    <div class="sec-head"><h2>宿題の項目</h2><span class="sec-note">${config.tasks.length}件</span></div>
     <div class="paper" id="taskEditor">${taskRows}</div>
     <div class="set-actions">
-      <button class="btn btn-sm" id="addTask" type="button">＋ こうもくを ふやす</button>
+      <button class="btn btn-sm" id="addTask" type="button">＋ 項目を追加</button>
     </div>
   </section>
 
   <section class="sec">
     <div class="sec-head"><h2>進捗サマリー</h2></div>
     <div class="paper">
-      <p class="set-note">今の進み具合をテキストにします。コピーしてメールやメッセージに貼れます。</p>
+      <p class="set-note">現在の進捗をプレーンテキストで書き出します。コピーしてメールやメッセージに貼り付けられます。</p>
       <div class="set-actions">
         <label style="font-size:16px;font-weight:900;display:flex;align-items:center;gap:8px">記録の範囲
           <select id="sumDays" style="width:auto;min-width:130px;padding:8px 10px">
@@ -466,10 +466,10 @@ function viewSettings(){
             <option value="-1">記録は含めない</option>
           </select>
         </label>
-        <button class="btn btn-sm btn-do" id="sumMake" type="button">サマリーを作る</button>
+        <button class="btn btn-sm btn-do" id="sumMake" type="button">サマリーを生成</button>
       </div>
       <div style="padding:0 16px 4px">
-        <textarea id="sumOut" rows="14" readonly placeholder="「サマリーを作る」を押すと ここに出ます"
+        <textarea id="sumOut" rows="14" readonly placeholder="「サマリーを生成」を押すとここに表示されます"
           style="font-family:var(--font-num);font-size:14px;line-height:1.7"></textarea>
       </div>
       <div class="set-actions">
@@ -482,16 +482,16 @@ function viewSettings(){
   <section class="sec">
     <div class="sec-head"><h2>データ</h2></div>
     <div class="paper">
-      <p class="set-note">きろくは この iPad の中だけに ほぞんされます。
-      Safari の データを けすと 消えるので、ときどき「書き出す」で ほぞんしておくと あんしんです。</p>
+      <p class="set-note">記録は端末内（localStorage）にのみ保存され、サーバーには送信されません。
+      Safari の履歴・サイトデータを削除すると失われます。定期的にバックアップを取ってください。</p>
       <div class="set-actions">
-        <button class="btn btn-sm" id="expBtn" type="button">⬇ 書き出す（バックアップ）</button>
-        <button class="btn btn-sm" id="impBtn" type="button">⬆ 読みこむ</button>
+        <button class="btn btn-sm" id="expBtn" type="button">⬇ バックアップを書き出す</button>
+        <button class="btn btn-sm" id="impBtn" type="button">⬆ バックアップを読み込む</button>
         <input type="file" id="impFile" accept="application/json,.json" hidden>
       </div>
       <div class="set-actions">
-        <button class="btn btn-sm btn-danger" id="resetCfg" type="button">こうもくを さいしょに もどす</button>
-        <button class="btn btn-sm btn-danger" id="resetAll" type="button">きろくを ぜんぶ けす</button>
+        <button class="btn btn-sm btn-danger" id="resetCfg" type="button">項目を初期状態に戻す</button>
+        <button class="btn btn-sm btn-danger" id="resetAll" type="button">記録をすべて削除</button>
       </div>
     </div>
   </section>`;
@@ -768,7 +768,7 @@ function bindSettings(){
     }
     if(e.target.closest('[data-del]')){
       const t = config.tasks[i];
-      if(confirm('「'+t.name+'」を けしますか？\n（きろくは のこります）')){
+      if(confirm('「'+t.name+'」を削除しますか？\nこれまでの記録は残ります。')){
         config.tasks.splice(i,1); saveCfg(); render();
       }
     }
@@ -777,18 +777,19 @@ function bindSettings(){
   $('#addTask').addEventListener('click', ()=>{
     config.tasks.push({
       id: 't' + Date.now(), group:'option', type:'count',
-      name:'あたらしい しゅくだい', total:10, unit:'ばん', numbered:true
+      name:'あたらしい しゅくだい', total:10, unit:'ばん', numbered:true,
+      memoLabel:'やったことを かこう'
     });
     saveCfg(); render();
   });
 
   $('#sumMake').addEventListener('click', ()=>{
     $('#sumOut').value = buildSummary(+$('#sumDays').value);
-    toast('サマリーを作りました');
+    toast('サマリーを生成しました');
   });
   $('#sumCopy').addEventListener('click', ()=>{
     const ta = $('#sumOut');
-    if(!ta.value){ toast('先に「サマリーを作る」を押してください'); return; }
+    if(!ta.value){ toast('先に「サマリーを生成」を押してください'); return; }
     copyText(ta);
   });
   $('#sumSave').addEventListener('click', ()=>{
@@ -804,13 +805,13 @@ function bindSettings(){
   $('#impFile').addEventListener('change', importData);
 
   $('#resetCfg').addEventListener('click', ()=>{
-    if(confirm('こうもくを さいしょの じょうたいに もどしますか？\n（きろくは のこります）')){
-      config = deepCopy(DEFAULT_CONFIG); saveCfg(); render(); toast('もどしました');
+    if(confirm('項目を初期状態に戻しますか？\nこれまでの記録は残ります。')){
+      config = deepCopy(DEFAULT_CONFIG); saveCfg(); render(); toast('初期状態に戻しました');
     }
   });
   $('#resetAll').addEventListener('click', ()=>{
-    if(confirm('すすみぐあいと きろくを ぜんぶ けしますか？\nこの そうさは もとに もどせません。')){
-      state = { schema:SCHEMA, progress:{}, logs:[] }; saveSt(); render(); toast('けしました');
+    if(confirm('進捗と記録をすべて削除しますか？\nこの操作は取り消せません。')){
+      state = { schema:SCHEMA, progress:{}, logs:[] }; saveSt(); render(); toast('削除しました');
     }
   });
 }
@@ -916,7 +917,7 @@ function copyText(ta){
     let ok = false;
     try{ ok = document.execCommand('copy'); }catch(e){}
     ta.setAttribute('readonly','');
-    ok ? done() : toast('長おしして コピーしてください');
+    ok ? done() : toast('コピーできませんでした。長押しで選択してください');
   }
 }
 
@@ -933,13 +934,13 @@ function importData(e){
   fr.onload = ()=>{
     try{
       const o = JSON.parse(fr.result);
-      if(!o || !o.config || !o.state) throw new Error('形式が ちがいます');
-      if(!confirm('いまの データを 読みこんだ ものに 入れかえます。よろしいですか？')) return;
+      if(!o || !o.config || !o.state) throw new Error('ファイル形式が異なります');
+      if(!confirm('現在のデータを、読み込んだ内容で置き換えます。よろしいですか？')) return;
       config = o.config; state = o.state;
       if(!state.progress) state.progress = {};
       if(!Array.isArray(state.logs)) state.logs = [];
-      saveCfg(); saveSt(); render(); toast('読みこみました');
-    }catch(err){ alert('読みこめませんでした：' + err.message); }
+      saveCfg(); saveSt(); render(); toast('読み込みました');
+    }catch(err){ alert('読み込めませんでした：' + err.message); }
   };
   fr.readAsText(f);
   e.target.value = '';
