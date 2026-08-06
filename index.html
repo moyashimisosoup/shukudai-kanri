@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14375E">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="なつやすみ">
+<title>はじめ夏休みの宿題一覧</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
+</head>
+<body>
+
+<header class="topband">
+  <div class="topband-inner">
+    <span class="topband-mark" aria-hidden="true"></span>
+    <h1 class="topband-title" id="appTitle">はじめ夏休みの宿題一覧</h1>
+    <span class="topband-date" id="todayLabel"></span>
+  </div>
+</header>
+
+<main id="view" class="view" tabindex="-1"></main>
+
+<nav class="tabbar" aria-label="メニュー">
+  <button class="tab is-on" data-tab="home" type="button">
+    <span class="tab-ico" aria-hidden="true">🏠</span><span class="tab-txt">のこり</span>
+  </button>
+  <button class="tab" data-tab="record" type="button">
+    <span class="tab-ico" aria-hidden="true">✏️</span><span class="tab-txt">きろくする</span>
+  </button>
+  <button class="tab" data-tab="log" type="button">
+    <span class="tab-ico" aria-hidden="true">📖</span><span class="tab-txt">やったこと</span>
+  </button>
+  <button class="tab" data-tab="settings" type="button">
+    <span class="tab-ico" aria-hidden="true">⚙️</span><span class="tab-txt">せってい</span>
+  </button>
+</nav>
+
+<!-- きろくシート -->
+<div class="sheet-wrap" id="sheetWrap" hidden>
+  <div class="sheet-back" id="sheetBack"></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-head">
+      <h2 class="sheet-title" id="sheetTitle"></h2>
+      <button class="sheet-close" id="sheetClose" type="button" aria-label="とじる">×</button>
+    </div>
+    <div class="sheet-body" id="sheetBody"></div>
+    <div class="sheet-foot">
+      <button class="btn btn-ghost" id="sheetCancel" type="button">やめる</button>
+      <button class="btn btn-go" id="sheetSave" type="button">きろくする</button>
+    </div>
+  </section>
+</div>
+
+<!-- できた！のはんこ -->
+<div class="stamp" id="stamp" hidden aria-hidden="true">
+  <div class="stamp-mark"><span id="stampText">できた！</span></div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

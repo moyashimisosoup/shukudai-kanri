@@ -1,0 +1,849 @@
+/* =========================================================
+   app.js — はじめ夏休みの宿題一覧
+   データは この iPad の中（localStorage）に ほぞんされます。
+   ========================================================= */
+(function () {
+'use strict';
+
+/* ---------------------------------------------------------
+   ほぞん
+   --------------------------------------------------------- */
+const K_CFG = 'natsu.config.v2';
+const K_ST  = 'natsu.state.v2';
+
+let config, state;
+let tab = 'home';
+let timer = null;
+let funIdx = 0, funOpen = false;
+
+function loadAll(){
+  try{
+    const c = JSON.parse(localStorage.getItem(K_CFG) || 'null');
+    config = (c && c.schema === SCHEMA) ? c : deepCopy(DEFAULT_CONFIG);
+  }catch(e){ config = deepCopy(DEFAULT_CONFIG); }
+
+  try{
+    const s = JSON.parse(localStorage.getItem(K_ST) || 'null');
+    state = (s && s.progress) ? s : { schema:SCHEMA, progress:{}, logs:[] };
+  }catch(e){ state = { schema:SCHEMA, progress:{}, logs:[] }; }
+
+  if(!state.progress) state.progress = {};
+  if(!Array.isArray(state.logs)) state.logs = [];
+  funIdx = dayOfYear(new Date()) % FUN.length;
+}
+function saveCfg(){ localStorage.setItem(K_CFG, JSON.stringify(config)); }
+function saveSt(){ localStorage.setItem(K_ST, JSON.stringify(state)); }
+function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
+
+/* ---------------------------------------------------------
+   こまごました どうぐ
+   --------------------------------------------------------- */
+const $  = (s, r) => (r||document).querySelector(s);
+const $$ = (s, r) => Array.from((r||document).querySelectorAll(s));
+
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
+function maru(n){ return (n>=1 && n<=20) ? String.fromCharCode(0x245F + n) : String(n); }
+function pad2(n){ return String(n).padStart(2,'0'); }
+
+function parseLocal(s){
+  // 'YYYY-MM-DDTHH:mm' を その場所の時間として よむ
+  if(!s) return new Date(NaN);
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if(!m) return new Date(s);
+  return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], 0, 0);
+}
+function dayKey(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function dayOfYear(d){
+  return Math.floor((d - new Date(d.getFullYear(),0,0)) / 86400000);
+}
+const WD = ['日','月','火','水','木','金','土'];
+function fmtDate(d){ return (d.getMonth()+1)+'月'+d.getDate()+'日（'+WD[d.getDay()]+'）'; }
+function fmtTime(d){ return pad2(d.getHours())+':'+pad2(d.getMinutes()); }
+function keyToDate(k){ const p = k.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>{ t.hidden = true; }, 2200);
+}
+function stamp(text){
+  const el = $('#stamp');
+  $('#stampText').textContent = text || 'できた！';
+  el.hidden = false;
+  clearTimeout(stamp._t);
+  // アニメーションを やりなおす
+  const m = $('.stamp-mark'); m.style.animation = 'none'; void m.offsetWidth; m.style.animation = '';
+  stamp._t = setTimeout(()=>{ el.hidden = true; }, 900);
+}
+
+/* ---------------------------------------------------------
+   すすみぐあいの けいさん
+   --------------------------------------------------------- */
+function prog(task){
+  const p = state.progress[task.id] || {};
+  if(task.type === 'count'){
+    const total = Math.max(1, task.total|0);
+    const done  = clamp(p.done|0, 0, total);
+    return { done, total, pct: done/total*100, unit: task.unit || 'こ',
+             text: done+'/'+total+(task.unit||''), isDone: done >= total };
+  }
+  if(task.type === 'step'){
+    const steps = task.steps || [];
+    const arr = Array.isArray(p.steps) ? p.steps : [];
+    const done = steps.reduce((a,_,i)=> a + (arr[i] ? 1 : 0), 0);
+    const total = Math.max(1, steps.length);
+    return { done, total, pct: done/total*100, unit:'',
+             text: done+'/'+steps.length, isDone: done >= steps.length, arr };
+  }
+  // daily
+  const days = p.days || {};
+  const today = days[dayKey(new Date())] | 0;
+  const target = Math.max(1, task.target|0);
+  return { done: today, total: target, pct: clamp(today/target*100,0,100),
+           unit: task.targetUnit || 'かい',
+           text: today+'/'+target+(task.targetUnit||''), isDone: today >= target,
+           streak: streakOf(days, target), days };
+}
+
+function streakOf(days, target){
+  let n = 0;
+  const d = new Date();
+  for(let i=0;i<400;i++){
+    const k = dayKey(d);
+    if((days[k]|0) >= target) n++;
+    else if(i > 0) break;         // きょう まだでも、きのうまでの れんぞくは かぞえる
+    else if((days[k]|0) === 0) { /* きょうは まだ */ }
+    d.setDate(d.getDate()-1);
+  }
+  return n;
+}
+
+function nextLabel(task){
+  const p = prog(task);
+  if(p.isDone) return null;
+  if(task.type === 'count'){
+    const n = p.done + 1;
+    return task.numbered
+      ? { lead:'つぎは', num: maru(n), tail:'' }
+      : { lead:'つぎは', num: String(n), tail: (task.unit||'')+'め' };
+  }
+  if(task.type === 'step'){
+    const i = (task.steps||[]).findIndex((_,k)=> !(p.arr && p.arr[k]));
+    return { lead:'つぎは', num:'', tail:'「'+(task.steps[i]||'')+'」' };
+  }
+  const nokori = Math.max(0, p.total - p.done);
+  return { lead:'きょうは あと', num:String(nokori), tail: task.targetUnit || 'かい' };
+}
+
+/* しゅくだい ぜんたいの すすみぐあい（かならずやる だけ／まいにちアプリは のぞく） */
+function overall(group){
+  let done = 0, total = 0;
+  config.tasks.filter(t => t.group === group && t.type !== 'daily').forEach(t=>{
+    const p = prog(t); done += p.done; total += p.total;
+  });
+  return { done, total, pct: total ? done/total*100 : 0 };
+}
+
+/* ---------------------------------------------------------
+   ビュー：ホーム
+   --------------------------------------------------------- */
+function viewHome(){
+  const must  = config.tasks.filter(t=>t.group==='must');
+  const opt   = config.tasks.filter(t=>t.group==='option');
+  const daily = config.tasks.filter(t=>t.group==='daily');
+  const o = overall('must');
+  const nokori = must.filter(t=>!prog(t).isDone).length;
+
+  return `
+  <section class="count">
+    <p class="count-lead">なつやすみ おわりまで　<b>あと</b></p>
+    <div id="cdBox"></div>
+    ${paceHTML(o)}
+  </section>
+
+  ${sectionHTML('must','かならず やる', nokori>0 ? 'のこり '+nokori+'こ' : 'ぜんぶ できた！', must)}
+  ${opt.length   ? sectionHTML('opt','できれば やる','じかんが あるとき', opt) : ''}
+  ${daily.length ? sectionHTML('daily','まいにち すこしずつ','きょうの ぶん', daily) : ''}
+
+  <section class="sec">
+    <div class="sec-head"><h2>きょう やったこと</h2><span class="sec-note">${fmtDate(new Date())}</span></div>
+    <div class="paper today-list">${todayHTML()}</div>
+  </section>
+
+  ${funHTML()}
+  `;
+}
+
+function paceHTML(o){
+  const st = parseLocal(config.startAt), en = parseLocal(config.endAt);
+  const now = new Date();
+  const span = en - st;
+  const natsu = span > 0 ? clamp((now - st) / span * 100, 0, 100) : 0;
+  const todo = o.pct;
+  const gap = todo - natsu;
+
+  let cls = 'v-ok', msg = 'いいペース！';
+  if(gap >= 8){ cls='v-good'; msg='よゆうだね！このちょうし！'; }
+  else if(gap <= -18){ cls='v-hmm'; msg='きょうは がんばりどき！'; }
+  else if(gap <= -6){ cls='v-hmm'; msg='すこし いそごう！'; }
+
+  return `
+  <div class="pace">
+    <div class="pace-row">
+      <span class="pace-name">なつやすみ</span>
+      <div class="bar"><div class="bar-fill bar-fill--natsu" style="width:${natsu.toFixed(1)}%"></div></div>
+      <span class="pace-pct">${Math.round(natsu)}%</span>
+    </div>
+    <div class="pace-row">
+      <span class="pace-name">しゅくだい</span>
+      <div class="bar"><div class="bar-fill bar-fill--todo" style="width:${todo.toFixed(1)}%"></div></div>
+      <span class="pace-pct">${Math.round(todo)}%</span>
+    </div>
+    <p class="pace-verdict ${cls}">${msg}</p>
+  </div>`;
+}
+
+function sectionHTML(kind, title, note, tasks){
+  return `
+  <section class="sec sec-${kind}">
+    <div class="sec-head"><h2>${esc(title)}</h2><span class="sec-note">${esc(note)}</span></div>
+    <div>${tasks.map(taskHTML).join('')}</div>
+  </section>`;
+}
+
+function taskHTML(t){
+  const p = prog(t);
+  const nx = nextLabel(t);
+
+  let meter;
+  if(t.type === 'daily'){
+    const n = Math.max(p.total, p.done);
+    let hearts = '';
+    for(let i=1;i<=n;i++) hearts += `<span class="heart${i<=p.done?' on':''}">❤️</span>`;
+    meter = `<div class="task-meter">
+        <div class="hearts">${hearts}</div>
+        ${p.streak>0 ? `<span class="streak">${p.streak}日 れんぞく</span>` : ''}
+      </div>`;
+  }else{
+    meter = `<div class="task-meter">
+        <div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div>
+        <span class="task-count">${esc(p.text)}</span>
+      </div>`;
+  }
+
+  return `
+  <article class="task${p.isDone?' is-done':''}">
+    <h3 class="task-name">${esc(t.name)}</h3>
+    ${nx ? `<p class="task-next">${nx.lead}
+        ${nx.num ? `<span class="next-num">${esc(nx.num)}</span>` : ''}${esc(nx.tail)}</p>` : ''}
+    ${meter}
+    <div class="task-act">
+      <button class="btn ${p.isDone?'btn-ghost':'btn-do'}" data-open="${esc(t.id)}" type="button">
+        ${p.isDone ? 'なおす' : 'やった！'}
+      </button>
+    </div>
+  </article>`;
+}
+
+function todayHTML(){
+  const k = dayKey(new Date());
+  const rows = state.logs.filter(l => dayKey(new Date(l.at)) === k);
+  if(!rows.length) return `<p class="empty">まだ ないよ。<br>「きろくする」から 入れてね。</p>`;
+  return rows.slice().reverse().map(logRowHTML).join('');
+}
+
+function logRowHTML(l){
+  return `
+  <div class="today-item">
+    <span class="ti-time">${fmtTime(new Date(l.at))}</span>
+    <div class="ti-body">
+      <div class="ti-name">${esc(l.name)}</div>
+      <div class="ti-what">${esc(l.what)}</div>
+      ${l.memo ? `<div class="ti-memo">${esc(l.memo)}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function funHTML(){
+  const f = FUN[funIdx % FUN.length];
+  return `
+  <section class="paper fun">
+    <span class="fun-tag">${esc(f.t)}</span>
+    <p class="fun-q">${esc(f.q)}</p>
+    ${funOpen ? `<p class="fun-a">${esc(f.a)}</p>` : ''}
+    <div class="fun-row">
+      ${funOpen ? '' : `<button class="btn btn-sm" data-fun="open" type="button">こたえを 見る</button>`}
+      <button class="btn btn-sm" data-fun="next" type="button">つぎの もんだい</button>
+    </div>
+  </section>`;
+}
+
+/* --- カウントダウン（1びょうごと） --- */
+function renderCountdown(){
+  const box = $('#cdBox');
+  if(!box) return;
+  const en = parseLocal(config.endAt);
+  let ms = en - new Date();
+  if(!(ms === ms)){ box.innerHTML = `<p class="count-over">おわりの日を せっていしてね</p>`; return; }
+  if(ms <= 0){ box.innerHTML = `<p class="count-over">なつやすみは おわりました 🎒</p>`; return; }
+
+  const d = Math.floor(ms/86400000);
+  const h = Math.floor(ms/3600000) % 24;
+  const m = Math.floor(ms/60000) % 60;
+  const s = Math.floor(ms/1000) % 60;
+
+  const unit = (v, lab, big) =>
+    `<div class="cd-unit${big?' cd-unit--big':''}">` +
+    pad2(v).split('').map(c=>`<span class="cd-d">${c}</span>`).join('') +
+    `<span class="cd-lab">${lab}</span></div>`;
+
+  box.innerHTML = `<div class="cd">${unit(d,'にち',true)}${unit(h,'じかん')}${unit(m,'ふん')}${unit(s,'びょう')}</div>`;
+}
+
+/* ---------------------------------------------------------
+   ビュー：きろくする
+   --------------------------------------------------------- */
+function viewRecord(){
+  const g = (kind, title, note) => {
+    const list = config.tasks.filter(t=>t.group===kind);
+    if(!list.length) return '';
+    const cls = kind==='must'?'must':kind==='option'?'opt':'daily';
+    return `
+    <section class="sec sec-${cls}">
+      <div class="sec-head"><h2>${title}</h2><span class="sec-note">${note}</span></div>
+      <div class="pick">${list.map(t=>{
+        const p = prog(t);
+        const nx = nextLabel(t);
+        const sub = p.isDone ? 'ぜんぶ できた！'
+          : (nx ? nx.lead+' '+nx.num+nx.tail : '') + '　' + p.text;
+        return `<button class="pick-btn pick-${cls}${p.isDone?' is-done':''}" data-open="${esc(t.id)}" type="button">
+            <span class="pn">${esc(t.name)}</span>
+            <span class="ps">${esc(sub)}</span>
+          </button>`;
+      }).join('')}</div>
+    </section>`;
+  };
+  return `
+    <p class="set-note paper" style="padding:14px 18px">やった しゅくだいを えらんでね。</p>
+    ${g('must','かならず やる','まず これから')}
+    ${g('option','できれば やる','じかんが あるとき')}
+    ${g('daily','まいにち すこしずつ','きょうの ぶん')}
+  `;
+}
+
+/* ---------------------------------------------------------
+   ビュー：やったこと（きろく）
+   --------------------------------------------------------- */
+function viewLog(){
+  if(!state.logs.length){
+    return `<div class="paper"><p class="empty">まだ きろくが ないよ。</p></div>`;
+  }
+  const byDay = {};
+  state.logs.forEach(l=>{
+    const k = dayKey(new Date(l.at));
+    (byDay[k] = byDay[k] || []).push(l);
+  });
+  const keys = Object.keys(byDay).sort().reverse();
+  return keys.map(k=>`
+    <section class="sec">
+      <div class="day-head">${fmtDate(keyToDate(k))}<span class="cnt">${byDay[k].length}こ</span></div>
+      <div class="paper today-list">${byDay[k].slice().reverse().map(logRowHTML).join('')}</div>
+    </section>`).join('');
+}
+
+/* ---------------------------------------------------------
+   ビュー：せってい（おうちの人むけ）
+   --------------------------------------------------------- */
+function viewSettings(){
+  const t2opt = (v,cur,label) => `<option value="${v}"${v===cur?' selected':''}>${label}</option>`;
+
+  const taskRows = config.tasks.map((t,i)=>`
+    <div class="set-task" data-i="${i}">
+      <div class="set-task-top">
+        <input type="text" data-f="name" value="${esc(t.name)}">
+        <button class="icon-btn" data-move="-1" title="上へ" type="button">↑</button>
+        <button class="icon-btn" data-move="1" title="下へ" type="button">↓</button>
+        <button class="icon-btn del" data-del="1" title="けす" type="button">🗑</button>
+      </div>
+      <div class="set-grid">
+        <label>くぶん
+          <select data-f="group">
+            ${t2opt('must',t.group,'かならず やる')}
+            ${t2opt('option',t.group,'できれば やる')}
+            ${t2opt('daily',t.group,'まいにち')}
+          </select>
+        </label>
+        <label>すすめかた
+          <select data-f="type">
+            ${t2opt('count',t.type,'番号・かず')}
+            ${t2opt('step',t.type,'だんかい式')}
+            ${t2opt('daily',t.type,'まいにちノルマ')}
+          </select>
+        </label>
+        ${t.type==='count' ? `
+          <label>ぜんぶで <input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
+          <label>たんい <input type="text" data-f="unit" value="${esc(t.unit||'')}" style="width:96px"></label>
+          <label><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> ①②で 出す</label>
+        ` : ''}
+        ${t.type==='daily' ? `
+          <label>1日の ノルマ <input type="number" data-f="target" min="1" max="20" value="${t.target|0}"></label>
+          <label>たんい <input type="text" data-f="targetUnit" value="${esc(t.targetUnit||'')}" style="width:110px"></label>
+        ` : ''}
+      </div>
+      ${t.type==='step' ? `
+        <label class="lab" style="font-size:16px">だんかいの こうもく（1行に 1つ）
+          <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea>
+        </label>` : ''}
+      ${t.type==='count' ? `
+        <label class="lab" style="font-size:16px">きろくのとき 出す しつもん（1行に 1つ・なくても OK）
+          <textarea data-f="questions" rows="3" placeholder="れい：はっぱの 形は どんな かんじ？">${esc((t.questions||[]).join('\n'))}</textarea>
+        </label>` : ''}
+      <label class="lab" style="font-size:16px">メモらんの 見出し
+        <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう">
+      </label>
+    </div>`).join('');
+
+  return `
+  <p class="set-note paper" style="padding:14px 18px">ここは おうちの人が つかう ページです。</p>
+
+  <section class="sec">
+    <div class="sec-head"><h2>きほんの せってい</h2></div>
+    <div class="paper">
+      <div class="set-row"><span class="lab">タイトル</span>
+        <input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
+      <div class="set-row"><span class="lab">なつやすみ<br>はじまり</span>
+        <input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
+      <div class="set-row"><span class="lab">なつやすみ<br>おわり</span>
+        <input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
+      <p class="set-note">「おわり」は カウントダウンと ペースメーターの もとに なります。
+      学校から わたされた 日づけに 合わせてください。</p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>しゅくだいの こうもく</h2><span class="sec-note">${config.tasks.length}こ</span></div>
+    <div class="paper" id="taskEditor">${taskRows}</div>
+    <div class="set-actions">
+      <button class="btn btn-sm" id="addTask" type="button">＋ こうもくを ふやす</button>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head"><h2>データ</h2></div>
+    <div class="paper">
+      <p class="set-note">きろくは この iPad の中だけに ほぞんされます。
+      Safari の データを けすと 消えるので、ときどき「書き出す」で ほぞんしておくと あんしんです。</p>
+      <div class="set-actions">
+        <button class="btn btn-sm" id="expBtn" type="button">⬇ 書き出す（バックアップ）</button>
+        <button class="btn btn-sm" id="impBtn" type="button">⬆ 読みこむ</button>
+        <input type="file" id="impFile" accept="application/json,.json" hidden>
+      </div>
+      <div class="set-actions">
+        <button class="btn btn-sm btn-danger" id="resetCfg" type="button">こうもくを さいしょに もどす</button>
+        <button class="btn btn-sm btn-danger" id="resetAll" type="button">きろくを ぜんぶ けす</button>
+      </div>
+    </div>
+  </section>`;
+}
+
+/* ---------------------------------------------------------
+   きろくシート
+   --------------------------------------------------------- */
+let sheetTask = null, sheetSel = null, sheetSteps = null;
+
+function openSheet(id){
+  const t = config.tasks.find(x=>x.id===id);
+  if(!t) return;
+  sheetTask = t;
+  const p = prog(t);
+
+  let body = '';
+  if(t.type === 'count'){
+    sheetSel = p.done;
+    body += `
+    <div class="field">
+      <span class="lab">どこまで やった？</span>
+      <p class="hint">やった ところを おしてね。そこまで ぜんぶ できたことに なるよ。</p>
+      <p class="sel-say" id="selSay">${selSayText(t, sheetSel)}</p>
+      <div class="nums" id="nums">${numsHTML(t, sheetSel)}</div>
+    </div>`;
+    if((t.questions||[]).length){
+      body += `<div class="field">
+        <span class="lab">かんさつ してみよう</span>
+        <p class="hint">わかるところだけで いいよ。こえで 入れても OK。</p>
+        ${t.questions.map((q,i)=>`
+          <div class="q">
+            <p class="q-t"><span class="qn">${i+1}</span>${esc(q)}</p>
+            <div class="mic-row">
+              <textarea data-q="${i}" rows="2" placeholder="かいてみよう"></textarea>
+              ${micBtn('q'+i)}
+            </div>
+          </div>`).join('')}
+      </div>`;
+    }
+  }
+  else if(t.type === 'step'){
+    sheetSteps = (t.steps||[]).map((_,i)=> !!(p.arr && p.arr[i]));
+    body += `
+    <div class="field">
+      <span class="lab">できた ところを おしてね</span>
+      <div class="steps" id="steps">${stepsHTML(t, sheetSteps)}</div>
+    </div>`;
+  }
+  else {
+    sheetSel = p.done;
+    const max = Math.max(p.total, 5);
+    body += `
+    <div class="field">
+      <span class="lab">きょうは どのくらい できた？</span>
+      <p class="hint">1日の めあては ${p.total}${esc(t.targetUnit||'')}だよ。</p>
+      <div class="tally" id="tally">
+        ${Array.from({length:max+1},(_,i)=>
+          `<button class="tally-btn${i===sheetSel?' sel':''}" data-n="${i}" type="button">${i}</button>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  body += `
+  <div class="field">
+    <span class="lab">${esc(t.memoLabel || 'やったことを かこう')}<span style="font-weight:700;color:var(--ai-usu);font-size:15px">（なくても OK）</span></span>
+    <div class="mic-row">
+      <textarea id="memo" rows="3" placeholder="れい：きょうは しずかに できた"></textarea>
+      ${micBtn('memo')}
+    </div>
+    <p class="mic-note">${hasSR()
+      ? '🎤 を おすと こえで かけるよ。'
+      : 'キーボードの 🎤 マークを おすと、こえで かけるよ。'}</p>
+  </div>`;
+
+  $('#sheetTitle').textContent = t.name;
+  $('#sheetBody').innerHTML = body;
+  $('#sheetBody').scrollTop = 0;
+  $('#sheetWrap').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function numsHTML(t, sel){
+  return Array.from({length: Math.max(1,t.total|0)}, (_,k)=>{
+    const n = k+1;
+    const cls = n===sel ? 'num sel' : (n<sel ? 'num done' : 'num');
+    return `<button class="${cls}" data-n="${n}" type="button">${t.numbered ? maru(n) : n}</button>`;
+  }).join('');
+}
+function selSayText(t, sel){
+  if(!sel) return 'まだ ひとつも やっていない';
+  const label = t.numbered ? maru(sel) : sel + (t.unit||'');
+  return (sel >= (t.total|0)) ? label + ' まで ぜんぶ できた！' : label + ' まで できた';
+}
+function stepsHTML(t, arr){
+  return (t.steps||[]).map((s,i)=>
+    `<button class="step${arr[i]?' on':''}" data-i="${i}" type="button">
+       <span class="box">✓</span><span>${esc(s)}</span>
+     </button>`).join('');
+}
+
+function closeSheet(){
+  $('#sheetWrap').hidden = true;
+  document.body.style.overflow = '';
+  stopSR();
+  sheetTask = null; sheetSel = null; sheetSteps = null;
+}
+
+function saveSheet(){
+  const t = sheetTask;
+  if(!t) return;
+  const p = prog(t);
+  const memo = ($('#memo') && $('#memo').value.trim()) || '';
+  const now = new Date();
+  let what = '';
+  let ok = true;
+
+  if(t.type === 'count'){
+    const before = p.done;
+    const after = clamp(sheetSel|0, 0, t.total|0);
+    state.progress[t.id] = Object.assign({}, state.progress[t.id], { done: after });
+    if(after > before){
+      what = t.numbered
+        ? maru(before+1) + (after>before+1 ? '〜'+maru(after) : '') + ' できた'
+        : (before+1) + (after>before+1 ? '〜'+after : '') + (t.unit||'') + ' できた';
+    }else if(after < before){
+      what = (t.numbered ? maru(after) : after+(t.unit||'')) + ' まで に なおした';
+    }else{
+      what = 'すすみは そのまま';
+    }
+  }
+  else if(t.type === 'step'){
+    const before = (p.arr||[]);
+    const added = (t.steps||[]).filter((s,i)=> sheetSteps[i] && !before[i]);
+    state.progress[t.id] = Object.assign({}, state.progress[t.id], { steps: sheetSteps.slice() });
+    what = added.length ? added.join('・') + ' が できた'
+                        : (sheetSteps.filter(Boolean).length + '/' + (t.steps||[]).length + ' に なおした');
+    ok = true;
+  }
+  else {
+    const n = clamp(sheetSel|0, 0, 99);
+    const days = Object.assign({}, (state.progress[t.id]||{}).days || {});
+    days[dayKey(now)] = n;
+    state.progress[t.id] = Object.assign({}, state.progress[t.id], { days });
+    what = n + (t.targetUnit||'かい') + ' できた';
+  }
+
+  // かんさつの こたえを メモに くっつける
+  const qs = $$('#sheetBody [data-q]');
+  const ans = qs.map((el,i)=>{
+    const v = el.value.trim();
+    return v ? '・' + (t.questions[i] || '') + '\n　→ ' + v : '';
+  }).filter(Boolean).join('\n');
+
+  const fullMemo = [ans, memo].filter(Boolean).join('\n');
+
+  state.logs.push({
+    id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
+    at: now.toISOString(),
+    taskId: t.id, name: t.name, what, memo: fullMemo
+  });
+  if(state.logs.length > 3000) state.logs = state.logs.slice(-3000);
+  saveSt();
+
+  const after = prog(t);
+  closeSheet();
+  stamp(after.isDone ? 'ぜんぶ できた！' : 'できた！');
+  setTimeout(()=>{ render(); }, 60);
+  return ok;
+}
+
+/* --- こえ入力 --- */
+let sr = null, srTargetId = null;
+function hasSR(){ return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+function micBtn(id){
+  if(!hasSR()) return '';
+  return `<button class="mic" data-mic="${id}" type="button" aria-label="こえで 入れる">🎤</button>`;
+}
+function startSR(btn, targetEl){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  stopSR();
+  try{
+    sr = new SR();
+    sr.lang = 'ja-JP'; sr.interimResults = false; sr.continuous = false;
+    sr.onresult = e=>{
+      const txt = Array.from(e.results).map(r=>r[0].transcript).join('');
+      targetEl.value = (targetEl.value ? targetEl.value + ' ' : '') + txt;
+    };
+    sr.onend = ()=>{ btn.classList.remove('rec'); sr = null; };
+    sr.onerror = ()=>{ btn.classList.remove('rec'); toast('こえが きこえなかったよ'); };
+    sr.start();
+    btn.classList.add('rec');
+  }catch(e){ toast('こえ入力が つかえません'); }
+}
+function stopSR(){ if(sr){ try{ sr.stop(); }catch(e){} sr = null; } $$('.mic.rec').forEach(b=>b.classList.remove('rec')); }
+
+/* ---------------------------------------------------------
+   えがく
+   --------------------------------------------------------- */
+function render(){
+  $('#appTitle').textContent = config.title;
+  $('#todayLabel').textContent = fmtDate(new Date());
+  document.title = config.title;
+
+  const v = $('#view');
+  if(timer){ clearInterval(timer); timer = null; }
+
+  if(tab === 'home')          v.innerHTML = viewHome();
+  else if(tab === 'record')   v.innerHTML = viewRecord();
+  else if(tab === 'log')      v.innerHTML = viewLog();
+  else                        v.innerHTML = viewSettings();
+
+  $$('.tab').forEach(b=> b.classList.toggle('is-on', b.dataset.tab === tab));
+
+  if(tab === 'home'){
+    renderCountdown();
+    timer = setInterval(renderCountdown, 1000);
+  }
+  if(tab === 'settings') bindSettings();
+  window.scrollTo(0, 0);
+}
+
+/* ---------------------------------------------------------
+   せっていの そうさ
+   --------------------------------------------------------- */
+function bindSettings(){
+  $('#cfgTitle').addEventListener('change', e=>{ config.title = e.target.value || 'なつやすみの しゅくだい'; saveCfg(); render(); });
+  $('#cfgStart').addEventListener('change', e=>{ config.startAt = e.target.value; saveCfg(); });
+  $('#cfgEnd').addEventListener('change',   e=>{ config.endAt   = e.target.value; saveCfg(); });
+
+  const ed = $('#taskEditor');
+  ed.addEventListener('change', e=>{
+    const row = e.target.closest('.set-task'); if(!row) return;
+    const t = config.tasks[+row.dataset.i]; if(!t) return;
+    const f = e.target.dataset.f; if(!f) return;
+
+    if(f === 'numbered')        t.numbered = e.target.checked;
+    else if(f === 'total')      t.total = clamp(+e.target.value||1, 1, 200);
+    else if(f === 'target')     t.target = clamp(+e.target.value||1, 1, 20);
+    else if(f === 'steps')      t.steps = e.target.value.split('\n').map(s=>s.trim()).filter(Boolean);
+    else if(f === 'questions')  t.questions = e.target.value.split('\n').map(s=>s.trim()).filter(Boolean);
+    else if(f === 'type'){
+      t.type = e.target.value;
+      if(t.type==='count'  && !t.total) { t.total = 10; t.unit = t.unit || 'ばん'; t.numbered = true; }
+      if(t.type==='step'   && !(t.steps||[]).length) t.steps = ['はじめる','とちゅう','かんせい！'];
+      if(t.type==='daily'  && !t.target){ t.target = 1; t.targetUnit = t.targetUnit || 'かい'; }
+      if(t.type==='daily') t.group = 'daily';
+      saveCfg(); render(); return;
+    }
+    else if(f === 'group'){
+      t.group = e.target.value;
+      if(t.group==='daily' && t.type!=='daily'){ t.type='daily'; t.target = t.target||1; t.targetUnit = t.targetUnit||'かい'; }
+      saveCfg(); render(); return;
+    }
+    else t[f] = e.target.value;
+
+    saveCfg();
+  });
+
+  ed.addEventListener('click', e=>{
+    const row = e.target.closest('.set-task'); if(!row) return;
+    const i = +row.dataset.i;
+    const mv = e.target.closest('[data-move]');
+    if(mv){
+      const j = i + (+mv.dataset.move);
+      if(j < 0 || j >= config.tasks.length) return;
+      const a = config.tasks; const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+      saveCfg(); render(); return;
+    }
+    if(e.target.closest('[data-del]')){
+      const t = config.tasks[i];
+      if(confirm('「'+t.name+'」を けしますか？\n（きろくは のこります）')){
+        config.tasks.splice(i,1); saveCfg(); render();
+      }
+    }
+  });
+
+  $('#addTask').addEventListener('click', ()=>{
+    config.tasks.push({
+      id: 't' + Date.now(), group:'option', type:'count',
+      name:'あたらしい しゅくだい', total:10, unit:'ばん', numbered:true
+    });
+    saveCfg(); render();
+  });
+
+  $('#expBtn').addEventListener('click', exportData);
+  $('#impBtn').addEventListener('click', ()=> $('#impFile').click());
+  $('#impFile').addEventListener('change', importData);
+
+  $('#resetCfg').addEventListener('click', ()=>{
+    if(confirm('こうもくを さいしょの じょうたいに もどしますか？\n（きろくは のこります）')){
+      config = deepCopy(DEFAULT_CONFIG); saveCfg(); render(); toast('もどしました');
+    }
+  });
+  $('#resetAll').addEventListener('click', ()=>{
+    if(confirm('すすみぐあいと きろくを ぜんぶ けしますか？\nこの そうさは もとに もどせません。')){
+      state = { schema:SCHEMA, progress:{}, logs:[] }; saveSt(); render(); toast('けしました');
+    }
+  });
+}
+
+function exportData(){
+  const blob = new Blob([JSON.stringify({config, state}, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date();
+  a.href = url;
+  a.download = 'natsuyasumi-' + dayKey(d) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  toast('書き出しました');
+}
+
+function importData(e){
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const fr = new FileReader();
+  fr.onload = ()=>{
+    try{
+      const o = JSON.parse(fr.result);
+      if(!o || !o.config || !o.state) throw new Error('形式が ちがいます');
+      if(!confirm('いまの データを 読みこんだ ものに 入れかえます。よろしいですか？')) return;
+      config = o.config; state = o.state;
+      if(!state.progress) state.progress = {};
+      if(!Array.isArray(state.logs)) state.logs = [];
+      saveCfg(); saveSt(); render(); toast('読みこみました');
+    }catch(err){ alert('読みこめませんでした：' + err.message); }
+  };
+  fr.readAsText(f);
+  e.target.value = '';
+}
+
+/* ---------------------------------------------------------
+   イベント
+   --------------------------------------------------------- */
+document.addEventListener('click', e=>{
+
+  const tabBtn = e.target.closest('.tab');
+  if(tabBtn){ tab = tabBtn.dataset.tab; render(); return; }
+
+  const open = e.target.closest('[data-open]');
+  if(open){ openSheet(open.dataset.open); return; }
+
+  const fun = e.target.closest('[data-fun]');
+  if(fun){
+    if(fun.dataset.fun === 'open') funOpen = true;
+    else { funIdx = (funIdx + 1) % FUN.length; funOpen = false; }
+    render(); return;
+  }
+
+  // シート内
+  if(e.target.closest('#sheetClose') || e.target.closest('#sheetCancel') || e.target.id === 'sheetBack'){
+    closeSheet(); return;
+  }
+  if(e.target.closest('#sheetSave')){ saveSheet(); return; }
+
+  const num = e.target.closest('#nums .num');
+  if(num){
+    const n = +num.dataset.n;
+    sheetSel = (n === sheetSel) ? n - 1 : n;   // 同じところを もう一度おすと 1つ もどる
+    $('#nums').innerHTML = numsHTML(sheetTask, sheetSel);
+    $('#selSay').textContent = selSayText(sheetTask, sheetSel);
+    return;
+  }
+  const st = e.target.closest('#steps .step');
+  if(st){
+    const i = +st.dataset.i;
+    sheetSteps[i] = !sheetSteps[i];
+    $('#steps').innerHTML = stepsHTML(sheetTask, sheetSteps);
+    return;
+  }
+  const ta = e.target.closest('#tally .tally-btn');
+  if(ta){
+    sheetSel = +ta.dataset.n;
+    $$('#tally .tally-btn').forEach(b=> b.classList.toggle('sel', +b.dataset.n === sheetSel));
+    return;
+  }
+  const mic = e.target.closest('[data-mic]');
+  if(mic){
+    const id = mic.dataset.mic;
+    const el = id === 'memo' ? $('#memo') : $('#sheetBody [data-q="'+id.slice(1)+'"]');
+    if(el){ if(mic.classList.contains('rec')) stopSR(); else startSR(mic, el); }
+    return;
+  }
+});
+
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && !$('#sheetWrap').hidden) closeSheet();
+});
+
+// タブを もどってきたら 日づけを 更新
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==='home') render(); });
+
+/* ---------------------------------------------------------
+   はじめる
+   --------------------------------------------------------- */
+loadAll();
+render();
+
+})();

@@ -1,0 +1,600 @@
+/* =========================================================
+   はじめ夏休みの宿題一覧
+   ジャポニカ学習帳 × ラジオ体操カード
+   方眼紙の地 / 藍のインク / 色帯の見出し / はんこ
+   ========================================================= */
+
+:root{
+  /* --- いろ --- */
+  --ai:        #14375E;   /* 濃藍 = 文字とふちどり */
+  --ai-usu:    #5B7899;   /* うすい藍 = そえ書き */
+  --kami:      #FCFCF9;   /* 紙 */
+  --sora:      #D7EBF3;   /* 空 = ページの地 */
+  --hougan:    #B9D9E6;   /* 方眼の線 */
+
+  --suika:     #E4503C;   /* すいか = かならずやる */
+  --himawari:  #F5B31E;   /* ひまわり = できればやる */
+  --asagao:    #6C63C4;   /* あさがお = まいにちのアプリ */
+  --wakaba:    #2E9E63;   /* わかば = できた */
+
+  --suika-usu:    #FDEDE9;
+  --himawari-usu: #FEF4DE;
+  --asagao-usu:   #EEEDFA;
+  --wakaba-usu:   #E4F5EC;
+
+  /* --- かたち --- */
+  --r:      18px;
+  --r-s:    12px;
+  --line:   3px;
+  --masu:   28px;          /* 方眼ひとマス */
+  --shadow: 0 3px 0 var(--ai);
+  --shadow-lift: 0 6px 0 var(--ai);
+
+  /* --- もじ --- */
+  --font: "Hiragino Maru Gothic ProN", "ヒラギノ丸ゴ ProN W4",
+          "Zen Maru Gothic", "M PLUS Rounded 1c",
+          "Hiragino Sans", "Yu Gothic", sans-serif;
+  --font-num: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+
+/* display を持つ要素にも hidden を効かせる */
+[hidden]{ display:none !important; }
+
+html{ -webkit-text-size-adjust:100%; }
+
+body{
+  margin:0;
+  font-family:var(--font);
+  font-weight:500;
+  font-size:19px;
+  line-height:1.6;
+  color:var(--ai);
+  background-color:var(--sora);
+  background-image:
+    linear-gradient(var(--hougan) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hougan) 1px, transparent 1px);
+  background-size:var(--masu) var(--masu);
+  background-position:center top;
+  -webkit-tap-highlight-color:transparent;
+  padding-bottom:calc(96px + env(safe-area-inset-bottom));
+  overscroll-behavior-y:contain;
+}
+
+h1,h2,h3,p,ul,ol,figure{ margin:0; }
+ul,ol{ padding:0; list-style:none; }
+button{ font:inherit; color:inherit; }
+
+:focus-visible{
+  outline:4px solid var(--asagao);
+  outline-offset:3px;
+  border-radius:6px;
+}
+
+/* =========================================================
+   うえの色帯（ジャポニカの帯）
+   ========================================================= */
+.topband{
+  position:sticky; top:0; z-index:40;
+  background:var(--ai);
+  border-bottom:var(--line) solid var(--ai);
+  padding-top:env(safe-area-inset-top);
+}
+.topband-inner{
+  max-width:900px; margin:0 auto;
+  display:flex; align-items:center; gap:12px;
+  padding:10px 18px;
+}
+.topband-mark{
+  flex:none; width:14px; height:30px; border-radius:4px;
+  background:linear-gradient(
+    180deg, var(--suika) 0 25%, var(--himawari) 25% 50%,
+    var(--wakaba) 50% 75%, var(--asagao) 75% 100%);
+}
+.topband-title{
+  font-size:21px; font-weight:900; color:var(--kami);
+  letter-spacing:.02em; flex:1 1 auto;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.topband-date{
+  flex:none; font-size:15px; font-weight:700;
+  color:#A9C6DC; font-variant-numeric:tabular-nums;
+}
+
+/* =========================================================
+   ページ
+   ========================================================= */
+.view{
+  max-width:900px; margin:0 auto;
+  padding:20px 16px 8px;
+  display:flex; flex-direction:column; gap:20px;
+}
+.view:focus{ outline:none; }
+
+/* かみ = カード */
+.paper{
+  background:var(--kami);
+  border:var(--line) solid var(--ai);
+  border-radius:var(--r);
+  box-shadow:var(--shadow);
+}
+
+/* 見出し（色帯つき） */
+.sec{ display:flex; flex-direction:column; gap:12px; }
+.sec-head{
+  display:flex; align-items:baseline; gap:12px;
+  padding:8px 14px;
+  border-radius:999px;
+  border:var(--line) solid var(--ai);
+  box-shadow:var(--shadow);
+  background:var(--kami);
+}
+.sec-head h2{ font-size:23px; font-weight:900; letter-spacing:.02em; }
+.sec-head .sec-note{ font-size:15px; font-weight:700; color:var(--ai-usu); }
+.sec-must  .sec-head{ background:var(--suika);    color:var(--kami); }
+.sec-must  .sec-head .sec-note{ color:#FFE0DA; }
+.sec-opt   .sec-head{ background:var(--himawari); }
+.sec-opt   .sec-head .sec-note{ color:#7A5405; }
+.sec-daily .sec-head{ background:var(--asagao);   color:var(--kami); }
+.sec-daily .sec-head .sec-note{ color:#D8D5F3; }
+
+/* =========================================================
+   シグネチャ 1 : マス目のカウントダウン
+   ========================================================= */
+.count{
+  padding:20px 18px 22px;
+  text-align:center;
+  background:var(--kami);
+  border:var(--line) solid var(--ai);
+  border-radius:var(--r);
+  box-shadow:var(--shadow);
+  position:relative; overflow:hidden;
+}
+.count-lead{
+  font-size:18px; font-weight:700; color:var(--ai-usu);
+  margin-bottom:12px;
+}
+.count-lead b{ color:var(--suika); font-weight:900; }
+.cd{
+  display:flex; justify-content:center; align-items:flex-end;
+  flex-wrap:wrap; gap:4px 10px;
+}
+.cd-unit{ display:flex; align-items:flex-end; gap:3px; }
+.cd-d{
+  display:grid; place-items:center;
+  width:46px; height:60px;
+  font-size:40px; font-weight:900; line-height:1;
+  font-variant-numeric:tabular-nums;
+  color:var(--ai); background:#F0F7FA;
+  border:2px solid var(--ai); border-radius:8px;
+  /* 方眼のマス目に数字が1つずつ入る */
+}
+.cd-unit--big .cd-d{ width:56px; height:74px; font-size:52px; background:var(--himawari); }
+.cd-lab{
+  font-size:17px; font-weight:900; padding:0 2px 8px;
+  color:var(--ai-usu);
+}
+.count-over{
+  font-size:30px; font-weight:900; color:var(--suika); padding:14px 0;
+}
+
+/* =========================================================
+   シグネチャ 2 : ペースメーター（2本ならべ）
+   ========================================================= */
+.pace{ margin-top:20px; padding-top:18px; border-top:2px dashed var(--hougan); }
+.pace-row{
+  display:grid; grid-template-columns:104px 1fr 68px;
+  align-items:center; gap:10px; margin-bottom:10px;
+}
+.pace-name{ font-size:16px; font-weight:900; text-align:right; }
+.pace-pct{
+  font-size:19px; font-weight:900; text-align:left;
+  font-variant-numeric:tabular-nums;
+}
+.bar{
+  height:26px; border:2px solid var(--ai); border-radius:999px;
+  background:#EEF5F8; overflow:hidden; position:relative;
+}
+.bar-fill{
+  height:100%; border-radius:999px 0 0 999px;
+  transition:width .5s cubic-bezier(.2,.8,.3,1);
+}
+.bar-fill--natsu{ background:repeating-linear-gradient(45deg,#9EC3D6 0 8px,#B4D2E1 8px 16px); }
+.bar-fill--todo{ background:var(--wakaba); }
+.pace-verdict{
+  margin-top:6px; text-align:center;
+  font-size:21px; font-weight:900;
+  padding:10px 14px; border-radius:var(--r-s);
+  border:2px solid var(--ai);
+}
+.v-good{ background:var(--wakaba-usu); color:var(--wakaba); }
+.v-ok{   background:var(--himawari-usu); }
+.v-hmm{  background:var(--suika-usu); color:var(--suika); }
+
+/* =========================================================
+   しゅくだいカード
+   ========================================================= */
+.task{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:6px 14px;
+  padding:16px 18px;
+  background:var(--kami);
+  border:var(--line) solid var(--ai);
+  border-radius:var(--r);
+  box-shadow:var(--shadow);
+  position:relative;
+}
+.task + .task{ margin-top:12px; }
+.task-name{
+  grid-column:1; font-size:25px; font-weight:900; line-height:1.35;
+}
+.task-next{
+  grid-column:1; display:flex; align-items:center; gap:8px;
+  font-size:18px; font-weight:700; color:var(--ai-usu);
+}
+.task-next .next-num{
+  font-size:30px; font-weight:900; color:var(--suika);
+  line-height:1;
+}
+.sec-opt   .task-next .next-num{ color:#B98305; }
+.sec-daily .task-next .next-num{ color:var(--asagao); }
+.task-meter{ grid-column:1; display:flex; align-items:center; gap:12px; margin-top:4px; }
+.task-meter .bar{ flex:1 1 auto; height:22px; }
+.task-count{
+  font-size:19px; font-weight:900; font-variant-numeric:tabular-nums;
+  white-space:nowrap; min-width:78px; text-align:right;
+}
+.task-act{ grid-column:2; grid-row:1 / span 3; align-self:center; }
+
+/* 進捗バーは「できた量」なので常に緑。区分の色は見出し帯が担う */
+.task .bar-fill{ background:var(--wakaba); }
+
+/* できあがったカード */
+.task.is-done{ background:var(--wakaba-usu); }
+.task.is-done .task-name::after{
+  content:"できた！"; margin-left:10px;
+  font-size:16px; font-weight:900; color:var(--kami);
+  background:var(--wakaba); border-radius:999px;
+  padding:3px 12px; vertical-align:middle; white-space:nowrap;
+}
+
+/* まいにちアプリの ハート */
+.hearts{ display:flex; gap:6px; font-size:28px; line-height:1; }
+.heart{ filter:grayscale(1); opacity:.3; }
+.heart.on{ filter:none; opacity:1; }
+.streak{
+  font-size:16px; font-weight:900; color:var(--asagao);
+  background:var(--asagao-usu); border:2px solid var(--asagao);
+  border-radius:999px; padding:2px 12px;
+}
+
+/* =========================================================
+   ボタン
+   ========================================================= */
+.btn{
+  appearance:none; cursor:pointer;
+  font-weight:900; font-size:20px; line-height:1.2;
+  padding:14px 22px; min-height:56px;
+  border:var(--line) solid var(--ai);
+  border-radius:14px;
+  background:var(--kami);
+  box-shadow:var(--shadow);
+  transition:transform .08s, box-shadow .08s;
+}
+.btn:active{ transform:translateY(3px); box-shadow:0 0 0 var(--ai); }
+.btn-go{ background:var(--wakaba); color:var(--kami); }
+.btn-do{ background:var(--himawari); }
+.btn-ghost{ background:var(--kami); box-shadow:none; border-color:var(--ai-usu); color:var(--ai-usu); }
+.btn-ghost:active{ transform:translateY(2px); }
+.btn-sm{ font-size:16px; padding:9px 14px; min-height:44px; border-width:2px; box-shadow:0 2px 0 var(--ai); }
+.btn-danger{ background:var(--suika); color:var(--kami); }
+.btn-wide{ width:100%; }
+
+/* =========================================================
+   きろくする（タスクえらび）
+   ========================================================= */
+.pick{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; }
+.pick-btn{
+  display:flex; flex-direction:column; align-items:flex-start; gap:6px;
+  text-align:left; padding:16px 18px; min-height:96px;
+  border:var(--line) solid var(--ai); border-radius:var(--r);
+  background:var(--kami); box-shadow:var(--shadow); cursor:pointer;
+  transition:transform .08s, box-shadow .08s;
+}
+.pick-btn:active{ transform:translateY(3px); box-shadow:0 0 0 var(--ai); }
+.pick-btn .pn{ font-size:21px; font-weight:900; line-height:1.3; }
+.pick-btn .ps{ font-size:16px; font-weight:700; color:var(--ai-usu); }
+.pick-must  { background:var(--suika-usu); }
+.pick-opt   { background:var(--himawari-usu); }
+.pick-daily { background:var(--asagao-usu); }
+.pick-btn.is-done{ background:var(--wakaba-usu); }
+
+/* =========================================================
+   シート（きろく入力）
+   ========================================================= */
+.sheet-wrap{ position:fixed; inset:0; z-index:60; display:flex; align-items:flex-end; justify-content:center; }
+.sheet-back{ position:absolute; inset:0; background:rgba(20,55,94,.45); }
+.sheet{
+  position:relative; width:100%; max-width:640px;
+  max-height:92vh; display:flex; flex-direction:column;
+  background:var(--kami);
+  border:var(--line) solid var(--ai);
+  border-radius:var(--r) var(--r) 0 0;
+  animation:slideup .28s cubic-bezier(.2,.9,.3,1);
+}
+@keyframes slideup{ from{ transform:translateY(26px); opacity:0 } to{ transform:none; opacity:1 } }
+.sheet-head{
+  display:flex; align-items:center; gap:12px;
+  padding:14px 18px; border-bottom:var(--line) solid var(--ai);
+  background:var(--ai); color:var(--kami);
+  border-radius:15px 15px 0 0;
+}
+.sheet-title{ flex:1; font-size:22px; font-weight:900; }
+.sheet-close{
+  flex:none; width:44px; height:44px; border-radius:50%;
+  border:2px solid var(--kami); background:transparent; color:var(--kami);
+  font-size:26px; font-weight:900; line-height:1; cursor:pointer;
+}
+.sheet-body{ padding:18px; overflow-y:auto; -webkit-overflow-scrolling:touch; flex:1 1 auto; }
+.sheet-foot{
+  display:flex; gap:12px; padding:14px 18px;
+  padding-bottom:calc(14px + env(safe-area-inset-bottom));
+  border-top:2px dashed var(--hougan); background:var(--kami);
+}
+.sheet-foot .btn{ flex:1; }
+.sheet-foot .btn-ghost{ flex:0 0 34%; }
+
+.field{ margin-bottom:20px; }
+.field > .lab{
+  display:block; font-size:18px; font-weight:900; margin-bottom:10px;
+}
+.field > .hint{ font-size:15px; font-weight:700; color:var(--ai-usu); margin:-6px 0 10px; }
+
+/* 番号チップ */
+.nums{ display:grid; grid-template-columns:repeat(auto-fill,minmax(64px,1fr)); gap:8px; }
+.num{
+  aspect-ratio:1/1; min-height:62px;
+  display:grid; place-items:center;
+  font-size:26px; font-weight:900;
+  border:2px solid var(--ai); border-radius:12px;
+  background:var(--kami); cursor:pointer;
+  transition:transform .08s;
+}
+.num:active{ transform:scale(.94); }
+.num.done{ background:var(--wakaba-usu); color:var(--wakaba); border-color:var(--wakaba); }
+.num.sel{ background:var(--wakaba); color:var(--kami); border-color:var(--ai); box-shadow:0 3px 0 var(--ai); }
+.sel-say{
+  font-size:20px; font-weight:900; color:var(--wakaba);
+  background:var(--wakaba-usu); border:2px solid var(--wakaba);
+  border-radius:999px; padding:6px 16px; margin:0 0 12px;
+  display:inline-block;
+}
+
+/* 段階チェック */
+.steps{ display:flex; flex-direction:column; gap:10px; }
+.step{
+  display:flex; align-items:center; gap:14px;
+  padding:14px 16px; cursor:pointer;
+  border:2px solid var(--ai); border-radius:var(--r-s);
+  background:var(--kami); font-size:20px; font-weight:700; text-align:left;
+}
+.step .box{
+  flex:none; width:36px; height:36px; border-radius:9px;
+  border:2px solid var(--ai); display:grid; place-items:center;
+  font-size:24px; font-weight:900; color:transparent; background:var(--kami);
+}
+.step.on{ background:var(--wakaba-usu); border-color:var(--wakaba); }
+.step.on .box{ background:var(--wakaba); border-color:var(--wakaba); color:var(--kami); }
+
+/* 質問（かんさつカード） */
+.q{ margin-bottom:16px; }
+.q-t{
+  font-size:18px; font-weight:900; margin-bottom:8px;
+  display:flex; gap:8px; align-items:flex-start;
+}
+.q-t .qn{
+  flex:none; width:28px; height:28px; border-radius:50%;
+  background:var(--wakaba); color:var(--kami);
+  display:grid; place-items:center; font-size:16px;
+}
+
+/* にゅうりょく */
+textarea, input[type=text], input[type=number], input[type=datetime-local], select{
+  width:100%; font:inherit; font-size:19px; font-weight:500; color:var(--ai);
+  padding:12px 14px; background:var(--kami);
+  border:2px solid var(--ai); border-radius:var(--r-s);
+}
+textarea{ min-height:88px; resize:vertical; line-height:1.6; }
+.mic-row{ display:flex; gap:10px; align-items:flex-start; }
+.mic-row textarea{ flex:1; }
+.mic{
+  flex:none; width:60px; height:60px; border-radius:50%;
+  border:var(--line) solid var(--ai); background:var(--himawari);
+  font-size:26px; cursor:pointer; box-shadow:var(--shadow);
+}
+.mic.rec{ background:var(--suika); animation:pulse 1s infinite; }
+@keyframes pulse{ 50%{ transform:scale(1.08) } }
+.mic-note{ font-size:15px; font-weight:700; color:var(--ai-usu); margin-top:8px; }
+
+/* まいにちアプリの入力 */
+.tally{ display:flex; gap:10px; flex-wrap:wrap; }
+.tally-btn{
+  flex:1 1 92px; min-height:76px; font-size:30px; font-weight:900;
+  border:2px solid var(--ai); border-radius:14px; background:var(--kami); cursor:pointer;
+}
+.tally-btn.sel{ background:var(--asagao); color:var(--kami); box-shadow:0 3px 0 var(--ai); }
+
+/* =========================================================
+   きょう / きろく
+   ========================================================= */
+.today-list{ display:flex; flex-direction:column; }
+.today-item{
+  display:flex; gap:12px; align-items:baseline;
+  padding:12px 16px; border-bottom:2px dashed var(--hougan);
+}
+.today-item:last-child{ border-bottom:none; }
+.ti-time{
+  flex:none; font-family:var(--font-num); font-size:15px; font-weight:700;
+  color:var(--ai-usu); width:52px;
+}
+.ti-body{ flex:1; }
+.ti-name{ font-size:19px; font-weight:900; }
+.ti-what{ font-size:17px; font-weight:700; color:var(--wakaba); }
+.ti-memo{
+  font-size:16px; font-weight:500; color:var(--ai-usu);
+  margin-top:4px; white-space:pre-wrap; word-break:break-word;
+}
+.day-head{
+  display:flex; align-items:center; gap:10px;
+  font-size:19px; font-weight:900; padding:10px 4px 8px;
+}
+.day-head .cnt{
+  font-size:15px; background:var(--ai); color:var(--kami);
+  border-radius:999px; padding:2px 12px;
+}
+.empty{
+  padding:28px 20px; text-align:center;
+  font-size:19px; font-weight:700; color:var(--ai-usu);
+}
+
+/* =========================================================
+   なぞなぞ / まめちしき
+   ========================================================= */
+.fun{
+  padding:18px 20px 20px;
+  background:linear-gradient(180deg,#FFF9E6,#FEF4DE);
+}
+.fun-tag{
+  display:inline-block; font-size:15px; font-weight:900;
+  background:var(--ai); color:var(--kami);
+  border-radius:999px; padding:3px 14px; margin-bottom:10px;
+}
+.fun-q{ font-size:23px; font-weight:900; line-height:1.5; }
+.fun-a{
+  margin-top:12px; font-size:22px; font-weight:900; color:var(--suika);
+  background:var(--kami); border:2px dashed var(--suika);
+  border-radius:var(--r-s); padding:12px 16px;
+}
+.fun-row{ display:flex; gap:10px; margin-top:14px; }
+
+/* =========================================================
+   せってい
+   ========================================================= */
+.set-row{
+  display:grid; grid-template-columns:150px 1fr; gap:12px;
+  align-items:center; padding:12px 16px;
+  border-bottom:2px dashed var(--hougan);
+}
+.set-row:last-child{ border-bottom:none; }
+.set-row .lab{ font-size:17px; font-weight:900; }
+.set-task{
+  padding:14px 16px; border-bottom:2px dashed var(--hougan);
+  display:flex; flex-direction:column; gap:10px;
+}
+.set-task:last-child{ border-bottom:none; }
+.set-task-top{ display:flex; gap:10px; align-items:center; }
+.set-task-top input[type=text]{ flex:1; font-size:18px; font-weight:700; }
+.set-grid{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.set-grid label{ font-size:15px; font-weight:900; display:flex; align-items:center; gap:6px; }
+.set-grid select, .set-grid input[type=number]{ width:auto; min-width:92px; font-size:17px; padding:8px 10px; }
+.icon-btn{
+  flex:none; width:44px; height:44px; border-radius:10px;
+  border:2px solid var(--ai); background:var(--kami);
+  font-size:20px; font-weight:900; cursor:pointer;
+}
+.icon-btn.del{ background:var(--suika-usu); color:var(--suika); border-color:var(--suika); }
+.set-note{
+  font-size:15px; font-weight:700; color:var(--ai-usu);
+  padding:12px 16px; line-height:1.7;
+}
+.set-actions{ display:flex; gap:10px; flex-wrap:wrap; padding:14px 16px; }
+
+/* =========================================================
+   はんこ / トースト
+   ========================================================= */
+.stamp{
+  position:fixed; inset:0; z-index:80;
+  display:grid; place-items:center; pointer-events:none;
+}
+.stamp-mark{
+  font-size:44px; font-weight:900; color:var(--suika);
+  border:8px solid var(--suika); border-radius:24px;
+  padding:22px 40px; background:rgba(252,252,249,.94);
+  transform:rotate(-11deg);
+  animation:stamping .85s cubic-bezier(.2,1.4,.4,1) forwards;
+}
+@keyframes stamping{
+  0%{ transform:rotate(-24deg) scale(2.6); opacity:0 }
+  22%{ transform:rotate(-11deg) scale(1); opacity:1 }
+  70%{ transform:rotate(-11deg) scale(1); opacity:1 }
+  100%{ transform:rotate(-11deg) scale(1.06); opacity:0 }
+}
+
+.toast{
+  position:fixed; left:50%; bottom:calc(104px + env(safe-area-inset-bottom));
+  transform:translateX(-50%); z-index:70;
+  background:var(--ai); color:var(--kami);
+  font-size:18px; font-weight:900;
+  padding:12px 24px; border-radius:999px;
+  box-shadow:0 4px 14px rgba(20,55,94,.3);
+  animation:slideup .2s ease;
+  max-width:88vw; text-align:center;
+}
+
+/* =========================================================
+   したのタブ
+   ========================================================= */
+.tabbar{
+  position:fixed; left:0; right:0; bottom:0; z-index:50;
+  display:flex; justify-content:center; gap:4px;
+  background:var(--kami);
+  border-top:var(--line) solid var(--ai);
+  padding:8px 8px calc(8px + env(safe-area-inset-bottom));
+}
+.tab{
+  flex:1 1 0; max-width:190px;
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  padding:8px 4px; min-height:64px;
+  background:transparent; border:none; border-radius:12px;
+  cursor:pointer; color:var(--ai-usu);
+}
+.tab-ico{ font-size:26px; line-height:1; filter:grayscale(.8); }
+.tab-txt{ font-size:14px; font-weight:900; }
+.tab.is-on{ color:var(--ai); background:var(--sora); }
+.tab.is-on .tab-ico{ filter:none; }
+
+/* =========================================================
+   ちいさい画面
+   ========================================================= */
+@media (max-width:560px){
+  body{ font-size:18px; }
+  .cd-d{ width:38px; height:50px; font-size:32px; }
+  .cd-unit--big .cd-d{ width:44px; height:60px; font-size:40px; }
+  .task-name{ font-size:22px; }
+  .task{ grid-template-columns:1fr; }
+  .task-act{ grid-column:1; grid-row:auto; }
+  .task-act .btn{ width:100%; }
+  .pace-row{ grid-template-columns:84px 1fr 60px; }
+  .pace-name{ font-size:14px; }
+  .set-row{ grid-template-columns:1fr; gap:6px; }
+}
+
+/* おおきい画面ではカウントダウンをもっと大きく */
+@media (min-width:760px){
+  .count{ padding:28px 24px 30px; }
+  .cd-d{ width:58px; height:76px; font-size:52px; }
+  .cd-unit--big .cd-d{ width:72px; height:94px; font-size:66px; }
+  .cd-lab{ font-size:19px; }
+}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;
+  }
+}
+
+@media print{ .tabbar,.sheet-wrap{ display:none } }
