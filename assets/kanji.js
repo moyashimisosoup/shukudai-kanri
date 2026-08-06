@@ -43,56 +43,88 @@ function kataToHira(s){
     String.fromCharCode(c.charCodeAt(0) - 0x60));
 }
 
-/* --- kuromoji の遅延読み込み --- */
+/* --- 形態素解析はワーカーの中だけで動かす --- */
 const KUROMOJI_BASE = 'https://unpkg.com/kuromoji@0.1.2';
-let tokenizer = null;
-let tokenizerPromise = null;
+const DICT_MB = 17;
 
-function loadTokenizer(){
-  if(tokenizer) return Promise.resolve(tokenizer);
-  if(tokenizerPromise) return tokenizerPromise;
+let worker = null;
+let workerPromise = null;
+let seq = 0;
+const pending = {};
 
-  tokenizerPromise = new Promise((resolve, reject)=>{
-    // 辞書は全部で約17MB。回線が細いと数分かかることがある
-    const timer = setTimeout(()=> reject(new Error('じしょの よみこみに 時間が かかりすぎました')), 180000);
-    const done = (err, tk)=>{
-      clearTimeout(timer);
-      if(err){ tokenizerPromise = null; reject(err); }
-      else { tokenizer = tk; resolve(tk); }
+/* 辞書をまだ持っていないか。初回の読み込みを事前に知らせるために使う */
+function needsDictDownload(){ return !worker; }
+function dictSizeMB(){ return DICT_MB; }
+
+function ensureWorker(){
+  if(worker) return Promise.resolve(worker);
+  if(workerPromise) return workerPromise;
+
+  workerPromise = new Promise((resolve, reject)=>{
+    if(typeof Worker === 'undefined'){
+      reject(new Error('この ブラウザでは つかえません')); return;
+    }
+    let w;
+    try{ w = new Worker('assets/kanji-worker.js'); }
+    catch(e){ workerPromise = null; reject(new Error('じしょが よみこめません')); return; }
+
+    // 17MB の取得と展開。回線が細いと数分かかることがある
+    const timer = setTimeout(()=>{
+      workerPromise = null; try{ w.terminate(); }catch(e){}
+      reject(new Error('時間が かかりすぎました'));
+    }, 300000);
+
+    w.onmessage = ev=>{
+      const m = ev.data || {};
+      if(m.type === 'ready'){
+        clearTimeout(timer);
+        if(m.ok){ worker = w; resolve(w); }
+        else { workerPromise = null; try{ w.terminate(); }catch(e){} reject(new Error(m.error)); }
+        return;
+      }
+      if(m.type === 'tokens'){
+        const p = pending[m.id];
+        if(!p) return;
+        delete pending[m.id];
+        m.ok ? p.resolve(m.tokens) : p.reject(new Error(m.error));
+      }
     };
-    const build = ()=>{
-      if(typeof kuromoji === 'undefined'){ done(new Error('じしょが よみこめません')); return; }
-      kuromoji.builder({ dicPath: KUROMOJI_BASE + '/dict/' }).build(done);
+    w.onerror = ()=>{
+      clearTimeout(timer); workerPromise = null;
+      reject(new Error('じしょが よみこめません'));
     };
 
-    if(typeof kuromoji !== 'undefined'){ build(); return; }
-    const s = document.createElement('script');
-    s.src = KUROMOJI_BASE + '/build/kuromoji.js';
-    s.onload = build;
-    s.onerror = ()=> done(new Error('じしょが よみこめません'));
-    document.head.appendChild(s);
+    w.postMessage({
+      type:'init',
+      libUrl: KUROMOJI_BASE + '/build/kuromoji.js',
+      dicPath: KUROMOJI_BASE + '/dict/'
+    });
   });
-  return tokenizerPromise;
+  return workerPromise;
+}
+
+function tokenizeInWorker(text){
+  return ensureWorker().then(w => new Promise((resolve, reject)=>{
+    const id = ++seq;
+    pending[id] = { resolve, reject };
+    w.postMessage({ type:'tokenize', id, text });
+  }));
 }
 
 /* 習っていない漢字を含む語だけ、まるごとひらがなに置きかえる。
    「面白かった」→「おもしろかった」のように送りがなごと直るので、
    そのまま書き写せる。 */
-function toGrade2Text(text, tk){
-  return tk.tokenize(String(text || '')).map(t=>{
-    const sf = t.surface_form;
+function tokensToGrade2(tokens){
+  return tokens.map(t=>{
+    const sf = t.s;
     if(![...sf].some(isKanji)) return sf;
     if([...sf].every(ch => !isKanji(ch) || LEARNED.has(ch))) return sf;
-    const yomi = t.reading;
-    if(!yomi || yomi === '*') return sf;      // 辞書に読みがない語はそのまま
-    return kataToHira(yomi);
+    if(!t.r || t.r === '*') return sf;        // 辞書に読みがない語はそのまま
+    return kataToHira(t.r);
   }).join('');
 }
 
-/* 辞書をまだ持っていないか。初回の読み込みを事前に知らせるために使う */
-function needsDictDownload(){ return !tokenizer; }
-
-/* 変換の入り口。辞書が使えない環境では reason を付けて元の文を返す */
+/* ぜんぶひらがなに直す。辞書が必要なのはこの関数だけ */
 function convertForTranscription(text){
   const src = String(text || '').trim();
   if(!src) return Promise.resolve({ ok:true, text:'', unlearned:[] });
@@ -100,7 +132,16 @@ function convertForTranscription(text){
   const unlearned = unlearnedKanji(src);
   if(!unlearned.length) return Promise.resolve({ ok:true, text:src, unlearned:[] });
 
-  return loadTokenizer()
-    .then(tk => ({ ok:true, text: toGrade2Text(src, tk), unlearned }))
+  return tokenizeInWorker(src)
+    .then(tokens => ({ ok:true, text: tokensToGrade2(tokens), unlearned }))
     .catch(err => ({ ok:false, text:src, unlearned, reason: err.message }));
+}
+
+/* 習っていない漢字に印を付けた HTML。辞書がなくても すぐ出せる */
+function markUnlearnedHTML(text){
+  return [...String(text || '')].map(ch=>{
+    const e = ch.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if(ch === '\n') return '<br>';
+    return (isKanji(ch) && !LEARNED.has(ch)) ? '<mark class="kj-x">' + e + '</mark>' : e;
+  }).join('');
 }

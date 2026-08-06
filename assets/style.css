@@ -156,24 +156,33 @@ button{ font:inherit; color:inherit; }
   margin-bottom:12px;
 }
 .count-lead b{ color:var(--suika); font-weight:900; }
+/* 画面幅に合わせて縮むので、iPad の縦でも横1行に収まる */
 .cd{
   display:flex; justify-content:center; align-items:flex-end;
-  flex-wrap:wrap; gap:4px 10px;
+  flex-wrap:nowrap; gap:clamp(3px, .9vw, 10px);
 }
-.cd-unit{ display:flex; align-items:flex-end; gap:3px; }
+.cd-unit{ display:flex; align-items:flex-end; gap:clamp(2px, .35vw, 3px); }
 .cd-d{
   display:grid; place-items:center;
-  width:46px; height:60px;
-  font-size:40px; font-weight:900; line-height:1;
+  width:clamp(28px, 5vw, 58px);
+  height:clamp(38px, 6.6vw, 76px);
+  font-size:clamp(24px, 4.2vw, 52px);
+  font-weight:900; line-height:1;
   font-variant-numeric:tabular-nums;
   color:var(--ai); background:#F0F7FA;
   border:2px solid var(--ai); border-radius:8px;
   /* 方眼のマス目に数字が1つずつ入る */
 }
-.cd-unit--big .cd-d{ width:56px; height:74px; font-size:52px; background:var(--himawari); }
+.cd-unit--big .cd-d{
+  width:clamp(34px, 6.2vw, 72px);
+  height:clamp(46px, 8.2vw, 94px);
+  font-size:clamp(30px, 5.4vw, 66px);
+  background:var(--himawari);
+}
 .cd-lab{
-  font-size:17px; font-weight:900; padding:0 2px 8px;
-  color:var(--ai-usu);
+  font-size:clamp(11px, 1.6vw, 19px); font-weight:900;
+  padding:0 1px clamp(5px, .8vw, 9px);
+  color:var(--ai-usu); white-space:nowrap;
 }
 .count-over{
   font-size:30px; font-weight:900; color:var(--suika); padding:14px 0;
@@ -226,7 +235,29 @@ button{ font:inherit; color:inherit; }
   box-shadow:var(--shadow);
   position:relative;
 }
-.task + .task{ margin-top:12px; }
+.task-list > .task + .task{ margin-top:12px; }
+
+/* まいにちの欄は2つで1段。自由記述だけは横いっぱいに広げる */
+.task-list--2up{
+  display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px;
+}
+.task-list--2up > .task{ margin-top:0; grid-template-columns:1fr; }
+.task-list--2up > .task .task-act{ grid-column:1; grid-row:auto; }
+.task-list--2up > .task .task-act .btn{ width:100%; }
+.task-list--2up > .task-free{ grid-column:1 / -1; }
+
+.free-body{ margin-top:6px; }
+.free-ask{ font-size:17px; font-weight:700; color:var(--ai-usu); line-height:1.5; }
+.free-said{
+  font-size:18px; font-weight:700;
+  background:var(--asagao-usu); border:2px solid var(--asagao);
+  border-radius:var(--r-s); padding:10px 14px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+@media (max-width:560px){
+  .task-list--2up{ grid-template-columns:1fr; }
+}
 .task-name{
   grid-column:1; font-size:25px; font-weight:900; line-height:1.35;
 }
@@ -447,6 +478,55 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .star-say{ font-size:17px; font-weight:900; color:var(--ai-usu); margin-left:6px; }
 #bkDate{ max-width:260px; font-size:20px; }
 
+/* 習っていない漢字の確認 */
+.kj-box{
+  margin-top:16px; padding:14px 16px;
+  background:var(--suika-usu); border:2px solid var(--suika);
+  border-radius:var(--r-s);
+}
+.kj-list{
+  font-size:26px; font-weight:900; color:var(--suika);
+  line-height:1.6; margin:6px 0 12px; word-break:break-word;
+}
+.kj-view{
+  font-size:19px; font-weight:700; line-height:2;
+  background:var(--kami); border:2px solid var(--hougan);
+  border-radius:var(--r-s); padding:12px 14px; margin:0 0 10px;
+  word-break:break-word;
+}
+.kj-x{
+  background:var(--suika); color:var(--kami);
+  border-radius:5px; padding:1px 3px; font-weight:900;
+}
+
+/* 子ども向けの一覧。紙のカードへ書き写しやすい大きさにする */
+.bookcard{
+  background:var(--kami);
+  border:var(--line) solid var(--ai);
+  border-radius:var(--r);
+  box-shadow:var(--shadow);
+  padding:16px 18px;
+}
+.bookcard + .bookcard{ margin-top:14px; }
+.bookcard-head{ display:flex; align-items:center; gap:12px; }
+.bookcard-title{ flex:1; font-size:24px; font-weight:900; line-height:1.35; word-break:break-word; }
+.bookcard-fields{
+  display:grid; grid-template-columns:auto 1fr; gap:6px 16px;
+  margin:14px 0 0; padding:14px 0 0; border-top:2px dashed var(--hougan);
+}
+.bookcard-fields dt{ font-size:16px; font-weight:900; color:var(--ai-usu); white-space:nowrap; }
+.bookcard-fields dd{ margin:0; font-size:19px; font-weight:700; word-break:break-word; }
+.bk-stars{ color:var(--himawari); letter-spacing:.1em; font-size:22px; }
+.bookcard-memo{
+  margin-top:14px; padding:12px 16px;
+  background:#F2F8FB; border:2px solid var(--hougan); border-radius:var(--r-s);
+}
+.bookcard-memo-lab{ font-size:15px; font-weight:900; color:var(--ai-usu); }
+.bookcard-memo p{ font-size:20px; font-weight:700; line-height:1.9; margin-top:4px; word-break:break-word; }
+
+.task-sub{ display:block; margin-top:8px; text-align:center; text-decoration:none; }
+.task-list--2up .task-sub, .task .task-sub{ width:100%; }
+
 /* 保護者ページの一覧 */
 .book-row{
   display:flex; align-items:flex-start; gap:12px;
@@ -621,10 +701,16 @@ body.no-tabbar{ padding-bottom:24px; }
 /* =========================================================
    ちいさい画面
    ========================================================= */
-@media (max-width:560px){
-  body{ font-size:18px; }
+/* スマホ幅では横1行に入りきらないので、2段に折り返す */
+@media (max-width:599px){
+  .cd{ flex-wrap:wrap; row-gap:8px; column-gap:8px; }
   .cd-d{ width:38px; height:50px; font-size:32px; }
   .cd-unit--big .cd-d{ width:44px; height:60px; font-size:40px; }
+  .cd-lab{ font-size:15px; padding-bottom:7px; }
+}
+
+@media (max-width:560px){
+  body{ font-size:18px; }
   .task-name{ font-size:22px; }
   .task{ grid-template-columns:1fr; }
   .task-act{ grid-column:1; grid-row:auto; }
@@ -634,12 +720,8 @@ body.no-tabbar{ padding-bottom:24px; }
   .set-row{ grid-template-columns:1fr; gap:6px; }
 }
 
-/* おおきい画面ではカウントダウンをもっと大きく */
 @media (min-width:760px){
   .count{ padding:28px 24px 30px; }
-  .cd-d{ width:58px; height:76px; font-size:52px; }
-  .cd-unit--big .cd-d{ width:72px; height:94px; font-size:66px; }
-  .cd-lab{ font-size:19px; }
 }
 
 @media (prefers-reduced-motion:reduce){

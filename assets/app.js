@@ -11,9 +11,10 @@
 const K_CFG = 'natsu.config.v2';
 const K_ST  = 'natsu.state.v2';
 
-const TABS = ['home','log','settings'];
+const TABS = ['home','log','books','settings'];
 
 function isBook(t){ return t && t.type === 'count' && t.recordStyle === 'book'; }
+function isFree(t){ return t && t.type === 'daily' && t.recordStyle === 'free'; }
 function bookFields(t){
   return Object.assign({ author:false, publisher:false, rating:true }, (t && t.bookFields) || {});
 }
@@ -168,6 +169,13 @@ function viewHome(){
   const o = overall('must');
   const nokori = must.filter(t=>!prog(t).isDone).length;
 
+  // 今日のぶんが終わっていれば、まいにちの欄は下へ下がって邪魔をしない
+  const dailyAllDone = daily.length > 0 && daily.every(t => prog(t).isDone);
+  const dailySec = daily.length
+    ? sectionHTML('daily','まいにち すこしずつ',
+        dailyAllDone ? 'きょうは ぜんぶ できた！' : 'きょうの ぶん', daily)
+    : '';
+
   return `
   <section class="count">
     <p class="count-lead">なつやすみ おわりまで　<b>あと</b></p>
@@ -175,15 +183,16 @@ function viewHome(){
     ${paceHTML(o)}
   </section>
 
+  ${dailyAllDone ? '' : dailySec}
   ${sectionHTML('must','かならず やる', nokori>0 ? 'のこり '+nokori+'こ' : 'ぜんぶ できた！', must)}
   ${opt.length   ? sectionHTML('opt','できれば やる','じかんが あるとき', opt) : ''}
-  ${daily.length ? sectionHTML('daily','まいにち すこしずつ','きょうの ぶん', daily) : ''}
 
   <section class="sec">
     <div class="sec-head"><h2>きょう やったこと</h2><span class="sec-note">${fmtDate(new Date())}</span></div>
     <div class="paper today-list">${todayHTML()}</div>
   </section>
 
+  ${dailyAllDone ? dailySec : ''}
   ${funHTML()}
   `;
 }
@@ -230,7 +239,7 @@ function sectionHTML(kind, title, note, tasks){
   return `
   <section class="sec sec-${kind}">
     <div class="sec-head"><h2>${esc(title)}</h2><span class="sec-note">${esc(note)}</span></div>
-    <div>${tasks.map(taskHTML).join('')}</div>
+    <div class="task-list${kind==='daily' ? ' task-list--2up' : ''}">${tasks.map(taskHTML).join('')}</div>
   </section>`;
 }
 
@@ -239,7 +248,15 @@ function taskHTML(t){
   const nx = nextLabel(t);
 
   let meter;
-  if(t.type === 'daily'){
+  if(isFree(t)){
+    const today = (state.logs || []).filter(l =>
+      l.taskId === t.id && dayKey(new Date(l.at)) === dayKey(new Date()));
+    const last = today[today.length - 1];
+    meter = `<div class="free-body">${last
+      ? `<p class="free-said">${esc((last.memo || '').split('\n')[0])}</p>`
+      : `<p class="free-ask">${esc(t.freeHint || 'きょうの ことを かいてみよう。')}</p>`}</div>`;
+  }
+  else if(t.type === 'daily'){
     const n = Math.max(p.total, p.done);
     let hearts = '';
     for(let i=1;i<=n;i++) hearts += `<span class="heart${i<=p.done?' on':''}">❤️</span>`;
@@ -255,15 +272,17 @@ function taskHTML(t){
   }
 
   return `
-  <article class="task${p.isDone?' is-done':''}">
+  <article class="task${p.isDone?' is-done':''}${isFree(t)?' task-free':''}">
     <h3 class="task-name">${esc(t.name)}</h3>
-    ${nx ? `<p class="task-next">${nx.lead}
+    ${nx && !isFree(t) ? `<p class="task-next">${nx.lead}
         ${nx.num ? `<span class="next-num">${esc(nx.num)}</span>` : ''}${esc(nx.tail)}</p>` : ''}
     ${meter}
     <div class="task-act">
       <button class="btn ${p.isDone?'btn-ghost':'btn-do'}" data-open="${esc(t.id)}" type="button">
-        ${p.isDone ? 'なおす' : 'やった！'}
+        ${isFree(t) ? (p.isDone ? 'また かく' : 'かく') : (p.isDone ? 'なおす' : 'やった！')}
       </button>
+      ${isBook(t) && p.done > 0
+        ? `<a class="btn btn-sm btn-ghost task-sub" href="#books">よんだ本を 見る</a>` : ''}
     </div>
   </article>`;
 }
@@ -295,8 +314,9 @@ function funHTML(){
     <p class="fun-q">${esc(f.q)}</p>
     ${funOpen ? `<p class="fun-a">${esc(f.a)}</p>` : ''}
     <div class="fun-row">
-      ${funOpen ? '' : `<button class="btn btn-sm" data-fun="open" type="button">こたえを 見る</button>`}
-      <button class="btn btn-sm" data-fun="next" type="button">つぎの もんだい</button>
+      ${funOpen ? '' : `<button class="btn btn-sm" data-fun="open" type="button">${
+        f.t === 'なぞなぞ' ? 'こたえを 見る' : 'つづきを 見る'}</button>`}
+      <button class="btn btn-sm" data-fun="next" type="button">つぎの はなし</button>
     </div>
   </section>`;
 }
@@ -321,6 +341,56 @@ function renderCountdown(){
     `<span class="cd-lab">${lab}</span></div>`;
 
   box.innerHTML = `<div class="cd">${unit(d,'にち',true)}${unit(h,'じかん')}${unit(m,'ふん')}${unit(s,'びょう')}</div>`;
+}
+
+/* ---------------------------------------------------------
+   ビュー：よんだ本の一覧（紙のカードへ書き写すためのページ）
+   --------------------------------------------------------- */
+function viewBooks(){
+  const tasks = config.tasks.filter(isBook);
+  const rows = state.books.slice().sort((a,b)=> a.nth - b.nth);
+
+  // 冊数は課題の進捗を正とする。一覧に出るのは中身を記録したぶんだけ
+  const done = tasks.reduce((a,t)=> a + prog(t).done, 0);
+  const total = tasks.reduce((a,t)=> a + (t.total|0), 0);
+
+  const head = `
+    <div class="paper parent-head">
+      <div>
+        <h2 style="font-size:24px">よんだ本</h2>
+        <p style="font-size:17px">ぜんぶで ${done}さつ　あと ${Math.max(0, total - done)}さつ</p>
+      </div>
+      <a class="btn btn-sm" href="#home">もどる</a>
+    </div>`;
+
+  if(!rows.length){
+    return head + `<div class="paper"><p class="empty">まだ 1さつも きろくして いないよ。<br>
+      「のこりの しゅくだい」から きろくしてね。</p></div>`;
+  }
+
+  return head + `
+    <p class="set-note paper" style="padding:14px 18px;font-size:17px">
+      カードに 書きうつすときは、この ページを 見ながら 書いてね。</p>
+    ${rows.map(b=>`
+      <article class="bookcard">
+        <div class="bookcard-head">
+          <span class="book-no">${b.nth}</span>
+          <h3 class="bookcard-title">${esc(b.title)}</h3>
+          <button class="btn btn-sm btn-ghost" data-open="${esc(b.taskId)}"
+            data-book="${esc(b.id)}" type="button">なおす</button>
+        </div>
+        <dl class="bookcard-fields">
+          ${b.author    ? `<dt>さくしゃ</dt><dd>${esc(b.author)}</dd>` : ''}
+          ${b.publisher ? `<dt>しゅっぱんしゃ</dt><dd>${esc(b.publisher)}</dd>` : ''}
+          <dt>よんだ日</dt><dd>${esc(fmtDate(keyToDate(b.date)))}</dd>
+          ${b.rating ? `<dt>おすすめ度</dt><dd class="bk-stars">${'★'.repeat(b.rating)}${'☆'.repeat(3-b.rating)}</dd>` : ''}
+        </dl>
+        ${(b.memoOut || b.memo) ? `
+          <div class="bookcard-memo">
+            <span class="bookcard-memo-lab">かんそう</span>
+            <p>${esc(b.memoOut || b.memo)}</p>
+          </div>` : ''}
+      </article>`).join('')}`;
 }
 
 /* ---------------------------------------------------------
@@ -389,14 +459,22 @@ function viewSettings(){
           <label><input type="checkbox" data-bf="rating"${bf.rating?' checked':''}> おすすめ度（★1〜3）</label>
         `)(bookFields(t)) : ''}
         ${t.type==='daily' ? `
+          <label>記録形式
+            <select data-f="recordStyle">
+              ${t2opt('',t.recordStyle||'','ノルマ（回数）')}
+              ${t2opt('free',t.recordStyle||'','自由記述')}
+            </select>
+          </label>
+        ` : ''}
+        ${t.type==='daily' && !isFree(t) ? `
           <label>1日のノルマ <input type="number" data-f="target" min="1" max="20" value="${t.target|0}"></label>
           <label>単位 <input type="text" data-f="targetUnit" value="${esc(t.targetUnit||'')}" style="width:110px"></label>
         ` : ''}
       </div>
       ${isBook(t) ? `
         <p class="set-note" style="padding:0">本の記録形式では、書名・読んだ日・ひとこと感想を1冊ずつ入力し、
-        1件の登録で進捗が1つ進みます。感想は「かんじを なおす」で、2年生までに習っていない漢字を
-        ひらがなへ直した書き写し用の文を作れます。</p>` : ''}
+        1件の登録で進捗が1つ進みます。感想は「かんじを しらべる」で習っていない漢字に印が付き、
+        さらに「ぜんぶ ひらがなに して」で書き写し用の文を作れます（辞書約17MBの読み込みが必要）。</p>` : ''}
       ${t.type==='step' ? `
         <label class="lab" style="font-size:16px">段階の項目（1行に1つ・子どもに表示されます）
           <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea>
@@ -405,8 +483,13 @@ function viewSettings(){
         <label class="lab" style="font-size:16px">記録時に表示する質問（1行に1つ・任意）
           <textarea data-f="questions" rows="3" placeholder="例：はっぱの 形や 色は どんな かんじ？">${esc((t.questions||[]).join('\n'))}</textarea>
         </label>` : ''}
+      ${isFree(t) ? `
+        <label class="lab" style="font-size:16px">よびかけの一言（子どもに表示されます）
+          <input type="text" data-f="freeHint" value="${esc(t.freeHint||'')}"
+            placeholder="みたもの・あそび・ゲーム・ともだち・かぞく……なんでも いいよ。">
+        </label>` : ''}
       ${!isBook(t) ? `
-      <label class="lab" style="font-size:16px">メモ欄の見出し（子どもに表示されます）
+      <label class="lab" style="font-size:16px">${isFree(t) ? '見出し' : 'メモ欄の見出し'}（子どもに表示されます）
         <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう">
       </label>` : ''}
     </div>`).join('');
@@ -530,6 +613,7 @@ function openSheet(id, editBookId){
   const p = prog(t);
 
   if(isBook(t)){ openBookSheet(t, p, editBookId); return; }
+  if(isFree(t)){ openFreeSheet(t); return; }
 
   let body = '';
   if(t.type === 'count'){
@@ -657,16 +741,28 @@ function openBookSheet(t, p, editBookId){
 
   <div class="field">
     <span class="lab">ひとこと感想</span>
-    <p class="hint">こえで 入れても いいよ。書けたら「かんじを なおす」を おしてね。</p>
+    <p class="hint">こえで 入れても いいよ。書けたら「かんじを しらべる」を おしてね。</p>
     <div class="mic-row">
       <textarea id="bkMemo" rows="3" placeholder="おもしろかった ところを かこう">${esc(b ? (b.memo||'') : '')}</textarea>
       ${micBtn('bkMemo')}
     </div>
     <div class="set-actions" style="padding:12px 0 0">
-      <button class="btn btn-sm btn-do" id="bkFix" type="button">かんじを なおす</button>
+      <button class="btn btn-sm btn-do" id="bkCheck" type="button">かんじを しらべる</button>
     </div>
-    ${needsDictDownload() ? `<p class="mic-note" id="bkDictNote">はじめの 1回だけ、かんじの じしょ（やく17MB）を よみこみます。
-      Wi-Fi の ある ところで つかってね。2回目からは すぐ できるよ。</p>` : ''}
+
+    <div id="bkCheckWrap" hidden>
+      <div class="kj-box">
+        <span class="lab" style="display:block">ならっていない かんじ</span>
+        <p class="kj-list" id="bkUnlearned"></p>
+        <p class="kj-view" id="bkMarked"></p>
+        <p class="hint" id="bkCheckNote"></p>
+      </div>
+      <div class="set-actions" style="padding:12px 0 0">
+        <button class="btn btn-sm" id="bkFix" type="button">ぜんぶ ひらがなに して</button>
+      </div>
+      <p class="mic-note" id="bkDictNote"></p>
+    </div>
+
     <div id="bkOutWrap" ${b && b.memoOut ? '' : 'hidden'}>
       <span class="lab" style="margin-top:16px;display:block">かきうつす文（2年生までの かんじ）</span>
       <p class="hint">カードには この文を うつしてね。なおしても いいよ。</p>
@@ -681,6 +777,68 @@ function openBookSheet(t, p, editBookId){
   $('#sheetBody').scrollTop = 0;
   $('#sheetWrap').hidden = false;
   document.body.style.overflow = 'hidden';
+}
+
+/* ---------------------------------------------------------
+   なんでもきろくシート（毎日の自由記述）
+   --------------------------------------------------------- */
+function openFreeSheet(t){
+  $('#sheetTitle').textContent = t.name;
+  $('#sheetBody').innerHTML = `
+    <div class="field">
+      <span class="lab">${esc(t.memoLabel || 'きょうは なにを した？')}</span>
+      <p class="hint">${esc(t.freeHint || 'なんでも いいよ。')}</p>
+      <div class="mic-row">
+        <textarea id="freeMemo" rows="6" placeholder="かいてみよう"></textarea>
+        ${micBtn('freeMemo')}
+      </div>
+      <p class="mic-note">${hasSR()
+        ? '🎤 を おすと こえで かけるよ。'
+        : 'キーボードの 🎤 マークを おすと、こえで かけるよ。'}</p>
+    </div>
+    ${freeTodayHTML(t)}`;
+  $('#sheetSave').textContent = 'かけた！';
+  $('#sheetBody').scrollTop = 0;
+  $('#sheetWrap').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+/* 今日すでに書いたぶんを見せる。1日に何回でも書き足せる */
+function freeTodayHTML(t){
+  const today = state.logs.filter(l =>
+    l.taskId === t.id && dayKey(new Date(l.at)) === dayKey(new Date()));
+  if(!today.length) return '';
+  return `
+    <div class="field">
+      <span class="lab">きょう かいたこと</span>
+      <div class="paper today-list">${today.slice().reverse().map(l=>`
+        <div class="today-item">
+          <span class="ti-time">${fmtTime(new Date(l.at))}</span>
+          <div class="ti-body"><div class="ti-memo" style="margin-top:0">${esc(l.memo)}</div></div>
+        </div>`).join('')}</div>
+    </div>`;
+}
+
+function saveFreeSheet(){
+  const t = sheetTask;
+  const text = ($('#freeMemo').value || '').trim();
+  if(!text){ toast('なにか かいてね'); $('#freeMemo').focus(); return; }
+
+  const now = new Date();
+  const days = Object.assign({}, (state.progress[t.id] || {}).days || {});
+  days[dayKey(now)] = Math.max(1, days[dayKey(now)] | 0);
+  state.progress[t.id] = Object.assign({}, state.progress[t.id], { days });
+
+  state.logs.push({
+    id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
+    at: now.toISOString(), taskId: t.id, name: t.name,
+    what: 'きょうの きろく', memo: text
+  });
+  saveSt();
+
+  closeSheet();
+  stamp('かけたね！');
+  setTimeout(()=> render({ keepScroll:true }), 60);
 }
 
 function starSay(n){
@@ -729,41 +887,66 @@ function saveBookSheet(){
   const done = prog(t).isDone;
   closeSheet();
   stamp(sheetBookId ? 'なおしたよ' : (done ? 'ぜんぶ よんだ！' : 'よめたね！'));
-  setTimeout(render, 60);
+  setTimeout(()=> render({ keepScroll:true }), 60);
 }
 
-/* 感想を書き写せるように、習っていない漢字をひらがなへ直す */
+/* 1だんめ：ならっていない漢字を すぐ 見せる。通信も 待ち時間も ない */
+function checkKanji(){
+  const src = ($('#bkMemo').value || '').trim();
+  if(!src){ toast('さきに 感想を かいてね'); $('#bkMemo').focus(); return; }
+
+  const un = unlearnedKanji(src);
+  $('#bkCheckWrap').hidden = false;
+  $('#bkMarked').innerHTML = markUnlearnedHTML(src);
+
+  if(!un.length){
+    $('#bkUnlearned').textContent = 'なし';
+    $('#bkCheckNote').textContent = 'ぜんぶ 2年生までの かんじだったよ。そのまま カードに うつせるね。';
+    $('#bkFix').hidden = true;
+    $('#bkDictNote').textContent = '';
+  }else{
+    $('#bkUnlearned').textContent = un.join('　');
+    $('#bkCheckNote').textContent = 'いろの ついた かんじは まだ ならって いないよ。ひらがなで 書こう。';
+    $('#bkFix').hidden = false;
+    $('#bkDictNote').textContent = needsDictDownload()
+      ? '「ぜんぶ ひらがなに して」を おすと、じしょ（やく' + dictSizeMB()
+        + 'MB）を よみこみます。はじめの 1回だけなので、Wi-Fi の ある ところで おしてね。'
+      : 'じしょは よみこみずみ。すぐ できるよ。';
+  }
+  $('#bkCheckWrap').scrollIntoView({ block:'nearest' });
+}
+
+/* 2だんめ：辞書を使って ぜんぶ ひらがなに直す（明示的に押したときだけ） */
 function fixKanji(){
   const src = ($('#bkMemo').value || '').trim();
   const wrap = $('#bkOutWrap'), note = $('#bkOutNote'), btn = $('#bkFix');
   if(!src){ toast('さきに 感想を かいてね'); return; }
 
-  const first = needsDictDownload() && unlearnedKanji(src).length > 0;
+  const first = needsDictDownload();
   btn.disabled = true;
   btn.textContent = first ? 'じしょを よみこみ中…' : 'なおしています…';
-  if(first && $('#bkDictNote')){
-    $('#bkDictNote').textContent = 'じしょ（やく17MB）を よみこんでいます。'
-      + 'すこし じかんが かかるよ。まっててね。';
+  if(first){
+    $('#bkDictNote').textContent = 'じしょを よみこんでいます。すこし じかんが かかるよ。'
+      + 'ほかの ところは さわれるから、まっててね。';
   }
+
   convertForTranscription(src).then(r=>{
     $('#bkOut').value = r.text;
     wrap.hidden = false;
     if(r.ok){
       note.textContent = r.unlearned.length
         ? 'ならっていない かんじ（' + r.unlearned.join('・') + '）を ひらがなに しました。'
-        : 'ぜんぶ 2年生までの かんじだったよ。そのまま うつせるね。';
+        : 'ぜんぶ 2年生までの かんじだったよ。';
+      $('#bkDictNote').textContent = 'じしょの よみこみは おわりました。つぎからは すぐ できるよ。';
     }else{
       note.textContent = 'いまは じどうで なおせません（' + r.reason + '）。'
-        + 'ならっていない かんじは ' + r.unlearned.join('・') + ' です。じぶんで ひらがなに してね。';
+        + '上の いろが ついた かんじを、じぶんで ひらがなに してね。';
+      $('#bkDictNote').textContent = '';
     }
     wrap.scrollIntoView({ block:'nearest' });
-    const dn = $('#bkDictNote');
-    if(dn) dn.textContent = needsDictDownload()
-      ? 'じしょが つかえないので、なおすのは じぶんで やってね。'
-      : 'じしょの よみこみは おわりました。つぎからは すぐ できるよ。';
   }).finally(()=>{
     btn.disabled = false;
-    btn.textContent = 'かんじを なおす';
+    btn.textContent = 'ぜんぶ ひらがなに して';
   });
 }
 
@@ -799,6 +982,7 @@ function saveSheet(){
   const t = sheetTask;
   if(!t) return;
   if(isBook(t)){ saveBookSheet(); return; }
+  if(isFree(t)){ saveFreeSheet(); return; }
   const p = prog(t);
   const memo = ($('#memo') && $('#memo').value.trim()) || '';
   const now = new Date();
@@ -855,7 +1039,7 @@ function saveSheet(){
   const after = prog(t);
   closeSheet();
   stamp(after.isDone ? 'ぜんぶ できた！' : 'できた！');
-  setTimeout(()=>{ render(); }, 60);
+  setTimeout(()=> render({ keepScroll:true }), 60);
   return ok;
 }
 
@@ -887,7 +1071,11 @@ function stopSR(){ if(sr){ try{ sr.stop(); }catch(e){} sr = null; } $$('.mic.rec
 /* ---------------------------------------------------------
    えがく
    --------------------------------------------------------- */
-function render(){
+/* keepScroll: 今の位置のまま描き直す。タブを変えたときだけ先頭に戻す */
+function render(opts){
+  const keepScroll = !!(opts && opts.keepScroll);
+  const y = window.scrollY;
+
   $('#appTitle').textContent = config.title;
   $('#todayLabel').textContent = fmtDate(new Date());
   document.title = config.title;
@@ -897,19 +1085,21 @@ function render(){
 
   if(tab === 'home')          v.innerHTML = viewHome();
   else if(tab === 'log')      v.innerHTML = viewLog();
+  else if(tab === 'books')    v.innerHTML = viewBooks();
   else                        v.innerHTML = viewSettings();
 
   $$('.tab').forEach(b=> b.classList.toggle('is-on', b.dataset.tab === tab));
-  // 親ページではタブバーを隠す
-  $('.tabbar').hidden = (tab === 'settings');
-  document.body.classList.toggle('no-tabbar', tab === 'settings');
+  // 親ページと本の一覧ではタブバーを隠す（それぞれ「もどる」で戻す）
+  const noTabs = (tab === 'settings' || tab === 'books');
+  $('.tabbar').hidden = noTabs;
+  document.body.classList.toggle('no-tabbar', noTabs);
 
   if(tab === 'home'){
     renderCountdown();
     timer = setInterval(renderCountdown, 1000);
   }
   if(tab === 'settings') bindSettings();
-  window.scrollTo(0, 0);
+  window.scrollTo(0, keepScroll ? y : 0);
 }
 
 /* ---------------------------------------------------------
@@ -934,12 +1124,14 @@ function bindSettings(){
     const f = e.target.dataset.f; if(!f) return;
 
     if(f === 'recordStyle'){
-      if(e.target.value === 'book'){
-        t.recordStyle = 'book';
-        t.bookFields = bookFields(t);
-      }else{
-        delete t.recordStyle;
+      const v = e.target.value;
+      if(v === 'book'){ t.recordStyle = 'book'; t.bookFields = bookFields(t); }
+      else if(v === 'free'){
+        t.recordStyle = 'free';
+        t.target = 1; t.targetUnit = 'かい';
+        t.memoLabel = t.memoLabel || 'きょうは なにを した？';
       }
+      else delete t.recordStyle;
       saveCfg(); render(); return;
     }
     if(f === 'numbered')        t.numbered = e.target.checked;
@@ -1186,6 +1378,7 @@ document.addEventListener('click', e=>{
   const open = e.target.closest('[data-open]');
   if(open){ openSheet(open.dataset.open, open.dataset.book); return; }
 
+  if(e.target.closest('#bkCheck')){ checkKanji(); return; }
   if(e.target.closest('#bkFix')){ fixKanji(); return; }
 
   const delBook = e.target.closest('[data-delbook]');
@@ -1216,7 +1409,11 @@ document.addEventListener('click', e=>{
   if(fun){
     if(fun.dataset.fun === 'open') funOpen = true;
     else { funIdx = (funIdx + 1) % FUN.length; funOpen = false; }
-    render(); return;
+    // カードだけ差し替える。ページは動かない
+    const card = $('.fun');
+    if(card) card.outerHTML = funHTML();
+    else render({ keepScroll:true });
+    return;
   }
 
   // シート内
