@@ -1,0 +1,12 @@
+name: selftest
+
+# 切り分け用。外部アクション（uses:）を一切使わず run: だけで構成する。
+# これが通って pages.yml が落ちるなら、原因はアクション解決側にある。
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "runner is alive"
