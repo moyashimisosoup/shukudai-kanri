@@ -11,7 +11,12 @@
 const K_CFG = 'natsu.config.v2';
 const K_ST  = 'natsu.state.v2';
 
-const TABS = ['home','record','log','settings'];
+const TABS = ['home','log','settings'];
+
+function isBook(t){ return t && t.type === 'count' && t.recordStyle === 'book'; }
+function bookFields(t){
+  return Object.assign({ author:false, publisher:false, rating:true }, (t && t.bookFields) || {});
+}
 
 let config, state;
 let tab = 'home';
@@ -31,6 +36,7 @@ function loadAll(){
 
   if(!state.progress) state.progress = {};
   if(!Array.isArray(state.logs)) state.logs = [];
+  if(!Array.isArray(state.books)) state.books = [];
   funIdx = dayOfYear(new Date()) % FUN.length;
 }
 function saveCfg(){ localStorage.setItem(K_CFG, JSON.stringify(config)); }
@@ -318,37 +324,6 @@ function renderCountdown(){
 }
 
 /* ---------------------------------------------------------
-   ビュー：きろくする
-   --------------------------------------------------------- */
-function viewRecord(){
-  const g = (kind, title, note) => {
-    const list = config.tasks.filter(t=>t.group===kind);
-    if(!list.length) return '';
-    const cls = kind==='must'?'must':kind==='option'?'opt':'daily';
-    return `
-    <section class="sec sec-${cls}">
-      <div class="sec-head"><h2>${title}</h2><span class="sec-note">${note}</span></div>
-      <div class="pick">${list.map(t=>{
-        const p = prog(t);
-        const nx = nextLabel(t);
-        const sub = p.isDone ? 'ぜんぶ できた！'
-          : (nx ? nx.lead+' '+nx.num+nx.tail : '') + '　' + p.text;
-        return `<button class="pick-btn pick-${cls}${p.isDone?' is-done':''}" data-open="${esc(t.id)}" type="button">
-            <span class="pn">${esc(t.name)}</span>
-            <span class="ps">${esc(sub)}</span>
-          </button>`;
-      }).join('')}</div>
-    </section>`;
-  };
-  return `
-    <p class="set-note paper" style="padding:14px 18px">やった しゅくだいを えらんでね。</p>
-    ${g('must','かならず やる','まず これから')}
-    ${g('option','できれば やる','じかんが あるとき')}
-    ${g('daily','まいにち すこしずつ','きょうの ぶん')}
-  `;
-}
-
-/* ---------------------------------------------------------
    ビュー：やったこと（きろく）
    --------------------------------------------------------- */
 function viewLog(){
@@ -401,23 +376,39 @@ function viewSettings(){
           <label>全体量 <input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
           <label>単位 <input type="text" data-f="unit" value="${esc(t.unit||'')}" style="width:96px"></label>
           <label><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> ①②で表示</label>
+          <label>記録形式
+            <select data-f="recordStyle">
+              ${t2opt('',t.recordStyle||'','通常')}
+              ${t2opt('book',t.recordStyle||'','本の記録')}
+            </select>
+          </label>
         ` : ''}
+        ${isBook(t) ? (bf => `
+          <label><input type="checkbox" data-bf="author"${bf.author?' checked':''}> さくしゃ欄</label>
+          <label><input type="checkbox" data-bf="publisher"${bf.publisher?' checked':''}> しゅっぱんしゃ欄</label>
+          <label><input type="checkbox" data-bf="rating"${bf.rating?' checked':''}> おすすめ度（★1〜3）</label>
+        `)(bookFields(t)) : ''}
         ${t.type==='daily' ? `
           <label>1日のノルマ <input type="number" data-f="target" min="1" max="20" value="${t.target|0}"></label>
           <label>単位 <input type="text" data-f="targetUnit" value="${esc(t.targetUnit||'')}" style="width:110px"></label>
         ` : ''}
       </div>
+      ${isBook(t) ? `
+        <p class="set-note" style="padding:0">本の記録形式では、書名・読んだ日・ひとこと感想を1冊ずつ入力し、
+        1件の登録で進捗が1つ進みます。感想は「かんじを なおす」で、2年生までに習っていない漢字を
+        ひらがなへ直した書き写し用の文を作れます。</p>` : ''}
       ${t.type==='step' ? `
         <label class="lab" style="font-size:16px">段階の項目（1行に1つ・子どもに表示されます）
           <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea>
         </label>` : ''}
-      ${t.type!=='daily' ? `
+      ${t.type!=='daily' && !isBook(t) ? `
         <label class="lab" style="font-size:16px">記録時に表示する質問（1行に1つ・任意）
           <textarea data-f="questions" rows="3" placeholder="例：はっぱの 形や 色は どんな かんじ？">${esc((t.questions||[]).join('\n'))}</textarea>
         </label>` : ''}
+      ${!isBook(t) ? `
       <label class="lab" style="font-size:16px">メモ欄の見出し（子どもに表示されます）
         <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう">
-      </label>
+      </label>` : ''}
     </div>`).join('');
 
   return `
@@ -450,6 +441,8 @@ function viewSettings(){
       <button class="btn btn-sm" id="addTask" type="button">＋ 項目を追加</button>
     </div>
   </section>
+
+  ${bookSectionHTML()}
 
   <section class="sec">
     <div class="sec-head"><h2>進捗サマリー</h2></div>
@@ -495,16 +488,48 @@ function viewSettings(){
   </section>`;
 }
 
+/* 保護者ページの本の記録一覧。書名や読んだ日はここから訂正できる */
+function bookSectionHTML(){
+  if(!config.tasks.some(isBook)) return '';
+  const rows = state.books.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || b.nth - a.nth);
+
+  return `
+  <section class="sec">
+    <div class="sec-head"><h2>本の記録</h2><span class="sec-note">${rows.length}冊</span></div>
+    <div class="paper">
+      ${rows.length ? rows.map(b=>`
+        <div class="book-row">
+          <span class="book-no">${b.nth}</span>
+          <div class="book-main">
+            <div class="book-title">${esc(b.title)}</div>
+            <div class="book-sub">${[
+              b.date, b.author, b.publisher,
+              b.rating ? '★'.repeat(b.rating) : ''
+            ].filter(Boolean).map(esc).join('　')}</div>
+            ${b.memoOut || b.memo ? `<div class="book-memo">${esc(b.memoOut || b.memo)}</div>` : ''}
+          </div>
+          <button class="btn btn-sm" data-open="${esc(b.taskId)}" data-book="${esc(b.id)}" type="button">編集</button>
+          <button class="icon-btn del" data-delbook="${esc(b.id)}" title="削除" type="button">🗑</button>
+        </div>`).join('')
+      : `<p class="empty">まだ記録がありません。</p>`}
+      <p class="set-note">「編集」で書名・読んだ日・感想を訂正できます。削除すると冊数も1つ戻ります。</p>
+    </div>
+  </section>`;
+}
+
 /* ---------------------------------------------------------
    きろくシート
    --------------------------------------------------------- */
 let sheetTask = null, sheetSel = null, sheetSteps = null;
+let sheetRating = 0, sheetBookId = null;
 
-function openSheet(id){
+function openSheet(id, editBookId){
   const t = config.tasks.find(x=>x.id===id);
   if(!t) return;
   sheetTask = t;
   const p = prog(t);
+
+  if(isBook(t)){ openBookSheet(t, p, editBookId); return; }
 
   let body = '';
   if(t.type === 'count'){
@@ -574,6 +599,163 @@ function openSheet(id){
   document.body.style.overflow = 'hidden';
 }
 
+/* ---------------------------------------------------------
+   本の記録シート
+   --------------------------------------------------------- */
+function openBookSheet(t, p, editBookId){
+  const f = bookFields(t);
+  const b = editBookId ? state.books.find(x=>x.id===editBookId) : null;
+  sheetBookId = b ? b.id : null;
+  sheetRating = b ? (b.rating|0) : 0;
+
+  const nth = b ? b.nth : p.done + 1;
+  const val = k => esc(b ? (b[k] || '') : '');
+
+  const body = `
+  <p class="book-nth">${t.numbered ? maru(nth) : nth}さつめ</p>
+
+  <div class="field">
+    <span class="lab">本の なまえ</span>
+    <div class="mic-row">
+      <input type="text" id="bkTitle" value="${val('title')}" placeholder="れい：ふしぎ駄菓子屋 銭天堂">
+      ${micBtn('bkTitle')}
+    </div>
+  </div>
+
+  ${f.author ? `
+  <div class="field">
+    <span class="lab">さくしゃ</span>
+    <div class="mic-row">
+      <input type="text" id="bkAuthor" value="${val('author')}" placeholder="かいた人の なまえ">
+      ${micBtn('bkAuthor')}
+    </div>
+  </div>` : ''}
+
+  ${f.publisher ? `
+  <div class="field">
+    <span class="lab">しゅっぱんしゃ</span>
+    <div class="mic-row">
+      <input type="text" id="bkPublisher" value="${val('publisher')}" placeholder="本を 出した ところ">
+      ${micBtn('bkPublisher')}
+    </div>
+  </div>` : ''}
+
+  <div class="field">
+    <span class="lab">よんだ日</span>
+    <input type="date" id="bkDate" value="${esc(b ? b.date : dayKey(new Date()))}">
+  </div>
+
+  ${f.rating ? `
+  <div class="field">
+    <span class="lab">おすすめ度</span>
+    <div class="stars" id="bkStars">
+      ${[1,2,3].map(n=>`<button class="star${n<=sheetRating?' on':''}" data-star="${n}"
+          type="button" aria-label="★${n}">★</button>`).join('')}
+      <span class="star-say" id="bkStarSay">${starSay(sheetRating)}</span>
+    </div>
+  </div>` : ''}
+
+  <div class="field">
+    <span class="lab">ひとこと感想</span>
+    <p class="hint">こえで 入れても いいよ。書けたら「かんじを なおす」を おしてね。</p>
+    <div class="mic-row">
+      <textarea id="bkMemo" rows="3" placeholder="おもしろかった ところを かこう">${esc(b ? (b.memo||'') : '')}</textarea>
+      ${micBtn('bkMemo')}
+    </div>
+    <div class="set-actions" style="padding:12px 0 0">
+      <button class="btn btn-sm btn-do" id="bkFix" type="button">かんじを なおす</button>
+    </div>
+    <div id="bkOutWrap" ${b && b.memoOut ? '' : 'hidden'}>
+      <span class="lab" style="margin-top:16px;display:block">かきうつす文（2年生までの かんじ）</span>
+      <p class="hint">カードには この文を うつしてね。なおしても いいよ。</p>
+      <textarea id="bkOut" rows="3">${esc(b ? (b.memoOut||'') : '')}</textarea>
+      <p class="mic-note" id="bkOutNote"></p>
+    </div>
+  </div>`;
+
+  $('#sheetTitle').textContent = t.name;
+  $('#sheetBody').innerHTML = body;
+  $('#sheetSave').textContent = 'できた！';
+  $('#sheetBody').scrollTop = 0;
+  $('#sheetWrap').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function starSay(n){
+  return n === 3 ? 'とても おすすめ' : n === 2 ? 'おすすめ' : n === 1 ? 'ふつう' : 'まだ えらんでいない';
+}
+
+function saveBookSheet(){
+  const t = sheetTask;
+  const title = ($('#bkTitle').value || '').trim();
+  if(!title){ toast('本の なまえを 入れてね'); $('#bkTitle').focus(); return; }
+
+  const now = new Date();
+  const memo = ($('#bkMemo').value || '').trim();
+  const out  = ($('#bkOut') && $('#bkOut').value.trim()) || '';
+  const rec = {
+    taskId: t.id,
+    title,
+    author:    ($('#bkAuthor')    && $('#bkAuthor').value.trim())    || '',
+    publisher: ($('#bkPublisher') && $('#bkPublisher').value.trim()) || '',
+    date:      ($('#bkDate').value) || dayKey(now),
+    rating:    sheetRating|0,
+    memo, memoOut: out
+  };
+
+  if(sheetBookId){
+    // 訂正。冊数は変わらないので進捗はそのまま
+    const i = state.books.findIndex(x=>x.id===sheetBookId);
+    if(i >= 0) state.books[i] = Object.assign(state.books[i], rec);
+  }else{
+    const p = prog(t);
+    rec.id = 'b' + now.getTime() + Math.floor(Math.random()*1000);
+    rec.nth = p.done + 1;
+    state.books.push(rec);
+    state.progress[t.id] = Object.assign({}, state.progress[t.id], { done: rec.nth });
+    state.logs.push({
+      id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
+      at: now.toISOString(), taskId: t.id, name: t.name,
+      what: (t.numbered ? maru(rec.nth) : rec.nth + (t.unit||'')) + '　「' + title + '」',
+      memo: [rec.author && 'さくしゃ：' + rec.author,
+             rec.rating ? 'おすすめ度 ' + '★'.repeat(rec.rating) : '',
+             out || memo].filter(Boolean).join('\n')
+    });
+  }
+  saveSt();
+
+  const done = prog(t).isDone;
+  closeSheet();
+  stamp(sheetBookId ? 'なおしたよ' : (done ? 'ぜんぶ よんだ！' : 'よめたね！'));
+  setTimeout(render, 60);
+}
+
+/* 感想を書き写せるように、習っていない漢字をひらがなへ直す */
+function fixKanji(){
+  const src = ($('#bkMemo').value || '').trim();
+  const wrap = $('#bkOutWrap'), note = $('#bkOutNote'), btn = $('#bkFix');
+  if(!src){ toast('さきに 感想を かいてね'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'なおしています…';
+  convertForTranscription(src).then(r=>{
+    $('#bkOut').value = r.text;
+    wrap.hidden = false;
+    if(r.ok){
+      note.textContent = r.unlearned.length
+        ? 'ならっていない かんじ（' + r.unlearned.join('・') + '）を ひらがなに しました。'
+        : 'ぜんぶ 2年生までの かんじだったよ。そのまま うつせるね。';
+    }else{
+      note.textContent = 'いまは じどうで なおせません（' + r.reason + '）。'
+        + 'ならっていない かんじは ' + r.unlearned.join('・') + ' です。じぶんで ひらがなに してね。';
+    }
+    wrap.scrollIntoView({ block:'nearest' });
+  }).finally(()=>{
+    btn.disabled = false;
+    btn.textContent = 'かんじを なおす';
+  });
+}
+
 function numsHTML(t, sel){
   return Array.from({length: Math.max(1,t.total|0)}, (_,k)=>{
     const n = k+1;
@@ -598,11 +780,14 @@ function closeSheet(){
   document.body.style.overflow = '';
   stopSR();
   sheetTask = null; sheetSel = null; sheetSteps = null;
+  sheetRating = 0; sheetBookId = null;
+  $('#sheetSave').textContent = 'きろくする';
 }
 
 function saveSheet(){
   const t = sheetTask;
   if(!t) return;
+  if(isBook(t)){ saveBookSheet(); return; }
   const p = prog(t);
   const memo = ($('#memo') && $('#memo').value.trim()) || '';
   const now = new Date();
@@ -700,7 +885,6 @@ function render(){
   if(timer){ clearInterval(timer); timer = null; }
 
   if(tab === 'home')          v.innerHTML = viewHome();
-  else if(tab === 'record')   v.innerHTML = viewRecord();
   else if(tab === 'log')      v.innerHTML = viewLog();
   else                        v.innerHTML = viewSettings();
 
@@ -729,8 +913,24 @@ function bindSettings(){
   ed.addEventListener('change', e=>{
     const row = e.target.closest('.set-task'); if(!row) return;
     const t = config.tasks[+row.dataset.i]; if(!t) return;
+
+    const bf = e.target.dataset.bf;
+    if(bf){
+      t.bookFields = Object.assign(bookFields(t), { [bf]: e.target.checked });
+      saveCfg(); return;
+    }
+
     const f = e.target.dataset.f; if(!f) return;
 
+    if(f === 'recordStyle'){
+      if(e.target.value === 'book'){
+        t.recordStyle = 'book';
+        t.bookFields = bookFields(t);
+      }else{
+        delete t.recordStyle;
+      }
+      saveCfg(); render(); return;
+    }
     if(f === 'numbered')        t.numbered = e.target.checked;
     else if(f === 'total')      t.total = clamp(+e.target.value||1, 1, 200);
     else if(f === 'target')     t.target = clamp(+e.target.value||1, 1, 20);
@@ -867,6 +1067,21 @@ function buildSummary(logDays){
     list.forEach(t=> L.push(summaryLine(t)));
   });
 
+  // 読書のきろくは書き写しに使うため、書名を全冊分そのまま出す
+  if(state.books.length){
+    L.push('');
+    L.push('【読んだ本　' + state.books.length + '冊】');
+    state.books.slice().sort((a,b)=> a.nth - b.nth).forEach(b=>{
+      L.push(b.nth + '. ' + b.title
+        + (b.author ? '／' + b.author : '')
+        + (b.publisher ? '／' + b.publisher : '')
+        + '　' + b.date
+        + (b.rating ? '　' + '★'.repeat(b.rating) : ''));
+      const memo = b.memoOut || b.memo;
+      if(memo) memo.split('\n').forEach(line=> L.push('    ' + line));
+    });
+  }
+
   if(logDays !== -1){
     const from = new Date();
     from.setHours(0,0,0,0);
@@ -958,7 +1173,33 @@ document.addEventListener('click', e=>{
   }
 
   const open = e.target.closest('[data-open]');
-  if(open){ openSheet(open.dataset.open); return; }
+  if(open){ openSheet(open.dataset.open, open.dataset.book); return; }
+
+  if(e.target.closest('#bkFix')){ fixKanji(); return; }
+
+  const delBook = e.target.closest('[data-delbook]');
+  if(delBook){
+    const b = state.books.find(x=>x.id===delBook.dataset.delbook);
+    if(b && confirm('「'+b.title+'」の記録を削除しますか？\n冊数も1つ戻ります。')){
+      state.books = state.books.filter(x=>x.id!==b.id);
+      // 残りの冊に通し番号を振り直し、進捗を実際の冊数に合わせる
+      const same = state.books.filter(x=>x.taskId===b.taskId)
+        .sort((x,y)=> x.nth - y.nth);
+      same.forEach((x,i)=> x.nth = i+1);
+      state.progress[b.taskId] = Object.assign({}, state.progress[b.taskId], { done: same.length });
+      saveSt(); render(); toast('削除しました');
+    }
+    return;
+  }
+
+  const star = e.target.closest('[data-star]');
+  if(star){
+    const n = +star.dataset.star;
+    sheetRating = (n === sheetRating) ? 0 : n;   // 同じ星をもう一度おすと取り消し
+    $$('#bkStars .star').forEach(b=> b.classList.toggle('on', +b.dataset.star <= sheetRating));
+    $('#bkStarSay').textContent = starSay(sheetRating);
+    return;
+  }
 
   const fun = e.target.closest('[data-fun]');
   if(fun){
@@ -997,7 +1238,8 @@ document.addEventListener('click', e=>{
   const mic = e.target.closest('[data-mic]');
   if(mic){
     const id = mic.dataset.mic;
-    const el = id === 'memo' ? $('#memo') : $('#sheetBody [data-q="'+id.slice(1)+'"]');
+    // 観察の質問は data-q、それ以外は同じ id の入力欄
+    const el = /^q\d+$/.test(id) ? $('#sheetBody [data-q="'+id.slice(1)+'"]') : $('#'+id);
     if(el){ if(mic.classList.contains('rec')) stopSR(); else startSR(mic, el); }
     return;
   }

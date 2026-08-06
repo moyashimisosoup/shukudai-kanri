@@ -4,7 +4,7 @@
    ぜんぶ変えられます。
    ========================================================= */
 
-const SCHEMA = 3;
+const SCHEMA = 4;
 
 /* --- タスクの type --------------------------------------
    count : 番号や 冊数で かぞえるもの（つぎの番号を出す）
@@ -14,7 +14,7 @@ const SCHEMA = 3;
 
 const DEFAULT_CONFIG = {
   schema: SCHEMA,
-  title: 'はじめ夏休みの宿題一覧',
+  title: 'はじめ夏休みの宿題',
   startAt: '2026-07-21T00:00',
   endAt:   '2026-08-31T23:59',
   tasks: [
@@ -64,10 +64,12 @@ const DEFAULT_CONFIG = {
       memoLabel:'きょう やった エコ'
     },
     {
+      // 1冊ごとに書名・作者・感想を残すため、専用の入力形式を使う
       id:'dokusho-kiroku', group:'must', type:'count',
       name:'読書のきろく　20さつ',
       total:20, unit:'さつ', numbered:true,
-      memoLabel:'よんだ本の なまえ'
+      recordStyle:'book',
+      bookFields:{ author:true, publisher:false, rating:true }
     },
 
     /* ---------- できれば やる ---------- */
