@@ -479,9 +479,30 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 }
 .fun-row{ display:flex; gap:10px; margin-top:14px; }
 
+/* こどもの画面から親ページへの控えめな導線 */
+.parent-link{
+  display:block; text-align:center; text-decoration:none;
+  font-size:16px; font-weight:700; color:var(--ai-usu);
+  padding:14px; margin-bottom:4px;
+  border:2px dashed var(--hougan); border-radius:var(--r-s);
+}
+.parent-link:active{ background:var(--kami); }
+
 /* =========================================================
-   せってい
+   せってい（親ページ）
    ========================================================= */
+.parent-head{
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  padding:16px 18px;
+}
+.parent-head > div{ flex:1 1 260px; }
+.parent-head h2{ font-size:21px; font-weight:900; }
+.parent-head p{ font-size:16px; font-weight:700; color:var(--ai-usu); }
+.parent-head .btn{ text-decoration:none; display:inline-flex; align-items:center; }
+
+/* 親ページはタブバーがないぶん下の余白を詰める */
+body.no-tabbar{ padding-bottom:24px; }
+
 .set-row{
   display:grid; grid-template-columns:150px 1fr; gap:12px;
   align-items:center; padding:12px 16px;

@@ -11,6 +11,8 @@
 const K_CFG = 'natsu.config.v2';
 const K_ST  = 'natsu.state.v2';
 
+const TABS = ['home','record','log','settings'];
+
 let config, state;
 let tab = 'home';
 let timer = null;
@@ -177,6 +179,8 @@ function viewHome(){
   </section>
 
   ${funHTML()}
+
+  <a class="parent-link" href="#settings">⚙ おうちの人へ　せってい・進捗サマリー</a>
   `;
 }
 
@@ -419,7 +423,13 @@ function viewSettings(){
     </div>`).join('');
 
   return `
-  <p class="set-note paper" style="padding:14px 18px">ここは おうちの人が つかう ページです。</p>
+  <div class="paper parent-head">
+    <div>
+      <h2>おうちの人のページ</h2>
+      <p>設定の変更と進捗サマリーの書き出しができます。</p>
+    </div>
+    <a class="btn btn-sm" href="#home">こどもの画面へ</a>
+  </div>
 
   <section class="sec">
     <div class="sec-head"><h2>きほんの せってい</h2></div>
@@ -697,6 +707,9 @@ function render(){
   else                        v.innerHTML = viewSettings();
 
   $$('.tab').forEach(b=> b.classList.toggle('is-on', b.dataset.tab === tab));
+  // 親ページではタブバーを隠す
+  $('.tabbar').hidden = (tab === 'settings');
+  document.body.classList.toggle('no-tabbar', tab === 'settings');
 
   if(tab === 'home'){
     renderCountdown();
@@ -938,7 +951,12 @@ function importData(e){
 document.addEventListener('click', e=>{
 
   const tabBtn = e.target.closest('.tab');
-  if(tabBtn){ tab = tabBtn.dataset.tab; render(); return; }
+  if(tabBtn){
+    const t = tabBtn.dataset.tab;
+    // hashchange で描画する。同じ hash なら発火しないので自分で描く
+    if(routeFromHash() === t) render(); else location.hash = t;
+    return;
+  }
 
   const open = e.target.closest('[data-open]');
   if(open){ openSheet(open.dataset.open); return; }
@@ -994,9 +1012,22 @@ document.addEventListener('keydown', e=>{
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==='home') render(); });
 
 /* ---------------------------------------------------------
+   ルーティング（#home / #record / #log / #settings）
+   --------------------------------------------------------- */
+function routeFromHash(){
+  const h = (location.hash || '').replace(/^#/, '');
+  return TABS.indexOf(h) >= 0 ? h : 'home';
+}
+window.addEventListener('hashchange', ()=>{
+  const t = routeFromHash();
+  if(t !== tab){ tab = t; render(); }
+});
+
+/* ---------------------------------------------------------
    はじめる
    --------------------------------------------------------- */
 loadAll();
+tab = routeFromHash();
 render();
 
 })();
