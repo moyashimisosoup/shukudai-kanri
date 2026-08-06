@@ -2,3 +2,4 @@
 Thumbs.db
 .playwright-mcp/
 *.log
+.claude/
