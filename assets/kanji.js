@@ -53,7 +53,8 @@ function loadTokenizer(){
   if(tokenizerPromise) return tokenizerPromise;
 
   tokenizerPromise = new Promise((resolve, reject)=>{
-    const timer = setTimeout(()=> reject(new Error('じしょの よみこみに 時間が かかっています')), 30000);
+    // 辞書は全部で約17MB。回線が細いと数分かかることがある
+    const timer = setTimeout(()=> reject(new Error('じしょの よみこみに 時間が かかりすぎました')), 180000);
     const done = (err, tk)=>{
       clearTimeout(timer);
       if(err){ tokenizerPromise = null; reject(err); }
@@ -87,6 +88,9 @@ function toGrade2Text(text, tk){
     return kataToHira(yomi);
   }).join('');
 }
+
+/* 辞書をまだ持っていないか。初回の読み込みを事前に知らせるために使う */
+function needsDictDownload(){ return !tokenizer; }
 
 /* 変換の入り口。辞書が使えない環境では reason を付けて元の文を返す */
 function convertForTranscription(text){

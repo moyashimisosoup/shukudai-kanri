@@ -665,6 +665,8 @@ function openBookSheet(t, p, editBookId){
     <div class="set-actions" style="padding:12px 0 0">
       <button class="btn btn-sm btn-do" id="bkFix" type="button">かんじを なおす</button>
     </div>
+    ${needsDictDownload() ? `<p class="mic-note" id="bkDictNote">はじめの 1回だけ、かんじの じしょ（やく17MB）を よみこみます。
+      Wi-Fi の ある ところで つかってね。2回目からは すぐ できるよ。</p>` : ''}
     <div id="bkOutWrap" ${b && b.memoOut ? '' : 'hidden'}>
       <span class="lab" style="margin-top:16px;display:block">かきうつす文（2年生までの かんじ）</span>
       <p class="hint">カードには この文を うつしてね。なおしても いいよ。</p>
@@ -736,8 +738,13 @@ function fixKanji(){
   const wrap = $('#bkOutWrap'), note = $('#bkOutNote'), btn = $('#bkFix');
   if(!src){ toast('さきに 感想を かいてね'); return; }
 
+  const first = needsDictDownload() && unlearnedKanji(src).length > 0;
   btn.disabled = true;
-  btn.textContent = 'なおしています…';
+  btn.textContent = first ? 'じしょを よみこみ中…' : 'なおしています…';
+  if(first && $('#bkDictNote')){
+    $('#bkDictNote').textContent = 'じしょ（やく17MB）を よみこんでいます。'
+      + 'すこし じかんが かかるよ。まっててね。';
+  }
   convertForTranscription(src).then(r=>{
     $('#bkOut').value = r.text;
     wrap.hidden = false;
@@ -750,6 +757,10 @@ function fixKanji(){
         + 'ならっていない かんじは ' + r.unlearned.join('・') + ' です。じぶんで ひらがなに してね。';
     }
     wrap.scrollIntoView({ block:'nearest' });
+    const dn = $('#bkDictNote');
+    if(dn) dn.textContent = needsDictDownload()
+      ? 'じしょが つかえないので、なおすのは じぶんで やってね。'
+      : 'じしょの よみこみは おわりました。つぎからは すぐ できるよ。';
   }).finally(()=>{
     btn.disabled = false;
     btn.textContent = 'かんじを なおす';
