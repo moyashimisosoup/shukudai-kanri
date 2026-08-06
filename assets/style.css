@@ -207,6 +207,7 @@ button{ font:inherit; color:inherit; }
 }
 .bar-fill{
   height:100%; border-radius:999px 0 0 999px;
+  background:var(--wakaba);          /* 進捗＝できた量なので既定は緑 */
   transition:width .5s cubic-bezier(.2,.8,.3,1);
 }
 .bar-fill--natsu{ background:repeating-linear-gradient(45deg,#9EC3D6 0 8px,#B4D2E1 8px 16px); }
@@ -279,8 +280,6 @@ button{ font:inherit; color:inherit; }
 }
 .task-act{ grid-column:2; grid-row:1 / span 3; align-self:center; }
 
-/* 進捗バーは「できた量」なので常に緑。区分の色は見出し帯が担う */
-.task .bar-fill{ background:var(--wakaba); }
 
 /* できあがったカード */
 .task.is-done{ background:var(--wakaba-usu); }
@@ -434,9 +433,15 @@ button{ font:inherit; color:inherit; }
 /* にゅうりょく */
 textarea, input[type=text], input[type=number],
 input[type=date], input[type=datetime-local], select{
-  width:100%; font:inherit; font-size:19px; font-weight:500; color:var(--ai);
+  width:100%; max-width:100%; min-width:0;
+  font:inherit; font-size:19px; font-weight:500; color:var(--ai);
   padding:12px 14px; background:var(--kami);
   border:2px solid var(--ai); border-radius:var(--r-s);
+  /* iOS の日時入力は既定の幅を持ち、そのままだと枠からはみ出す */
+  -webkit-appearance:none; appearance:none;
+}
+input[type=date], input[type=datetime-local]{
+  min-height:52px; line-height:1.2; display:block;
 }
 textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .mic-row{ display:flex; gap:10px; align-items:flex-start; }
@@ -615,11 +620,59 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 /* 親ページはタブバーがないぶん下の余白を詰める */
 body.no-tabbar{ padding-bottom:24px; }
 
+/* 進捗の概要 */
+.pstat{ padding:18px; }
+.pstat-grid{
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr));
+  gap:14px; margin-bottom:16px;
+}
+.pstat-grid > div{
+  padding:12px 14px; background:#F2F8FB;
+  border:2px solid var(--hougan); border-radius:var(--r-s);
+}
+.pstat-lab{ display:block; font-size:14px; font-weight:900; color:var(--ai-usu); }
+.pstat-val{
+  display:block; font-size:28px; font-weight:900; line-height:1.2;
+  font-variant-numeric:tabular-nums; margin-top:2px;
+}
+.pstat-val small{ font-size:15px; font-weight:900; color:var(--ai-usu); }
+
+/* 課題ごとの進捗表 */
+.pgtable{ width:100%; border-collapse:collapse; }
+.pgtable th, .pgtable td{
+  padding:10px 12px; text-align:left; vertical-align:middle;
+  border-bottom:2px dashed var(--hougan);
+}
+.pgtable tr:last-child th, .pgtable tr:last-child td{ border-bottom:none; }
+.pgtable th{ font-size:17px; font-weight:900; }
+.pgtable .pg-bar{ width:34%; min-width:110px; }
+.pgtable .pg-bar .bar{ height:18px; }
+.pgtable .pg-num{
+  font-size:15px; font-weight:900; white-space:nowrap;
+  font-variant-numeric:tabular-nums; color:var(--ai-usu);
+}
+.pgtable .pg-next{ font-size:15px; font-weight:700; color:var(--ai-usu); }
+.pgtable tr.is-done th{ color:var(--wakaba); }
+.pgtable tr.is-done .pg-next{ color:var(--wakaba); font-weight:900; }
+
+@media (max-width:640px){
+  .pgtable, .pgtable tr, .pgtable th, .pgtable td{ display:block; }
+  .pgtable tr{ padding:12px 4px; border-bottom:2px dashed var(--hougan); }
+  .pgtable tr:last-child{ border-bottom:none; }
+  .pgtable th, .pgtable td{ padding:2px 12px; border-bottom:none; }
+  .pgtable .pg-bar{ width:auto; padding-top:8px; }
+  .pgtable .pg-num, .pgtable .pg-next{ display:inline-block; padding-right:14px; }
+}
+
+.parent-head{ flex-wrap:wrap; }
+.parent-head .btn + .btn{ margin-left:0; }
+
 .set-row{
-  display:grid; grid-template-columns:150px 1fr; gap:12px;
+  display:grid; grid-template-columns:150px minmax(0,1fr); gap:12px;
   align-items:center; padding:12px 16px;
   border-bottom:2px dashed var(--hougan);
 }
+.set-row > *{ min-width:0; }
 .set-row:last-child{ border-bottom:none; }
 .set-row .lab{ font-size:17px; font-weight:900; }
 .set-task{

@@ -11,7 +11,7 @@
 const K_CFG = 'natsu.config.v2';
 const K_ST  = 'natsu.state.v2';
 
-const TABS = ['home','log','books','settings'];
+const TABS = ['home','log','books','settings','config'];
 
 function isBook(t){ return t && t.type === 'count' && t.recordStyle === 'book'; }
 function isFree(t){ return t && t.type === 'daily' && t.recordStyle === 'free'; }
@@ -416,7 +416,110 @@ function viewLog(){
 /* ---------------------------------------------------------
    ビュー：せってい（おうちの人むけ）
    --------------------------------------------------------- */
-function viewSettings(){
+/* ---------------------------------------------------------
+   保護者ページ（最初の画面）— 進捗の一覧
+   --------------------------------------------------------- */
+function viewParent(){
+  const now = new Date();
+  const en = parseLocal(config.endAt);
+  const ms = en - now;
+  const nat = natsuPct();
+  const s = overall('must');
+  const so = overall('option');
+  const v = verdictOf(s.pct - nat);
+
+  const row = t=>{
+    const p = prog(t);
+    const nx = nextLabel(t);
+    const next = p.isDone ? '完了'
+      : (t.type === 'daily' ? (isFree(t) ? (p.done ? '本日記入済み' : '本日未記入')
+                                         : '本日 ' + p.done + '/' + p.total + (t.targetUnit||''))
+                            : (nx ? '次は ' + nx.num + nx.tail : ''));
+    return `
+      <tr class="${p.isDone ? 'is-done' : ''}">
+        <th>${esc(t.name)}</th>
+        <td class="pg-bar"><div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div></td>
+        <td class="pg-num">${esc(p.text)}</td>
+        <td class="pg-next">${esc(next)}</td>
+      </tr>`;
+  };
+
+  const group = (kind, label)=>{
+    const list = config.tasks.filter(t=>t.group===kind);
+    if(!list.length) return '';
+    return `
+      <section class="sec">
+        <div class="sec-head"><h2>${label}</h2>
+          <span class="sec-note">${list.filter(t=>prog(t).isDone).length}/${list.length} 完了</span></div>
+        <div class="paper"><table class="pgtable">${list.map(row).join('')}</table></div>
+      </section>`;
+  };
+
+  return `
+  <div class="paper parent-head">
+    <div>
+      <h2>保護者用ページ</h2>
+      <p>${esc(config.title)}</p>
+    </div>
+    <a class="btn btn-sm" href="#config">設定</a>
+    <a class="btn btn-sm" href="#home">子ども画面へ</a>
+  </div>
+
+  <section class="paper pstat">
+    <div class="pstat-grid">
+      <div><span class="pstat-lab">残り</span>
+        <span class="pstat-val">${ms > 0 ? Math.floor(ms/86400000) + '日' + (Math.floor(ms/3600000)%24) + '時間' : '終了'}</span></div>
+      <div><span class="pstat-lab">夏休みの経過</span>
+        <span class="pstat-val">${Math.round(nat)}<small>%</small></span></div>
+      <div><span class="pstat-lab">必須の宿題</span>
+        <span class="pstat-val">${Math.round(s.pct)}<small>% (${s.done}/${s.total})</small></span></div>
+      <div><span class="pstat-lab">できればやる</span>
+        <span class="pstat-val">${so.total ? Math.round(so.pct) : 0}<small>% (${so.done}/${so.total})</small></span></div>
+    </div>
+    <p class="pace-verdict ${v.cls}">${v.msg}</p>
+  </section>
+
+  ${group('must','必ずやる')}
+  ${group('option','できればやる')}
+  ${group('daily','毎日')}
+
+  ${bookSectionHTML()}
+
+  <section class="sec">
+    <div class="sec-head"><h2>進捗サマリー</h2></div>
+    <div class="paper">
+      <p class="set-note">現在の進捗をプレーンテキストで書き出します。コピーしてメールやメッセージに貼り付けられます。</p>
+      <div class="set-actions">
+        <label style="font-size:16px;font-weight:900;display:flex;align-items:center;gap:8px">記録の範囲
+          <select id="sumDays" style="width:auto;min-width:130px;padding:8px 10px">
+            <option value="7">直近7日</option>
+            <option value="30">直近30日</option>
+            <option value="0">全期間</option>
+            <option value="-1">記録は含めない</option>
+          </select>
+        </label>
+        <button class="btn btn-sm btn-do" id="sumMake" type="button">サマリーを生成</button>
+      </div>
+      <div style="padding:0 16px 4px">
+        <textarea id="sumOut" rows="14" readonly placeholder="「サマリーを生成」を押すとここに表示されます"
+          style="font-family:var(--font-num);font-size:14px;line-height:1.7"></textarea>
+      </div>
+      <div class="set-actions">
+        <button class="btn btn-sm" id="sumCopy" type="button">コピー</button>
+        <button class="btn btn-sm" id="sumSave" type="button">.txt で保存</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="set-actions" style="padding:8px 0 24px">
+    <a class="btn btn-wide" href="#config" style="text-decoration:none;text-align:center">設定を変更する</a>
+  </div>`;
+}
+
+/* ---------------------------------------------------------
+   保護者ページ（設定）
+   --------------------------------------------------------- */
+function viewConfig(){
   const t2opt = (v,cur,label) => `<option value="${v}"${v===cur?' selected':''}>${label}</option>`;
 
   const taskRows = config.tasks.map((t,i)=>`
@@ -497,10 +600,10 @@ function viewSettings(){
   return `
   <div class="paper parent-head">
     <div>
-      <h2>保護者用ページ</h2>
-      <p>設定の変更と、進捗サマリーの書き出しができます。</p>
+      <h2>設定</h2>
+      <p>期間と宿題の項目を変更できます。</p>
     </div>
-    <a class="btn btn-sm" href="#home">子ども画面へ</a>
+    <a class="btn btn-sm" href="#settings">保護者ページへ戻る</a>
   </div>
 
   <section class="sec">
@@ -522,34 +625,6 @@ function viewSettings(){
     <div class="paper" id="taskEditor">${taskRows}</div>
     <div class="set-actions">
       <button class="btn btn-sm" id="addTask" type="button">＋ 項目を追加</button>
-    </div>
-  </section>
-
-  ${bookSectionHTML()}
-
-  <section class="sec">
-    <div class="sec-head"><h2>進捗サマリー</h2></div>
-    <div class="paper">
-      <p class="set-note">現在の進捗をプレーンテキストで書き出します。コピーしてメールやメッセージに貼り付けられます。</p>
-      <div class="set-actions">
-        <label style="font-size:16px;font-weight:900;display:flex;align-items:center;gap:8px">記録の範囲
-          <select id="sumDays" style="width:auto;min-width:130px;padding:8px 10px">
-            <option value="7">直近7日</option>
-            <option value="30">直近30日</option>
-            <option value="0">全期間</option>
-            <option value="-1">記録は含めない</option>
-          </select>
-        </label>
-        <button class="btn btn-sm btn-do" id="sumMake" type="button">サマリーを生成</button>
-      </div>
-      <div style="padding:0 16px 4px">
-        <textarea id="sumOut" rows="14" readonly placeholder="「サマリーを生成」を押すとここに表示されます"
-          style="font-family:var(--font-num);font-size:14px;line-height:1.7"></textarea>
-      </div>
-      <div class="set-actions">
-        <button class="btn btn-sm" id="sumCopy" type="button">コピー</button>
-        <button class="btn btn-sm" id="sumSave" type="button">.txt で保存</button>
-      </div>
     </div>
   </section>
 
@@ -1086,11 +1161,12 @@ function render(opts){
   if(tab === 'home')          v.innerHTML = viewHome();
   else if(tab === 'log')      v.innerHTML = viewLog();
   else if(tab === 'books')    v.innerHTML = viewBooks();
-  else                        v.innerHTML = viewSettings();
+  else if(tab === 'config')   v.innerHTML = viewConfig();
+  else                        v.innerHTML = viewParent();
 
   $$('.tab').forEach(b=> b.classList.toggle('is-on', b.dataset.tab === tab));
-  // 親ページと本の一覧ではタブバーを隠す（それぞれ「もどる」で戻す）
-  const noTabs = (tab === 'settings' || tab === 'books');
+  // 子ども画面以外ではタブバーを隠す（それぞれ「もどる」で戻す）
+  const noTabs = (tab !== 'home' && tab !== 'log');
   $('.tabbar').hidden = noTabs;
   document.body.classList.toggle('no-tabbar', noTabs);
 
@@ -1098,15 +1174,40 @@ function render(opts){
     renderCountdown();
     timer = setInterval(renderCountdown, 1000);
   }
-  if(tab === 'settings') bindSettings();
+  if(tab === 'settings') bindParent();
+  if(tab === 'config')   bindConfig();
   window.scrollTo(0, keepScroll ? y : 0);
 }
 
 /* ---------------------------------------------------------
    せっていの そうさ
    --------------------------------------------------------- */
-function bindSettings(){
-  $('#cfgTitle').addEventListener('change', e=>{ config.title = e.target.value || 'なつやすみの しゅくだい'; saveCfg(); render(); });
+/* 保護者ページ（進捗一覧）— サマリーの生成と書き出し */
+function bindParent(){
+  $('#sumMake').addEventListener('click', ()=>{
+    $('#sumOut').value = buildSummary(+$('#sumDays').value);
+    toast('サマリーを生成しました');
+  });
+  $('#sumCopy').addEventListener('click', ()=>{
+    const ta = $('#sumOut');
+    if(!ta.value){ toast('先に「サマリーを生成」を押してください'); return; }
+    copyText(ta);
+  });
+  $('#sumSave').addEventListener('click', ()=>{
+    const text = $('#sumOut').value || buildSummary(+$('#sumDays').value);
+    // Excel やメモ帳で文字化けしないよう BOM を付ける
+    const blob = new Blob(['﻿' + text], {type:'text/plain;charset=utf-8'});
+    downloadBlob(blob, 'shukudai-summary-' + dayKey(new Date()) + '.txt');
+    toast('保存しました');
+  });
+}
+
+/* 保護者ページ（設定）*/
+function bindConfig(){
+  $('#cfgTitle').addEventListener('change', e=>{
+    config.title = e.target.value || 'なつやすみの しゅくだい';
+    saveCfg(); render({ keepScroll:true });
+  });
   $('#cfgStart').addEventListener('change', e=>{ config.startAt = e.target.value; saveCfg(); });
   $('#cfgEnd').addEventListener('change',   e=>{ config.endAt   = e.target.value; saveCfg(); });
 
@@ -1132,7 +1233,7 @@ function bindSettings(){
         t.memoLabel = t.memoLabel || 'きょうは なにを した？';
       }
       else delete t.recordStyle;
-      saveCfg(); render(); return;
+      saveCfg(); render({ keepScroll:true }); return;
     }
     if(f === 'numbered')        t.numbered = e.target.checked;
     else if(f === 'total')      t.total = clamp(+e.target.value||1, 1, 200);
@@ -1145,12 +1246,12 @@ function bindSettings(){
       if(t.type==='step'   && !(t.steps||[]).length) t.steps = ['はじめる','とちゅう','かんせい！'];
       if(t.type==='daily'  && !t.target){ t.target = 1; t.targetUnit = t.targetUnit || 'かい'; }
       if(t.type==='daily') t.group = 'daily';
-      saveCfg(); render(); return;
+      saveCfg(); render({ keepScroll:true }); return;
     }
     else if(f === 'group'){
       t.group = e.target.value;
       if(t.group==='daily' && t.type!=='daily'){ t.type='daily'; t.target = t.target||1; t.targetUnit = t.targetUnit||'かい'; }
-      saveCfg(); render(); return;
+      saveCfg(); render({ keepScroll:true }); return;
     }
     else t[f] = e.target.value;
 
@@ -1165,12 +1266,12 @@ function bindSettings(){
       const j = i + (+mv.dataset.move);
       if(j < 0 || j >= config.tasks.length) return;
       const a = config.tasks; const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
-      saveCfg(); render(); return;
+      saveCfg(); render({ keepScroll:true }); return;
     }
     if(e.target.closest('[data-del]')){
       const t = config.tasks[i];
       if(confirm('「'+t.name+'」を削除しますか？\nこれまでの記録は残ります。')){
-        config.tasks.splice(i,1); saveCfg(); render();
+        config.tasks.splice(i,1); saveCfg(); render({ keepScroll:true });
       }
     }
   });
@@ -1181,24 +1282,7 @@ function bindSettings(){
       name:'あたらしい しゅくだい', total:10, unit:'ばん', numbered:true,
       memoLabel:'やったことを かこう'
     });
-    saveCfg(); render();
-  });
-
-  $('#sumMake').addEventListener('click', ()=>{
-    $('#sumOut').value = buildSummary(+$('#sumDays').value);
-    toast('サマリーを生成しました');
-  });
-  $('#sumCopy').addEventListener('click', ()=>{
-    const ta = $('#sumOut');
-    if(!ta.value){ toast('先に「サマリーを生成」を押してください'); return; }
-    copyText(ta);
-  });
-  $('#sumSave').addEventListener('click', ()=>{
-    const text = $('#sumOut').value || buildSummary(+$('#sumDays').value);
-    // Excel やメモ帳で文字化けしないよう BOM を付ける
-    const blob = new Blob(['﻿' + text], {type:'text/plain;charset=utf-8'});
-    downloadBlob(blob, 'shukudai-summary-' + dayKey(new Date()) + '.txt');
-    toast('保存しました');
+    saveCfg(); render({ keepScroll:true });
   });
 
   $('#expBtn').addEventListener('click', exportData);
@@ -1391,7 +1475,7 @@ document.addEventListener('click', e=>{
         .sort((x,y)=> x.nth - y.nth);
       same.forEach((x,i)=> x.nth = i+1);
       state.progress[b.taskId] = Object.assign({}, state.progress[b.taskId], { done: same.length });
-      saveSt(); render(); toast('削除しました');
+      saveSt(); render({ keepScroll:true }); toast('削除しました');
     }
     return;
   }
