@@ -179,8 +179,6 @@ function viewHome(){
   </section>
 
   ${funHTML()}
-
-  <a class="parent-link" href="#settings">⚙ おうちの人へ　せってい・進捗サマリー</a>
   `;
 }
 
