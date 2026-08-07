@@ -1233,7 +1233,7 @@ function openBookSheet(t, p, editBookId){
   <div class="field">
     <span class="lab">本の なまえ<span class="need-mark">かならず 入れてね</span></span>
     <div class="mic-row">
-      <input type="text" id="bkTitle" value="${val('title')}" placeholder="れい：ふしぎ駄菓子屋 銭天堂">
+      <input type="text" id="bkTitle" value="${val('title')}" placeholder="れい：あばれネコ">
       ${micBtn('bkTitle')}
     </div>
     <p class="need-msg" id="bkTitleNeed" hidden>本の なまえが ないと きろく できないよ。</p>
@@ -1243,7 +1243,7 @@ function openBookSheet(t, p, editBookId){
   <div class="field">
     <span class="lab">さくしゃ</span>
     <div class="mic-row">
-      <input type="text" id="bkAuthor" value="${val('author')}" placeholder="かいた人の なまえ">
+      <input type="text" id="bkAuthor" value="${val('author')}" placeholder="れい：キューライス">
       ${micBtn('bkAuthor')}
     </div>
   </div>` : ''}
