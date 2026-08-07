@@ -1243,7 +1243,7 @@ function openBookSheet(t, p, editBookId){
   <div class="field">
     <span class="lab">さくしゃ</span>
     <div class="mic-row">
-      <input type="text" id="bkAuthor" value="${val('author')}" placeholder="れい：キューライス">
+      <input type="text" id="bkAuthor" value="${val('author')}" placeholder="かいた人の なまえ">
       ${micBtn('bkAuthor')}
     </div>
   </div>` : ''}
