@@ -16,12 +16,12 @@
    空のままなら 同期は 動かず、これまで通り 端末内だけに 保存されます。
    --------------------------------------------------------- */
 const FIREBASE_CONFIG = {
-  apiKey:            '',
-  authDomain:        '',
-  projectId:         '',
-  storageBucket:     '',
-  messagingSenderId: '',
-  appId:             ''
+  apiKey:            'AIzaSyD6ZSA2T-0fei0VSZk5BpsCwTgnJ_UImBY',
+  authDomain:        'shukudai-kanri.firebaseapp.com',
+  projectId:         'shukudai-kanri',
+  storageBucket:     'shukudai-kanri.firebasestorage.app',
+  messagingSenderId: '902260266546',
+  appId:             '1:902260266546:web:dc8d35bb252b4bf6f54e2b'
 };
 
 const SDK = 'https://www.gstatic.com/firebasejs/12.17.1/';
@@ -79,6 +79,12 @@ function configured(){
 /* ---------------------------------------------------------
    4. つなぐ
    --------------------------------------------------------- */
+/* ページを 開いた ときの 自動つなぎと、設定画面での「つなぎ直す」が
+   ほぼ同時に 起きることが ある（起動直後に あいことばを 打ち直した場合など）。
+   initializeApp・initializeFirestore は アプリの中で 1回しか 呼べないので、
+   同時に 2回 初期化しないよう ここで ひとまとめにする */
+let initPromise = null;
+
 async function connect(){
   const code = getCode();
 
@@ -88,26 +94,16 @@ async function connect(){
   setStatus('connecting', 'つないでいます…');
 
   try{
-    const [{ initializeApp }, { getAuth, signInAnonymously }, fs] = await Promise.all([
-      import(SDK + 'firebase-app.js'),
-      import(SDK + 'firebase-auth.js'),
-      import(SDK + 'firebase-firestore.js')
-    ]);
+    /* initializeApp と initializeFirestore は アプリの中で 1回しか 呼べない。
+       あいことばを 入れ替えて つなぎ直すたびに ここへ 戻ってくるので、
+       2回目からは 作った db を そのまま つかい、docRef だけ 差し替える */
+    if(!db){
+      if(!initPromise) initPromise = initFirebase();
+      await initPromise;
+    }
 
-    const app = initializeApp(FIREBASE_CONFIG);
-
-    /* 匿名ログイン。画面には 何も出ない。
-       これが あることで、規則に request.auth != null を 書ける */
-    await signInAnonymously(getAuth(app));
-
-    /* 通信が 切れているあいだの 読み書きを ブラウザに ためる。
-       子の端末が 電波の無い所で「やった！」を 押しても 消えない */
-    db = fs.initializeFirestore(app, {
-      localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() })
-    });
-
+    const fs = Sync._fs;
     docRef = fs.doc(db, 'households', code);
-    Sync._fs = fs;
 
     if(unsub){ unsub(); unsub = null; }
 
@@ -139,6 +135,27 @@ async function connect(){
   }catch(err){
     setStatus('error', 'つながりません：' + (err && err.message || err));
   }
+}
+
+async function initFirebase(){
+  const [{ initializeApp }, { getAuth, signInAnonymously }, fs] = await Promise.all([
+    import(SDK + 'firebase-app.js'),
+    import(SDK + 'firebase-auth.js'),
+    import(SDK + 'firebase-firestore.js')
+  ]);
+  Sync._fs = fs;
+
+  const app = initializeApp(FIREBASE_CONFIG);
+
+  /* 匿名ログイン。画面には 何も出ない。
+     これが あることで、規則に request.auth != null を 書ける */
+  await signInAnonymously(getAuth(app));
+
+  /* 通信が 切れているあいだの 読み書きを ブラウザに ためる。
+     子の端末が 電波の無い所で「やった！」を 押しても 消えない */
+  db = fs.initializeFirestore(app, {
+    localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() })
+  });
 }
 
 function disconnect(){
