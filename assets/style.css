@@ -941,3 +941,40 @@ input.is-need, textarea.is-need{
   border-color:var(--suika) !important;
   background:var(--suika-usu);
 }
+
+/* =========================================================
+   マルつけ・なおしの ランプ（14/14 の よこ）
+   ========================================================= */
+/* 仕上げの2段階は 番号の すすみとは べつの ものさしなので、
+   バーには 混ぜず、点いたり 消えたりする 項目として ならべる */
+.wrapmarks{
+  display:flex; align-items:center; gap:6px; flex-shrink:0;
+}
+/* 2つ並びカードは 幅が せまい。はみ出すくらいなら 下の行に 落とす */
+.task-meter{ flex-wrap:wrap; row-gap:6px; }
+.wrapmark{
+  font-size:14px; font-weight:900; line-height:1.2;
+  white-space:nowrap;
+  color:var(--ai-usu); background:var(--kami);
+  border:2px solid var(--hougan); border-radius:999px;
+  padding:2px 9px;
+}
+.wrapmark::before{ content:"✓"; margin-right:4px; opacity:.45; }
+/* 済んだら はっきり 分かるように 塗りつぶす */
+.wrapmark.is-on{
+  color:var(--kami); background:var(--wakaba); border-color:var(--wakaba);
+  animation:wrap-pop .3s ease-out;
+}
+.wrapmark.is-on::before{ opacity:1; }
+
+@media (max-width:560px){
+  .wrapmark{ font-size:13px; padding:2px 8px; }
+}
+
+@keyframes wrap-pop{
+  from{ transform:scale(.8); }
+  to  { transform:scale(1); }
+}
+@media (prefers-reduced-motion:reduce){
+  .wrapmark.is-on{ animation:none; }
+}

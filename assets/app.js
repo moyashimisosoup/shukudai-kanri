@@ -141,7 +141,10 @@ function wrapOf(p){
 /* しあげの2段階を すすみぐあいに 織りこむ。
    done / total / text は 番号（段階）そのままの数を のこす。
    14ばんの課題が 16ばんに 見えると まちがえるため。
-   バーと 完了の 判定にだけ 2段階を 足す */
+   バーも 番号（段階）だけの わりあいに する。マルつけ・なおしは
+   バーの そとの ランプで 見せるので、pct には 足さない。
+   足すと 14/14 なのに バーが 埋まらず、ちぐはぐに 見える。
+   完了（isDone）の 判定にだけ 2段階を 足す */
 function withWrap(task, p, r){
   r.numDone  = r.isDone;        // 番号（段階）を ぜんぶ 終えたか
   r.wrap     = wrapOf(p);
@@ -149,9 +152,9 @@ function withWrap(task, p, r){
   r.allTotal = r.total;
   if(!hasWrap(task)) return r;
   const w = r.wrap.filter(Boolean).length;
+  // allDone / allTotal は 2段階こみの かぞえかた（ほかから 使うので のこす）
   r.allDone  = r.done + w;
   r.allTotal = r.total + r.wrap.length;
-  r.pct      = r.allDone / r.allTotal * 100;
   r.isDone   = r.numDone && w >= r.wrap.length;
   return r;
 }
@@ -220,11 +223,13 @@ function nextLabel(task){
   return { lead:'きょうは あと', num:String(nokori), tail: task.targetUnit || 'かい' };
 }
 
-/* しゅくだい ぜんたいの すすみぐあい（かならずやる だけ／まいにちアプリは のぞく） */
+/* しゅくだい ぜんたいの すすみぐあい（かならずやる だけ／まいにちアプリは のぞく）
+   ここも 番号（段階）だけで かぞえる。カードの バーと 同じ ものさしに して
+   おかないと、保護者ページの「必須の宿題 ○%」だけ 数字が ずれて見える */
 function overall(group){
   let done = 0, total = 0;
   config.tasks.filter(t => t.group === group && t.type !== 'daily').forEach(t=>{
-    const p = prog(t); done += p.allDone; total += p.allTotal;
+    const p = prog(t); done += p.done; total += p.total;
   });
   return { done, total, pct: total ? done/total*100 : 0 };
 }
@@ -313,6 +318,15 @@ function sectionHTML(kind, title, note, tasks){
   </section>`;
 }
 
+/* 14/14 の よこに ならべる ランプ。
+   マルつけ・なおしは バーの すすみとは べつものなので、
+   バーに まぜず、済んだら 点灯する 項目として 出す */
+function wrapMarksHTML(t, p){
+  if(!hasWrap(t)) return '';
+  return `<span class="wrapmarks">${WRAP_LABELS.map((s,i)=>
+    `<span class="wrapmark${p.wrap[i] ? ' is-on' : ''}">${esc(s)}</span>`).join('')}</span>`;
+}
+
 function taskHTML(t){
   const p = prog(t);
   const nx = nextLabel(t);
@@ -335,9 +349,10 @@ function taskHTML(t){
         ${p.streak>0 ? `<span class="streak">${p.streak}日 れんぞく</span>` : ''}
       </div>`;
   }else{
+    // count と step は 同じ 見た目。ランプは 14/14 の すぐ よこに ならべる
     meter = `<div class="task-meter">
         <div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div>
-        <span class="task-count">${esc(p.text)}</span>
+        <span class="task-count">${esc(p.text)}</span>${wrapMarksHTML(t, p)}
       </div>`;
   }
 
@@ -798,6 +813,9 @@ function viewConfig(){
               ${t2opt('book',t.recordStyle||'','本の記録')}
             </select>
           </label>
+        ` : ''}
+        ${(t.type==='count' || t.type==='step') ? `
+          <label><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> マルつけ・なおしを つける</label>
         ` : ''}
         ${isBook(t) ? (bf => `
           <label><input type="checkbox" data-bf="author"${bf.author?' checked':''}> さくしゃ欄</label>
@@ -1546,6 +1564,8 @@ function bindConfig(){
       saveCfg(); render({ keepScroll:true }); return;
     }
     if(f === 'numbered')        t.numbered = e.target.checked;
+    // 外しても progress の wrap は 消さない。付けなおしたら 前の状態が また見える
+    else if(f === 'wrapUp')     t.wrapUp = e.target.checked;
     else if(f === 'total')      t.total = clamp(+e.target.value||1, 1, 200);
     else if(f === 'target')     t.target = clamp(+e.target.value||1, 1, 20);
     else if(f === 'steps')      t.steps = e.target.value.split('\n').map(s=>s.trim()).filter(Boolean);
