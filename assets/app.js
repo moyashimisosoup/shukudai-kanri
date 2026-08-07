@@ -2373,31 +2373,65 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==
    長い 3秒に してある。
    --------------------------------------------------------- */
 (function(){
-  const HOLD_MS = 3000;
-  const el = $('#appTitle');
+  /* 帯ぜんたいを 受け口に する。タイトルの 文字は 短いことが あり、
+     その 右がわの すき間を 押しても 反応しないと 当てにくい */
+  const el = $('.topband') || $('#appTitle');
   if(!el) return;
 
-  let timerId = null;
+  const HOLD_MS  = 2000;   // 長押しの ながさ
+  const MOVE_TOL = 14;     // 指の ゆれを 許す はば（px）
+  const TAPS     = 5;      // 連続タップの かず
+  const TAP_GAP  = 800;    // タップの あいだの ゆるされる 間（ms）
 
-  function start(){
+  let timerId = null, sx = 0, sy = 0;
+  let taps = 0, lastTap = 0;
+
+  function open(){
+    cancel();
+    taps = 0;
+    if(routeFromHash() === 'config') return;
+    location.hash = 'config';
+  }
+
+  function start(x, y){
+    sx = x; sy = y;
     clearTimeout(timerId);
-    timerId = setTimeout(()=>{
-      timerId = null;
-      location.hash = 'config';
-    }, HOLD_MS);
+    timerId = setTimeout(open, HOLD_MS);
+  }
+  function moved(x, y){
+    /* 指は じっとしていても 1〜2px は ゆれる。
+       ここで すぐ 打ち切ると、実機では ほとんど 成功しない。
+       画面を 動かすほど 動いたときだけ やめる */
+    if(Math.abs(x - sx) > MOVE_TOL || Math.abs(y - sy) > MOVE_TOL) cancel();
   }
   function cancel(){ clearTimeout(timerId); timerId = null; }
 
-  el.addEventListener('touchstart', start, { passive:true });
-  el.addEventListener('touchend',   cancel);
-  el.addEventListener('touchmove',  cancel, { passive:true });
-  el.addEventListener('touchcancel',cancel);
-  /* パソコンで ためすとき用 */
-  el.addEventListener('mousedown', start);
-  el.addEventListener('mouseup',   cancel);
-  el.addEventListener('mouseleave',cancel);
+  el.addEventListener('touchstart', e=>{
+    const t = e.touches[0]; if(t) start(t.clientX, t.clientY);
+  }, { passive:true });
+  el.addEventListener('touchmove', e=>{
+    const t = e.touches[0]; if(t) moved(t.clientX, t.clientY);
+  }, { passive:true });
+  el.addEventListener('touchend',    cancel);
+  el.addEventListener('touchcancel', cancel);
 
-  /* 長押しで 文字が 選ばれて しまわないように */
+  /* パソコンで ためすとき用 */
+  el.addEventListener('mousedown', e=> start(e.clientX, e.clientY));
+  el.addEventListener('mousemove', e=>{ if(timerId) moved(e.clientX, e.clientY); });
+  el.addEventListener('mouseup',    cancel);
+  el.addEventListener('mouseleave', cancel);
+
+  /* 長押しは iOS だと 文字の 選択や 虫めがねに 取られて
+     途中で 切れることが ある。とんとん と 5回 つづけて たたく方でも
+     開けるようにして、どちらか 通れば よい ことにする */
+  el.addEventListener('click', ()=>{
+    const now = performance.now();
+    taps = (now - lastTap > TAP_GAP) ? 1 : taps + 1;
+    lastTap = now;
+    if(taps >= TAPS) open();
+  });
+
+  /* 長押しで 文字が 選ばれたり、虫めがねが 出たり しないように */
   el.style.webkitUserSelect = 'none';
   el.style.userSelect = 'none';
   el.style.webkitTouchCallout = 'none';
