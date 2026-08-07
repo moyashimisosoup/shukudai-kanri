@@ -11,7 +11,7 @@
 const K_CFG = 'natsu.config.v2';
 const K_ST  = 'natsu.state.v2';
 
-const TABS = ['home','log','calendar','books','settings','config'];
+const TABS = ['home','log','calendar','books','writes','settings','config'];
 
 function isBook(t){ return t && t.type === 'count' && t.recordStyle === 'book'; }
 function isFree(t){ return t && t.type === 'daily' && t.recordStyle === 'free'; }
@@ -27,6 +27,9 @@ let funIdx = 0, funOpen = false;
    描き直しても 見ている場所が とばないよう、画面の外で おぼえておく */
 let calMonth = null;
 let calDay = null;
+/* 「かいたもの いちらん」が いま見せている 課題。#writes:<taskId> から 入る。
+   ハッシュには 課題の id が のこるので、画面を 描き直しても 見失わない */
+let writesTaskId = null;
 
 /* なぞなぞ・まめちしきは 1日に 引ける かずを かぎる。
    いくらでも 引きなおせると、宿題より そちらに いってしまう */
@@ -369,6 +372,8 @@ function taskHTML(t){
       </button>
       ${isBook(t) && p.done > 0
         ? `<a class="btn btn-sm btn-ghost task-sub" href="#books">よんだ本を 見る</a>` : ''}
+      ${hasWrites(t)
+        ? `<a class="btn btn-sm btn-ghost task-sub" href="#writes:${esc(t.id)}">かいたものを 見る</a>` : ''}
     </div>
   </article>`;
 }
@@ -508,6 +513,185 @@ function viewBooks(){
             <p>${esc(b.memoOut || b.memo)}</p>
           </div>` : ''}
       </article>`).join('')}`;
+}
+
+/* ---------------------------------------------------------
+   ビュー：かいたもの いちらん（紙のカードへ書き写すためのページ）
+   --------------------------------------------------------- */
+/* その課題で 文を 書いた きろくだけを 古い順に あつめる。
+   かんさつは 書いた順に 読めたほうが、そだち かたが つながって 見える。
+   ログの at は UTC の ISO なので、かならず Date に なおしてから ならべる */
+function writeLogsOf(taskId){
+  return (state.logs || [])
+    .filter(l => l.taskId === taskId && String(l.memo || '').trim())
+    .sort((a, b) => new Date(a.at) - new Date(b.at));
+}
+
+/* 一覧への 入口を 出すか どうか。課題の id では なく「文を 書いた きろくが
+   あるか」で きめるので、きゅうり・読書ゆうびん いがいの 段階の課題でも
+   自動で 出る。番号でかぞえる 課題（本のきろくなど）には 出さない */
+function hasWrites(t){
+  return !!t && t.type === 'step' && writeLogsOf(t.id).length > 0;
+}
+
+function viewWrites(){
+  const t = (config.tasks || []).find(x => x.id === writesTaskId);
+  const rows = t ? writeLogsOf(t.id) : [];
+
+  if(!rows.length){
+    return `
+    <div class="paper parent-head">
+      <div><h2 style="font-size:24px">かいたもの</h2></div>
+      <a class="btn btn-sm" href="#home">もどる</a>
+    </div>
+    <div class="paper"><p class="empty">まだ かいたものが ないよ。<br>
+      <a href="#home">のこりの しゅくだい</a> から きろくしてね。</p></div>`;
+  }
+
+  return `
+  <div class="paper parent-head">
+    <div>
+      <h2 style="font-size:24px">${esc(t.name)}　かいたもの</h2>
+      <p style="font-size:17px">ぜんぶで ${rows.length}かい</p>
+    </div>
+    <a class="btn btn-sm" href="#home">もどる</a>
+  </div>
+  <p class="write-lead paper">カードに 書きうつすときは、この ページを 見ながら 書いてね。</p>
+  ${rows.map(l=>{
+    const d = new Date(l.at);
+    return `
+    <article class="paper write-card">
+      <div class="write-head">
+        <span class="write-date">${esc(fmtDate(d))}</span>
+        <span class="write-time">${esc(fmtTime(d))}</span>
+      </div>
+      <p class="write-memo">${esc(l.memo)}</p>
+    </article>`;
+  }).join('')}
+  <section class="sec write-kanji">
+    <div class="sec-head"><h2>ひらがなに する</h2>
+      <span class="sec-note">カードに うつす まえに</span></div>
+    <div class="paper write-kanji-body">
+      <p class="write-hint">ならっていない かんじが ないか しらべられるよ。</p>
+      <div class="write-acts">
+        <button class="btn btn-sm btn-do" id="wrCheck" type="button">かんじを しらべる</button>
+      </div>
+
+      <div id="wrCheckWrap" hidden>
+        <div class="kj-box">
+          <span class="write-lab">ならっていない かんじ</span>
+          <p class="kj-list" id="wrUnlearned"></p>
+          <p class="kj-view" id="wrMarked"></p>
+          <p class="write-hint" id="wrCheckNote"></p>
+        </div>
+        <div class="write-acts">
+          <button class="btn btn-sm" id="wrFix" type="button">ぜんぶ ひらがなに して</button>
+        </div>
+        <p class="write-note" id="wrDictNote"></p>
+      </div>
+
+      <div id="wrOutWrap" hidden>
+        <span class="write-lab">かきうつす文（2年生までの かんじ）</span>
+        <p class="write-hint">カードには この文を うつしてね。なおしても いいよ。</p>
+        <textarea class="write-out" id="wrOut" rows="10"></textarea>
+        <p class="write-note" id="wrOutNote"></p>
+      </div>
+    </div>
+  </section>`;
+}
+
+/* 一覧ぜんぶを ひとつづきの 文に する（しらべる ときだけ 使う）。
+   日づけごとに 分けなくても、どの かんじが ならっていないかは 分かる */
+function writesAllText(){
+  return writeLogsOf(writesTaskId).map(l => String(l.memo || '')).join('\n');
+}
+
+/* 1だんめ：ならっていない漢字を すぐ 見せる。通信も 待ち時間も ない */
+function checkWrites(){
+  const src = writesAllText().trim();
+  if(!src) return;
+
+  const un = unlearnedKanji(src);
+  $('#wrCheckWrap').hidden = false;
+  $('#wrMarked').innerHTML = markUnlearnedHTML(src);   // すでにエスケープ済み
+
+  if(!un.length){
+    $('#wrUnlearned').textContent = 'なし';
+    $('#wrCheckNote').textContent = 'ぜんぶ 2年生までの かんじだったよ。そのまま カードに うつせるね。';
+    $('#wrFix').hidden = true;
+    $('#wrDictNote').textContent = '';
+  }else{
+    $('#wrUnlearned').textContent = un.join('　');
+    $('#wrCheckNote').textContent = 'いろの ついた かんじは まだ ならって いないよ。ひらがなで 書こう。';
+    $('#wrFix').hidden = false;
+    /* 端末に辞書が残っていれば通信は起きない。案内は実際の状態に合わせる */
+    if(!needsDictDownload()){
+      $('#wrDictNote').textContent = 'じしょは よみこみずみ。すぐ できるよ。';
+    }else{
+      $('#wrDictNote').textContent = 'じしょを かくにん しています…';
+      dictOnDevice().then(has=>{
+        $('#wrDictNote').textContent = has
+          ? 'じしょは この タブレットに あるよ。すぐ できる。'
+          : '「ぜんぶ ひらがなに して」を おすと、じしょ（やく' + dictSizeMB()
+            + 'MB）を よみこみます。はじめの 1回だけなので、Wi-Fi の ある ところで おしてね。';
+      });
+    }
+  }
+  $('#wrCheckWrap').scrollIntoView({ block:'nearest' });
+}
+
+/* 2だんめ：辞書を使って ぜんぶ ひらがなに直す（明示的に押したときだけ） */
+function fixWrites(){
+  const rows = writeLogsOf(writesTaskId);
+  const wrap = $('#wrOutWrap'), note = $('#wrOutNote'), btn = $('#wrFix');
+  if(!rows.length) return;
+
+  const first = needsDictDownload();
+  btn.disabled = true;
+  btn.textContent = first ? 'じしょを よみこみ中…' : 'なおしています…';
+  if(first){
+    $('#wrDictNote').textContent = 'じしょを よみこんでいます。'
+      + 'ほかの ところは さわれるから、まっててね。';
+    /* 何ファイルまで進んだかを出す。だまって待たせると、動いているのか
+       止まっているのか 分からず、大人でも原因を追えなくなる */
+    setDictProgress(p=>{
+      $('#wrDictNote').textContent = 'じしょを よみこみ中… '
+        + p.done + ' / ' + p.total + '（' + (p.bytes / 1048576).toFixed(1) + 'MB）';
+    });
+  }
+
+  /* 1件ずつ 順に 変換する。ぜんぶ つないで 1回で 変換すると、
+     どこが どの日の 文なのか 分からなくなり、カードに うつせない。
+     1件 しくじっても そこだけ 元の文で のこし、ほかは 出す */
+  const fails = [];
+  const un = [];
+  rows.reduce((chain, l)=> chain.then(parts =>
+    convertForTranscription(String(l.memo || '')).then(r=>{
+      const day = fmtDate(new Date(l.at));
+      if(r.ok) r.unlearned.forEach(ch=>{ if(un.indexOf(ch) < 0) un.push(ch); });
+      else     fails.push(day + '（' + r.reason + '）');
+      parts.push('【' + day + '】\n' + r.text);
+      return parts;
+    })
+  ), Promise.resolve([])).then(parts=>{
+    $('#wrOut').value = parts.join('\n\n');
+    wrap.hidden = false;
+    if(fails.length){
+      note.textContent = 'いまは じどうで なおせません（' + fails.join('、') + '）。'
+        + '上の いろが ついた かんじを、じぶんで ひらがなに してね。';
+      $('#wrDictNote').textContent = '';
+    }else{
+      note.textContent = un.length
+        ? 'ならっていない かんじ（' + un.join('・') + '）を ひらがなに しました。'
+        : 'ぜんぶ 2年生までの かんじだったよ。';
+      $('#wrDictNote').textContent = 'じしょの よみこみは おわりました。つぎからは すぐ できるよ。';
+    }
+    wrap.scrollIntoView({ block:'nearest' });
+  }).finally(()=>{
+    setDictProgress(null);
+    btn.disabled = false;
+    btn.textContent = 'ぜんぶ ひらがなに して';
+  });
 }
 
 /* ---------------------------------------------------------
@@ -1492,6 +1676,7 @@ function render(opts){
   else if(tab === 'log')      v.innerHTML = viewLog();
   else if(tab === 'calendar') v.innerHTML = viewCalendar();
   else if(tab === 'books')    v.innerHTML = viewBooks();
+  else if(tab === 'writes')   v.innerHTML = viewWrites();
   else if(tab === 'config')   v.innerHTML = viewConfig();
   else                        v.innerHTML = viewParent();
 
@@ -1809,6 +1994,8 @@ document.addEventListener('click', e=>{
 
   if(e.target.closest('#bkCheck')){ checkKanji(); return; }
   if(e.target.closest('#bkFix')){ fixKanji(); return; }
+  if(e.target.closest('#wrCheck')){ checkWrites(); return; }
+  if(e.target.closest('#wrFix')){ fixWrites(); return; }
 
   const delBook = e.target.closest('[data-delbook]');
   if(delBook){
@@ -1906,13 +2093,20 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==
 /* ---------------------------------------------------------
    ルーティング（#home / #record / #log / #settings）
    --------------------------------------------------------- */
+/* かいたもの いちらんだけは 課題を えらぶので '#writes:<taskId>' の形にする。
+   ハッシュに 課題を のせておけば、もどる・すすむでも 同じ画面に かえれる */
 function routeFromHash(){
   const h = (location.hash || '').replace(/^#/, '');
+  const c = h.indexOf(':');
+  const name = c < 0 ? h : h.slice(0, c);
+  if(name === 'writes'){ writesTaskId = c < 0 ? writesTaskId : h.slice(c + 1); return 'writes'; }
   return TABS.indexOf(h) >= 0 ? h : 'home';
 }
 window.addEventListener('hashchange', ()=>{
   const t = routeFromHash();
-  if(t !== tab){ tab = t; render(); }
+  /* writes は 同じタブのまま 課題だけ かわることが あるので、
+     タブが 同じでも 描き直す */
+  if(t !== tab || t === 'writes'){ tab = t; render(); }
 });
 
 /* ---------------------------------------------------------
