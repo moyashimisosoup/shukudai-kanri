@@ -628,18 +628,27 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .parent-head p{ font-size:16px; font-weight:700; color:var(--ai-usu); }
 .parent-head .btn{ text-decoration:none; display:inline-flex; align-items:center; }
 
+/* スマホの幅では、見出しと ボタンの あいだが 中途半端に 折り返して
+   「設定」だけ 上、「子ども画面へ」が 下 という ちぐはぐな 形に なる。
+   見出しを 1行 まるごと 使わせて、ボタン2つを つぎの行に そろえる */
+@media (max-width:560px){
+  .parent-head{ gap:12px; }
+  .parent-head > div{ flex:1 1 100%; }
+}
+
 /* 親ページはタブバーがないぶん下の余白を詰める */
 body.no-tabbar{ padding-bottom:24px; }
 
 /* 進捗の概要 */
 .pstat{ padding:18px; }
 .pstat-grid{
-  display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr));
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr));
   gap:14px; margin-bottom:16px;
 }
 .pstat-grid > div{
   padding:12px 14px; background:#F2F8FB;
   border:2px solid var(--hougan); border-radius:var(--r-s);
+  min-width:0;   /* 中の数字が はみ出して 列を 押し広げないように */
 }
 .pstat-lab{ display:block; font-size:14px; font-weight:900; color:var(--ai-usu); }
 .pstat-val{
@@ -647,6 +656,21 @@ body.no-tabbar{ padding-bottom:24px; }
   font-variant-numeric:tabular-nums; margin-top:2px;
 }
 .pstat-val small{ font-size:15px; font-weight:900; color:var(--ai-usu); }
+
+/* スマホの幅では 4つが たて1列に ならんで 間のびする。
+   2列に して、いちばん長い「残り ○日○時間」だけ 横いっぱいに 使う。
+   （150px だと iPhone の 幅で 13px 足りず 1列に 落ちていた）*/
+@media (max-width:560px){
+  .pstat{ padding:14px; }
+  .pstat-grid{
+    gap:10px;
+    /* 140px だと iPhone 12 mini などの 360px 幅で 11px 足りず
+       1列に 落ちる。130px なら 360px から 2列に なる */
+    grid-template-columns:repeat(auto-fit, minmax(130px,1fr));
+  }
+  .pstat-grid > div:first-child{ grid-column:1 / -1; }
+  .pstat-val{ font-size:clamp(22px, 7vw, 28px); white-space:nowrap; }
+}
 
 /* 課題ごとの進捗表 */
 .pgtable{ width:100%; border-collapse:collapse; }
