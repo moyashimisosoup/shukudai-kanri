@@ -420,20 +420,14 @@ function viewLog(){
 /* ---------------------------------------------------------
    ビュー：カレンダー
    --------------------------------------------------------- */
-/* その日を「ぜんぶできた/すこしできた/なにもなし」のどれに分類するか。
-   基準を変えたいときはこの関数だけを直せばよい。
+/* その日を みどりに ぬるか どうか。基準を変えたいときは この関数だけを直せばよい。
    いまの基準：
-     'all'  … まいにちの課題が すべて その日のノルマに とどいている
-     'some' … その日の きろくが 1件いじょう ある
-     'none' … きろくが ない */
+     'all'  … その日の きろくが 1件いじょう ある（なにか やれば みどり）
+     'none' … きろくが ない
+   ぜんぶ やった日だけを みどりにすると、みどりの日が とても少なくなって
+   かえって やる気が しぼむ。つづいていることが 見えるほうを だいじにする */
 function calDayMark(key){
-  const daily = config.tasks.filter(t => t.type === 'daily');
-  const allDone = daily.length > 0 && daily.every(t=>{
-    const days = (state.progress[t.id] || {}).days || {};
-    return (days[key]|0) >= Math.max(1, t.target|0);
-  });
-  if(allDone) return 'all';
-  return calLogsOf(key).length ? 'some' : 'none';
+  return calLogsOf(key).length ? 'all' : 'none';
 }
 
 /* ログの at は UTC の ISO なので、かならず その場所の日づけに なおしてから くらべる */
@@ -532,7 +526,7 @@ function viewCalendar(){
       <span class="cal-leg"><span class="cal-dot cal-dot--must"></span>かならず やる</span>
       <span class="cal-leg"><span class="cal-dot cal-dot--option"></span>できれば やる</span>
       <span class="cal-leg"><span class="cal-dot cal-dot--daily"></span>まいにち</span>
-      <span class="cal-leg"><span class="cal-leg-box"></span>ぜんぶ できた日</span>
+      <span class="cal-leg"><span class="cal-leg-box"></span>なにか やった日</span>
       <span class="cal-leg"><span class="cal-free">📝</span>なんでも きろく</span>
     </div>
   </section>
