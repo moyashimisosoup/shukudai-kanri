@@ -11,7 +11,7 @@
 const K_CFG = 'natsu.config.v2';
 const K_ST  = 'natsu.state.v2';
 
-const TABS = ['home','log','books','settings','config'];
+const TABS = ['home','log','calendar','books','settings','config'];
 
 function isBook(t){ return t && t.type === 'count' && t.recordStyle === 'book'; }
 function isFree(t){ return t && t.type === 'daily' && t.recordStyle === 'free'; }
@@ -23,6 +23,10 @@ let config, state;
 let tab = 'home';
 let timer = null;
 let funIdx = 0, funOpen = false;
+/* カレンダーが 見せている月（その月の1日）と、下にひらいている日。
+   描き直しても 見ている場所が とばないよう、画面の外で おぼえておく */
+let calMonth = null;
+let calDay = null;
 
 function loadAll(){
   try{
@@ -411,6 +415,156 @@ function viewLog(){
       <div class="day-head">${fmtDate(keyToDate(k))}<span class="cnt">${byDay[k].length}こ</span></div>
       <div class="paper today-list">${byDay[k].slice().reverse().map(logRowHTML).join('')}</div>
     </section>`).join('');
+}
+
+/* ---------------------------------------------------------
+   ビュー：カレンダー
+   --------------------------------------------------------- */
+/* その日を「ぜんぶできた/すこしできた/なにもなし」のどれに分類するか。
+   基準を変えたいときはこの関数だけを直せばよい。
+   いまの基準：
+     'all'  … まいにちの課題が すべて その日のノルマに とどいている
+     'some' … その日の きろくが 1件いじょう ある
+     'none' … きろくが ない */
+function calDayMark(key){
+  const daily = config.tasks.filter(t => t.type === 'daily');
+  const allDone = daily.length > 0 && daily.every(t=>{
+    const days = (state.progress[t.id] || {}).days || {};
+    return (days[key]|0) >= Math.max(1, t.target|0);
+  });
+  if(allDone) return 'all';
+  return calLogsOf(key).length ? 'some' : 'none';
+}
+
+/* ログの at は UTC の ISO なので、かならず その場所の日づけに なおしてから くらべる */
+function calLogsOf(key){
+  return state.logs.filter(l => dayKey(new Date(l.at)) === key);
+}
+
+/* 夏休みの はじめ／おわり。日づけだけを見たいので 0:00 に そろえる。
+   せっていが 空のときは null（＝かぎをかけない） */
+function calRange(){
+  const cut = s=>{
+    const d = parseLocal(s);
+    return (d.getTime() === d.getTime()) ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : null;
+  };
+  return { start: cut(config.startAt), end: cut(config.endAt) };
+}
+function calMonthTop(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+
+/* その日に きろくが ある課題の group を、決まった順で ならべる（色の丸のもと） */
+function calGroupsOf(logs){
+  const found = {};
+  logs.forEach(l=>{
+    const t = config.tasks.find(x => x.id === l.taskId);
+    if(t) found[t.group] = true;
+  });
+  return ['must','option','daily'].filter(g => found[g]);
+}
+function calHasFree(logs){
+  return logs.some(l=>{
+    const t = config.tasks.find(x => x.id === l.taskId);
+    return isFree(t);
+  });
+}
+
+function viewCalendar(){
+  const now = new Date(), todayKey = dayKey(now);
+  const r = calRange();
+  if(!calMonth) calMonth = calMonthTop(now);
+
+  const top = calMonth;
+  const y = top.getFullYear(), m = top.getMonth();
+  const lastDate = new Date(y, m+1, 0).getDate();
+
+  // 夏休みの外の月へは いかせない（せっていが 空なら 自由に うごける）
+  const canPrev = !r.start || top > calMonthTop(r.start);
+  const canNext = !r.end   || top < calMonthTop(r.end);
+
+  const wd = WD.map((w,i)=>
+    `<div class="cal-wd${i===0?' cal-wd--sun':''}${i===6?' cal-wd--sat':''}">${w}</div>`).join('');
+
+  let cells = '';
+  for(let i=0; i<top.getDay(); i++) cells += `<div class="cal-cell cal-cell--blank"></div>`;
+
+  for(let d=1; d<=lastDate; d++){
+    const date = new Date(y, m, d);
+    const key = dayKey(date);
+    const logs = calLogsOf(key);
+    const mark = calDayMark(key);
+    const out = (r.start && date < r.start) || (r.end && date > r.end);
+
+    const cls = ['cal-day'];
+    if(key === todayKey)   cls.push('is-today');
+    if(key === calDay)     cls.push('is-sel');
+    if(out)                cls.push('is-out');
+    if(mark === 'all')     cls.push('is-all');
+    if(date > now && !out) cls.push('is-mirai');
+
+    const dots = calGroupsOf(logs).map(g=>
+      `<span class="cal-dot cal-dot--${g}"></span>`).join('');
+
+    cells += `
+      <button class="${cls.join(' ')}" data-day="${key}" type="button"
+        aria-pressed="${key === calDay ? 'true' : 'false'}"
+        aria-label="${esc(fmtDate(date))}">
+        <span class="cal-num">${d}</span>
+        <span class="cal-dots">${dots}${calHasFree(logs) ? `<span class="cal-free">📝</span>` : ''}</span>
+      </button>`;
+  }
+
+  return `
+  <section class="sec">
+    <div class="cal-nav paper">
+      <button class="btn btn-sm btn-ghost" data-calmove="-1" type="button"
+        ${canPrev ? '' : 'disabled'}>◀ まえの月</button>
+      <h2 class="cal-title">${y}年 ${m+1}月</h2>
+      <button class="btn btn-sm btn-ghost" data-calmove="1" type="button"
+        ${canNext ? '' : 'disabled'}>つぎの月 ▶</button>
+    </div>
+
+    <div class="paper cal-paper">
+      <div class="cal-grid cal-grid--wd">${wd}</div>
+      <div class="cal-grid">${cells}</div>
+    </div>
+
+    <div class="paper cal-legend">
+      <span class="cal-leg"><span class="cal-dot cal-dot--must"></span>かならず やる</span>
+      <span class="cal-leg"><span class="cal-dot cal-dot--option"></span>できれば やる</span>
+      <span class="cal-leg"><span class="cal-dot cal-dot--daily"></span>まいにち</span>
+      <span class="cal-leg"><span class="cal-leg-box"></span>ぜんぶ できた日</span>
+      <span class="cal-leg"><span class="cal-free">📝</span>なんでも きろく</span>
+    </div>
+  </section>
+
+  ${calDay ? calDetailHTML(calDay) : `
+    <div class="paper"><p class="empty">日づけを おすと、その日の きろくが 見られるよ。</p></div>`}
+  `;
+}
+
+function calDetailHTML(key){
+  const logs = calLogsOf(key).slice().sort((a,b)=> new Date(a.at) - new Date(b.at));
+  const books = state.books.filter(b => b.date === key);
+
+  const bookHTML = books.map(b=>`
+    <div class="cal-book">
+      <div class="cal-book-title">${esc(b.title)}</div>
+      ${b.rating ? `<div class="cal-book-stars">${'★'.repeat(b.rating)}${'☆'.repeat(3-b.rating)}</div>` : ''}
+      ${(b.memoOut || b.memo) ? `<p class="cal-book-memo">${esc(b.memoOut || b.memo)}</p>` : ''}
+    </div>`).join('');
+
+  const body = logs.length
+    ? `<div class="paper today-list">${logs.map(logRowHTML).join('')}</div>`
+    : `<div class="paper"><p class="empty">この日は きろくが ないよ</p></div>`;
+
+  return `
+  <section class="sec cal-detail">
+    <div class="day-head">${esc(fmtDate(keyToDate(key)))}<span class="cnt">${logs.length}こ</span></div>
+    ${body}
+    ${books.length ? `
+      <div class="day-head">よんだ本<span class="cnt">${books.length}さつ</span></div>
+      <div class="paper cal-books">${bookHTML}</div>` : ''}
+  </section>`;
 }
 
 /* ---------------------------------------------------------
@@ -983,10 +1137,18 @@ function checkKanji(){
     $('#bkUnlearned').textContent = un.join('　');
     $('#bkCheckNote').textContent = 'いろの ついた かんじは まだ ならって いないよ。ひらがなで 書こう。';
     $('#bkFix').hidden = false;
-    $('#bkDictNote').textContent = needsDictDownload()
-      ? '「ぜんぶ ひらがなに して」を おすと、じしょ（やく' + dictSizeMB()
-        + 'MB）を よみこみます。はじめの 1回だけなので、Wi-Fi の ある ところで おしてね。'
-      : 'じしょは よみこみずみ。すぐ できるよ。';
+    /* 端末に辞書が残っていれば通信は起きない。案内は実際の状態に合わせる */
+    if(!needsDictDownload()){
+      $('#bkDictNote').textContent = 'じしょは よみこみずみ。すぐ できるよ。';
+    }else{
+      $('#bkDictNote').textContent = 'じしょを かくにん しています…';
+      dictOnDevice().then(has=>{
+        $('#bkDictNote').textContent = has
+          ? 'じしょは この タブレットに あるよ。すぐ できる。'
+          : '「ぜんぶ ひらがなに して」を おすと、じしょ（やく' + dictSizeMB()
+            + 'MB）を よみこみます。はじめの 1回だけなので、Wi-Fi の ある ところで おしてね。';
+      });
+    }
   }
   $('#bkCheckWrap').scrollIntoView({ block:'nearest' });
 }
@@ -1001,8 +1163,14 @@ function fixKanji(){
   btn.disabled = true;
   btn.textContent = first ? 'じしょを よみこみ中…' : 'なおしています…';
   if(first){
-    $('#bkDictNote').textContent = 'じしょを よみこんでいます。すこし じかんが かかるよ。'
+    $('#bkDictNote').textContent = 'じしょを よみこんでいます。'
       + 'ほかの ところは さわれるから、まっててね。';
+    /* 何ファイルまで進んだかを出す。だまって待たせると、動いているのか
+       止まっているのか 分からず、大人でも原因を追えなくなる */
+    setDictProgress(p=>{
+      $('#bkDictNote').textContent = 'じしょを よみこみ中… '
+        + p.done + ' / ' + p.total + '（' + (p.bytes / 1048576).toFixed(1) + 'MB）';
+    });
   }
 
   convertForTranscription(src).then(r=>{
@@ -1020,6 +1188,7 @@ function fixKanji(){
     }
     wrap.scrollIntoView({ block:'nearest' });
   }).finally(()=>{
+    setDictProgress(null);
     btn.disabled = false;
     btn.textContent = 'ぜんぶ ひらがなに して';
   });
@@ -1160,13 +1329,14 @@ function render(opts){
 
   if(tab === 'home')          v.innerHTML = viewHome();
   else if(tab === 'log')      v.innerHTML = viewLog();
+  else if(tab === 'calendar') v.innerHTML = viewCalendar();
   else if(tab === 'books')    v.innerHTML = viewBooks();
   else if(tab === 'config')   v.innerHTML = viewConfig();
   else                        v.innerHTML = viewParent();
 
   $$('.tab').forEach(b=> b.classList.toggle('is-on', b.dataset.tab === tab));
   // 子ども画面以外ではタブバーを隠す（それぞれ「もどる」で戻す）
-  const noTabs = (tab !== 'home' && tab !== 'log');
+  const noTabs = (tab !== 'home' && tab !== 'log' && tab !== 'calendar');
   $('.tabbar').hidden = noTabs;
   document.body.classList.toggle('no-tabbar', noTabs);
 
@@ -1456,6 +1626,21 @@ document.addEventListener('click', e=>{
     const t = tabBtn.dataset.tab;
     // hashchange で描画する。同じ hash なら発火しないので自分で描く
     if(routeFromHash() === t) render(); else location.hash = t;
+    return;
+  }
+
+  const calMove = e.target.closest('[data-calmove]');
+  if(calMove){
+    calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + (+calMove.dataset.calmove), 1);
+    calDay = null;                       // 月がかわると その日は もう見えないので とじる
+    render({ keepScroll:true });
+    return;
+  }
+  const calCell = e.target.closest('[data-day]');
+  if(calCell){
+    const k = calCell.dataset.day;
+    calDay = (calDay === k) ? null : k;  // 同じ日を もう一度おすと とじる
+    render({ keepScroll:true });
     return;
   }
 

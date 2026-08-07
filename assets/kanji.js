@@ -44,38 +44,73 @@ function kataToHira(s){
 }
 
 /* --- 形態素解析はワーカーの中だけで動かす --- */
-const KUROMOJI_BASE = 'https://unpkg.com/kuromoji@0.1.2';
-const DICT_MB = 17;
+
+/* 辞書はこのサイトに同梱してある。外部の CDN に置いていたころは、
+   応答が 0バイトで返る・極端に遅いといった事故で読み込めなくなった。
+   ワーカーからは相対パスが解決できないので、絶対 URL にして渡す */
+const KUROMOJI_LIB  = new URL('assets/kuromoji.js', location.href).href;
+const KUROMOJI_DICT = new URL('assets/dict/', location.href).href;
+const DICT_CACHE = 'kanji-dict-v1';
+const DICT_FILES = 12;
+const DICT_MB = 18;
+
+/* 何も進まないまま この時間が過ぎたら あきらめる。全体の制限時間にすると
+   「遅いだけ」の回線を切ってしまうので、止まったときだけ打ち切る */
+const STALL_MS = 60000;
 
 let worker = null;
 let workerPromise = null;
 let seq = 0;
 const pending = {};
+let onDictProgress = null;
 
-/* 辞書をまだ持っていないか。初回の読み込みを事前に知らせるために使う */
+/* 読み込みの進み具合を受け取る。画面に出すのは app.js の仕事 */
+function setDictProgress(fn){ onDictProgress = fn; }
+
+/* このページで辞書を組み立て済みか */
 function needsDictDownload(){ return !worker; }
 function dictSizeMB(){ return DICT_MB; }
+
+/* 端末に辞書が残っているか。残っていれば通信なしで開ける。
+   「はじめの1回だけ」という案内を正しく出すために使う */
+function dictOnDevice(){
+  if(typeof caches === 'undefined') return Promise.resolve(false);
+  return caches.open(DICT_CACHE)
+    .then(c => c.keys())
+    .then(keys => keys.length >= DICT_FILES)
+    .catch(()=> false);
+}
 
 function ensureWorker(){
   if(worker) return Promise.resolve(worker);
   if(workerPromise) return workerPromise;
 
-  workerPromise = new Promise((resolve, reject)=>{
-    if(typeof Worker === 'undefined'){
-      reject(new Error('この ブラウザでは つかえません')); return;
-    }
-    let w;
-    try{ w = new Worker('assets/kanji-worker.js'); }
-    catch(e){ workerPromise = null; reject(new Error('じしょが よみこめません')); return; }
+  /* ワーカーを作れるかどうかは、Promise を作る前に決めておく。
+     executor の中で workerPromise を null に戻しても、直後の代入で
+     上書きされてしまい、失敗した Promise を永久に返し続けることになる */
+  if(typeof Worker === 'undefined'){
+    return Promise.reject(new Error('この ブラウザでは つかえません'));
+  }
+  let w;
+  try{ w = new Worker('assets/kanji-worker.js'); }
+  catch(e){ return Promise.reject(new Error('じしょが よみこめません')); }
 
-    // 17MB の取得と展開。回線が細いと数分かかることがある
-    const timer = setTimeout(()=>{
+  workerPromise = new Promise((resolve, reject)=>{
+    let timer = null;
+    const giveUp = ()=>{
       workerPromise = null; try{ w.terminate(); }catch(e){}
-      reject(new Error('時間が かかりすぎました'));
-    }, 300000);
+      reject(new Error('とちゅうで とまってしまいました'));
+    };
+    const arm = ()=>{ clearTimeout(timer); timer = setTimeout(giveUp, STALL_MS); };
+    arm();
 
     w.onmessage = ev=>{
       const m = ev.data || {};
+      if(m.type === 'progress'){
+        arm();                      // 1ファイル進むたびに待ち時間を数えなおす
+        if(onDictProgress) onDictProgress(m);
+        return;
+      }
       if(m.type === 'ready'){
         clearTimeout(timer);
         if(m.ok){ worker = w; resolve(w); }
@@ -94,11 +129,7 @@ function ensureWorker(){
       reject(new Error('じしょが よみこめません'));
     };
 
-    w.postMessage({
-      type:'init',
-      libUrl: KUROMOJI_BASE + '/build/kuromoji.js',
-      dicPath: KUROMOJI_BASE + '/dict/'
-    });
+    w.postMessage({ type:'init', libUrl: KUROMOJI_LIB, dicPath: KUROMOJI_DICT });
   });
   return workerPromise;
 }

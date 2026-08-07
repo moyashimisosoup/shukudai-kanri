@@ -242,8 +242,14 @@ button{ font:inherit; color:inherit; }
 .task-list--2up{
   display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px;
 }
-.task-list--2up > .task{ margin-top:0; grid-template-columns:1fr; }
-.task-list--2up > .task .task-act{ grid-column:1; grid-row:auto; }
+/* 横に並ぶ2枚は同じ高さに引きのばされる。グリッドのままだと余った高さが
+   中の各行に分配され、カードごとに中身の縦位置がズレる。縦並びに変えて
+   ボタンだけを下端に送れば、上は見出し・下はボタンで両方そろう */
+.task-list--2up > .task{
+  margin-top:0;
+  display:flex; flex-direction:column; align-items:stretch; gap:6px;
+}
+.task-list--2up > .task .task-act{ margin-top:auto; align-self:stretch; padding-top:6px; }
 .task-list--2up > .task .task-act .btn{ width:100%; }
 .task-list--2up > .task-free{ grid-column:1 / -1; }
 
@@ -786,3 +792,106 @@ body.no-tabbar{ padding-bottom:24px; }
 }
 
 @media print{ .tabbar,.sheet-wrap{ display:none } }
+
+/* =========================================================
+   カレンダー
+   ========================================================= */
+.cal-nav{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:10px 12px;
+}
+.cal-title{
+  font-size:23px; font-weight:900; letter-spacing:.02em;
+  font-variant-numeric:tabular-nums; text-align:center; flex:1 1 auto;
+}
+/* 夏休みの外へは いけない、と 見ただけで わかるように */
+.cal-nav .btn:disabled{ opacity:.35; cursor:default; box-shadow:none; transform:none; }
+
+.cal-paper{ padding:10px 8px 12px; }
+.cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.cal-grid--wd{ margin-bottom:6px; }
+.cal-wd{
+  text-align:center; font-size:15px; font-weight:900;
+  color:var(--ai-usu); padding:2px 0;
+}
+.cal-wd--sun{ color:var(--suika); }
+.cal-wd--sat{ color:var(--asagao); }
+
+.cal-cell--blank{ min-height:56px; }
+
+/* マスぜんたいを おせるように。指でも おしやすい大きさ（44px いじょう） */
+.cal-day{
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+  gap:2px; min-height:56px; padding:4px 2px;
+  background:var(--kami);
+  border:2px solid var(--hougan);
+  border-radius:var(--r-s);
+  cursor:pointer; appearance:none;
+  transition:transform .08s;
+}
+.cal-day:active{ transform:translateY(2px); }
+.cal-num{
+  font-size:17px; font-weight:900; line-height:1.2;
+  font-variant-numeric:tabular-nums;
+}
+.cal-dots{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+  gap:3px; min-height:12px;
+}
+.cal-dot{
+  display:inline-block; width:10px; height:10px; border-radius:50%;
+  border:1px solid rgba(20,55,94,.25);
+}
+.cal-dot--must{   background:var(--suika); }
+.cal-dot--option{ background:var(--himawari); }
+.cal-dot--daily{  background:var(--asagao); }
+.cal-free{ font-size:12px; line-height:1; }
+
+/* できた日は わかばの地。きょうは ふとい枠。えらんだ日は 藍でぬる */
+.cal-day.is-all{ background:var(--wakaba-usu); border-color:var(--wakaba); }
+.cal-day.is-today{ border-color:var(--ai); border-width:var(--line); }
+.cal-day.is-mirai{ color:var(--ai-usu); }
+.cal-day.is-out{ opacity:.4; }
+.cal-day.is-sel{
+  background:var(--ai); border-color:var(--ai); color:var(--kami);
+  box-shadow:var(--shadow);
+}
+.cal-day.is-sel .cal-num{ color:var(--kami); }
+
+.cal-legend{
+  display:flex; flex-wrap:wrap; gap:8px 16px;
+  padding:12px 16px;
+  font-size:15px; font-weight:700; color:var(--ai-usu);
+}
+.cal-leg{ display:inline-flex; align-items:center; gap:6px; }
+.cal-leg-box{
+  display:inline-block; width:14px; height:14px; border-radius:4px;
+  background:var(--wakaba-usu); border:2px solid var(--wakaba);
+}
+
+.cal-detail{ scroll-margin-top:80px; }
+.cal-books{ display:flex; flex-direction:column; }
+.cal-book{ padding:12px 16px; border-bottom:2px dashed var(--hougan); }
+.cal-book:last-child{ border-bottom:none; }
+.cal-book-title{ font-size:19px; font-weight:900; }
+.cal-book-stars{ font-size:17px; font-weight:900; color:var(--himawari); }
+.cal-book-memo{
+  font-size:16px; font-weight:700; color:var(--ai-usu);
+  white-space:pre-wrap; margin-top:2px;
+}
+
+/* せまい画面でも 7れつが つぶれないよう、すきまと文字を すこし小さく */
+@media (max-width:560px){
+  .cal-paper{ padding:8px 4px 10px; }
+  .cal-grid{ gap:3px; }
+  .cal-day, .cal-cell--blank{ min-height:48px; }
+  .cal-num{ font-size:15px; }
+  .cal-dot{ width:8px; height:8px; }
+  .cal-nav{ flex-wrap:wrap; }
+  .cal-title{ font-size:20px; order:-1; flex:1 0 100%; }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .cal-day{ transition:none; }
+  .cal-day:active{ transform:none; }
+}
