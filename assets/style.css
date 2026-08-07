@@ -628,12 +628,35 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .parent-head p{ font-size:16px; font-weight:700; color:var(--ai-usu); }
 .parent-head .btn{ text-decoration:none; display:inline-flex; align-items:center; }
 
-/* スマホの幅では、見出しと ボタンの あいだが 中途半端に 折り返して
-   「設定」だけ 上、「子ども画面へ」が 下 という ちぐはぐな 形に なる。
-   見出しを 1行 まるごと 使わせて、ボタン2つを つぎの行に そろえる */
+/* スマホの幅では、見出しと ボタンを おなじ行に おさめて たて幅を 節約する。
+   折り返しを 止め、見出しを 縮ませて（min-width:0）ボタンは そのままの
+   大きさで 右に つめる。字と ボタンも すこし 小さくして 収まりを よくする */
 @media (max-width:560px){
-  .parent-head{ gap:12px; }
-  .parent-head > div{ flex:1 1 100%; }
+  .parent-head{
+    flex-wrap:nowrap; gap:6px;
+    padding:10px;
+  }
+  .parent-head > div{ flex:1 1 auto; min-width:0; }
+  /* そえ書きは うえの 色帯と おなじ 文字列で、せまい画面では
+     ただ たけを のばすだけ なので 出さない */
+  .parent-head p{ display:none; }
+  /* 見出しは 折り返さず、入りきらなければ … で 切る。
+     縦に 割れると かえって たけが のびて しまう */
+  .parent-head h2{
+    font-size:18px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .parent-head .btn{
+    flex:none; font-size:13px; padding:6px 9px; white-space:nowrap;
+  }
+}
+
+/* いちばん せまい iPhone（SE の 初代など 320px）だけは、
+   これでも「保護者用ページ」が 入りきらない。ここだけ もう一段 縮める */
+@media (max-width:340px){
+  .parent-head{ gap:4px; }
+  .parent-head h2{ font-size:14px; }
+  .parent-head .btn{ font-size:12px; padding:6px 6px; }
 }
 
 /* まだ つないでいない ときに 保護者ページの 頭に 出す 案内。
@@ -667,19 +690,21 @@ body.no-tabbar{ padding-bottom:24px; }
 }
 .pstat-val small{ font-size:15px; font-weight:900; color:var(--ai-usu); }
 
-/* スマホの幅では 4つが たて1列に ならんで 間のびする。
-   2列に して、いちばん長い「残り ○日○時間」だけ 横いっぱいに 使う。
-   （150px だと iPhone の 幅で 13px 足りず 1列に 落ちていた）*/
+/* スマホの幅では 2×2（よこ2つ・たて2段）に そろえる。
+   auto-fit に まかせると、はばが すこし 足りないだけで
+   1列に 落ちたり、「残り」だけ 別の段に なったり して 見え方が
+   さだまらないので、2列と 決めうちに する。
+   そのうえで、いちばん 字数の多い「残り ○日○時間」が 折り返さない
+   ところまで 文字を 縮める（320px で 約17px、560px で 28px）*/
 @media (max-width:560px){
   .pstat{ padding:14px; }
   .pstat-grid{
     gap:10px;
-    /* 140px だと iPhone 12 mini などの 360px 幅で 11px 足りず
-       1列に 落ちる。130px なら 360px から 2列に なる */
-    grid-template-columns:repeat(auto-fit, minmax(130px,1fr));
+    grid-template-columns:repeat(2, minmax(0,1fr));
   }
-  .pstat-grid > div:first-child{ grid-column:1 / -1; }
-  .pstat-val{ font-size:clamp(22px, 7vw, 28px); white-space:nowrap; }
+  .pstat-lab{ font-size:clamp(12px, 3.4vw, 14px); }
+  .pstat-val{ font-size:clamp(17px, 5.2vw, 28px); white-space:nowrap; }
+  .pstat-val small{ font-size:0.55em; }
 }
 
 /* 課題ごとの進捗表 */
@@ -709,7 +734,9 @@ body.no-tabbar{ padding-bottom:24px; }
   .pgtable .pg-num, .pgtable .pg-next{ display:inline-block; padding-right:14px; }
 }
 
-.parent-head{ flex-wrap:wrap; }
+/* flex-wrap は 上の .parent-head（620行あたり）で 指しているので
+   ここで 重ねて 書かない。ここに あると、せまい画面用の
+   flex-wrap:nowrap を あとから 打ち消して しまう */
 .parent-head .btn + .btn{ margin-left:0; }
 
 .set-row{
