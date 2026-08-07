@@ -2359,6 +2359,51 @@ document.addEventListener('keydown', e=>{
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==='home') render(); });
 
 /* ---------------------------------------------------------
+   おうちの人だけの 入口（タイトルを 3秒 長押し）
+
+   iOS で「ホーム画面に追加」した アイコンは、Safari とは 別の
+   入れもの（localStorage）を 持つ。だから Safari で あいことばを
+   入れても、アイコンの方には つたわらない。
+   アイコンには アドレス欄が 無く、こども画面から 保護者ページへの
+   導線も わざと 置いていないので、そのままでは あいことばを
+   入れる手立てが ない。
+
+   画面には 何も出さず、長押しだけで 保護者ページへ 行けるようにする。
+   子どもが たまたま 見つけても 困らないよう、ふつうに 触るより
+   長い 3秒に してある。
+   --------------------------------------------------------- */
+(function(){
+  const HOLD_MS = 3000;
+  const el = $('#appTitle');
+  if(!el) return;
+
+  let timerId = null;
+
+  function start(){
+    clearTimeout(timerId);
+    timerId = setTimeout(()=>{
+      timerId = null;
+      location.hash = 'config';
+    }, HOLD_MS);
+  }
+  function cancel(){ clearTimeout(timerId); timerId = null; }
+
+  el.addEventListener('touchstart', start, { passive:true });
+  el.addEventListener('touchend',   cancel);
+  el.addEventListener('touchmove',  cancel, { passive:true });
+  el.addEventListener('touchcancel',cancel);
+  /* パソコンで ためすとき用 */
+  el.addEventListener('mousedown', start);
+  el.addEventListener('mouseup',   cancel);
+  el.addEventListener('mouseleave',cancel);
+
+  /* 長押しで 文字が 選ばれて しまわないように */
+  el.style.webkitUserSelect = 'none';
+  el.style.userSelect = 'none';
+  el.style.webkitTouchCallout = 'none';
+})();
+
+/* ---------------------------------------------------------
    ルーティング（#home / #record / #log / #settings）
    --------------------------------------------------------- */
 /* かいたもの いちらんだけは 課題を えらぶので '#writes:<taskId>' の形にする。
