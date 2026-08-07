@@ -48,8 +48,15 @@ function kataToHira(s){
 /* 辞書はこのサイトに同梱してある。外部の CDN に置いていたころは、
    応答が 0バイトで返る・極端に遅いといった事故で読み込めなくなった。
    ワーカーからは相対パスが解決できないので、絶対 URL にして渡す */
-const KUROMOJI_LIB  = new URL('assets/kuromoji.js', location.href).href;
-const KUROMOJI_DICT = new URL('assets/dict/', location.href).href;
+/* 基準はページの URL ではなく、この kanji.js 自身の置き場所にする。
+   ページ側を基準にすると、末尾のスラッシュが無い URL（ホーム画面に
+   追加したときなど）で 1つ上の階層に解決され、404 になる */
+const ASSET_DIR = new URL('.',
+  (typeof document !== 'undefined' && document.currentScript)
+    ? document.currentScript.src
+    : location.href).href;
+const KUROMOJI_LIB  = ASSET_DIR + 'kuromoji.js';
+const KUROMOJI_DICT = ASSET_DIR + 'dict/';
 const DICT_CACHE = 'kanji-dict-v1';
 const DICT_FILES = 12;
 const DICT_MB = 18;
@@ -92,7 +99,7 @@ function ensureWorker(){
     return Promise.reject(new Error('この ブラウザでは つかえません'));
   }
   let w;
-  try{ w = new Worker('assets/kanji-worker.js'); }
+  try{ w = new Worker(ASSET_DIR + 'kanji-worker.js'); }
   catch(e){ return Promise.reject(new Error('じしょが よみこめません')); }
 
   workerPromise = new Promise((resolve, reject)=>{

@@ -53,7 +53,9 @@ function loadOne(url){
     .then(hit => {
       if(hit){ fromCache++; return hit.blob(); }
       return fetch(url).then(res => {
-        if(!res.ok) throw new Error('よみこみ失敗 (' + res.status + ')');
+        /* どの場所を取りに行って失敗したのかを残す。ファイル名だけだと
+           階層の取りちがえ（404）に気づけない */
+        if(!res.ok) throw new Error('よみこみ失敗 (' + res.status + ') ' + url);
         return res.blob();
       }).then(blob => {
         /* 0バイトで 200 が返ることが実際にある。ここで弾かないと

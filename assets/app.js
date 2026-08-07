@@ -574,7 +574,6 @@ function viewParent(){
   const nat = natsuPct();
   const s = overall('must');
   const so = overall('option');
-  const v = verdictOf(s.pct - nat);
 
   const row = t=>{
     const p = prog(t);
@@ -624,7 +623,6 @@ function viewParent(){
       <div><span class="pstat-lab">できればやる</span>
         <span class="pstat-val">${so.total ? Math.round(so.pct) : 0}<small>% (${so.done}/${so.total})</small></span></div>
     </div>
-    <p class="pace-verdict ${v.cls}">${v.msg}</p>
   </section>
 
   ${group('must','必ずやる')}
