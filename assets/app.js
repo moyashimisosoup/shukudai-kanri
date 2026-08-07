@@ -260,7 +260,7 @@ function viewHome(){
 
   ${dailyAllDone ? '' : dailySec}
   ${sectionHTML('must','かならず やる', nokori>0 ? 'のこり '+nokori+'こ' : 'ぜんぶ できた！', must)}
-  ${opt.length   ? sectionHTML('opt','できれば やる','じかんが あるとき', opt) : ''}
+  ${opt.length   ? sectionHTML('opt','もうすこし チャレンジ','じかんが あるとき', opt) : ''}
 
   <section class="sec">
     <div class="sec-head"><h2>きょう やったこと</h2><span class="sec-note">${fmtDate(new Date())}</span></div>
@@ -637,7 +637,7 @@ function viewCalendar(){
 
     <div class="paper cal-legend">
       <span class="cal-leg"><span class="cal-dot cal-dot--must"></span>かならず やる</span>
-      <span class="cal-leg"><span class="cal-dot cal-dot--option"></span>できれば やる</span>
+      <span class="cal-leg"><span class="cal-dot cal-dot--option"></span>もうすこし チャレンジ</span>
       <span class="cal-leg"><span class="cal-dot cal-dot--daily"></span>まいにち</span>
       <span class="cal-leg"><span class="cal-leg-box"></span>なにか やった日</span>
       <span class="cal-leg"><span class="cal-free">📝</span>なんでも きろく</span>
