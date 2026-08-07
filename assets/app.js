@@ -78,9 +78,163 @@ function loadAll(){
   else funPick();
   funOpen = false;
 }
-function saveCfg(){ localStorage.setItem(K_CFG, JSON.stringify(config)); }
-function saveSt(){ localStorage.setItem(K_ST, JSON.stringify(state)); }
+function saveCfg(){
+  localStorage.setItem(K_CFG, JSON.stringify(config));
+  markSaved('config');
+  syncPush('config');
+}
+function saveSt(){
+  localStorage.setItem(K_ST, JSON.stringify(state));
+  markSaved('state');
+  syncPush('state');
+}
 function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
+
+/* ---------------------------------------------------------
+   ほかの端末と 合わせる
+
+   保存先は これまで通り localStorage。同期は その上に 足すだけで、
+   sync.js が 読めなくても・電波が 無くても アプリは そのまま動く。
+   （sync.js は module なので app.js より あとに 動きだす。
+     だから ここは いつも「あれば呼ぶ」の形にしておく）
+   --------------------------------------------------------- */
+function syncPush(kind){
+  if(window.NatsuSync) window.NatsuSync.push(kind);
+}
+
+/* logs と books は id を 持っているので、両方の端末のぶんを
+   足し合わせられる。同じ id は 新しい方を のこす。
+   （子が 電波の無い所で 3件 記録し、親が そのあいだに 感想を 直した——
+     という場合でも、どちらも 消えない） */
+function mergeById(local, remote, newerWins){
+  const out = new Map();
+  (remote || []).forEach(x => { if(x && x.id) out.set(x.id, x); });
+  (local  || []).forEach(x => {
+    if(!x || !x.id) return;
+    const r = out.get(x.id);
+    out.set(x.id, (r && !newerWins(x, r)) ? r : x);
+  });
+  return Array.from(out.values());
+}
+
+/* progress は 数（done）や 日づけ（days）の かたまりで、id が 無い。
+   ここは「進んだ方を のこす」で そろえる。
+
+   子が 電波の無い所で ⑦まで すすめている あいだに 親が 保護者ページを 開くと、
+   親の端末の 古い ⑥ が あとから 保存されることが ある。時刻の 新旧だけで 決めると
+   その ⑥ が 勝ってしまい、子の やったことが 消える。
+   数は 減らない ものとして あつかえば、どちらが 先に とどいても 結果は 同じになる。
+
+   その代わり「⑥に もどす」という 引き算の 訂正は 相手の端末に とどかない。
+   訂正は 子の端末で 行う（おうちの人は 進捗を 見るのが 主）という 前提で この形にしている。
+
+     lp … この端末の progress  例 { t1:{done:6}, t9:{days:{'2026-08-06':1}} }
+     rp … 相手の端末の progress
+     localIsNewer … この端末の state のほうが あとに 保存されたか
+*/
+function mergeProgress(lp, rp, localIsNewer){
+  const out = {};
+  const ids = new Set([...Object.keys(lp || {}), ...Object.keys(rp || {})]);
+
+  ids.forEach(id=>{
+    const a = (lp && lp[id]) || {};
+    const b = (rp && rp[id]) || {};
+    /* 知らない欄（あとで 足したもの）は 新しい方を のこす */
+    const p = Object.assign({}, localIsNewer ? b : a, localIsNewer ? a : b);
+
+    /* かず（なつスキルの ⑦、本の さつ数）… 大きい方 */
+    if('done' in a || 'done' in b) p.done = Math.max(a.done|0, b.done|0);
+
+    /* まいにちノルマ … 日ごとに 独立しているので 全部あわせ、同じ日は 多い方 */
+    if(a.days || b.days){
+      const days = Object.assign({}, b.days);
+      Object.keys(a.days || {}).forEach(k=>{
+        days[k] = Math.max(a.days[k]|0, days[k]|0);
+      });
+      p.days = days;
+    }
+
+    /* だんかい式の チェック … どちらかで ついていれば ついたまま */
+    ['steps','wrap'].forEach(key=>{
+      if(!Array.isArray(a[key]) && !Array.isArray(b[key])) return;
+      const x = a[key] || [], y = b[key] || [];
+      p[key] = Array.from({ length: Math.max(x.length, y.length) }, (_, i)=> !!x[i] || !!y[i]);
+    });
+
+    out[id] = p;
+  });
+
+  return out;
+}
+
+function mergeState(local, remote, localIsNewer){
+  const out = normalizeState(deepCopy(localIsNewer ? local : remote));
+  out.logs  = mergeById(local.logs,  remote.logs,  (a,b)=> String(a.at||'') >= String(b.at||''));
+  out.books = mergeById(local.books, remote.books, ()=> localIsNewer);
+  out.progress = mergeProgress(local.progress || {}, remote.progress || {}, localIsNewer);
+  out.logs.sort((a,b)=> String(a.at||'').localeCompare(String(b.at||'')));
+  if(out.logs.length > 3000) out.logs = out.logs.slice(-3000);
+  /* なぞなぞは 1日3回まで。端末ごとに かぞえる（下の stripLocal を 見てください）*/
+  if(local.fun) out.fun = local.fun; else delete out.fun;
+  return out;
+}
+
+/* なぞなぞ・まめちしきの「きょう 何回 引いたか」は 記録では なく、
+   その端末の いまの ようす。これを 共有すると、おうちの人が 保護者ページを
+   開いただけで 子の 3回が 減ってしまうので、送らない */
+function stripLocal(s){
+  const o = Object.assign({}, s);
+  delete o.fun;
+  return o;
+}
+
+/* この端末の state / config を いつ保存したか。
+   相手と どちらが 新しいか くらべるのに つかう */
+const K_AT = 'natsu.savedAt.v1';
+function savedAt(){
+  try{ return JSON.parse(localStorage.getItem(K_AT) || '{}'); }catch(e){ return {}; }
+}
+function markSaved(kind){
+  const a = savedAt(); a[kind] = Date.now();
+  try{ localStorage.setItem(K_AT, JSON.stringify(a)); }catch(e){}
+}
+
+/* sync.js から 呼ばれる入口。相手の端末の中身が とどいたとき */
+function applyRemote(remote){
+  const at = savedAt();
+  let changed = false;
+
+  /* config（設定）は 中身を 混ぜても 意味が 通らないので、
+     あとに 保存された方を まるごと 採る */
+  if(remote.config && remote.configAt > (at.config || 0)){
+    config = remote.config;
+    localStorage.setItem(K_CFG, JSON.stringify(config));
+    markSaved('config');
+    changed = true;
+  }
+
+  if(remote.state){
+    const merged = mergeState(normalizeState(state),
+                              normalizeState(remote.state),
+                              (at.state || 0) >= remote.stateAt);
+    if(JSON.stringify(merged) !== JSON.stringify(state)){
+      state = merged;
+      localStorage.setItem(K_ST, JSON.stringify(state));
+      markSaved('state');
+      changed = true;
+      /* 合わせた結果は 相手にも 返す。
+         3台め（きょうだいの端末）が あっても そろう */
+      syncPush('state');
+    }
+  }
+
+  if(changed) render({ keepScroll:true });
+}
+
+window.NatsuApp = {
+  current: () => ({ config, state: stripLocal(state) }),
+  onRemote: applyRemote
+};
 
 /* ---------------------------------------------------------
    こまごました どうぐ
@@ -1074,10 +1228,13 @@ function viewConfig(){
     </div>
   </section>
 
+  ${syncSectionHTML()}
+
   <section class="sec">
     <div class="sec-head"><h2>データ</h2></div>
     <div class="paper">
-      <p class="set-note">記録は端末内（localStorage）にのみ保存され、サーバーには送信されません。
+      <p class="set-note">記録はこの端末（localStorage）に保存されます。「べつの端末と つなぐ」を
+      設定していない場合、他の端末とは共有されません。
       Safari の履歴・サイトデータを削除すると失われます。定期的にバックアップを取ってください。</p>
       <div class="set-actions">
         <button class="btn btn-sm" id="expBtn" type="button">⬇ バックアップを書き出す</button>
@@ -1088,6 +1245,66 @@ function viewConfig(){
         <button class="btn btn-sm btn-danger" id="resetCfg" type="button">項目を初期状態に戻す</button>
         <button class="btn btn-sm btn-danger" id="resetAll" type="button">記録をすべて削除</button>
       </div>
+    </div>
+  </section>`;
+}
+
+/* 「べつの端末と つなぐ」。あいことばを 親の端末で 作り、子の端末に 同じものを 入れる。
+   Firebase を 設定していないうちは、その旨だけを 出す */
+const SYNC_LABEL = {
+  off:        ['—',  'つないでいません'],
+  connecting: ['…',  'つないでいます'],
+  online:     ['✓',  'つながっています'],
+  offline:    ['⌛', 'オフライン（この端末にためています）'],
+  error:      ['!',  'つながりません']
+};
+
+function syncSectionHTML(){
+  const S = window.NatsuSync;
+  if(!S){
+    return `
+  <section class="sec">
+    <div class="sec-head"><h2>べつの端末と つなぐ</h2></div>
+    <div class="paper">
+      <p class="set-note">同期の読み込みに失敗しました。記録はこの端末に保存されています。</p>
+    </div>
+  </section>`;
+  }
+
+  if(!S.configured()){
+    return `
+  <section class="sec">
+    <div class="sec-head"><h2>べつの端末と つなぐ</h2></div>
+    <div class="paper">
+      <p class="set-note">まだ準備ができていません。<code>assets/sync.js</code> の
+      <code>FIREBASE_CONFIG</code> に Firebase の設定を貼ると、この欄が使えるようになります。
+      手順は README の「端末間で共有する」にあります。</p>
+    </div>
+  </section>`;
+  }
+
+  const code = S.getCode();
+  const [mark, text] = SYNC_LABEL[S.status()] || SYNC_LABEL.off;
+
+  return `
+  <section class="sec">
+    <div class="sec-head"><h2>べつの端末と つなぐ</h2>
+      <span class="sec-note" id="syncStatus">${mark} ${esc(S.statusText() || text)}</span></div>
+    <div class="paper">
+      <p class="set-note">おなじ「あいことば」を入れた端末どうしで、記録と設定が自動でそろいます。
+      親の端末で作って、子の端末の同じ欄に貼り付けてください。
+      あいことばを知っている人は記録を見られるので、他人に渡さないでください。</p>
+      <div class="set-row"><span class="lab">あいことば</span>
+        <input type="text" id="syncCode" value="${esc(code)}" spellcheck="false"
+               autocapitalize="off" autocorrect="off" placeholder="まだ ありません"></div>
+      <div class="set-actions">
+        <button class="btn btn-sm" id="syncSave" type="button">この あいことばで つなぐ</button>
+        <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
+        ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">✨ 新しく作る</button>'}
+      </div>
+      ${code ? `<div class="set-actions">
+        <button class="btn btn-sm btn-danger" id="syncOff" type="button">つなぐのをやめる</button>
+      </div>` : ''}
     </div>
   </section>`;
 }
@@ -1718,6 +1935,55 @@ function bindParent(){
   });
 }
 
+/* 「べつの端末と つなぐ」の そうさ。
+   sync.js が 無い／未設定のときは 何も つながない（画面には 案内だけ 出ている） */
+function bindSync(){
+  const S = window.NatsuSync;
+  if(!S || !S.configured()) return;
+
+  /* つなぎ具合が かわったら 見出しの右の文字だけ 書きかえる。
+     画面ごと 描き直すと 入力中の あいことばが 消えてしまう */
+  if(!bindSync._watching){
+    bindSync._watching = true;
+    S.onStatus((st, text)=>{
+      const el = $('#syncStatus');
+      if(!el) return;
+      const [mark, def] = SYNC_LABEL[st] || SYNC_LABEL.off;
+      el.textContent = mark + ' ' + (text || def);
+    });
+  }
+
+  const input = $('#syncCode');
+
+  $('#syncSave').addEventListener('click', ()=>{
+    const c = String(input.value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if(c.length < 16){ toast('あいことばが短すぎます（16文字以上）'); return; }
+    S.reconnect(c);
+    toast('つないでいます…');
+    render({ keepScroll:true });
+  });
+
+  $('#syncCopy').addEventListener('click', ()=>{
+    if(!input.value){ toast('先に あいことばを 作ってください'); return; }
+    copyText(input);
+  });
+
+  const make = $('#syncMake');
+  if(make) make.addEventListener('click', ()=>{
+    input.value = S.makeCode();
+    toast('作りました。「この あいことばで つなぐ」を押してください');
+  });
+
+  const off = $('#syncOff');
+  if(off) off.addEventListener('click', ()=>{
+    if(!confirm('この端末を切り離しますか？\nこの端末の記録は残りますが、他の端末とはそろわなくなります。')) return;
+    S.setCode('');
+    S.disconnect();
+    render({ keepScroll:true });
+    toast('切り離しました');
+  });
+}
+
 /* 保護者ページ（設定）*/
 function bindConfig(){
   $('#cfgTitle').addEventListener('change', e=>{
@@ -1802,6 +2068,8 @@ function bindConfig(){
     });
     saveCfg(); render({ keepScroll:true });
   });
+
+  bindSync();
 
   $('#expBtn').addEventListener('click', exportData);
   $('#impBtn').addEventListener('click', ()=> $('#impFile').click());
