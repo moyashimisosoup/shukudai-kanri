@@ -18,6 +18,23 @@ const FILES = 12;                /* kuromoji が取りに行く辞書ファイ�
 
 let tokenizer = null;
 let done = 0, bytes = 0, fromCache = 0;
+let dictBase = '';               /* 辞書の置き場所。init で受け取る */
+
+/* kuromoji は辞書の URL を path.join で組み立てるが、これは
+   「https://」の二重スラッシュを「/」に潰してしまう。
+   潰れた URL は、基準 URL なしで読めばブラウザが復元してくれるが、
+   fetch は必ず基準 URL に対して解決する。スキームが基準と同じ場合、
+   URL 規格ではこれを相対パスとして扱うため、
+     https:/example.com/dict/base.dat.gz
+   が
+     https://（このサイト）/example.com/dict/base.dat.gz
+   になり、ホスト名がパスに紛れこんで 404 になる。
+   そこで組み立て結果は使わず、ファイル名だけ取り出して つなぎ直す */
+function dictUrl(url){
+  const name = url.slice(url.lastIndexOf('/') + 1);
+  if(dictBase) return dictBase + name;
+  return url.replace(/^(https?:)\/(?!\/)/, '$1//');   /* 予備 */
+}
 
 /* --- 辞書1ファイルの取得。kuromoji から呼ばれる --- */
 
@@ -78,7 +95,7 @@ function loadOne(url){
 }
 
 self.__kuromojiLoad = function(url, callback){
-  loadOne(url).then(
+  loadOne(dictUrl(url)).then(
     buf => callback(null, buf),
     err => callback((err && err.message) ? err.message : String(err), null)
   );
@@ -92,6 +109,8 @@ self.onmessage = function (e) {
   if (msg.type === 'init') {
     if (tokenizer) { self.postMessage({ type:'ready', ok:true, cached:true }); return; }
     done = 0; bytes = 0; fromCache = 0;
+    dictBase = String(msg.dicPath || '');
+    if (dictBase && dictBase.slice(-1) !== '/') dictBase += '/';
     try {
       importScripts(msg.libUrl);
     } catch (err) {
