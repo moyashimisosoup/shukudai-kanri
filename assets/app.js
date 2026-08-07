@@ -42,6 +42,21 @@ function migrate5to6(c){
   return c;
 }
 
+/* state の形は ここ1か所で決める。以前は 読みこみ・削除・取りこみの
+   3か所で それぞれ 作っていて、books を足し忘れた場所があった。
+   books が無いまま 保護者ページや 本の一覧を開くと 例外で止まり、
+   画面が切りかわらない（リンクが効かないように見える）ので、
+   入口を ひとつに まとめる */
+function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[] }; }
+
+function normalizeState(s){
+  if(!s || typeof s !== 'object' || !s.progress) return emptyState();
+  if(!s.schema) s.schema = SCHEMA;
+  if(!Array.isArray(s.logs))  s.logs  = [];
+  if(!Array.isArray(s.books)) s.books = [];
+  return s;
+}
+
 function loadAll(){
   try{
     const c = JSON.parse(localStorage.getItem(K_CFG) || 'null');
@@ -51,13 +66,8 @@ function loadAll(){
   }catch(e){ config = deepCopy(DEFAULT_CONFIG); }
 
   try{
-    const s = JSON.parse(localStorage.getItem(K_ST) || 'null');
-    state = (s && s.progress) ? s : { schema:SCHEMA, progress:{}, logs:[] };
-  }catch(e){ state = { schema:SCHEMA, progress:{}, logs:[] }; }
-
-  if(!state.progress) state.progress = {};
-  if(!Array.isArray(state.logs)) state.logs = [];
-  if(!Array.isArray(state.books)) state.books = [];
+    state = normalizeState(JSON.parse(localStorage.getItem(K_ST) || 'null'));
+  }catch(e){ state = emptyState(); }
 
   /* きょうの ぶんを まだ 1つも 引いていなければ、ここで 1つめを 引く */
   const ft = funToday();
@@ -1018,11 +1028,12 @@ function openBookSheet(t, p, editBookId){
   <p class="book-nth">${t.numbered ? maru(nth) : nth}さつめ</p>
 
   <div class="field">
-    <span class="lab">本の なまえ</span>
+    <span class="lab">本の なまえ<span class="need-mark">かならず 入れてね</span></span>
     <div class="mic-row">
       <input type="text" id="bkTitle" value="${val('title')}" placeholder="れい：ふしぎ駄菓子屋 銭天堂">
       ${micBtn('bkTitle')}
     </div>
+    <p class="need-msg" id="bkTitleNeed" hidden>本の なまえが ないと きろく できないよ。</p>
   </div>
 
   ${f.author ? `
@@ -1167,7 +1178,20 @@ function starSay(n){
 function saveBookSheet(){
   const t = sheetTask;
   const title = ($('#bkTitle').value || '').trim();
-  if(!title){ toast('本の なまえを 入れてね'); $('#bkTitle').focus(); return; }
+  const need = $('#bkTitleNeed'), titleBox = $('#bkTitle');
+  if(!title){
+    /* 感想を書いて かんじも 直したあとに ここで 止まると、
+       画面の下のほうを 見ている ので 何も 起きていないように 見える。
+       入力らんまで もどして、その場に 理由を 出す */
+    if(need) need.hidden = false;
+    titleBox.classList.add('is-need');
+    titleBox.scrollIntoView({ block:'center' });
+    titleBox.focus();
+    toast('本の なまえを 入れてね');
+    return;
+  }
+  if(need) need.hidden = true;
+  titleBox.classList.remove('is-need');
 
   const now = new Date();
   const memo = ($('#bkMemo').value || '').trim();
@@ -1582,7 +1606,7 @@ function bindConfig(){
   });
   $('#resetAll').addEventListener('click', ()=>{
     if(confirm('進捗と記録をすべて削除しますか？\nこの操作は取り消せません。')){
-      state = { schema:SCHEMA, progress:{}, logs:[] }; saveSt(); render(); toast('削除しました');
+      state = emptyState(); saveSt(); render(); toast('削除しました');
     }
   });
 }
@@ -1721,9 +1745,7 @@ function importData(e){
       const o = JSON.parse(fr.result);
       if(!o || !o.config || !o.state) throw new Error('ファイル形式が異なります');
       if(!confirm('現在のデータを、読み込んだ内容で置き換えます。よろしいですか？')) return;
-      config = o.config; state = o.state;
-      if(!state.progress) state.progress = {};
-      if(!Array.isArray(state.logs)) state.logs = [];
+      config = o.config; state = normalizeState(o.state);
       saveCfg(); saveSt(); render(); toast('読み込みました');
     }catch(err){ alert('読み込めませんでした：' + err.message); }
   };

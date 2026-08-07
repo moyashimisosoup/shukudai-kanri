@@ -922,3 +922,22 @@ body.no-tabbar{ padding-bottom:24px; }
   font-size:16px; font-weight:700; color:var(--ai-usu);
   align-self:center;
 }
+
+/* =========================================================
+   入れわすれの しらせ
+   ========================================================= */
+/* 感想を書いたあとに保存が止まると、画面の下を見ているので
+   何も起きていないように見える。入力らんの その場で理由を出す */
+.need-mark{
+  margin-left:8px; font-size:14px; font-weight:900;
+  color:var(--suika); background:var(--suika-usu);
+  border:2px solid var(--suika); border-radius:999px; padding:1px 10px;
+  vertical-align:middle; white-space:nowrap;
+}
+.need-msg{
+  margin-top:6px; font-size:16px; font-weight:700; color:var(--suika);
+}
+input.is-need, textarea.is-need{
+  border-color:var(--suika) !important;
+  background:var(--suika-usu);
+}
