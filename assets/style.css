@@ -423,6 +423,9 @@ button{ font:inherit; color:inherit; }
   border:2px solid var(--ai); display:grid; place-items:center;
   font-size:24px; font-weight:900; color:transparent; background:var(--kami);
 }
+/* さいごの しあげ（マルつけ・なおし）。番号や段階と 区切って 見せる */
+.field-wrap{ border-top:2px dashed var(--hougan); padding-top:16px; }
+
 .step.on{ background:var(--wakaba-usu); border-color:var(--wakaba); }
 .step.on .box{ background:var(--wakaba); border-color:var(--wakaba); color:var(--kami); }
 

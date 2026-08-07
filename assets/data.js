@@ -4,13 +4,27 @@
    ぜんぶ変えられます。
    ========================================================= */
 
-const SCHEMA = 5;
+const SCHEMA = 6;
 
 /* --- タスクの type --------------------------------------
    count : 番号や 冊数で かぞえるもの（つぎの番号を出す）
    step  : 段階で すすめるもの（こうもく名は じゆう）
    daily : まいにち やるアプリ（1日ごとに ノルマ）
    -------------------------------------------------------- */
+
+/* --- しあげの2段階 ---------------------------------------
+   wrapUp:true の課題は、番号（または段階）を ぜんぶ 終えた あとに
+   「マルつけ」→「なおし」の 2つを して はじめて 完了になる。
+   番号ごと・段階ごとでは なく、さいごに 1回だけ。
+   -------------------------------------------------------- */
+const WRAP_LABELS = ['マルつけ', 'なおし'];
+
+/* schema 5 → 6 の移行で wrapUp を足す課題。
+   読書のきろく・毎日のアプリには 付けない */
+const WRAP_UP_IDS = [
+  'skill-kokugo', 'skill-sansu', 'print-sansu', 'print-kokugo',
+  'chal-kanji', 'chal-keisan', 'kyuri', 'dokusho-yubin', 'eco', 'jiyu'
+];
 
 const DEFAULT_CONFIG = {
   schema: SCHEMA,
@@ -22,18 +36,18 @@ const DEFAULT_CONFIG = {
     {
       id:'skill-kokugo', group:'must', type:'count',
       name:'なつスキル（こくご）',
-      total:14, unit:'ばん', numbered:true,
+      total:14, unit:'ばん', numbered:true, wrapUp:true,
       memoLabel:'きょう やって おもったこと'
     },
     {
       id:'skill-sansu', group:'must', type:'count',
       name:'なつスキル（さんすう）',
-      total:19, unit:'ばん', numbered:true,
+      total:19, unit:'ばん', numbered:true, wrapUp:true,
       memoLabel:'きょう やって おもったこと'
     },
     {
       // カードは1枚。仕上げるまでの作業段階を刻んで進捗を測る
-      id:'kyuri', group:'must', type:'step',
+      id:'kyuri', group:'must', type:'step', wrapUp:true,
       name:'きゅうりの かんさつカード',
       steps:[
         'きゅうりを よく見る',
@@ -52,13 +66,13 @@ const DEFAULT_CONFIG = {
       ]
     },
     {
-      id:'dokusho-yubin', group:'must', type:'step',
+      id:'dokusho-yubin', group:'must', type:'step', wrapUp:true,
       name:'読書ゆうびん',
       steps:['本を えらぶ','さいごまで よむ','だれに 出すか きめる','おすすめの文を かく','絵を かく','出した！'],
       memoLabel:'えらんだ本の なまえ'
     },
     {
-      id:'eco', group:'must', type:'step',
+      id:'eco', group:'must', type:'step', wrapUp:true,
       name:'なかの エコチャレンジ',
       steps:['やることを きめる','1日め','2日め','3日め','4日め','5日め','6日め','7日め','かんそうを かく'],
       memoLabel:'きょう やった エコ'
@@ -74,15 +88,15 @@ const DEFAULT_CONFIG = {
 
     /* ---------- できれば やる ---------- */
     { id:'print-sansu', group:'option', type:'count',
-      name:'学習用プリント（さんすう）', total:4, unit:'まい', numbered:true },
+      name:'学習用プリント（さんすう）', total:4, unit:'まい', numbered:true, wrapUp:true },
     { id:'print-kokugo', group:'option', type:'count',
-      name:'学習用プリント（こくご）', total:6, unit:'まい', numbered:true },
+      name:'学習用プリント（こくご）', total:6, unit:'まい', numbered:true, wrapUp:true },
     { id:'chal-kanji', group:'option', type:'count',
-      name:'チャレンジブック　かん字', total:3, unit:'ばん', numbered:true },
+      name:'チャレンジブック　かん字', total:3, unit:'ばん', numbered:true, wrapUp:true },
     { id:'chal-keisan', group:'option', type:'count',
-      name:'チャレンジブック　けいさん', total:3, unit:'ばん', numbered:true },
+      name:'チャレンジブック　けいさん', total:3, unit:'ばん', numbered:true, wrapUp:true },
     {
-      id:'jiyu', group:'option', type:'step',
+      id:'jiyu', group:'option', type:'step', wrapUp:true,
       name:'自由研究',
       steps:['やりたいことを きめる','ざいりょうを あつめる','しらべる・じっけんする','しゃしんや 絵で のこす','わかったことを かく','かんせい！'],
       memoLabel:'しらべること・わかったこと'

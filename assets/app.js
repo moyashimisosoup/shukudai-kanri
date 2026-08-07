@@ -32,10 +32,22 @@ let calDay = null;
    いくらでも 引きなおせると、宿題より そちらに いってしまう */
 const FUN_MAX = 3;
 
+/* schema 5 → 6：しあげの2段階（マルつけ・なおし）を きめられた課題に足す。
+   おうちの人が 直した名前や 項目を 消さないよう、wrapUp 以外は さわらない */
+function migrate5to6(c){
+  (c.tasks || []).forEach(t=>{
+    if(t && WRAP_UP_IDS.indexOf(t.id) >= 0) t.wrapUp = true;
+  });
+  c.schema = 6;
+  return c;
+}
+
 function loadAll(){
   try{
     const c = JSON.parse(localStorage.getItem(K_CFG) || 'null');
-    config = (c && c.schema === SCHEMA) ? c : deepCopy(DEFAULT_CONFIG);
+    if(c && c.schema === SCHEMA)   config = c;
+    else if(c && c.schema === 5) { config = migrate5to6(c); saveCfg(); }
+    else                           config = deepCopy(DEFAULT_CONFIG);
   }catch(e){ config = deepCopy(DEFAULT_CONFIG); }
 
   try{
@@ -107,30 +119,60 @@ function stamp(text){
 /* ---------------------------------------------------------
    すすみぐあいの けいさん
    --------------------------------------------------------- */
+/* しあげの2段階（マルつけ・なおし）が つく課題か */
+function hasWrap(t){ return !!(t && t.wrapUp && (t.type === 'count' || t.type === 'step')); }
+
+/* ほぞんされた wrap を かならず 真偽値の はいれつに する（無ければ 未着手） */
+function wrapOf(p){
+  const a = Array.isArray(p.wrap) ? p.wrap : [];
+  return WRAP_LABELS.map((_,i)=> !!a[i]);
+}
+
+/* しあげの2段階を すすみぐあいに 織りこむ。
+   done / total / text は 番号（段階）そのままの数を のこす。
+   14ばんの課題が 16ばんに 見えると まちがえるため。
+   バーと 完了の 判定にだけ 2段階を 足す */
+function withWrap(task, p, r){
+  r.numDone  = r.isDone;        // 番号（段階）を ぜんぶ 終えたか
+  r.wrap     = wrapOf(p);
+  r.allDone  = r.done;
+  r.allTotal = r.total;
+  if(!hasWrap(task)) return r;
+  const w = r.wrap.filter(Boolean).length;
+  r.allDone  = r.done + w;
+  r.allTotal = r.total + r.wrap.length;
+  r.pct      = r.allDone / r.allTotal * 100;
+  r.isDone   = r.numDone && w >= r.wrap.length;
+  return r;
+}
+
 function prog(task){
   const p = state.progress[task.id] || {};
   if(task.type === 'count'){
     const total = Math.max(1, task.total|0);
     const done  = clamp(p.done|0, 0, total);
-    return { done, total, pct: done/total*100, unit: task.unit || 'こ',
-             text: done+'/'+total+(task.unit||''), isDone: done >= total };
+    return withWrap(task, p,
+           { done, total, pct: done/total*100, unit: task.unit || 'こ',
+             text: done+'/'+total+(task.unit||''), isDone: done >= total });
   }
   if(task.type === 'step'){
     const steps = task.steps || [];
     const arr = Array.isArray(p.steps) ? p.steps : [];
     const done = steps.reduce((a,_,i)=> a + (arr[i] ? 1 : 0), 0);
     const total = Math.max(1, steps.length);
-    return { done, total, pct: done/total*100, unit:'',
-             text: done+'/'+steps.length, isDone: done >= steps.length, arr };
+    return withWrap(task, p,
+           { done, total, pct: done/total*100, unit:'',
+             text: done+'/'+steps.length, isDone: done >= steps.length, arr });
   }
   // daily
   const days = p.days || {};
   const today = days[dayKey(new Date())] | 0;
   const target = Math.max(1, task.target|0);
-  return { done: today, total: target, pct: clamp(today/target*100,0,100),
+  return withWrap(task, p,
+         { done: today, total: target, pct: clamp(today/target*100,0,100),
            unit: task.targetUnit || 'かい',
            text: today+'/'+target+(task.targetUnit||''), isDone: today >= target,
-           streak: streakOf(days, target), days };
+           streak: streakOf(days, target), days });
 }
 
 function streakOf(days, target){
@@ -149,6 +191,11 @@ function streakOf(days, target){
 function nextLabel(task){
   const p = prog(task);
   if(p.isDone) return null;
+  // 番号（段階）が ぜんぶ おわったら、さいごの2段階を 出す
+  if(hasWrap(task) && p.numDone){
+    const i = p.wrap.findIndex(v => !v);
+    return { lead:'つぎは', num:'', tail: WRAP_LABELS[i] };
+  }
   if(task.type === 'count'){
     const n = p.done + 1;
     return task.numbered
@@ -167,7 +214,7 @@ function nextLabel(task){
 function overall(group){
   let done = 0, total = 0;
   config.tasks.filter(t => t.group === group && t.type !== 'daily').forEach(t=>{
-    const p = prog(t); done += p.done; total += p.total;
+    const p = prog(t); done += p.allDone; total += p.allTotal;
   });
   return { done, total, pct: total ? done/total*100 : 0 };
 }
@@ -864,7 +911,7 @@ function bookSectionHTML(){
 /* ---------------------------------------------------------
    きろくシート
    --------------------------------------------------------- */
-let sheetTask = null, sheetSel = null, sheetSteps = null;
+let sheetTask = null, sheetSel = null, sheetSteps = null, sheetWrap = null;
 let sheetRating = 0, sheetBookId = null;
 
 function openSheet(id, editBookId){
@@ -906,6 +953,17 @@ function openSheet(id, editBookId){
         ${Array.from({length:max+1},(_,i)=>
           `<button class="tally-btn${i===sheetSel?' sel':''}" data-n="${i}" type="button">${i}</button>`).join('')}
       </div>
+    </div>`;
+  }
+
+  // さいごの しあげ（マルつけ・なおし）。番号や段階を ぜんぶ 終えてから 見せる
+  if(hasWrap(t)){
+    sheetWrap = p.wrap.slice();
+    body += `
+    <div class="field field-wrap" id="wrapField"${p.numDone ? '' : ' hidden'}>
+      <span class="lab">さいごの しあげ</span>
+      <p class="hint">ぜんぶ おわったね！ できた ところを おしてね。</p>
+      <div class="steps" id="wraps">${wrapsHTML(sheetWrap)}</div>
     </div>`;
   }
 
@@ -1245,11 +1303,30 @@ function stepsHTML(t, arr){
      </button>`).join('');
 }
 
+/* しあげの2段階。段階式（step）と おなじ 見た目・おなじ そうさに する */
+function wrapsHTML(arr){
+  return WRAP_LABELS.map((s,i)=>
+    `<button class="step${arr[i]?' on':''}" data-w="${i}" type="button">
+       <span class="box">✓</span><span>${esc(s)}</span>
+     </button>`).join('');
+}
+
+/* 番号（段階）を いま ぜんぶ おしたら、その場で しあげの欄を 出す */
+function syncWrapField(){
+  const f = $('#wrapField');
+  if(!f || !sheetTask) return;
+  const t = sheetTask;
+  const ok = t.type === 'count'
+    ? (sheetSel|0) >= Math.max(1, t.total|0)
+    : !!(sheetSteps && sheetSteps.length && sheetSteps.every(Boolean));
+  f.hidden = !ok;
+}
+
 function closeSheet(){
   $('#sheetWrap').hidden = true;
   document.body.style.overflow = '';
   stopSR();
-  sheetTask = null; sheetSel = null; sheetSteps = null;
+  sheetTask = null; sheetSel = null; sheetSteps = null; sheetWrap = null;
   sheetRating = 0; sheetBookId = null;
   $('#sheetSave').textContent = 'きろくする';
 }
@@ -1293,6 +1370,13 @@ function saveSheet(){
     days[dayKey(now)] = n;
     state.progress[t.id] = Object.assign({}, state.progress[t.id], { days });
     what = n + (t.targetUnit||'かい') + ' できた';
+  }
+
+  // さいごの しあげ。done / steps とは べつに のこす
+  if(hasWrap(t) && sheetWrap){
+    const added = WRAP_LABELS.filter((s,i)=> sheetWrap[i] && !p.wrap[i]);
+    state.progress[t.id] = Object.assign({}, state.progress[t.id], { wrap: sheetWrap.slice() });
+    if(added.length) what = [what, added.join('・') + ' が できた'].filter(Boolean).join('　');
   }
 
   // かんさつの こたえを メモに くっつける
@@ -1546,7 +1630,6 @@ function buildSummary(logDays){
   L.push('夏休みの経過  ' + Math.round(o) + '%');
   L.push('必須の宿題    ' + Math.round(s.pct) + '%  (' + s.done + '/' + s.total + ')');
   if(so.total) L.push('できればやる  ' + Math.round(so.pct) + '%  (' + so.done + '/' + so.total + ')');
-  L.push('判定  ' + verdictOf(s.pct - o).msg);
 
   ['must','option','daily'].forEach(g=>{
     const list = config.tasks.filter(t=>t.group===g);
@@ -1734,6 +1817,7 @@ document.addEventListener('click', e=>{
     sheetSel = (n === sheetSel) ? n - 1 : n;   // 同じところを もう一度おすと 1つ もどる
     $('#nums').innerHTML = numsHTML(sheetTask, sheetSel);
     $('#selSay').textContent = selSayText(sheetTask, sheetSel);
+    syncWrapField();
     return;
   }
   const st = e.target.closest('#steps .step');
@@ -1741,6 +1825,14 @@ document.addEventListener('click', e=>{
     const i = +st.dataset.i;
     sheetSteps[i] = !sheetSteps[i];
     $('#steps').innerHTML = stepsHTML(sheetTask, sheetSteps);
+    syncWrapField();
+    return;
+  }
+  const wp = e.target.closest('#wraps .step');
+  if(wp){
+    const i = +wp.dataset.w;
+    sheetWrap[i] = !sheetWrap[i];
+    $('#wraps').innerHTML = wrapsHTML(sheetWrap);
     return;
   }
   const ta = e.target.closest('#tally .tally-btn');
