@@ -1063,6 +1063,8 @@ function viewParent(){
     <a class="btn btn-sm" href="#home">子ども画面へ</a>
   </div>
 
+  ${syncPromptHTML()}
+
   <section class="paper pstat">
     <div class="pstat-grid">
       <div><span class="pstat-lab">残り</span>
@@ -1259,7 +1261,27 @@ const SYNC_LABEL = {
   error:      ['!',  'つながりません']
 };
 
-function syncSectionHTML(){
+/* まだ あいことばを 入れていない（＝この端末は ひとりぼっち）か。
+   Firebase の 用意が すんでいて、あいことばだけ 無い ときに true */
+function syncNeedsSetup(){
+  const S = window.NatsuSync;
+  return !!(S && S.configured() && !S.getCode());
+}
+
+/* 保護者ページの いちばん上に 出す ぶん。
+   まだ つないでいない あいだは、進捗より先に ここを 見てほしい。
+   つないだ あとは 出さない（設定ページの 元の場所に もどる） */
+function syncPromptHTML(){
+  if(!syncNeedsSetup()) return '';
+  return `
+  <section class="sec sync-prompt">
+    ${syncSectionHTML({ lead:'この端末の記録は、まだこの端末の中だけにあります。'
+                           + 'ほかの端末と共有するには、あいことばを決めてください。' })}
+  </section>`;
+}
+
+function syncSectionHTML(opts){
+  const lead = opts && opts.lead;
   const S = window.NatsuSync;
   if(!S){
     return `
@@ -1291,6 +1313,7 @@ function syncSectionHTML(){
     <div class="sec-head"><h2>べつの端末と つなぐ</h2>
       <span class="sec-note" id="syncStatus">${mark} ${esc(S.statusText() || text)}</span></div>
     <div class="paper">
+      ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
       <p class="set-note">おなじ「あいことば」を入れた端末どうしで、記録と設定が自動でそろいます。
       親の端末で作って、子の端末の同じ欄に貼り付けてください。
       あいことばを知っている人は記録を見られるので、他人に渡さないでください。</p>
@@ -1907,7 +1930,7 @@ function render(opts){
     renderCountdown();
     timer = setInterval(renderCountdown, 1000);
   }
-  if(tab === 'settings') bindParent();
+  if(tab === 'settings'){ bindParent(); bindSync(); }
   if(tab === 'config')   bindConfig();
   window.scrollTo(0, keepScroll ? y : 0);
 }
@@ -1953,7 +1976,10 @@ function bindSync(){
     });
   }
 
+  /* 保護者ページでは あいことばが 無いときだけ 欄が 出る。
+     出ていない ときは つなぐ そうさも いらない */
   const input = $('#syncCode');
+  if(!input) return;
 
   $('#syncSave').addEventListener('click', ()=>{
     const c = String(input.value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -2461,7 +2487,7 @@ window.addEventListener('hashchange', ()=>{
    ここで もう1回 描き直す（そうしないと「べつの端末と つなぐ」の欄が
    ずっと「読み込みに失敗しました」のまま 固まって見える） */
 window.addEventListener('natsu:sync-ready', ()=>{
-  if(tab === 'config') render({ keepScroll:true });
+  if(tab === 'config' || tab === 'settings') render({ keepScroll:true });
 }, { once:true });
 
 /* ---------------------------------------------------------

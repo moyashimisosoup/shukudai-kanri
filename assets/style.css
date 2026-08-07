@@ -636,6 +636,16 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   .parent-head > div{ flex:1 1 100%; }
 }
 
+/* まだ つないでいない ときに 保護者ページの 頭に 出す 案内。
+   進捗より先に 目が いくよう、ふちを 山吹色に する。
+   つないだ あとは そもそも 出ない */
+.sync-prompt .paper{ border-color:var(--himawari); }
+.sync-lead{ font-weight:900 !important; color:var(--ai) !important; }
+/* 見出しと 状態の 字が せまい画面で 押し合って
+   「べつの端／末と つなぐ」と 割れるので、たてに ならべる */
+.sync-prompt .sec-head{ flex-wrap:wrap; row-gap:2px; }
+.sync-prompt .sec-head h2{ flex:1 0 100%; }
+
 /* 親ページはタブバーがないぶん下の余白を詰める */
 body.no-tabbar{ padding-bottom:24px; }
 
