@@ -28,6 +28,10 @@ let funIdx = 0, funOpen = false;
 let calMonth = null;
 let calDay = null;
 
+/* なぞなぞ・まめちしきは 1日に 引ける かずを かぎる。
+   いくらでも 引きなおせると、宿題より そちらに いってしまう */
+const FUN_MAX = 3;
+
 function loadAll(){
   try{
     const c = JSON.parse(localStorage.getItem(K_CFG) || 'null');
@@ -42,7 +46,12 @@ function loadAll(){
   if(!state.progress) state.progress = {};
   if(!Array.isArray(state.logs)) state.logs = [];
   if(!Array.isArray(state.books)) state.books = [];
-  funIdx = dayOfYear(new Date()) % FUN.length;
+
+  /* きょうの ぶんを まだ 1つも 引いていなければ、ここで 1つめを 引く */
+  const ft = funToday();
+  if(ft.seen.length) funIdx = ft.seen[ft.seen.length - 1];
+  else funPick();
+  funOpen = false;
 }
 function saveCfg(){ localStorage.setItem(K_CFG, JSON.stringify(config)); }
 function saveSt(){ localStorage.setItem(K_ST, JSON.stringify(state)); }
@@ -310,17 +319,48 @@ function logRowHTML(l){
   </div>`;
 }
 
+/* {漢字|よみ} を ふりがなに する。さきに esc() で エスケープしてから
+   自分の タグだけを 入れるので、本文に < や > が あっても こわれない。
+   ふつうの （かっこ）は そのまま のこる（読みがなでは ない ものが あるため） */
+function rubyHTML(text){
+  return esc(text).replace(/\{([^{}|]+)\|([^{}|]+)\}/g,
+    (_, base, yomi) => `<ruby>${base}<rt>${yomi}</rt></ruby>`);
+}
+
+/* きょうの ぶんの おぼえがき。日づけが かわったら 0から かぞえなおす */
+function funToday(){
+  const key = dayKey(new Date());
+  let f = state.fun;
+  if(!f || f.key !== key || !Array.isArray(f.seen)){ f = { key, seen: [] }; state.fun = f; }
+  return f;
+}
+
+/* まだ きょう 出していない ものから ひとつ ランダムに えらぶ。
+   ぜんぶ 出しきったら また 全体から えらぶ */
+function funPick(){
+  const f = funToday();
+  const rest = FUN.map((_, i)=> i).filter(i => f.seen.indexOf(i) < 0);
+  const pool = rest.length ? rest : FUN.map((_, i)=> i);
+  funIdx = pool[Math.floor(Math.random() * pool.length)];
+  funOpen = false;
+  f.seen.push(funIdx);
+  saveSt();
+}
+
 function funHTML(){
   const f = FUN[funIdx % FUN.length];
+  const left = FUN_MAX - funToday().seen.length;
   return `
   <section class="paper fun">
     <span class="fun-tag">${esc(f.t)}</span>
-    <p class="fun-q">${esc(f.q)}</p>
-    ${funOpen ? `<p class="fun-a">${esc(f.a)}</p>` : ''}
+    <p class="fun-q">${rubyHTML(f.q)}</p>
+    ${funOpen ? `<p class="fun-a">${rubyHTML(f.a)}</p>` : ''}
     <div class="fun-row">
       ${funOpen ? '' : `<button class="btn btn-sm" data-fun="open" type="button">${
         f.t === 'なぞなぞ' ? 'こたえを 見る' : 'つづきを 見る'}</button>`}
-      <button class="btn btn-sm" data-fun="next" type="button">つぎの はなし</button>
+      ${left > 0
+        ? `<button class="btn btn-sm" data-fun="next" type="button">つぎの はなし（あと ${left}かい）</button>`
+        : `<span class="fun-owari">きょうは ここまで。また あした！</span>`}
     </div>
   </section>`;
 }
@@ -1669,7 +1709,12 @@ document.addEventListener('click', e=>{
   const fun = e.target.closest('[data-fun]');
   if(fun){
     if(fun.dataset.fun === 'open') funOpen = true;
-    else { funIdx = (funIdx + 1) % FUN.length; funOpen = false; }
+    else{
+      /* 1日に 引ける かずを かぎる。ボタンは 上限で 消えるが、
+         連打や 古い画面から 押された ときのために ここでも 止める */
+      if(funToday().seen.length >= FUN_MAX) return;
+      funPick();
+    }
     // カードだけ差し替える。ページは動かない
     const card = $('.fun');
     if(card) card.outerHTML = funHTML();

@@ -897,3 +897,25 @@ body.no-tabbar{ padding-bottom:24px; }
   .cal-day{ transition:none; }
   .cal-day:active{ transform:none; }
 }
+
+/* =========================================================
+   ふりがな（なぞなぞ・まめちしき）
+   ========================================================= */
+/* ルビは行の上に はみ出すので、行の高さを ひろげておかないと
+   前の行と かさなって読めなくなる */
+.fun-q, .fun-a{ line-height:2.1; }
+.fun-q ruby, .fun-a ruby{ ruby-position:over; }
+.fun-q rt, .fun-a rt{
+  font-size:.45em; font-weight:700; color:var(--ai-usu);
+  letter-spacing:0; line-height:1.2;
+}
+/* ルビに対応していない環境では rt が本文に混ざってしまうので、
+   そのときだけ かっこで くくって 読めるようにする */
+@supports not (ruby-position: over){
+  .fun-q rt::before, .fun-a rt::before{ content:"（"; }
+  .fun-q rt::after,  .fun-a rt::after{  content:"）"; }
+}
+.fun-owari{
+  font-size:16px; font-weight:700; color:var(--ai-usu);
+  align-self:center;
+}
