@@ -2377,6 +2377,14 @@ window.addEventListener('hashchange', ()=>{
   if(t !== tab || t === 'writes'){ tab = t; render(); }
 });
 
+/* sync.js は module なので、ページを 開いて 最初の render() の時点では
+   まだ 動いていない。「せってい」タブを 見ている 最中に 追いついたら、
+   ここで もう1回 描き直す（そうしないと「べつの端末と つなぐ」の欄が
+   ずっと「読み込みに失敗しました」のまま 固まって見える） */
+window.addEventListener('natsu:sync-ready', ()=>{
+  if(tab === 'config') render({ keepScroll:true });
+}, { once:true });
+
 /* ---------------------------------------------------------
    はじめる
    --------------------------------------------------------- */

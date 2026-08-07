@@ -227,6 +227,14 @@ const Sync = {
 
 window.NatsuSync = Sync;
 
+/* module は 仕様上、classic script（app.js）より あとに 動きだす。
+   だから ページを 開いて 最初の render() は かならず sync.js が
+   まだ 何も していない状態で 終わっている。
+   ここで イベントを 出し、app.js 側で 「せってい」タブを 見ていたら
+   もう1回 描き直してもらう（onStatus は #syncStatus の文字だけしか
+   書きかえられず、欄そのものが まだ 無い状態は 直せないため） */
+window.dispatchEvent(new CustomEvent('natsu:sync-ready'));
+
 /* app.js は もう動いている（classic script は 先に走る）。
    ここで はじめて 通信を 始める。読み込みが 遅れても 画面は 止まらない */
 connect();
