@@ -236,7 +236,10 @@ button{ font:inherit; color:inherit; }
   box-shadow:var(--shadow);
   position:relative;
 }
-.task-list > .task + .task{ margin-top:12px; }
+/* 縦に積むときだけ間をあける。2つ並びの段はグリッドの gap が受け持つので
+   ここでは効かせない。:not() で外しておかないと、詳細度がこちらのほうが
+   高いせいで 2枚目だけ 12px 下がり、高さも 12px 短くなる */
+.task-list:not(.task-list--2up) > .task + .task{ margin-top:12px; }
 
 /* まいにちの欄は2つで1段。自由記述だけは横いっぱいに広げる */
 .task-list--2up{
@@ -246,7 +249,6 @@ button{ font:inherit; color:inherit; }
    中の各行に分配され、カードごとに中身の縦位置がズレる。縦並びに変えて
    ボタンだけを下端に送れば、上は見出し・下はボタンで両方そろう */
 .task-list--2up > .task{
-  margin-top:0;
   display:flex; flex-direction:column; align-items:stretch; gap:6px;
 }
 .task-list--2up > .task .task-act{ margin-top:auto; align-self:stretch; padding-top:6px; }
