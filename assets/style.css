@@ -649,45 +649,37 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 /* 親ページはタブバーがないぶん下の余白を詰める */
 body.no-tabbar{ padding-bottom:24px; }
 
-/* 進捗の概要。4つを つねに 横1れつに ならべる。
-   はば別に 列数を 変える（1列・2列・4列 など）と、画面の はばによって
-   見え方が 大きく変わってしまう。かわりに 文字の 大きさを
-   clamp() で はばに あわせて 縮め、4つとも いつも 同じ 並びに する */
+/* 進捗の概要 */
 .pstat{ padding:18px; }
 .pstat-grid{
-  display:grid;
-  /* 「残り ○日○時間」だけ 他より 字数が 多いので、
-     列の はばも そこだけ 広く とる（1.6倍）。
-     4列とも 同じ はばに すると、320px の 画面では
-     文字が 7px くらいまで 縮まないと 入らず 読めなくなる */
-  grid-template-columns:1.6fr 1fr 1fr 1fr;
-  gap:10px; margin-bottom:16px;
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr));
+  gap:14px; margin-bottom:16px;
 }
 .pstat-grid > div{
-  padding:10px 8px; background:#F2F8FB;
+  padding:12px 14px; background:#F2F8FB;
   border:2px solid var(--hougan); border-radius:var(--r-s);
   min-width:0;   /* 中の数字が はみ出して 列を 押し広げないように */
 }
-.pstat-lab{
-  display:block; font-weight:900; color:var(--ai-usu);
-  font-size:clamp(11px, 2.6vw, 14px);
-}
+.pstat-lab{ display:block; font-size:14px; font-weight:900; color:var(--ai-usu); }
 .pstat-val{
-  display:block; font-weight:900; line-height:1.2;
+  display:block; font-size:28px; font-weight:900; line-height:1.2;
   font-variant-numeric:tabular-nums; margin-top:2px;
-  /* iPhone SE（320px）でも 4つとも 1行に おさまる ふとさ。
-     834px（iPad）で もとの 28px に なる */
-  font-size:clamp(12px, 3.4vw, 28px);
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  /* 項目を 追加して 総数が 3桁に なるなど、まれに 入りきらない
-     ときは 崩れる前に … で 切る（ふだんの 数では 起きない） */
 }
-.pstat-val small{ font-size:0.55em; font-weight:900; color:var(--ai-usu); }
+.pstat-val small{ font-size:15px; font-weight:900; color:var(--ai-usu); }
 
+/* スマホの幅では 4つが たて1列に ならんで 間のびする。
+   2列に して、いちばん長い「残り ○日○時間」だけ 横いっぱいに 使う。
+   （150px だと iPhone の 幅で 13px 足りず 1列に 落ちていた）*/
 @media (max-width:560px){
-  .pstat{ padding:12px; }
-  .pstat-grid{ gap:8px; }
-  .pstat-grid > div{ padding:8px 6px; }
+  .pstat{ padding:14px; }
+  .pstat-grid{
+    gap:10px;
+    /* 140px だと iPhone 12 mini などの 360px 幅で 11px 足りず
+       1列に 落ちる。130px なら 360px から 2列に なる */
+    grid-template-columns:repeat(auto-fit, minmax(130px,1fr));
+  }
+  .pstat-grid > div:first-child{ grid-column:1 / -1; }
+  .pstat-val{ font-size:clamp(22px, 7vw, 28px); white-space:nowrap; }
 }
 
 /* 課題ごとの進捗表 */
