@@ -978,3 +978,16 @@ input.is-need, textarea.is-need{
 @media (prefers-reduced-motion:reduce){
   .wrapmark.is-on{ animation:none; }
 }
+
+/* =========================================================
+   もうすこし！（マルつけ・なおし まちのカード）
+   ========================================================= */
+/* 番号は ぜんぶ 終えたのに バッジが 何も 出ないと、終わったのか
+   まだなのか 分からない。あと ひといき だと 分かるように 出す */
+.task.is-almost{ background:var(--himawari-usu); }
+.task.is-almost .task-name::after{
+  content:"もうすこし！"; margin-left:10px;
+  font-size:16px; font-weight:900; color:#7A5405;
+  background:var(--himawari); border-radius:999px;
+  padding:3px 12px; vertical-align:middle; white-space:nowrap;
+}

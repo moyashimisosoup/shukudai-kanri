@@ -357,7 +357,8 @@ function taskHTML(t){
   }
 
   return `
-  <article class="task${p.isDone?' is-done':''}${isFree(t)?' task-free':''}">
+  <article class="task${p.isDone?' is-done':''}${
+    (!p.isDone && p.numDone && hasWrap(t))?' is-almost':''}${isFree(t)?' task-free':''}">
     <h3 class="task-name">${esc(t.name)}</h3>
     ${nx && !isFree(t) ? `<p class="task-next">${nx.lead}
         ${nx.num ? `<span class="next-num">${esc(nx.num)}</span>` : ''}${esc(nx.tail)}</p>` : ''}
@@ -815,7 +816,7 @@ function viewConfig(){
           </label>
         ` : ''}
         ${(t.type==='count' || t.type==='step') ? `
-          <label><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> マルつけ・なおしを つける</label>
+          <label><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> マルつけして もらう・なおし を つける</label>
         ` : ''}
         ${isBook(t) ? (bf => `
           <label><input type="checkbox" data-bf="author"${bf.author?' checked':''}> さくしゃ欄</label>
@@ -1347,7 +1348,9 @@ function stepsHTML(t, arr){
 
 /* しあげの2段階。段階式（step）と おなじ 見た目・おなじ そうさに する */
 function wrapsHTML(arr){
-  return WRAP_LABELS.map((s,i)=>
+  /* ここは 幅が あるので、みじかい「マルつけ」ではなく
+     だれが やることか 分かる 言い方を つかう */
+  return WRAP_LABELS_FULL.map((s,i)=>
     `<button class="step${arr[i]?' on':''}" data-w="${i}" type="button">
        <span class="box">✓</span><span>${esc(s)}</span>
      </button>`).join('');
