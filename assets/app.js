@@ -2038,6 +2038,17 @@ function saveSheet(){
   if(isFree(t)){ saveFreeSheet(); return; }
   const p = prog(t);
   const memo = ($('#memo') && $('#memo').value.trim()) || '';
+  const hasAnswer = $$('#sheetBody [data-q]').some(el=>el.value.trim());
+  const hasSelection = t.type === 'count' ? (sheetSel|0) > 0
+    : t.type === 'step' ? !!(sheetSteps && sheetSteps.some(Boolean))
+    : (sheetSel|0) > 0;
+  const hasWrapSelection = !!(sheetWrap && sheetWrap.some(Boolean));
+  /* 何も選ばずに保存しても 0/6 の訂正ログを作らない。
+     そのような空ログが「できた！」の回数を増やすことも防ぐ。 */
+  if(!hasSelection && !hasWrapSelection && !memo && !hasAnswer){
+    toast('やったところを えらんでね');
+    return;
+  }
   const now = new Date();
   let what = '';
   let ok = true;
