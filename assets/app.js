@@ -451,6 +451,7 @@ function welcomeFormHTML(role){
     <h3>おうちの人の 設定</h3>
     <label class="lab">こどもの なまえ
       <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
+    ${privacyNoteHTML()}
     ${syncReady ? `<label class="lab">このおうちの あいことば
       <input id="welcomeCode" type="text" value="${esc(code)}" readonly></label>
       <p class="set-note">このあいことばを、こどもの端末で「読みこむ」だけです。人に見せないでください。</p>`
@@ -459,11 +460,16 @@ function welcomeFormHTML(role){
     <h3>こどもの 設定</h3>
     <label class="lab">なまえを 確認しよう
       <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
+    ${privacyNoteHTML()}
     ${syncReady ? `<label class="lab">おうちの人から もらった あいことば
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
       <p class="set-note">読みこむと、おうちの人が決めた宿題と記録が表示されます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" type="button">こども画面を 開く</button>`;
+}
+
+function privacyNoteHTML(){
+  return `<p class="privacy-note">管理者が確認するのは登録家庭数だけです。アクセス元・名前・宿題名・記録内容が管理者へ通知されることはありません。同期を使わない場合、これらはこの端末にだけ保存されます。あいことば同期を使う場合は、同じ家庭の端末と共有するためFirebaseにも保存されます。</p>`;
 }
 
 /* ---------------------------------------------------------
@@ -1152,6 +1158,8 @@ function viewParent(){
     <a class="btn btn-sm" href="#config">設定</a>
     <a class="btn btn-sm" href="#home">子ども画面へ</a>
   </div>
+
+  ${privacyNoteHTML()}
 
   ${syncPromptHTML()}
 

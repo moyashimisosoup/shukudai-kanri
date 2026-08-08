@@ -139,6 +139,11 @@ button{ font:inherit; color:inherit; }
 .welcome-form .lab{ display:block; font-size:16px; font-weight:900; margin:12px 0; }
 .welcome-form input{ margin-top:4px; }
 .welcome-form .btn-wide{ width:100%; margin-top:8px; }
+.privacy-note{
+  margin:10px 0; padding:9px 11px;
+  font-size:13px; line-height:1.55; font-weight:700; color:var(--ai-usu);
+  background:var(--sora); border:1px solid var(--hougan); border-radius:var(--r-s);
+}
 .stats-count{
   margin:12px 0 6px; padding:16px; text-align:center;
   font-family:var(--font-num); font-size:38px; font-weight:900;
