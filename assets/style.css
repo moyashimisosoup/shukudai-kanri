@@ -928,7 +928,10 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .parent-message-fields .lab{ display:grid; gap:6px; }
 .parent-sender-fields{ display:grid; gap:8px; }
 .sender-custom[hidden]{ display:none; }
-.parent-message-text textarea{ min-height:72px; resize:vertical; }
+.parent-message-text textarea{
+  height:56px; min-height:56px; max-height:180px;
+  resize:vertical; line-height:1.5; overflow-y:auto;
+}
 .parent-message-controls{
   display:flex;
   align-items:center;
@@ -981,6 +984,7 @@ body.no-tabbar{ padding-bottom:24px; }
   font-variant-numeric:tabular-nums; margin-top:2px;
 }
 .pstat-val small{ font-size:15px; font-weight:900; color:var(--ai-usu); }
+.pstat-val .pstat-unit{ font-size:.55em; margin:0 .08em; color:var(--ai-usu); }
 
 /* スマホの幅では 2×2（よこ2つ・たて2段）に そろえる。
    auto-fit に まかせると、はばが すこし 足りないだけで

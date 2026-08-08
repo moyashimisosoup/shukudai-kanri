@@ -553,7 +553,7 @@ function welcomeFormHTML(role, sharing){
     <label class="lab">漢字は何年生の字まで読めますか？
       <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
     ${privacyNoteHTML()}
-    ${syncReady ? `<label class="lab">このおうちの あいことば（5文字以上）
+    ${syncReady ? `<label class="lab">このおうちの あいことば（8文字以上）
       <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
       <p class="set-note">こどもの端末など、複数の端末で同じ合言葉を入れると、同じ記録と設定を使えます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
@@ -1344,7 +1344,9 @@ function viewParent(){
   <section class="paper pstat">
     <div class="pstat-grid">
       <div><span class="pstat-lab">残り</span>
-        <span class="pstat-val">${ms > 0 ? Math.floor(ms/86400000) + '日' + (Math.floor(ms/3600000)%24) + '時間' : '終了'}</span></div>
+        <span class="pstat-val">${ms > 0
+          ? `<span class="pstat-num">${Math.floor(ms/86400000)}</span><small class="pstat-unit">日</small><span class="pstat-num">${Math.floor(ms/3600000)%24}</span><small class="pstat-unit">時間</small>`
+          : '終了'}</span></div>
       <div><span class="pstat-lab">夏休みの経過</span>
         <span class="pstat-val">${Math.round(nat)}<small>%</small></span></div>
       <div><span class="pstat-lab">必須の宿題</span>
@@ -1397,13 +1399,13 @@ function parentMessageEditorHTML(){
     <div class="paper parent-message-form">
       <div class="parent-message-fields">
         <div class="parent-sender-fields">
-          <label class="lab" for="parentMessageSender">表示する名前
+          <label class="lab" for="parentMessageSender">表示する名前（より）
             <select id="parentMessageSender">${parentSenderOptions(msg.sender)}</select></label>
           <label class="lab sender-custom" id="parentMessageCustomWrap" for="parentMessageCustom" hidden>名前
             <input id="parentMessageCustom" type="text" maxlength="20" value="${esc(msg.customSender)}" placeholder="例：おばあちゃん"></label>
         </div>
         <label class="lab parent-message-text" for="parentMessageText">メッセージ
-          <textarea id="parentMessageText" rows="2" maxlength="80" placeholder="例：きょうも おつかれさま！">${esc(msg.text)}</textarea></label>
+          <textarea id="parentMessageText" rows="1" maxlength="80" placeholder="例：きょうも おつかれさま！">${esc(msg.text)}</textarea></label>
       </div>
       <div class="parent-message-controls">
         <label class="parent-message-toggle"><input id="parentMessageEnabled" type="checkbox"${msg.enabled?' checked':''}> こども画面に 表示する</label>
@@ -2065,6 +2067,10 @@ function stopSR(){ if(sr){ try{ sr.stop(); }catch(e){} sr = null; } $$('.mic.rec
 function render(opts){
   const keepScroll = !!(opts && opts.keepScroll);
   const y = window.scrollY;
+  /* 同期の到着などで画面を描き直しても、保護者が入力途中の内容を
+     消さない。保存前のメッセージ、サマリー、チェックの状態も含めて
+     同じ id の欄へ戻す。 */
+  const formDraft = captureFormDraft();
 
   const shownTitle = TEST_MODE && (!getLocal(K_ONBOARD) || DEBUG_PARENT) ? 'おためし用の設定' : config.title;
   $('#appTitle').textContent = shownTitle;
@@ -2084,6 +2090,8 @@ function render(opts){
   else if(tab === 'config')   v.innerHTML = viewConfig();
   else                        v.innerHTML = viewParent();
 
+  restoreFormDraft(formDraft);
+
   $$('.tab').forEach(b=> b.classList.toggle('is-on', b.dataset.tab === tab));
   // 子ども画面以外ではタブバーを隠す（それぞれ「もどる」で戻す）
   const noTabs = (tab !== 'home' && tab !== 'log' && tab !== 'calendar');
@@ -2100,6 +2108,25 @@ function render(opts){
   if(tab === 'config')   bindConfig();
   window.scrollTo(0, keepScroll ? y : 0);
   applyReadingDisplay();
+}
+
+function captureFormDraft(){
+  const out = {};
+  $$('#view input[id], #view textarea[id], #view select[id]').forEach(el=>{
+    if(el.type === 'file') return;
+    out[el.id] = (el.type === 'checkbox' || el.type === 'radio')
+      ? { checked:el.checked, type:el.type }
+      : { value:el.value, type:el.type };
+  });
+  return out;
+}
+function restoreFormDraft(draft){
+  Object.entries(draft || {}).forEach(([id, saved])=>{
+    const el = document.getElementById(id);
+    if(!el || el.type === 'file') return;
+    if(saved.type === 'checkbox' || saved.type === 'radio') el.checked = !!saved.checked;
+    else el.value = saved.value;
+  });
 }
 
 /* 設定は「この端末」「おうちの宿題」「まいにち」に分ける。
@@ -2318,7 +2345,7 @@ function bindWelcomeStart(){
     const codeEl = $('#welcomeCode');
     const code = codeEl ? cleanCode(codeEl.value) : '';
     if(!name){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
-    if(sharing && !TEST_MODE && S && S.configured() && code.length < 5){ toast('あいことばを 5文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
+    if(sharing && !TEST_MODE && S && S.configured() && code.length < 8){ toast('あいことばを 8文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
     setLocal(K_NAME, name);
     setLocal(K_ROLE, role);
     setLocal(K_READING, grade);
@@ -2374,6 +2401,14 @@ function bindStats(){
 /* 保護者ページ（進捗一覧）— サマリーの生成と書き出し */
 function bindParent(){
   bindParentSender('parentMessageSender', 'parentMessageCustomWrap');
+  const messageText = $('#parentMessageText');
+  const fitMessageText = ()=>{
+    if(!messageText) return;
+    messageText.style.height = 'auto';
+    messageText.style.height = Math.max(56, Math.min(messageText.scrollHeight, 180)) + 'px';
+  };
+  fitMessageText();
+  messageText.addEventListener('input', fitMessageText);
   $('#parentMessageSave').addEventListener('click', ()=>{
     const sender = $('#parentMessageSender').value;
     config.parentMessage.sender = PARENT_SENDERS.includes(sender) ? sender : 'おかあさん';
@@ -2427,7 +2462,7 @@ function bindSync(){
 
   $('#syncSave').addEventListener('click', ()=>{
     const c = cleanCode(input.value);
-    if(c.length < 5){ toast('あいことばを 5文字以上 入れてください'); return; }
+    if(c.length < 8){ toast('あいことばを 8文字以上 入れてください'); return; }
     S.reconnect(c);
     toast('つないでいます…');
     render({ keepScroll:true });

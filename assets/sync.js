@@ -35,7 +35,7 @@ const K_CODE = new URLSearchParams(location.search).get('new') === '1'
 
 /* 打ちまちがえない 文字だけ。0/O と 1/l/I は 入れない */
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
-const CODE_LEN = 5;
+const CODE_LEN = 8;
 
 /* ---------------------------------------------------------
    2. 状態
@@ -104,7 +104,7 @@ async function connect(){
   const code = getCode();
 
   if(!configured()){ setStatus('off', 'Firebase が設定されていません'); return; }
-  if(code.length < 5){ setStatus('off', 'あいことばが設定されていません'); return; }
+  if(code.length < 8){ setStatus('off', 'あいことばが設定されていません'); return; }
 
   setStatus('connecting', 'つないでいます…');
 
@@ -229,7 +229,7 @@ async function codeHash(code){
   return Array.from(new Uint8Array(digest), b=>b.toString(16).padStart(2,'0')).join('');
 }
 async function registerHousehold(code){
-  if(!configured() || String(code || '').length < 5) return;
+  if(!configured() || String(code || '').length < 8) return;
   if(!db){
     if(!initPromise) initPromise = initFirebase();
     await initPromise;
