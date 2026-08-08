@@ -61,6 +61,9 @@ const DAILY_UNIT_PRESETS = ['かい','ハート','ふん','ページ','もん'];
 const PARENT_SENDERS = ['おかあさん','おとうさん','その他','名前表示なし'];
 
 function taskKind(t){ return t && t.group === 'daily' ? 'daily' : (isBook(t) ? 'book' : 'normal'); }
+/* 設定画面で見えている欄ごとに順番を替える。必須・チャレンジ・読書・まいにちを
+   またいで動かすと、子ども画面での順番が分かりにくくなるため分けておく。 */
+function taskOrderBucket(t){ return t && (t.group === 'daily' ? 'daily' : (isBook(t) ? 'book' : t.group)); }
 function dailyUnitPreset(unit){ return DAILY_UNIT_PRESETS.includes(unit) ? unit : 'custom'; }
 function applyTheme(theme){
   const id = THEME_IDS.includes(theme) ? theme : 'notebook';
@@ -556,6 +559,7 @@ function welcomeFormHTML(role, sharing){
       <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
       <p class="set-note">こどもの端末など、複数の端末で同じ合言葉を入れると、同じ記録と設定を使えます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
+    ${privacyNoteHTML()}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes" type="button">保護者ページを 開く</button>` : `
     <h3>こどもの 設定</h3>
     <label class="lab">なまえを 確認しよう
@@ -566,11 +570,12 @@ function welcomeFormHTML(role, sharing){
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
       <p class="set-note">読みこむと、おうちの人が決めた宿題と記録を、複数の端末で使えます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
+    ${privacyNoteHTML()}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="${sharing?'yes':'no'}" type="button">こども画面を 開く</button>`;
 }
 
 function privacyNoteHTML(){
-  return `<p class="privacy-note">管理者に届くのは登録家庭数だけです。名前・宿題名・記録内容は届きません。合言葉でつないだ複数の端末だけで共有します。</p>`;
+  return `<p class="privacy-note">管理者に届くのは登録家庭数だけです。名前・宿題名・記録内容・アクセス元は届きません。共有設定済み端末数は、このおうち用のランダムな番号だけで数えます。</p>`;
 }
 
 function welcomeMessageChoiceHTML(){
@@ -1335,6 +1340,8 @@ function viewParent(){
 
   ${syncPromptHTML()}
 
+  ${window.NatsuSync && window.NatsuSync.getCode() ? `<p class="set-note sync-device-count" id="syncDeviceCount">このおうちで共有設定済みの端末：${window.NatsuSync.deviceCount()}台</p>` : ''}
+
   ${parentMessageEditorHTML()}
 
   <section class="paper pstat">
@@ -1486,7 +1493,7 @@ function syncSectionHTML(opts){
         <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
         ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作る</button>'}
       </div>
-      ${code ? `<div class="set-actions">
+      ${code ? `<p class="set-note sync-device-count" id="syncDeviceCount">このおうちで共有設定済みの端末：${S.deviceCount()}台</p><div class="set-actions">
         <button class="btn btn-sm btn-danger" id="syncOff" type="button">つなぐのをやめる</button>
       </div>` : ''}
     </div>
@@ -2245,12 +2252,13 @@ function viewConfig(){
   </div></section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>ふつうの 宿題</h2><span class="sec-note">${normal.length}こ</span></div>
+    <p class="config-lead">上へ・下へで、この欄の順番を変えられます。</p>
     <div class="paper task-editor" id="normalTaskEditor">${taskGroupHTML(normal,'まだ 項目は ありません。')}</div>
     <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addNormalTask" type="button">${icon('plus')}<span>宿題を 追加</span></button></div>
   </section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>読書の きろく</h2><span class="sec-note">${books.length}こ</span></div>
-    <p class="config-lead">本の名前・読んだ日・ひとことを1冊ずつ残す、読書専用の項目です。</p>
+    <p class="config-lead">本の名前・読んだ日・ひとことを1冊ずつ残す、読書専用の項目です。上へ・下へで順番を変えられます。</p>
     <div class="paper task-editor" id="bookTaskEditor">${taskGroupHTML(books,'読書の きろくを 使わないときは、空のままでOKです。')}</div>
     <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addBookTask" type="button">${icon('plus')}<span>読書を 追加</span></button></div>
   </section>
@@ -2259,6 +2267,7 @@ function viewConfig(){
     <div class="paper daily-settings">
       <label class="daily-switch"><input type="checkbox" id="cfgShowDaily"${config.showDaily?' checked':''}>
         <span><strong>こども画面に 表示する</strong><small>学習アプリ・音読・おてつだいなどに使えます。</small></span></label>
+      <p class="config-lead">上へ・下へで順番を変えられます。</p>
       <div class="task-editor" id="dailyTaskEditor">${taskGroupHTML(daily,'まいにちの 項目は まだありません。')}</div>
       <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addDailyTask" type="button">${icon('plus')}<span>まいにちを 追加</span></button></div>
     </div>
@@ -2272,7 +2281,7 @@ function viewConfig(){
     <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">項目を 元に戻す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録を すべて削除</button></div></div>
   </details></section>
 
-  ${privacyNoteHTML()}`;
+  `;
 }
 
 /* 選んだ学年より難しい漢字を、表示後にひらがなへ直す。
@@ -2454,6 +2463,13 @@ function bindSync(){
       el.textContent = mark + ' ' + (text || def);
     });
   }
+  if(!bindSync._deviceWatching){
+    bindSync._deviceWatching = true;
+    S.onDeviceCount(count=>{
+      const el = $('#syncDeviceCount');
+      if(el) el.textContent = 'このおうちで共有設定済みの端末：' + count + '台';
+    });
+  }
 
   /* 保護者ページでは あいことばが 無いときだけ 欄が 出る。
      出ていない ときは つなぐ そうさも いらない */
@@ -2586,7 +2602,7 @@ function bindConfig(){
     const i = +row.dataset.i;
     const mv = e.target.closest('[data-move]');
     if(mv){
-      const same = config.tasks.map((t,idx)=>({t,idx})).filter(x=>taskKind(x.t)===taskKind(config.tasks[i]));
+      const same = config.tasks.map((t,idx)=>({t,idx})).filter(x=>taskOrderBucket(x.t)===taskOrderBucket(config.tasks[i]));
       const at = same.findIndex(x=>x.idx===i);
       const next = same[at + (+mv.dataset.move)];
       if(!next) return;

@@ -305,6 +305,8 @@ button{ font:inherit; color:inherit; }
 .task-list--2up > .task .task-act{ margin-top:auto; align-self:stretch; padding-top:6px; }
 .task-list--2up > .task .task-act .btn{ width:100%; }
 .task-list--2up > .task-free{ grid-column:1 / -1; }
+/* まいにちが奇数のときは、最後の1枚を次の段いっぱいに広げる。 */
+.task-list--2up > .task:last-child:nth-child(odd){ grid-column:1 / -1; }
 
 .free-body{ margin-top:6px; }
 .free-ask{ font-size:17px; font-weight:700; color:var(--ai-usu); line-height:1.5; }

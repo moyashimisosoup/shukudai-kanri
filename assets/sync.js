@@ -32,6 +32,9 @@ const SDK = 'https://www.gstatic.com/firebasejs/12.17.1/';
 const K_CODE = new URLSearchParams(location.search).get('new') === '1'
   ? 'natsu.preview.sync.code.v1'
   : 'natsu.sync.code.v1';
+const K_DEVICE = new URLSearchParams(location.search).get('new') === '1'
+  ? 'natsu.preview.sync.device.v1'
+  : 'natsu.sync.device.v1';
 
 /* 打ちまちがえない 文字だけ。0/O と 1/l/I は 入れない */
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -49,11 +52,20 @@ let pushTimer = null;
 let pending = { config:false, state:false };
 
 const listeners = [];
+const deviceListeners = [];
+let deviceCount = 0;
+let registeredDeviceHouseId = '';
 
 function setStatus(s, text){
   status = s;
   statusText = text || '';
   listeners.forEach(fn => { try{ fn(s, statusText); }catch(e){} });
+}
+function setDeviceCount(count){
+  const next = Math.max(0, Number(count) || 0);
+  if(next === deviceCount) return;
+  deviceCount = next;
+  deviceListeners.forEach(fn => { try{ fn(deviceCount); }catch(e){} });
 }
 
 /* ---------------------------------------------------------
@@ -69,6 +81,22 @@ function setCode(code){
     else  localStorage.removeItem(K_CODE);
   }catch(e){}
   return c;
+}
+/* 名前・端末名・アクセス元を使わない、このブラウザだけのランダムな番号。
+   「設定済み台数」は、いま接続中かどうかでなく、一度共有を設定した端末を数える。 */
+function getDeviceId(){
+  try{
+    let id = localStorage.getItem(K_DEVICE) || '';
+    if(!/^[a-f0-9]{24}$/.test(id)){
+      const buf = new Uint32Array(3);
+      crypto.getRandomValues(buf);
+      id = Array.from(buf, n=>n.toString(16).padStart(8, '0')).join('');
+      localStorage.setItem(K_DEVICE, id);
+    }
+    return id;
+  }catch(e){
+    return 'memory-' + Math.random().toString(16).slice(2, 26).padEnd(24, '0');
+  }
 }
 /* 短い・日本語の合言葉も使えるよう、Firestore用のIDだけを十分な長さへ変換する。
    以前の20文字英数字の合言葉は、既存データに接続できるようそのまま使う。 */
@@ -131,9 +159,15 @@ async function connect(){
         setStatus(snap.metadata.fromCache ? 'offline' : 'online',
                   snap.metadata.fromCache ? 'オフライン（この端末に ためています）' : 'つながっています');
 
-        if(!snap.exists()){ pushAll(); return; }
+        if(!snap.exists()){
+          registerDevice();
+          pushAll();
+          return;
+        }
 
         const d = snap.data() || {};
+        setDeviceCount(Object.keys(d.devices || {}).length);
+        registerDevice();
         const app_ = window.NatsuApp;
         if(app_ && typeof app_.onRemote === 'function'){
           app_.onRemote({
@@ -173,9 +207,27 @@ async function initFirebase(){
   });
 }
 
+/* 文書内の devices は { ランダム番号: true } だけ。merge 更新なので、
+   宿題・名前・記録の同期データへ影響を与えない。 */
+async function registerDevice(){
+  if(!docRef || !Sync._fs) return;
+  const houseId = houseIdFor(getCode());
+  if(registeredDeviceHouseId === houseId) return;
+  registeredDeviceHouseId = houseId;
+  try{
+    const id = getDeviceId();
+    await Sync._fs.setDoc(docRef, { devices:{ [id]:true } }, { merge:true });
+  }catch(err){
+    registeredDeviceHouseId = '';
+    setStatus('error', '端末数を保存できません：' + (err && err.code || err));
+  }
+}
+
 function disconnect(){
   if(unsub){ unsub(); unsub = null; }
   docRef = null;
+  registeredDeviceHouseId = '';
+  setDeviceCount(0);
   setStatus('off', '');
 }
 
@@ -265,6 +317,8 @@ const Sync = {
   status:     () => status,
   statusText: () => statusText,
   onStatus(fn){ listeners.push(fn); fn(status, statusText); },
+  deviceCount: () => deviceCount,
+  onDeviceCount(fn){ deviceListeners.push(fn); fn(deviceCount); },
   push,
   pushAll,
   connect,
