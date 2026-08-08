@@ -1390,7 +1390,7 @@ function viewParent(){
   </section>
 
   <div class="set-actions" style="padding:8px 0 24px">
-    <a class="btn btn-wide" href="#config" style="text-decoration:none;text-align:center">設定を変更する</a>
+    <a class="btn btn-wide" href="#config" style="text-decoration:none;text-align:center">設定ページを開く</a>
   </div>
 
   ${privacyNoteHTML()}`;
@@ -2244,7 +2244,7 @@ function viewConfig(){
     <fieldset class="theme-picker"><legend>いろと デザイン</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
   </div></section>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>おうちの 宿題</h2></div><div class="paper">
+  <section class="sec config-sec"><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
     <div class="set-row"><label class="lab" for="cfgTitle">タイトル</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
     <div class="set-row"><label class="lab" for="cfgStart">はじまる日</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
     <div class="set-row"><label class="lab" for="cfgEnd">おわる日</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
