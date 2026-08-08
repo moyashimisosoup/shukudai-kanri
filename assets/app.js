@@ -2219,13 +2219,15 @@ function taskEditorRow(t, i){
   const label = kind === 'book' ? '読書' : (kind === 'daily' ? 'まいにち' : (t.type === 'step' ? 'じゅんばん' : 'かず'));
   return `<details class="set-task" data-i="${i}"${t.id===openConfigTaskId?' open':''}>
     <summary class="set-task-summary"><span class="set-kind set-kind--${kind}">${label}</span>
-      <strong>${esc(t.name)}</strong><span class="set-task-meta">${taskSummary(t)}</span></summary>
+      <strong>${esc(t.name)}</strong><span class="set-task-meta">${taskSummary(t)}</span>
+      <span class="set-task-move" aria-label="${esc(t.name)}の順番を変える">
+        <button class="set-task-move-btn" data-move="-1" type="button" aria-label="${esc(t.name)}を上へ移動">▲</button>
+        <button class="set-task-move-btn" data-move="1" type="button" aria-label="${esc(t.name)}を下へ移動">▼</button>
+      </span></summary>
     <div class="set-task-body">
       <label class="set-field set-field--wide"><span>項目の名前</span><input type="text" data-f="name" maxlength="60" value="${esc(t.name)}"></label>
       <div class="set-grid">${fields}</div>
       <div class="set-task-actions">
-        <button class="btn btn-sm btn-ghost btn-icon-text" data-move="-1" type="button" aria-label="${esc(t.name)}を上へ移動">${icon('chevronUp')}<span>上へ</span></button>
-        <button class="btn btn-sm btn-ghost btn-icon-text" data-move="1" type="button" aria-label="${esc(t.name)}を下へ移動">${icon('chevronDown')}<span>下へ</span></button>
         <button class="btn btn-sm btn-danger btn-icon-text" data-del="1" type="button" aria-label="${esc(t.name)}を削除">${icon('trash')}<span>削除</span></button>
       </div>
     </div>
@@ -2434,7 +2436,7 @@ function bindParent(){
     config.parentMessage.enabled = $('#parentMessageEnabled').checked && !!config.parentMessage.text;
     $('#parentMessageEnabled').checked = config.parentMessage.enabled;
     saveCfg();
-    toast(config.parentMessage.enabled ? 'こども画面に 表示しました' : 'メッセージを 非表示にしました');
+    toast(config.parentMessage.enabled ? '表示しました' : '非表示にしました');
   });
   $('#sumMake').addEventListener('click', ()=>{
     $('#sumOut').value = buildSummary(+$('#sumDays').value);
@@ -2610,6 +2612,8 @@ function bindConfig(){
     const i = +row.dataset.i;
     const mv = e.target.closest('[data-move]');
     if(mv){
+      e.preventDefault();
+      e.stopPropagation();
       const same = config.tasks.map((t,idx)=>({t,idx})).filter(x=>taskOrderBucket(x.t)===taskOrderBucket(config.tasks[i]));
       const at = same.findIndex(x=>x.idx===i);
       const next = same[at + (+mv.dataset.move)];

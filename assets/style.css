@@ -337,12 +337,12 @@ button{ font:inherit; color:inherit; }
 .set-task:last-child{ border-bottom:none; }
 .set-task-summary{
   min-height:64px; padding:12px 16px; cursor:pointer;
-  display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto auto;
   align-items:center; gap:8px 12px; list-style:none;
   background:var(--kami); color:var(--ai);
 }
 .set-task-summary::-webkit-details-marker{ display:none; }
-.set-task-summary::after{ content:"＋"; font-size:24px; font-weight:900; line-height:1; }
+.set-task-summary::after{ content:"＋"; grid-column:4; font-size:24px; font-weight:900; line-height:1; }
 .set-task[open] > .set-task-summary::after{ content:"−"; }
 .set-task-summary strong{
   min-width:0; font-size:18px; line-height:1.35; overflow-wrap:anywhere;
@@ -354,6 +354,15 @@ button{ font:inherit; color:inherit; }
   mask:url("paw.svg") center / contain no-repeat;
 }
 .set-task-meta{ font-size:14px; font-weight:900; color:var(--ai-usu); white-space:nowrap; }
+.set-task-move{ display:flex; gap:4px; grid-column:3; grid-row:1; }
+.set-task-move-btn{
+  width:34px; height:34px; padding:0; flex:none;
+  display:grid; place-items:center;
+  color:var(--ai); background:var(--surface-soft); border:2px solid var(--hougan);
+  border-radius:var(--r-s); font-size:13px; font-weight:900; line-height:1;
+}
+.set-task-move-btn:active{ transform:translateY(1px); }
+.set-task-move-btn:focus-visible{ outline:3px solid var(--focus); outline-offset:1px; }
 .set-kind{
   grid-row:1; font-size:13px; line-height:1; font-weight:900; white-space:nowrap;
   padding:5px 8px; border:2px solid var(--hougan); border-radius:var(--r-pill);
@@ -453,9 +462,10 @@ select{ appearance:auto; -webkit-appearance:menulist; }
 }
 @media (max-width:639px){
   .config-head .autosave{ display:none; }
-  .set-task-summary{ grid-template-columns:auto minmax(0,1fr) auto; padding:12px; }
+  .set-task-summary{ grid-template-columns:auto minmax(0,1fr) auto auto; gap:7px; padding:12px; }
   .set-task-meta{ grid-column:2; }
-  .set-task-summary::after{ grid-column:3; grid-row:1 / span 2; }
+  .set-task-move{ grid-column:3; grid-row:1 / span 2; align-self:center; }
+  .set-task-summary::after{ grid-column:4; grid-row:1 / span 2; }
   .set-task-body{ padding:14px 12px; }
   .set-grid{ grid-template-columns:minmax(0,1fr); gap:13px; }
   .set-field--wide{ grid-column:1; }
@@ -979,6 +989,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   .parent-message-editor .sec-head{ flex-wrap:wrap; gap:0 8px; }
   .parent-message-editor .sec-head h2{ white-space:nowrap; font-size:21px; }
   .parent-message-editor .sec-head .sec-note{ margin-inline-start:auto; white-space:nowrap; }
+  .toast{ max-width:calc(100vw - 24px); padding:10px 16px; font-size:16px; }
 }
 
 /* 親ページはタブバーがないぶん下の余白を詰める */
