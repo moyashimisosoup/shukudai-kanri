@@ -82,7 +82,7 @@ let openConfigTaskId = null;
    ハッシュには 課題の id が のこるので、画面を 描き直しても 見失わない */
 let writesTaskId = null;
 
-/* なぞなぞ・まめちしきは 1日に 引ける かずを かぎる。
+/* ミニコンテンツは 1日に 引ける かずを かぎる。
    いくらでも 引きなおせると、宿題より そちらに いってしまう */
 const FUN_MAX = 3;
 
@@ -259,14 +259,14 @@ function mergeState(local, remote, localIsNewer){
   out.progress = mergeProgress(local.progress || {}, remote.progress || {}, localIsNewer);
   out.logs.sort((a,b)=> String(a.at||'').localeCompare(String(b.at||'')));
   if(out.logs.length > 3000) out.logs = out.logs.slice(-3000);
-  /* なぞなぞは 1日3回まで。端末ごとに かぞえる（下の stripLocal を 見てください）*/
+  /* ミニコンテンツは 基本1日3回。端末ごとに かぞえる（下の stripLocal を 見てください）*/
   if(local.fun) out.fun = local.fun; else delete out.fun;
   return out;
 }
 
-/* なぞなぞ・まめちしきの「きょう 何回 引いたか」は 記録では なく、
+/* ミニコンテンツの「きょう 何回 引いたか」と 一巡履歴は 記録では なく、
    その端末の いまの ようす。これを 共有すると、おうちの人が 保護者ページを
-   開いただけで 子の 3回が 減ってしまうので、送らない */
+   開いただけで 子の 回数が 減ってしまうので、送らない */
 function stripLocal(s){
   const o = Object.assign({}, s);
   delete o.fun;
@@ -797,40 +797,72 @@ function rubyHTML(text){
     (_, base, yomi) => `<ruby>${base}<rt>${yomi}</rt></ruby>`);
 }
 
-/* きょうの ぶんの おぼえがき。日づけが かわったら 0から かぞえなおす */
+/* きょうの 3件は日づけが かわったら 0から かぞえなおす。
+   history は日を またいで のこし、FUNを ぜんぶ読むまで 同じ内容を 出さない。 */
 function funToday(){
   const key = dayKey(new Date());
   let f = state.fun;
-  if(!f || f.key !== key || !Array.isArray(f.seen)){ f = { key, seen: [] }; state.fun = f; }
+  if(!f || typeof f !== 'object') f = {};
+  const valid = xs => Array.from(new Set((Array.isArray(xs) ? xs : [])
+    .filter(i => Number.isInteger(i) && i >= 0 && i < FUN.length)));
+  /* 旧データには history がないので、その日の seen を最初の履歴として 引きつぐ */
+  const history = valid(Array.isArray(f.history) ? f.history : f.seen);
+  const seen = f.key === key ? valid(f.seen) : [];
+  f = { key, seen, history };
+  state.fun = f;
   return f;
 }
 
-/* まだ きょう 出していない ものから ひとつ ランダムに えらぶ。
-   ぜんぶ 出しきったら また 全体から えらぶ */
+/* まだ この一巡で 出していない ものから ひとつ ランダムに えらぶ。
+   150件を ぜんぶ 出しきったら、新しい一巡を はじめる */
 function funPick(){
   const f = funToday();
-  const rest = FUN.map((_, i)=> i).filter(i => f.seen.indexOf(i) < 0);
-  const pool = rest.length ? rest : FUN.map((_, i)=> i);
+  let rest = FUN.map((_, i)=> i).filter(i => f.history.indexOf(i) < 0);
+  if(!rest.length){ f.history = []; rest = FUN.map((_, i)=> i); }
+  const pool = rest;
   funIdx = pool[Math.floor(Math.random() * pool.length)];
   funOpen = false;
   f.seen.push(funIdx);
+  f.history.push(funIdx);
   saveSt();
 }
 
+function didSomethingToday(){
+  const key = dayKey(new Date());
+  return (state.logs || []).some(l => dayKey(new Date(l.at)) === key);
+}
+
+function funLimit(){ return FUN_MAX + (didSomethingToday() ? 1 : 0); }
+
 function funHTML(){
   const f = FUN[funIdx % FUN.length];
-  const left = FUN_MAX - funToday().seen.length;
+  const seenCount = funToday().seen.length;
+  const bonus = didSomethingToday();
+  const left = Math.max(0, funLimit() - seenCount);
+  const isQuiz = f.t === 'なぞなぞ' || f.t === '頭のたいそう';
   return `
   <section class="paper fun">
     <span class="fun-tag">${esc(f.t)}</span>
+    ${f.t === 'むかしのことば'
+      ? '<p class="fun-note">つかってみよう。ひみつの あんごうに なるかもね！</p>'
+      : ''}
     <p class="fun-q">${rubyHTML(f.q)}</p>
     ${funOpen ? `<p class="fun-a">${rubyHTML(f.a)}</p>` : ''}
+    ${bonus && seenCount === FUN_MAX
+      ? '<p class="fun-bonus fun-bonus--on">「できた！」が ふえたので、きょうは もうひとつ！</p>'
+      : ''}
     <div class="fun-row">
       ${funOpen ? '' : `<button class="btn btn-sm" data-fun="open" type="button">${
-        f.t === 'なぞなぞ' ? 'こたえを 見る' : 'つづきを 見る'}</button>`}
-      ${left > 0
+        isQuiz ? 'こたえを 見る' : 'つづきを 見る'}</button>`}
+      ${funOpen && left > 0
         ? `<button class="btn btn-sm" data-fun="next" type="button">つぎの はなし（あと ${left}かい）</button>`
-        : `<span class="fun-owari">きょうは ここまで。また あした！</span>`}
+        : ''}
+      ${funOpen && left === 0 && !bonus && seenCount >= FUN_MAX
+        ? '<span class="fun-bonus">「できた！」が ふえたら、もうひとつ 読めるよ。</span>'
+        : ''}
+      ${funOpen && left === 0 && (bonus || seenCount < FUN_MAX)
+        ? '<span class="fun-owari">きょうは ここまで。また あした！</span>'
+        : ''}
     </div>
   </section>`;
 }
@@ -2784,9 +2816,10 @@ document.addEventListener('click', e=>{
   if(fun){
     if(fun.dataset.fun === 'open') funOpen = true;
     else{
-      /* 1日に 引ける かずを かぎる。ボタンは 上限で 消えるが、
+      /* 説明を 読むまで 次へは 進めない。1日に 引ける かずも ここで かぎる。
+         ボタンは 上限で 消えるが、
          連打や 古い画面から 押された ときのために ここでも 止める */
-      if(funToday().seen.length >= FUN_MAX) return;
+      if(!funOpen || funToday().seen.length >= funLimit()) return;
       funPick();
     }
     // カードだけ差し替える。ページは動かない

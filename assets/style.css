@@ -820,6 +820,17 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   background:var(--ai); color:var(--kami);
   border-radius:999px; padding:3px 14px; margin-bottom:10px;
 }
+.fun-note{
+  margin:-2px 0 10px; font-size:15px; font-weight:700;
+  color:var(--ai-usu); line-height:1.6;
+}
+.fun-bonus{
+  font-size:16px; font-weight:900; color:var(--ai-usu);
+  align-self:center; line-height:1.6;
+}
+.fun-bonus--on{
+  margin-top:10px; color:var(--wakaba);
+}
 .fun-q{ font-size:23px; font-weight:900; line-height:1.5; overflow-wrap:anywhere; min-width:0; }
 .fun-a{
   margin-top:12px; font-size:22px; font-weight:900; color:var(--suika);
