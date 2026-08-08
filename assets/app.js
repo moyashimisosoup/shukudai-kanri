@@ -22,6 +22,14 @@ const K_METRIC = 'natsu.metric.registered.v1';
 const STATS_PARAM = 'stats';
 const STATS_VALUE = 'family-count';
 
+/* おためしURLを開くたびに、前回のおためし内容を消して必ず初期画面にする。
+   消すのは preview 専用キーだけで、普段の家庭データ・あいことばには触れない。 */
+if(TEST_MODE){
+  try{
+    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME].forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+}
+
 const TABS = ['welcome','stats','home','log','calendar','books','writes','settings','config'];
 
 function isBook(t){ return t && t.type === 'count' && t.recordStyle === 'book'; }
