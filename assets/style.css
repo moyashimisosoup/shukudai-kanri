@@ -93,6 +93,12 @@ button{ font:inherit; color:inherit; }
     180deg, var(--suika) 0 25%, var(--himawari) 25% 50%,
     var(--wakaba) 50% 75%, var(--asagao) 75% 100%);
 }
+[data-theme="cat"] .topband-mark{
+  width:28px; height:28px; border-radius:0;
+  background:var(--himawari);
+  -webkit-mask:url("paw.svg") center / contain no-repeat;
+  mask:url("paw.svg") center / contain no-repeat;
+}
 .topband-title{
   font-size:21px; font-weight:900; color:var(--kami);
   letter-spacing:.02em; flex:1 1 auto;
@@ -340,6 +346,12 @@ button{ font:inherit; color:inherit; }
 .set-task-summary strong{
   min-width:0; font-size:18px; line-height:1.35; overflow-wrap:anywhere;
 }
+[data-theme="cat"] .set-task-summary strong::before{
+  content:""; display:inline-block; width:20px; height:20px;
+  margin-inline-end:8px; vertical-align:-4px; background:var(--suika);
+  -webkit-mask:url("paw.svg") center / contain no-repeat;
+  mask:url("paw.svg") center / contain no-repeat;
+}
 .set-task-meta{ font-size:14px; font-weight:900; color:var(--ai-usu); white-space:nowrap; }
 .set-kind{
   grid-row:1; font-size:13px; line-height:1; font-weight:900; white-space:nowrap;
@@ -463,6 +475,12 @@ select{ appearance:auto; -webkit-appearance:menulist; }
 }
 .task-name{
   grid-column:1; font-size:25px; font-weight:900; line-height:1.35;
+}
+[data-theme="cat"] .task-name::before{
+  content:""; display:inline-block; width:24px; height:24px;
+  margin-inline-end:8px; vertical-align:-4px; background:var(--suika);
+  -webkit-mask:url("paw.svg") center / contain no-repeat;
+  mask:url("paw.svg") center / contain no-repeat;
 }
 .task-next{
   grid-column:1; display:flex; align-items:center; gap:8px;
@@ -1034,6 +1052,21 @@ body.no-tabbar{ padding-bottom:24px; }
   padding:22px 40px; background:rgba(252,252,249,.94);
   transform:rotate(-11deg);
   animation:stamping .85s cubic-bezier(.2,1.4,.4,1) forwards;
+}
+[data-theme="cat"] .stamp-mark{
+  display:flex; align-items:center; gap:12px;
+  border-radius:var(--r); padding:20px 28px;
+}
+[data-theme="cat"] .stamp-mark::before{
+  content:""; flex:none; width:56px; height:56px; background:currentColor;
+  -webkit-mask:url("paw.svg") center / contain no-repeat;
+  mask:url("paw.svg") center / contain no-repeat;
+}
+@media (max-width:420px){
+  [data-theme="cat"] .stamp-mark{
+    gap:8px; padding:16px 24px; font-size:36px; border-width:8px;
+  }
+  [data-theme="cat"] .stamp-mark::before{ width:48px; height:48px; }
 }
 @keyframes stamping{
   0%{ transform:rotate(-24deg) scale(2.6); opacity:0 }
