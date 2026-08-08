@@ -819,6 +819,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   display:inline-block; font-size:15px; font-weight:900;
   background:var(--ai); color:var(--kami);
   border-radius:999px; padding:3px 14px; margin-bottom:10px;
+  max-width:100%; line-height:1.5; overflow-wrap:anywhere;
 }
 .fun-note{
   margin:-2px 0 10px; font-size:15px; font-weight:700;
