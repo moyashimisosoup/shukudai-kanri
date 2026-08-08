@@ -113,6 +113,12 @@ function freshConfig(){
 function normalizeConfig(c){
   if(!c || typeof c !== 'object') return deepCopy(DEFAULT_CONFIG);
   if(!Array.isArray(c.tasks)) c.tasks = [];
+  /* これまで端末内だけだったデザインは、おうちの設定として同期する。
+     既存家庭は、最初の保存時にその端末で選んでいたデザインを引き継ぐ。 */
+  if(!THEME_IDS.includes(c.theme)){
+    const legacyTheme = getLocal(K_THEME);
+    c.theme = THEME_IDS.includes(legacyTheme) ? legacyTheme : 'notebook';
+  }
   if(typeof c.showDaily !== 'boolean') c.showDaily = false;
   const msg = c.parentMessage && typeof c.parentMessage === 'object' ? c.parentMessage : {};
   c.parentMessage = {
@@ -139,7 +145,7 @@ function loadAll(){
     else if(c && c.schema === 5) { config = normalizeConfig(migrate5to6(c)); saveCfg(); }
     else                           config = freshConfig();
   }catch(e){ config = freshConfig(); }
-  applyTheme(getLocal(K_THEME) || 'notebook');
+  applyTheme(config.theme);
 
   try{
     state = normalizeState(JSON.parse(localStorage.getItem(K_ST) || 'null'));
@@ -153,7 +159,7 @@ function loadAll(){
 }
 function saveCfg(){
   config = normalizeConfig(config);
-  applyTheme(getLocal(K_THEME) || 'notebook');
+  applyTheme(config.theme);
   localStorage.setItem(K_CFG, JSON.stringify(config));
   markSaved('config');
   syncPush('config');
@@ -296,6 +302,7 @@ function applyRemote(remote){
      あとに 保存された方を まるごと 採る */
   if(remote.config && remote.configAt > (at.config || 0)){
     config = normalizeConfig(remote.config);
+    applyTheme(config.theme);
     localStorage.setItem(K_CFG, JSON.stringify(config));
     markSaved('config');
     changed = true;
@@ -2138,7 +2145,7 @@ function restoreFormDraft(draft){
 /* 設定は「この端末」「おうちの宿題」「まいにち」に分ける。
    内部の type / recordStyle は旧データ互換のため変えない。 */
 function themeChoicesHTML(){
-  const current = THEME_IDS.includes(getLocal(K_THEME)) ? getLocal(K_THEME) : 'notebook';
+  const current = THEME_IDS.includes(config.theme) ? config.theme : 'notebook';
   return THEMES.map(t=>`
     <label class="theme-choice theme-choice--${t.id}">
       <input type="radio" name="theme" value="${t.id}"${t.id===current?' checked':''}>
@@ -2242,7 +2249,7 @@ function viewConfig(){
     <div class="set-row"><label class="lab" for="cfgChildName">こどもの 名前</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
     <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
     <p class="set-note">名前と漢字の表示は、この端末に合わせます。</p>
-    <fieldset class="theme-picker"><legend>いろと デザイン</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
+    <fieldset class="theme-picker"><legend>いろと デザイン（おうちで共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
   </div></section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
@@ -2529,8 +2536,8 @@ function bindConfig(){
 
   $$('.theme-choice input[name="theme"]').forEach(input=>input.addEventListener('change', e=>{
     if(!THEME_IDS.includes(e.target.value)) return;
-    setLocal(K_THEME, e.target.value);
-    applyTheme(e.target.value);
+    config.theme = e.target.value;
+    saveCfg();
   }));
   $('#cfgShowDaily').addEventListener('change', e=>{
     config.showDaily = e.target.checked;

@@ -65,7 +65,12 @@ function setDeviceCount(count){
   const next = Math.max(0, Number(count) || 0);
   if(next === deviceCount) return;
   deviceCount = next;
-  deviceListeners.forEach(fn => { try{ fn(deviceCount); }catch(e){} });
+  deviceListeners.forEach(fn => { try{ fn(displayedDeviceCount()); }catch(e){} });
+}
+function displayedDeviceCount(){
+  /* 同期がオフラインでも、この端末は共有設定済みであることが確定している。
+     Firestoreの確認待ちだけで 0 台と見せない。 */
+  return getCode().length >= 8 ? Math.max(1, deviceCount) : 0;
 }
 
 /* ---------------------------------------------------------
@@ -317,8 +322,8 @@ const Sync = {
   status:     () => status,
   statusText: () => statusText,
   onStatus(fn){ listeners.push(fn); fn(status, statusText); },
-  deviceCount: () => deviceCount,
-  onDeviceCount(fn){ deviceListeners.push(fn); fn(deviceCount); },
+  deviceCount: displayedDeviceCount,
+  onDeviceCount(fn){ deviceListeners.push(fn); fn(displayedDeviceCount()); },
   push,
   pushAll,
   connect,

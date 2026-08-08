@@ -963,9 +963,22 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .welcome-role--share .codex-icon{ width:24px; height:24px; }
 
 @media (max-width:560px){
+  /* iPhone幅では、名前・より・メッセージを縦に並べる。入力欄を細くせず、
+     「より」も2つの欄の間に残す。 */
+  .parent-message-fields{ grid-template-columns:1fr; gap:8px; }
+  .parent-message-from{
+    justify-self:center; align-self:auto; margin:-2px 0;
+  }
   .parent-message-controls{ align-items:stretch; flex-direction:column; }
   .parent-message-controls .btn{ width:100%; }
   .home-parent-message{ width:calc(100% - 16px); margin-top:8px; }
+}
+
+@media (max-width:420px){
+  /* 見出しの言葉を途中で割らず、補足だけ次の行へ回せるようにする。 */
+  .parent-message-editor .sec-head{ flex-wrap:wrap; gap:0 8px; }
+  .parent-message-editor .sec-head h2{ white-space:nowrap; font-size:21px; }
+  .parent-message-editor .sec-head .sec-note{ margin-inline-start:auto; white-space:nowrap; }
 }
 
 /* 親ページはタブバーがないぶん下の余白を詰める */
