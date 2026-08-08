@@ -552,7 +552,6 @@ function welcomeFormHTML(role, sharing){
       <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
     <label class="lab">漢字は何年生の字まで読めますか？
       <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
-    ${privacyNoteHTML()}
     ${syncReady ? `<label class="lab">このおうちの あいことば（8文字以上）
       <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
       <p class="set-note">こどもの端末など、複数の端末で同じ合言葉を入れると、同じ記録と設定を使えます。</p>`
@@ -563,7 +562,6 @@ function welcomeFormHTML(role, sharing){
       <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
     <label class="lab">漢字は何年生の字まで読めますか？
       <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
-    ${privacyNoteHTML()}
     ${syncReady ? `<label class="lab">おうちの人から もらった あいことば
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
       <p class="set-note">読みこむと、おうちの人が決めた宿題と記録を、複数の端末で使えます。</p>`
@@ -1335,8 +1333,6 @@ function viewParent(){
     <a class="btn btn-sm" href="#home">子ども画面へ</a>
   </div>
 
-  ${privacyNoteHTML()}
-
   ${syncPromptHTML()}
 
   ${parentMessageEditorHTML()}
@@ -1388,7 +1384,9 @@ function viewParent(){
 
   <div class="set-actions" style="padding:8px 0 24px">
     <a class="btn btn-wide" href="#config" style="text-decoration:none;text-align:center">設定を変更する</a>
-  </div>`;
+  </div>
+
+  ${privacyNoteHTML()}`;
 }
 
 function parentMessageEditorHTML(){
@@ -2272,7 +2270,9 @@ function viewConfig(){
     <div class="set-advanced-body"><p class="set-note">記録はこの端末に保存されます。時々バックアップすると安心です。</p>
     <div class="set-actions"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
     <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">項目を 元に戻す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録を すべて削除</button></div></div>
-  </details></section>`;
+  </details></section>
+
+  ${privacyNoteHTML()}`;
 }
 
 /* 選んだ学年より難しい漢字を、表示後にひらがなへ直す。
