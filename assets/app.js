@@ -487,7 +487,7 @@ function viewWelcome(){
   return `
   <section class="welcome" aria-labelledby="welcomeTitle">
     <p class="welcome-kicker">${TEST_MODE ? 'おためし モード' : 'はじめの じゅんび'}</p>
-    <h2 id="welcomeTitle">この おうちの<br>しゅくだいノート</h2>
+    <h2 id="welcomeTitle">しゅくだいノート</h2>
     <div class="paper welcome-step">
       <span class="welcome-num">1</span>
       <div><h3>ホーム画面に 追加しよう</h3>
@@ -2224,6 +2224,9 @@ function applyReadingDisplay(){
   const grade = readingGrade();
   if(typeof setReadingGrade !== 'function') return;
   setReadingGrade(grade);
+  /* 保護者用ページと設定画面は大人が読むため、端末の漢字レベルに
+     かかわらず元の漢字表記を保つ。変換するのは子ども向け画面だけ。 */
+  if(tab === 'settings' || tab === 'config' || tab === 'stats') return;
   if(grade === 9 || !getLocal(K_READING) || typeof convertForTranscription !== 'function') return;
   const root = $('#view');
   const pass = ++readingPass;
