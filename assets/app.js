@@ -17,6 +17,7 @@ const K_ST  = TEST_MODE ? 'natsu.preview.state.v1'  : 'natsu.state.v2';
 const K_ONBOARD = TEST_MODE ? 'natsu.preview.onboarding.v1' : 'natsu.onboarding.v1';
 const K_ROLE = TEST_MODE ? 'natsu.preview.role.v1' : 'natsu.device.role.v1';
 const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
+const K_READING = TEST_MODE ? 'natsu.preview.reading.v1' : 'natsu.device.reading.v1';
 const K_METRIC = 'natsu.metric.registered.v1';
 /* URL の隠し入口。静的サイトなので認証ではなく、通常画面に出さないための合図。 */
 const STATS_PARAM = 'stats';
@@ -26,7 +27,7 @@ const STATS_VALUE = 'family-count';
    消すのは preview 専用キーだけで、普段の家庭データ・あいことばには触れない。 */
 if(TEST_MODE){
   try{
-    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME].forEach(k=>localStorage.removeItem(k));
+    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING].forEach(k=>localStorage.removeItem(k));
   }catch(e){}
 }
 
@@ -120,6 +121,14 @@ function setLocal(key, value){ try{ localStorage.setItem(key, value); }catch(e){
 function isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
 function isStatsURL(){ return new URLSearchParams(location.search).get(STATS_PARAM) === STATS_VALUE; }
 function cleanCode(value){ return String(value || '').trim().normalize('NFKC').replace(/\s+/g,'').replace(/[\/\u0000-\u001f]/g,''); }
+function readingGrade(){
+  const g = Number(getLocal(K_READING) || 2);
+  return [0,1,2,9].includes(g) ? g : 2;
+}
+function readingOptions(selected){
+  const labels = { 0:'ひらがな中心', 1:'小学1年生まで', 2:'小学2年生まで', 9:'漢字のまま' };
+  return [0,1,2,9].map(g=>`<option value="${g}"${g===Number(selected)?' selected':''}>${labels[g]}</option>`).join('');
+}
 
 /* ---------------------------------------------------------
    ほかの端末と 合わせる
@@ -442,10 +451,10 @@ function viewWelcome(){
     </div>
     <div class="paper welcome-step">
       <span class="welcome-num">2</span>
-      <div><h3>この端末は だれが つかう？</h3>
+      <div><h3>どうやって つかう？</h3>
       <div class="welcome-roles">
-        <button class="btn btn-go welcome-role" data-welcome-role="parent" type="button">おうちの人<br><small>あいことばを 設定</small></button>
-        <button class="btn welcome-role" data-welcome-role="child" type="button">こども<br><small>あいことばを 読みこむ</small></button>
+        <button class="btn btn-go welcome-role" data-welcome-mode="solo" type="button">こどもだけで つかう<br><small>すぐに つかえます</small></button>
+        <button class="btn welcome-role" data-welcome-mode="share" type="button">保護者も 共有する<br><small>あとからでも 設定できます</small></button>
       </div>
       ${TEST_MODE ? '<p class="set-note">おためしモードでは、いま使っている家庭のデータ・あいことば・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>')}</div>
     </div>
@@ -453,30 +462,42 @@ function viewWelcome(){
   </section>`;
 }
 
-function welcomeFormHTML(role){
+function welcomeRolePickerHTML(){
+  return `<h3>この端末は だれが つかう？</h3>
+    <div class="welcome-roles">
+      <button class="btn btn-go welcome-role" data-welcome-role="parent" type="button">おうちの人の端末<br><small>合言葉を 作る</small></button>
+      <button class="btn welcome-role" data-welcome-role="child" type="button">こどもの端末<br><small>合言葉を 入れる</small></button>
+    </div>`;
+}
+
+function welcomeFormHTML(role, sharing){
   const S = window.NatsuSync;
-  const syncReady = !TEST_MODE && !!(S && S.configured());
+  const syncReady = !!sharing && !TEST_MODE && !!(S && S.configured());
   const name = getLocal(K_NAME);
   const code = role === 'parent' && syncReady ? S.makeCode() : '';
   return role === 'parent' ? `
     <h3>おうちの人の 設定</h3>
     <label class="lab">こどもの なまえ
       <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
+    <label class="lab">漢字は何年生の字まで読めますか？
+      <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
     ${privacyNoteHTML()}
     ${syncReady ? `<label class="lab">このおうちの あいことば（5文字以上）
       <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
       <p class="set-note">こどもの端末で同じ合言葉を入れると、記録がそろいます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
-    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" type="button">保護者ページを 開く</button>` : `
+    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes" type="button">保護者ページを 開く</button>` : `
     <h3>こどもの 設定</h3>
     <label class="lab">なまえを 確認しよう
       <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
+    <label class="lab">漢字は何年生の字まで読めますか？
+      <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
     ${privacyNoteHTML()}
     ${syncReady ? `<label class="lab">おうちの人から もらった あいことば
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
       <p class="set-note">読みこむと、おうちの人が決めた宿題と記録が表示されます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
-    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" type="button">こども画面を 開く</button>`;
+    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="${sharing?'yes':'no'}" type="button">こども画面を 開く</button>`;
 }
 
 function privacyNoteHTML(){
@@ -1318,6 +1339,9 @@ function viewConfig(){
     <div class="paper">
       <div class="set-row"><span class="lab">タイトル</span>
         <input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
+      <div class="set-row"><span class="lab">読める漢字</span>
+        <select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
+      <p class="set-note">この端末の表示を、読める漢字に合わせます。</p>
       <div class="set-row"><span class="lab">夏休みの開始</span>
         <input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
       <div class="set-row"><span class="lab">夏休みの終了</span>
@@ -2041,42 +2065,94 @@ function render(opts){
   if(tab === 'settings'){ bindParent(); bindSync(); }
   if(tab === 'config')   bindConfig();
   window.scrollTo(0, keepScroll ? y : 0);
+  applyReadingDisplay();
+}
+
+/* 選んだ学年より難しい漢字を、表示後にひらがなへ直す。
+   辞書は選択した端末で一度だけ読み込み、同じ文の変換結果は使い回す。 */
+let readingPass = 0;
+const readingCache = new Map();
+function applyReadingDisplay(){
+  const grade = readingGrade();
+  if(typeof setReadingGrade !== 'function') return;
+  setReadingGrade(grade);
+  if(grade === 9 || !getLocal(K_READING) || typeof convertForTranscription !== 'function') return;
+  const root = $('#view');
+  const pass = ++readingPass;
+  const nodes = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node;
+  while((node = walker.nextNode())){
+    const parent = node.parentElement;
+    if(!parent || parent.closest('script,style,textarea,option,select,[data-no-reading]')) continue;
+    if(/[\u3400-\u9fff]/.test(node.nodeValue || '')) nodes.push(node);
+  }
+  nodes.forEach(node=>{
+    const original = node.nodeValue || '';
+    const match = original.match(/^(\s*)([\s\S]*?)(\s*)$/);
+    const lead = match ? match[1] : '', body = match ? match[2] : original, tail = match ? match[3] : '';
+    const key = grade + '\u0000' + body;
+    const work = readingCache.has(key) ? Promise.resolve(readingCache.get(key))
+      : convertForTranscription(body).then(result=>{
+          const text = result && result.ok ? result.text : body;
+          readingCache.set(key, text);
+          return text;
+        });
+    work.then(text=>{
+      if(pass === readingPass && root.contains(node)) node.nodeValue = lead + text + tail;
+    }).catch(()=>{});
+  });
 }
 
 function bindWelcome(){
-  $$('[data-welcome-role]').forEach(btn => btn.addEventListener('click', ()=>{
+  const form = $('#welcomeForm');
+  const openForm = (role, sharing)=>{
+    form.innerHTML = welcomeFormHTML(role, sharing);
+    form.hidden = false;
+    form.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    bindWelcomeStart();
+  };
+  $$('[data-welcome-mode]').forEach(btn => btn.addEventListener('click', ()=>{
     /* module の sync.js が読み込み途中なら、あいことば無しで始めて
        しまわないよう一度だけ待ってもらう。読み込み完了時に画面は自動更新する。 */
     if(!window.NatsuSync && !TEST_MODE){ toast('同期の準備を 読みこんでいます…'); return; }
-    const form = $('#welcomeForm');
-    form.innerHTML = welcomeFormHTML(btn.dataset.welcomeRole);
+    if(btn.dataset.welcomeMode === 'solo') return openForm('child', false);
+    form.innerHTML = welcomeRolePickerHTML();
     form.hidden = false;
     form.scrollIntoView({ behavior:'smooth', block:'nearest' });
-    const start = $('#welcomeStart');
-    start.addEventListener('click', ()=>{
-      const role = start.dataset.role;
-      const name = String($('#welcomeName').value || '').trim();
-      const S = window.NatsuSync;
-      const codeEl = $('#welcomeCode');
-      const code = codeEl ? cleanCode(codeEl.value) : '';
-      if(!name){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
-      if(!TEST_MODE && S && S.configured() && code.length < 5){ toast('あいことばを 5文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
-      setLocal(K_NAME, name);
-      setLocal(K_ROLE, role);
-      setLocal(K_ONBOARD, 'done');
-      if(role === 'parent'){
-        config.childName = name;
-        if(config.title === DEFAULT_CONFIG.title) config.title = name + 'の なつやすみの しゅくだい';
-        saveCfg();
-      }
-      if(!TEST_MODE && S && S.configured()){
-        S.reconnect(code);
-        /* 同じ家庭を複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */
-        S.registerHousehold(code).catch(()=>{});
-      }
-      location.hash = role === 'parent' ? 'settings' : 'home';
-    });
+    $$('[data-welcome-role]', form).forEach(roleBtn => roleBtn.addEventListener('click', ()=>openForm(roleBtn.dataset.welcomeRole, true)));
   }));
+}
+
+function bindWelcomeStart(){
+  const start = $('#welcomeStart');
+  start.addEventListener('click', ()=>{
+    const role = start.dataset.role;
+    const sharing = start.dataset.sharing === 'yes';
+    const name = String($('#welcomeName').value || '').trim();
+    const grade = Number($('#welcomeReading').value);
+    const S = window.NatsuSync;
+    const codeEl = $('#welcomeCode');
+    const code = codeEl ? cleanCode(codeEl.value) : '';
+    if(!name){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
+    if(sharing && !TEST_MODE && S && S.configured() && code.length < 5){ toast('あいことばを 5文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
+    setLocal(K_NAME, name);
+    setLocal(K_ROLE, role);
+    setLocal(K_READING, grade);
+    if(typeof setReadingGrade === 'function') setReadingGrade(grade);
+    setLocal(K_ONBOARD, 'done');
+    if(role === 'parent'){
+      config.childName = name;
+      if(config.title === DEFAULT_CONFIG.title) config.title = name + 'の なつやすみの しゅくだい';
+      saveCfg();
+    }
+    if(sharing && !TEST_MODE && S && S.configured()){
+      S.reconnect(code);
+      /* 同じ家庭を複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */
+      S.registerHousehold(code).catch(()=>{});
+    }
+    location.hash = role === 'parent' ? 'settings' : 'home';
+  });
 }
 
 function bindStats(){
@@ -2176,6 +2252,12 @@ function bindConfig(){
   $('#cfgTitle').addEventListener('change', e=>{
     config.title = e.target.value || 'なつやすみの しゅくだい';
     saveCfg(); render({ keepScroll:true });
+  });
+  $('#cfgReadingGrade').addEventListener('change', e=>{
+    const grade = Number(e.target.value);
+    setLocal(K_READING, grade);
+    if(typeof setReadingGrade === 'function') setReadingGrade(grade);
+    render({ keepScroll:true });
   });
   $('#cfgStart').addEventListener('change', e=>{ config.startAt = e.target.value; saveCfg(); });
   $('#cfgEnd').addEventListener('change',   e=>{ config.endAt   = e.target.value; saveCfg(); });
@@ -2662,6 +2744,7 @@ window.addEventListener('natsu:sync-ready', ()=>{
    はじめる
    --------------------------------------------------------- */
 loadAll();
+if(typeof setReadingGrade === 'function') setReadingGrade(readingGrade());
 tab = routeFromHash();
 render();
 

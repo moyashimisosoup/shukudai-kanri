@@ -21,7 +21,16 @@ const KANJI_G2 =
   '場色食心新親図数西声星晴切雪船線前組走多太体台地池知茶昼長鳥朝直通弟店点電刀冬当' +
   '東答頭同道読内南肉馬売買麦半番父風分聞米歩母方北毎妹万明鳴毛門夜野友用曜来里理話';
 
-const LEARNED = new Set([...KANJI_G1, ...KANJI_G2]);
+let readingGrade = 2;
+let LEARNED = new Set([...KANJI_G1, ...KANJI_G2]);
+
+/* 表示に使う「読める漢字」の学年。9 は漢字をそのまま表示する設定。 */
+function setReadingGrade(grade){
+  const g = Number(grade);
+  readingGrade = [0,1,2,9].includes(g) ? g : 2;
+  LEARNED = new Set(readingGrade === 0 ? '' : readingGrade === 1 ? KANJI_G1 : KANJI_G1 + KANJI_G2);
+}
+function getReadingGrade(){ return readingGrade; }
 
 function isKanji(ch){
   const c = ch.codePointAt(0);
@@ -30,6 +39,7 @@ function isKanji(ch){
 
 /* まだ習っていない漢字を、重複なく出現順で返す */
 function unlearnedKanji(text){
+  if(readingGrade === 9) return [];
   const out = [];
   const seen = new Set();
   for(const ch of String(text || '')){
