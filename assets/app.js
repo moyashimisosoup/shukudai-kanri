@@ -2639,7 +2639,8 @@ function routeFromHash(){
   /* すでにこの端末で使い始めている家庭は、導線変更で止めない。
      保存済みデータのない新規端末だけ、最初の設定に案内する。 */
   const hasExistingData = !!(getLocal(K_CFG) || getLocal(K_ST));
-  if(requested !== 'welcome' && !getLocal(K_ONBOARD) && !hasExistingData) return 'welcome';
+  /* おためしモードでは起動時の内部データを「設定済み」と数えない。 */
+  if(requested !== 'welcome' && !getLocal(K_ONBOARD) && (TEST_MODE || !hasExistingData)) return 'welcome';
   return requested;
 }
 window.addEventListener('hashchange', ()=>{
