@@ -8,13 +8,15 @@
 /* ---------------------------------------------------------
    ほぞん
    --------------------------------------------------------- */
-const K_CFG = 'natsu.config.v2';
-const K_ST  = 'natsu.state.v2';
+/* ?new=1 は、今の家庭データと同期に触れず初期設定だけを試すための隔離モード。 */
+const TEST_MODE = new URLSearchParams(location.search).get('new') === '1';
+const K_CFG = TEST_MODE ? 'natsu.preview.config.v1' : 'natsu.config.v2';
+const K_ST  = TEST_MODE ? 'natsu.preview.state.v1'  : 'natsu.state.v2';
 /* 初期設定は端末ごとに一度だけ表示する。家庭の設定そのものは従来どおり
    Firebase（あいことば）経由で共有し、端末の役割・表示名だけは端末内に残す。 */
-const K_ONBOARD = 'natsu.onboarding.v1';
-const K_ROLE = 'natsu.device.role.v1';
-const K_NAME = 'natsu.device.name.v1';
+const K_ONBOARD = TEST_MODE ? 'natsu.preview.onboarding.v1' : 'natsu.onboarding.v1';
+const K_ROLE = TEST_MODE ? 'natsu.preview.role.v1' : 'natsu.device.role.v1';
+const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
 const K_METRIC = 'natsu.metric.registered.v1';
 /* URL の隠し入口。静的サイトなので認証ではなく、通常画面に出さないための合図。 */
 const STATS_PARAM = 'stats';
@@ -417,11 +419,11 @@ function overall(group){
    先に分かりやすく案内し、あとから追加した場合の同期方法も明記する。 */
 function viewWelcome(){
   const S = window.NatsuSync;
-  const hasSync = !!(S && S.configured());
+  const hasSync = !TEST_MODE && !!(S && S.configured());
   const installed = isStandalone();
   return `
   <section class="welcome" aria-labelledby="welcomeTitle">
-    <p class="welcome-kicker">はじめの じゅんび</p>
+    <p class="welcome-kicker">${TEST_MODE ? 'おためし モード' : 'はじめの じゅんび'}</p>
     <h2 id="welcomeTitle">この おうちの<br>しゅくだいノート</h2>
     <div class="paper welcome-step">
       <span class="welcome-num">1</span>
@@ -436,7 +438,7 @@ function viewWelcome(){
         <button class="btn btn-go welcome-role" data-welcome-role="parent" type="button">おうちの人<br><small>あいことばを 設定</small></button>
         <button class="btn welcome-role" data-welcome-role="child" type="button">こども<br><small>あいことばを 読みこむ</small></button>
       </div>
-      ${hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>'}</div>
+      ${TEST_MODE ? '<p class="set-note">おためしモードでは、いま使っている家庭のデータ・あいことば・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>')}</div>
     </div>
     <div class="paper welcome-form" id="welcomeForm" hidden></div>
   </section>`;
@@ -444,7 +446,7 @@ function viewWelcome(){
 
 function welcomeFormHTML(role){
   const S = window.NatsuSync;
-  const syncReady = !!(S && S.configured());
+  const syncReady = !TEST_MODE && !!(S && S.configured());
   const name = getLocal(K_NAME);
   const code = role === 'parent' && syncReady ? S.makeCode() : '';
   return role === 'parent' ? `
@@ -2037,7 +2039,7 @@ function bindWelcome(){
   $$('[data-welcome-role]').forEach(btn => btn.addEventListener('click', ()=>{
     /* module の sync.js が読み込み途中なら、あいことば無しで始めて
        しまわないよう一度だけ待ってもらう。読み込み完了時に画面は自動更新する。 */
-    if(!window.NatsuSync){ toast('同期の準備を 読みこんでいます…'); return; }
+    if(!window.NatsuSync && !TEST_MODE){ toast('同期の準備を 読みこんでいます…'); return; }
     const form = $('#welcomeForm');
     form.innerHTML = welcomeFormHTML(btn.dataset.welcomeRole);
     form.hidden = false;
@@ -2059,7 +2061,7 @@ function bindWelcome(){
         if(config.title === DEFAULT_CONFIG.title) config.title = name + 'の なつやすみの しゅくだい';
         saveCfg();
       }
-      if(S && S.configured()){
+      if(!TEST_MODE && S && S.configured()){
         S.reconnect(code);
         /* 同じ家庭を複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */
         S.registerHousehold(code).catch(()=>{});

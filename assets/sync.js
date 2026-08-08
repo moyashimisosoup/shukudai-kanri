@@ -28,7 +28,10 @@ const SDK = 'https://www.gstatic.com/firebasejs/12.17.1/';
 
 /* あいことばは この端末の localStorage に のこす。
    Firestore の 1件の書類（households/<あいことば>）を 端末どうしで 見に行く */
-const K_CODE = 'natsu.sync.code.v1';
+/* ?new=1 のおためしモードは、普段使っている家庭のあいことばを読まない。 */
+const K_CODE = new URLSearchParams(location.search).get('new') === '1'
+  ? 'natsu.preview.sync.code.v1'
+  : 'natsu.sync.code.v1';
 
 /* 打ちまちがえない 文字だけ。0/O と 1/l/I は 入れない */
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
