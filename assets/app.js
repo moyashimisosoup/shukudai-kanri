@@ -607,7 +607,7 @@ function viewHome(){
 
   ${dailyAllDone ? '' : dailySec}
   ${sectionHTML('must','かならず やる', nokori>0 ? 'のこり '+nokori+'こ' : 'ぜんぶ できた！', must)}
-  ${opt.length   ? sectionHTML('opt','もうすこし チャレンジ','じかんが あるとき', opt) : ''}
+  ${opt.length   ? sectionHTML('opt','つぎに やる','かならず やるが すんだら、ここから えらぼう', opt) : ''}
 
   <section class="sec">
     <div class="sec-head"><h2>きょう やったこと</h2><span class="sec-note">${fmtDate(new Date())}</span></div>
@@ -1186,7 +1186,7 @@ function viewCalendar(){
 
     <div class="paper cal-legend">
       <span class="cal-leg"><span class="cal-dot cal-dot--must"></span>かならず やる</span>
-      <span class="cal-leg"><span class="cal-dot cal-dot--option"></span>もうすこし チャレンジ</span>
+      <span class="cal-leg"><span class="cal-dot cal-dot--option"></span>つぎに やる</span>
       ${dailyEnabled ? `<span class="cal-leg"><span class="cal-dot cal-dot--daily"></span>まいにち</span>` : ''}
       <span class="cal-leg"><span class="cal-leg-box"></span>なにか やった日</span>
       ${freeEnabled ? `<span class="cal-leg"><span class="cal-free">📝</span>なんでも きろく</span>` : ''}
@@ -1288,13 +1288,13 @@ function viewParent(){
         <span class="pstat-val">${Math.round(nat)}<small>%</small></span></div>
       <div><span class="pstat-lab">必須の宿題</span>
         <span class="pstat-val">${Math.round(s.pct)}<small>% (${s.done}/${s.total})</small></span></div>
-      <div><span class="pstat-lab">できればやる</span>
+      <div><span class="pstat-lab">つぎに やる</span>
         <span class="pstat-val">${so.total ? Math.round(so.pct) : 0}<small>% (${so.done}/${so.total})</small></span></div>
     </div>
   </section>
 
   ${group('must','必ずやる')}
-  ${group('option','できればやる')}
+  ${group('option','つぎに やる')}
   ${bookSectionHTML()}
 
   <section class="sec">
@@ -2067,7 +2067,7 @@ function taskEditorRow(t, i){
   const bf = bookFields(t);
   const groupField = kind === 'daily' ? '' : `
     <label class="set-field"><span>表示する場所</span><select data-f="group">
-      ${opt('must',t.group,'かならず やる')}${opt('option',t.group,'できれば やる')}
+      ${opt('must',t.group,'かならず やる')}${opt('option',t.group,'つぎに やる')}
     </select></label>`;
 
   let fields = '';
@@ -2543,7 +2543,7 @@ function bindConfig(){
 /* ---------------------------------------------------------
    進捗サマリー（保護者向けのテキスト出力）
    --------------------------------------------------------- */
-const GROUP_LABEL = { must:'かならずやる', option:'できればやる', daily:'まいにち' };
+const GROUP_LABEL = { must:'かならず やる', option:'つぎに やる', daily:'まいにち' };
 
 function summaryLine(t){
   const p = prog(t);
@@ -2582,7 +2582,7 @@ function buildSummary(logDays){
   }
   L.push('夏休みの経過  ' + Math.round(o) + '%');
   L.push('必須の宿題    ' + Math.round(s.pct) + '%  (' + s.done + '/' + s.total + ')');
-  if(so.total) L.push('できればやる  ' + Math.round(so.pct) + '%  (' + so.done + '/' + so.total + ')');
+  if(so.total) L.push('つぎに やる  ' + Math.round(so.pct) + '%  (' + so.done + '/' + so.total + ')');
 
   ['must','option','daily'].forEach(g=>{
     const list = config.tasks.filter(t=>t.group===g);

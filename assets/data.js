@@ -95,7 +95,7 @@ const DEFAULT_CONFIG = {
       bookFields:{ author:true, publisher:false, rating:true }
     },
 
-    /* ---------- できれば やる ---------- */
+    /* ---------- つぎに やる ---------- */
     { id:'print-sansu', group:'option', type:'count',
       name:'学習用プリント（さんすう）', total:4, unit:'まい', numbered:true, wrapUp:true },
     { id:'print-kokugo', group:'option', type:'count',
