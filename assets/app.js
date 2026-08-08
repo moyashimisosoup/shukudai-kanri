@@ -18,6 +18,7 @@ const K_ONBOARD = TEST_MODE ? 'natsu.preview.onboarding.v1' : 'natsu.onboarding.
 const K_ROLE = TEST_MODE ? 'natsu.preview.role.v1' : 'natsu.device.role.v1';
 const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
 const K_READING = TEST_MODE ? 'natsu.preview.reading.v1' : 'natsu.device.reading.v1';
+const K_THEME = TEST_MODE ? 'natsu.preview.theme.v1' : 'natsu.device.theme.v1';
 const K_METRIC = 'natsu.metric.registered.v1';
 /* URL の隠し入口。静的サイトなので認証ではなく、通常画面に出さないための合図。 */
 const STATS_PARAM = 'stats';
@@ -27,7 +28,7 @@ const STATS_VALUE = 'family-count';
    消すのは preview 専用キーだけで、普段の家庭データ・あいことばには触れない。 */
 if(TEST_MODE){
   try{
-    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING].forEach(k=>localStorage.removeItem(k));
+    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME].forEach(k=>localStorage.removeItem(k));
   }catch(e){}
 }
 
@@ -39,6 +40,26 @@ function bookFields(t){
   return Object.assign({ author:false, publisher:false, rating:true }, (t && t.bookFields) || {});
 }
 
+const THEMES = [
+  { id:'notebook', name:'ノート', note:'みずいろの ほうがんノート' },
+  { id:'sunny',    name:'おひさま', note:'あかるい クリームいろ' },
+  { id:'soda',     name:'ソーダ', note:'すずしい みずいろと ミント' },
+  { id:'berry',    name:'ベリー', note:'やさしい むらさきと きのみいろ' },
+  { id:'block',    name:'ブロック', note:'マインクラフト風の しかくい デザイン' }
+];
+const THEME_IDS = THEMES.map(t=>t.id);
+const THEME_META = { notebook:'#14375E', sunny:'#59422E', soda:'#155466', berry:'#55344F', block:'#315A3A' };
+const DAILY_UNIT_PRESETS = ['かい','ハート','ふん','ページ','もん'];
+
+function taskKind(t){ return t && t.group === 'daily' ? 'daily' : (isBook(t) ? 'book' : 'normal'); }
+function dailyUnitPreset(unit){ return DAILY_UNIT_PRESETS.includes(unit) ? unit : 'custom'; }
+function applyTheme(theme){
+  const id = THEME_IDS.includes(theme) ? theme : 'notebook';
+  document.documentElement.dataset.theme = id;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', THEME_META[id]);
+}
+
 let config, state;
 let tab = 'home';
 let timer = null;
@@ -47,6 +68,7 @@ let funIdx = 0, funOpen = false;
    描き直しても 見ている場所が とばないよう、画面の外で おぼえておく */
 let calMonth = null;
 let calDay = null;
+let openConfigTaskId = null;
 /* 「かいたもの いちらん」が いま見せている 課題。#writes:<taskId> から 入る。
    ハッシュには 課題の id が のこるので、画面を 描き直しても 見失わない */
 let writesTaskId = null;
@@ -71,11 +93,21 @@ function migrate5to6(c){
    画面が切りかわらない（リンクが効かないように見える）ので、
    入口を ひとつに まとめる */
 function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[] }; }
-/* 複数家庭向けの新規セットアップでは「毎日やる」は最初から出さない。
-   以前から使っている家庭のデータは残すが、子ども画面・設定画面には表示しない。 */
+/* 「まいにち」の例は設定に残すが、新規家庭の子ども画面では初期非表示。 */
 function freshConfig(){
-  const c = deepCopy(DEFAULT_CONFIG);
-  c.tasks = (c.tasks || []).filter(t => t.group !== 'daily');
+  return normalizeConfig(deepCopy(DEFAULT_CONFIG));
+}
+
+function normalizeConfig(c){
+  if(!c || typeof c !== 'object') return deepCopy(DEFAULT_CONFIG);
+  if(!Array.isArray(c.tasks)) c.tasks = [];
+  if(typeof c.showDaily !== 'boolean') c.showDaily = false;
+  const msg = c.parentMessage && typeof c.parentMessage === 'object' ? c.parentMessage : {};
+  c.parentMessage = {
+    enabled: !!msg.enabled,
+    sender: msg.sender === 'おとうさん' ? 'おとうさん' : 'おかあさん',
+    text: String(msg.text || '').trim().slice(0, 80)
+  };
   return c;
 }
 
@@ -90,10 +122,11 @@ function normalizeState(s){
 function loadAll(){
   try{
     const c = JSON.parse(localStorage.getItem(K_CFG) || 'null');
-    if(c && c.schema === SCHEMA)   config = c;
-    else if(c && c.schema === 5) { config = migrate5to6(c); saveCfg(); }
+    if(c && c.schema === SCHEMA)   config = normalizeConfig(c);
+    else if(c && c.schema === 5) { config = normalizeConfig(migrate5to6(c)); saveCfg(); }
     else                           config = freshConfig();
   }catch(e){ config = freshConfig(); }
+  applyTheme(getLocal(K_THEME) || 'notebook');
 
   try{
     state = normalizeState(JSON.parse(localStorage.getItem(K_ST) || 'null'));
@@ -106,6 +139,8 @@ function loadAll(){
   funOpen = false;
 }
 function saveCfg(){
+  config = normalizeConfig(config);
+  applyTheme(getLocal(K_THEME) || 'notebook');
   localStorage.setItem(K_CFG, JSON.stringify(config));
   markSaved('config');
   syncPush('config');
@@ -247,7 +282,7 @@ function applyRemote(remote){
   /* config（設定）は 中身を 混ぜても 意味が 通らないので、
      あとに 保存された方を まるごと 採る */
   if(remote.config && remote.configAt > (at.config || 0)){
-    config = remote.config;
+    config = normalizeConfig(remote.config);
     localStorage.setItem(K_CFG, JSON.stringify(config));
     markSaved('config');
     changed = true;
@@ -504,6 +539,24 @@ function privacyNoteHTML(){
   return `<p class="privacy-note">管理者に届くのは登録家庭数だけです。名前・宿題名・記録内容は届きません。合言葉でつないだ端末だけで共有します。</p>`;
 }
 
+function welcomeMessageChoiceHTML(){
+  const msg = config.parentMessage;
+  return `
+    <p class="welcome-kicker">さいごの かくにん</p>
+    <h3>おうちの人からの メッセージを 使いますか？</h3>
+    <p>保護者ページから、こどもの画面へ短いメッセージを出せます。</p>
+    <label class="lab">だれからの メッセージ？
+      <select id="welcomeMessageSender">
+        <option value="おかあさん"${msg.sender==='おかあさん'?' selected':''}>おかあさん</option>
+        <option value="おとうさん"${msg.sender==='おとうさん'?' selected':''}>おとうさん</option>
+      </select></label>
+    <div class="welcome-roles welcome-message-actions">
+      <button class="btn btn-go welcome-role" data-message-choice="yes" type="button">使う</button>
+      <button class="btn welcome-role" data-message-choice="no" type="button">今は 使わない</button>
+    </div>
+    <p class="set-note">あとから保護者ページで変更できます。</p>`;
+}
+
 /* ---------------------------------------------------------
    ビュー：登録家庭数（URL の隠し入口からだけ開く） */
 function viewStats(){
@@ -543,6 +596,8 @@ function viewHome(){
     ${paceHTML(o)}
   </section>
 
+  ${parentMessageHTML()}
+
   ${dailyAllDone ? '' : dailySec}
   ${sectionHTML('must','かならず やる', nokori>0 ? 'のこり '+nokori+'こ' : 'ぜんぶ できた！', must)}
   ${opt.length   ? sectionHTML('opt','もうすこし チャレンジ','じかんが あるとき', opt) : ''}
@@ -555,6 +610,18 @@ function viewHome(){
   ${dailyAllDone ? dailySec : ''}
   ${funHTML()}
   `;
+}
+
+function parentMessageHTML(){
+  const msg = config.parentMessage;
+  if(!msg.enabled || !msg.text) return '';
+  return `
+  <section class="home-parent-message" aria-label="${esc(msg.sender)}からの メッセージ">
+    <div class="paper parent-message-note">
+      <strong>${esc(msg.sender)}からの メッセージ</strong>
+      <p>${esc(msg.text)}</p>
+    </div>
+  </section>`;
 }
 
 /* 宿題の進捗率 − 夏休みの経過率 から、進み具合を判定する */
@@ -626,13 +693,20 @@ function taskHTML(t){
       : `<p class="free-ask">${esc(t.freeHint || 'きょうの ことを かいてみよう。')}</p>`}</div>`;
   }
   else if(t.type === 'daily'){
-    const n = Math.max(p.total, p.done);
-    let hearts = '';
-    for(let i=1;i<=n;i++) hearts += `<span class="heart${i<=p.done?' on':''}">❤️</span>`;
-    meter = `<div class="task-meter">
-        <div class="hearts">${hearts}</div>
+    if((t.targetUnit||'') === 'ハート'){
+      const n = Math.max(p.total, p.done);
+      let hearts = '';
+      for(let i=1;i<=n;i++) hearts += `<span class="heart${i<=p.done?' on':''}">❤️</span>`;
+      meter = `<div class="task-meter"><div class="hearts">${hearts}</div>
         ${p.streak>0 ? `<span class="streak">${p.streak}日 れんぞく</span>` : ''}
       </div>`;
+    }else{
+      meter = `<div class="task-meter task-meter--bar task-meter--daily">
+        <div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div>
+        <span class="task-count">${esc(p.text)}</span>
+        ${p.streak>0 ? `<span class="streak">${p.streak}日 れんぞく</span>` : ''}
+      </div>`;
+    }
   }else{
     // count と step は 同じ 見た目。ランプは 14/14 の すぐ よこに ならべる
     meter = `<div class="task-meter task-meter--bar">
@@ -1044,6 +1118,8 @@ function calHasFree(logs){
 function viewCalendar(){
   const now = new Date(), todayKey = dayKey(now);
   const r = calRange();
+  const dailyEnabled = !!config.showDaily && config.tasks.some(t=>t.group==='daily');
+  const freeEnabled = dailyEnabled && config.tasks.some(isFree);
   if(!calMonth) calMonth = calMonthTop(now);
 
   const top = calMonth;
@@ -1104,9 +1180,9 @@ function viewCalendar(){
     <div class="paper cal-legend">
       <span class="cal-leg"><span class="cal-dot cal-dot--must"></span>かならず やる</span>
       <span class="cal-leg"><span class="cal-dot cal-dot--option"></span>もうすこし チャレンジ</span>
-      <span class="cal-leg"><span class="cal-dot cal-dot--daily"></span>まいにち</span>
+      ${dailyEnabled ? `<span class="cal-leg"><span class="cal-dot cal-dot--daily"></span>まいにち</span>` : ''}
       <span class="cal-leg"><span class="cal-leg-box"></span>なにか やった日</span>
-      <span class="cal-leg"><span class="cal-free">📝</span>なんでも きろく</span>
+      ${freeEnabled ? `<span class="cal-leg"><span class="cal-free">📝</span>なんでも きろく</span>` : ''}
     </div>
   </section>
 
@@ -1195,6 +1271,8 @@ function viewParent(){
 
   ${syncPromptHTML()}
 
+  ${parentMessageEditorHTML()}
+
   <section class="paper pstat">
     <div class="pstat-grid">
       <div><span class="pstat-lab">残り</span>
@@ -1243,139 +1321,26 @@ function viewParent(){
   </div>`;
 }
 
-/* ---------------------------------------------------------
-   保護者ページ（設定）
-   --------------------------------------------------------- */
-function viewConfig(){
-  const t2opt = (v,cur,label) => `<option value="${v}"${v===cur?' selected':''}>${label}</option>`;
-
-  const taskRows = config.tasks.map((t,i)=>({t,i})).filter(row=>row.t.group!=='daily').map(({t,i})=>`
-    <div class="set-task" data-i="${i}">
-      <div class="set-task-top">
-        <input type="text" data-f="name" value="${esc(t.name)}">
-        <button class="icon-btn" data-move="-1" title="上へ移動" type="button">↑</button>
-        <button class="icon-btn" data-move="1" title="下へ移動" type="button">↓</button>
-        <button class="icon-btn del" data-del="1" title="削除" type="button">🗑</button>
-      </div>
-      <div class="set-grid">
-        <label>区分
-          <select data-f="group">
-            ${t2opt('must',t.group,'必ずやる')}
-            ${t2opt('option',t.group,'できればやる')}
-          </select>
-        </label>
-        <label>進め方
-          <select data-f="type">
-            ${t2opt('count',t.type,'番号・数')}
-            ${t2opt('step',t.type,'段階式')}
-          </select>
-        </label>
-        ${t.type==='count' ? `
-          <label>全体量 <input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
-          <label>単位 <input type="text" data-f="unit" value="${esc(t.unit||'')}" style="width:96px"></label>
-          <label><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> ①②で表示</label>
-          <label>記録形式
-            <select data-f="recordStyle">
-              ${t2opt('',t.recordStyle||'','通常')}
-              ${t2opt('book',t.recordStyle||'','本の記録')}
-            </select>
-          </label>
-        ` : ''}
-        ${(t.type==='count' || t.type==='step') ? `
-          <label><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> マルつけして もらう・なおし を つける</label>
-        ` : ''}
-        ${isBook(t) ? (bf => `
-          <label><input type="checkbox" data-bf="author"${bf.author?' checked':''}> さくしゃ欄</label>
-          <label><input type="checkbox" data-bf="publisher"${bf.publisher?' checked':''}> しゅっぱんしゃ欄</label>
-          <label><input type="checkbox" data-bf="rating"${bf.rating?' checked':''}> おすすめ度（★1〜3）</label>
-        `)(bookFields(t)) : ''}
-        ${t.type==='daily' ? `
-          <label>記録形式
-            <select data-f="recordStyle">
-              ${t2opt('',t.recordStyle||'','ノルマ（回数）')}
-              ${t2opt('free',t.recordStyle||'','自由記述')}
-            </select>
-          </label>
-        ` : ''}
-        ${t.type==='daily' && !isFree(t) ? `
-          <label>1日のノルマ <input type="number" data-f="target" min="1" max="20" value="${t.target|0}"></label>
-          <label>単位 <input type="text" data-f="targetUnit" value="${esc(t.targetUnit||'')}" style="width:110px"></label>
-        ` : ''}
-      </div>
-      ${isBook(t) ? `
-        <p class="set-note" style="padding:0">本の記録形式では、書名・読んだ日・ひとこと感想を1冊ずつ入力し、
-        1件の登録で進捗が1つ進みます。感想は「かんじを しらべる」で習っていない漢字に印が付き、
-        さらに「ぜんぶ ひらがなに して」で書き写し用の文を作れます（辞書約17MBの読み込みが必要）。</p>` : ''}
-      ${t.type==='step' ? `
-        <label class="lab" style="font-size:16px">段階の項目（1行に1つ・子どもに表示されます）
-          <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea>
-        </label>` : ''}
-      ${t.type!=='daily' && !isBook(t) ? `
-        <label class="lab" style="font-size:16px">記録時に表示する質問（1行に1つ・任意）
-          <textarea data-f="questions" rows="3" placeholder="例：はっぱの 形や 色は どんな かんじ？">${esc((t.questions||[]).join('\n'))}</textarea>
-        </label>` : ''}
-      ${isFree(t) ? `
-        <label class="lab" style="font-size:16px">よびかけの一言（子どもに表示されます）
-          <input type="text" data-f="freeHint" value="${esc(t.freeHint||'')}"
-            placeholder="みたもの・あそび・ゲーム・ともだち・かぞく……なんでも いいよ。">
-        </label>` : ''}
-      ${!isBook(t) ? `
-      <label class="lab" style="font-size:16px">${isFree(t) ? '見出し' : 'メモ欄の見出し'}（子どもに表示されます）
-        <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう">
-      </label>` : ''}
-    </div>`).join('');
-
+function parentMessageEditorHTML(){
+  const msg = config.parentMessage;
   return `
-  <div class="paper parent-head">
-    <div>
-      <h2>設定</h2>
-      <p>期間と宿題の項目を変更できます。</p>
-    </div>
-    <a class="btn btn-sm" href="#settings">保護者ページへ戻る</a>
-  </div>
-
-  <section class="sec">
-    <div class="sec-head"><h2>基本設定</h2></div>
-    <div class="paper">
-      <div class="set-row"><span class="lab">タイトル</span>
-        <input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
-      <div class="set-row"><span class="lab">読める漢字</span>
-        <select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
-      <p class="set-note">この端末の表示を、読める漢字に合わせます。</p>
-      <div class="set-row"><span class="lab">夏休みの開始</span>
-        <input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
-      <div class="set-row"><span class="lab">夏休みの終了</span>
-        <input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
-      <p class="set-note">終了日時はカウントダウンの基準になります。開始日時と合わせて、
-      ペースメーターの「夏休みの経過率」の算出にも使われます。学校から配布された日程に合わせてください。</p>
-    </div>
-  </section>
-
-  <section class="sec">
-    <div class="sec-head"><h2>宿題の項目</h2><span class="sec-note">${config.tasks.length}件</span></div>
-    <div class="paper" id="taskEditor">${taskRows}</div>
-    <div class="set-actions">
-      <button class="btn btn-sm" id="addTask" type="button">＋ 項目を追加</button>
-    </div>
-  </section>
-
-  ${syncSectionHTML()}
-
-  <section class="sec">
-    <div class="sec-head"><h2>データ</h2></div>
-    <div class="paper">
-      <p class="set-note">記録はこの端末（localStorage）に保存されます。「べつの端末と つなぐ」を
-      設定していない場合、他の端末とは共有されません。
-      Safari の履歴・サイトデータを削除すると失われます。定期的にバックアップを取ってください。</p>
-      <div class="set-actions">
-        <button class="btn btn-sm" id="expBtn" type="button">⬇ バックアップを書き出す</button>
-        <button class="btn btn-sm" id="impBtn" type="button">⬆ バックアップを読み込む</button>
-        <input type="file" id="impFile" accept="application/json,.json" hidden>
+  <section class="sec parent-message-editor">
+    <div class="sec-head"><h2>こどもへの メッセージ</h2><span class="sec-note">80文字まで</span></div>
+    <div class="paper parent-message-form">
+      <div class="parent-message-fields">
+        <label class="lab" for="parentMessageSender">表示する名前
+          <select id="parentMessageSender">
+            <option value="おかあさん"${msg.sender==='おかあさん'?' selected':''}>おかあさん</option>
+            <option value="おとうさん"${msg.sender==='おとうさん'?' selected':''}>おとうさん</option>
+          </select></label>
+        <label class="lab parent-message-text" for="parentMessageText">メッセージ
+          <textarea id="parentMessageText" rows="2" maxlength="80" placeholder="例：きょうも おつかれさま！">${esc(msg.text)}</textarea></label>
       </div>
-      <div class="set-actions">
-        <button class="btn btn-sm btn-danger" id="resetCfg" type="button">項目を初期状態に戻す</button>
-        <button class="btn btn-sm btn-danger" id="resetAll" type="button">記録をすべて削除</button>
+      <div class="parent-message-controls">
+        <label class="parent-message-toggle"><input id="parentMessageEnabled" type="checkbox"${msg.enabled?' checked':''}> こども画面に 表示する</label>
+        <button class="btn btn-sm btn-do" id="parentMessageSave" type="button">保存する</button>
       </div>
+      <p class="set-note">空欄またはチェックを外したときは、こども画面に表示されません。</p>
     </div>
   </section>`;
 }
@@ -1450,7 +1415,7 @@ function syncSectionHTML(opts){
       <div class="set-actions">
         <button class="btn btn-sm" id="syncSave" type="button">この あいことばで つなぐ</button>
         <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
-        ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">✨ 新しく作る</button>'}
+        ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作る</button>'}
       </div>
       ${code ? `<div class="set-actions">
         <button class="btn btn-sm btn-danger" id="syncOff" type="button">つなぐのをやめる</button>
@@ -2068,6 +2033,152 @@ function render(opts){
   applyReadingDisplay();
 }
 
+/* 設定は「この端末」「おうちの宿題」「まいにち」に分ける。
+   内部の type / recordStyle は旧データ互換のため変えない。 */
+function themeChoicesHTML(){
+  const current = THEME_IDS.includes(getLocal(K_THEME)) ? getLocal(K_THEME) : 'notebook';
+  return THEMES.map(t=>`
+    <label class="theme-choice theme-choice--${t.id}">
+      <input type="radio" name="theme" value="${t.id}"${t.id===current?' checked':''}>
+      <span class="theme-swatch" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="theme-name">${esc(t.name)}</span>
+      <small>${esc(t.note)}</small>
+    </label>`).join('');
+}
+
+function taskSummary(t){
+  if(isBook(t)) return `${Math.max(1,t.total|0)}さつ`;
+  if(t.group === 'daily') return isFree(t) ? 'ことばで きろく' : `1日 ${Math.max(1,t.target|0)}${esc(t.targetUnit||'')}`;
+  if(t.type === 'step') return `${(t.steps||[]).length}この じゅんばん`;
+  return `${Math.max(1,t.total|0)}${esc(t.unit||'')}`;
+}
+
+function taskEditorRow(t, i){
+  const opt = (v,cur,label) => `<option value="${v}"${v===cur?' selected':''}>${label}</option>`;
+  const kind = taskKind(t);
+  const unitMode = dailyUnitPreset(t.targetUnit||'');
+  const bf = bookFields(t);
+  const groupField = kind === 'daily' ? '' : `
+    <label class="set-field"><span>表示する場所</span><select data-f="group">
+      ${opt('must',t.group,'かならず やる')}${opt('option',t.group,'できれば やる')}
+    </select></label>`;
+
+  let fields = '';
+  if(kind === 'book'){
+    fields = `${groupField}
+      <label class="set-field"><span>目標の冊数</span><span class="set-inline"><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"><b>さつ</b></span></label>
+      <fieldset class="set-field set-field--wide set-checks"><legend>本ごとに のこすこと</legend>
+        <label><input type="checkbox" data-bf="author"${bf.author?' checked':''}> さくしゃ</label>
+        <label><input type="checkbox" data-bf="publisher"${bf.publisher?' checked':''}> しゅっぱんしゃ</label>
+        <label><input type="checkbox" data-bf="rating"${bf.rating?' checked':''}> おすすめ度</label>
+      </fieldset>
+      <p class="set-help set-field--wide">本の名前・読んだ日・ひとことを1冊ずつ残します。</p>`;
+  }else if(kind === 'daily'){
+    fields = `
+      <label class="set-field"><span>きろくの しかた</span><select data-f="recordStyle">
+        ${opt('',t.recordStyle||'','かずで きろく')}${opt('free',t.recordStyle||'','ことばで きろく')}
+      </select></label>
+      ${!isFree(t) ? `
+        <label class="set-field"><span>1日の めあて</span><input type="number" data-f="target" min="1" max="999" value="${t.target|0}"></label>
+        <label class="set-field"><span>単位</span><select data-f="targetUnitPreset">
+          ${DAILY_UNIT_PRESETS.map(u=>opt(u,unitMode,u)).join('')}${opt('custom',unitMode,'そのほか（自由）')}
+        </select></label>
+        ${unitMode==='custom' ? `<label class="set-field"><span>単位を 入力</span><input type="text" data-f="targetUnitCustom" maxlength="8" value="${esc(t.targetUnit||'')}"></label>` : ''}
+      ` : `
+        <label class="set-field set-field--wide"><span>こどもへの よびかけ</span>
+          <input type="text" data-f="freeHint" value="${esc(t.freeHint||'')}" placeholder="きょうの ことを かいてみよう"></label>`}
+      <label class="set-field set-field--wide"><span>${isFree(t)?'見出し':'メモ欄の 見出し'}</span>
+        <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう"></label>`;
+  }else{
+    fields = `${groupField}
+      <label class="set-field"><span>すすめかた</span><select data-f="type">
+        ${opt('count',t.type,'回数・ページで すすむ')}${opt('step',t.type,'じゅんばんに すすむ')}
+      </select></label>
+      ${t.type==='count' ? `
+        <label class="set-field"><span>ぜんぶで</span><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
+        <label class="set-field"><span>単位</span><input type="text" data-f="unit" maxlength="8" value="${esc(t.unit||'')}"></label>
+        <label class="set-field set-check"><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> つぎの番号を ①②で 表示</label>` : `
+        <label class="set-field set-field--wide"><span>じゅんばん（1行に1つ）</span>
+          <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea></label>`}
+      <label class="set-field set-field--wide set-check"><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> さいごに「マルつけ」と「なおし」を つける</label>
+      <label class="set-field set-field--wide"><span>きろくするときの しつもん（なくてもOK）</span>
+        <textarea data-f="questions" rows="3" placeholder="はっぱの かたちや いろは？">${esc((t.questions||[]).join('\n'))}</textarea></label>
+      <label class="set-field set-field--wide"><span>メモ欄の 見出し</span>
+        <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう"></label>`;
+  }
+
+  const label = kind === 'book' ? '読書' : (kind === 'daily' ? 'まいにち' : (t.type === 'step' ? 'じゅんばん' : 'かず'));
+  return `<details class="set-task" data-i="${i}"${t.id===openConfigTaskId?' open':''}>
+    <summary class="set-task-summary"><span class="set-kind set-kind--${kind}">${label}</span>
+      <strong>${esc(t.name)}</strong><span class="set-task-meta">${taskSummary(t)}</span></summary>
+    <div class="set-task-body">
+      <label class="set-field set-field--wide"><span>項目の名前</span><input type="text" data-f="name" maxlength="60" value="${esc(t.name)}"></label>
+      <div class="set-grid">${fields}</div>
+      <div class="set-task-actions">
+        <button class="btn btn-sm btn-ghost" data-move="-1" type="button" aria-label="${esc(t.name)}を上へ移動">上へ</button>
+        <button class="btn btn-sm btn-ghost" data-move="1" type="button" aria-label="${esc(t.name)}を下へ移動">下へ</button>
+        <button class="btn btn-sm btn-danger" data-del="1" type="button" aria-label="${esc(t.name)}を削除">削除</button>
+      </div>
+    </div>
+  </details>`;
+}
+
+function taskGroupHTML(rows, empty){
+  return rows.length ? rows.map(({t,i})=>taskEditorRow(t,i)).join('') : `<p class="set-empty">${esc(empty)}</p>`;
+}
+
+function viewConfig(){
+  const rows = config.tasks.map((t,i)=>({t,i}));
+  const normal = rows.filter(({t})=>taskKind(t)==='normal');
+  const books = rows.filter(({t})=>taskKind(t)==='book');
+  const daily = rows.filter(({t})=>taskKind(t)==='daily');
+  return `
+  <div class="paper parent-head config-head"><div><h2>設定</h2><p>変更は すぐに 保存されます。</p></div>
+    <span class="autosave" aria-live="polite">自動保存</span><a class="btn btn-sm" href="#settings">もどる</a></div>
+
+  <section class="sec config-sec"><div class="sec-head"><h2>この端末の 表示</h2></div><div class="paper">
+    <div class="set-row"><label class="lab" for="cfgChildName">こどもの 名前</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
+    <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
+    <p class="set-note">名前と漢字の表示は、この端末に合わせます。</p>
+    <fieldset class="theme-picker"><legend>いろと デザイン</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
+  </div></section>
+
+  <section class="sec config-sec"><div class="sec-head"><h2>おうちの 宿題</h2></div><div class="paper">
+    <div class="set-row"><label class="lab" for="cfgTitle">タイトル</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
+    <div class="set-row"><label class="lab" for="cfgStart">はじまる日</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
+    <div class="set-row"><label class="lab" for="cfgEnd">おわる日</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
+    <p class="set-note">日づけはカウントダウンとペースの計算に使います。</p>
+  </div></section>
+
+  <section class="sec config-sec"><div class="sec-head"><h2>ふつうの 宿題</h2><span class="sec-note">${normal.length}こ</span></div>
+    <div class="paper task-editor" id="normalTaskEditor">${taskGroupHTML(normal,'まだ 項目は ありません。')}</div>
+    <div class="set-actions"><button class="btn btn-sm" id="addNormalTask" type="button">＋ 宿題を 追加</button></div>
+  </section>
+
+  <section class="sec config-sec"><div class="sec-head"><h2>読書の きろく</h2><span class="sec-note">${books.length}こ</span></div>
+    <p class="config-lead">本の名前・読んだ日・ひとことを1冊ずつ残す、読書専用の項目です。</p>
+    <div class="paper task-editor" id="bookTaskEditor">${taskGroupHTML(books,'読書の きろくを 使わないときは、空のままでOKです。')}</div>
+    <div class="set-actions"><button class="btn btn-sm" id="addBookTask" type="button">＋ 読書を 追加</button></div>
+  </section>
+
+  <section class="sec config-sec"><div class="sec-head"><h2>まいにち</h2><span class="sec-note">学習アプリなど</span></div>
+    <div class="paper daily-settings">
+      <label class="daily-switch"><input type="checkbox" id="cfgShowDaily"${config.showDaily?' checked':''}>
+        <span><strong>こども画面に 表示する</strong><small>学習アプリ・音読・おてつだいなどに使えます。</small></span></label>
+      <div class="task-editor" id="dailyTaskEditor">${taskGroupHTML(daily,'まいにちの 項目は まだありません。')}</div>
+      <div class="set-actions"><button class="btn btn-sm" id="addDailyTask" type="button">＋ まいにちを 追加</button></div>
+    </div>
+  </section>
+
+  ${syncSectionHTML()}
+
+  <section class="sec config-sec"><div class="sec-head"><h2>データ管理</h2></div><details class="paper set-advanced"><summary>バックアップと 初期化</summary>
+    <div class="set-advanced-body"><p class="set-note">記録はこの端末に保存されます。時々バックアップすると安心です。</p>
+    <div class="set-actions"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
+    <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">項目を 元に戻す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録を すべて削除</button></div></div>
+  </details></section>`;
+}
+
 /* 選んだ学年より難しい漢字を、表示後にひらがなへ直す。
    辞書は選択した端末で一度だけ読み込み、同じ文の変換結果は使い回す。 */
 let readingPass = 0;
@@ -2149,6 +2260,19 @@ function bindWelcomeStart(){
       /* 同じ家庭を複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */
       S.registerHousehold(code).catch(()=>{});
     }
+    if(role === 'parent' && sharing){
+      const form = $('#welcomeForm');
+      form.innerHTML = welcomeMessageChoiceHTML();
+      $$('[data-message-choice]', form).forEach(btn=>btn.addEventListener('click', ()=>{
+        config.parentMessage.enabled = btn.dataset.messageChoice === 'yes';
+        config.parentMessage.sender = $('#welcomeMessageSender').value;
+        saveCfg();
+        location.hash = 'settings';
+        if(config.parentMessage.enabled) toast('保護者ページに メッセージ欄を 用意しました');
+      }));
+      form.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      return;
+    }
     location.hash = role === 'parent' ? 'settings' : 'home';
   });
 }
@@ -2175,6 +2299,14 @@ function bindStats(){
    --------------------------------------------------------- */
 /* 保護者ページ（進捗一覧）— サマリーの生成と書き出し */
 function bindParent(){
+  $('#parentMessageSave').addEventListener('click', ()=>{
+    config.parentMessage.sender = $('#parentMessageSender').value === 'おとうさん' ? 'おとうさん' : 'おかあさん';
+    config.parentMessage.text = String($('#parentMessageText').value || '').trim().slice(0, 80);
+    config.parentMessage.enabled = $('#parentMessageEnabled').checked && !!config.parentMessage.text;
+    $('#parentMessageEnabled').checked = config.parentMessage.enabled;
+    saveCfg();
+    toast(config.parentMessage.enabled ? 'こども画面に 表示しました' : 'メッセージを 非表示にしました');
+  });
   $('#sumMake').addEventListener('click', ()=>{
     $('#sumOut').value = buildSummary(+$('#sumDays').value);
     toast('サマリーを生成しました');
@@ -2247,6 +2379,12 @@ function bindSync(){
 
 /* 保護者ページ（設定）*/
 function bindConfig(){
+  $('#cfgChildName').addEventListener('change', e=>{
+    const name = e.target.value.trim();
+    config.childName = name;
+    setLocal(K_NAME, name);
+    saveCfg();
+  });
   $('#cfgTitle').addEventListener('change', e=>{
     config.title = e.target.value || 'なつやすみの しゅくだい';
     saveCfg(); render({ keepScroll:true });
@@ -2260,7 +2398,17 @@ function bindConfig(){
   $('#cfgStart').addEventListener('change', e=>{ config.startAt = e.target.value; saveCfg(); });
   $('#cfgEnd').addEventListener('change',   e=>{ config.endAt   = e.target.value; saveCfg(); });
 
-  const ed = $('#taskEditor');
+  $$('.theme-choice input[name="theme"]').forEach(input=>input.addEventListener('change', e=>{
+    if(!THEME_IDS.includes(e.target.value)) return;
+    setLocal(K_THEME, e.target.value);
+    applyTheme(e.target.value);
+  }));
+  $('#cfgShowDaily').addEventListener('change', e=>{
+    config.showDaily = e.target.checked;
+    saveCfg();
+  });
+
+  const ed = $('#view');
   ed.addEventListener('change', e=>{
     const row = e.target.closest('.set-task'); if(!row) return;
     const t = config.tasks[+row.dataset.i]; if(!t) return;
@@ -2273,22 +2421,32 @@ function bindConfig(){
 
     const f = e.target.dataset.f; if(!f) return;
 
+    if(f === 'targetUnitPreset'){
+      t.targetUnit = e.target.value === 'custom' ? '' : e.target.value;
+      openConfigTaskId = t.id;
+      saveCfg(); render({ keepScroll:true }); return;
+    }
+    if(f === 'targetUnitCustom'){
+      t.targetUnit = e.target.value.trim().slice(0,8);
+      saveCfg(); return;
+    }
     if(f === 'recordStyle'){
       const v = e.target.value;
       if(v === 'book'){ t.recordStyle = 'book'; t.bookFields = bookFields(t); }
       else if(v === 'free'){
         t.recordStyle = 'free';
-        t.target = 1; t.targetUnit = 'かい';
+        t.target = t.target || 1; t.targetUnit = t.targetUnit || 'かい';
         t.memoLabel = t.memoLabel || 'きょうは なにを した？';
       }
       else delete t.recordStyle;
+      openConfigTaskId = t.id;
       saveCfg(); render({ keepScroll:true }); return;
     }
     if(f === 'numbered')        t.numbered = e.target.checked;
     // 外しても progress の wrap は 消さない。付けなおしたら 前の状態が また見える
     else if(f === 'wrapUp')     t.wrapUp = e.target.checked;
     else if(f === 'total')      t.total = clamp(+e.target.value||1, 1, 200);
-    else if(f === 'target')     t.target = clamp(+e.target.value||1, 1, 20);
+    else if(f === 'target')     t.target = clamp(+e.target.value||1, 1, 999);
     else if(f === 'steps')      t.steps = e.target.value.split('\n').map(s=>s.trim()).filter(Boolean);
     else if(f === 'questions')  t.questions = e.target.value.split('\n').map(s=>s.trim()).filter(Boolean);
     else if(f === 'type'){
@@ -2297,11 +2455,13 @@ function bindConfig(){
       if(t.type==='step'   && !(t.steps||[]).length) t.steps = ['はじめる','とちゅう','かんせい！'];
       if(t.type==='daily'  && !t.target){ t.target = 1; t.targetUnit = t.targetUnit || 'かい'; }
       if(t.type==='daily') t.group = 'daily';
+      openConfigTaskId = t.id;
       saveCfg(); render({ keepScroll:true }); return;
     }
     else if(f === 'group'){
       t.group = e.target.value;
       if(t.group==='daily' && t.type!=='daily'){ t.type='daily'; t.target = t.target||1; t.targetUnit = t.targetUnit||'かい'; }
+      openConfigTaskId = t.id;
       saveCfg(); render({ keepScroll:true }); return;
     }
     else t[f] = e.target.value;
@@ -2314,25 +2474,44 @@ function bindConfig(){
     const i = +row.dataset.i;
     const mv = e.target.closest('[data-move]');
     if(mv){
-      const j = i + (+mv.dataset.move);
-      if(j < 0 || j >= config.tasks.length) return;
+      const same = config.tasks.map((t,idx)=>({t,idx})).filter(x=>taskKind(x.t)===taskKind(config.tasks[i]));
+      const at = same.findIndex(x=>x.idx===i);
+      const next = same[at + (+mv.dataset.move)];
+      if(!next) return;
+      const j = next.idx;
       const a = config.tasks; const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
       saveCfg(); render({ keepScroll:true }); return;
     }
     if(e.target.closest('[data-del]')){
       const t = config.tasks[i];
       if(confirm('「'+t.name+'」を削除しますか？\nこれまでの記録は残ります。')){
+        openConfigTaskId = null;
         config.tasks.splice(i,1); saveCfg(); render({ keepScroll:true });
       }
     }
   });
 
-  $('#addTask').addEventListener('click', ()=>{
-    config.tasks.push({
+  $('#addNormalTask').addEventListener('click', ()=>{
+    const added = {
       id: 't' + Date.now(), group:'option', type:'count',
-      name:'あたらしい しゅくだい', total:10, unit:'ばん', numbered:true,
+      name:'あたらしい しゅくだい', total:10, unit:'かい', numbered:false,
       memoLabel:'やったことを かこう'
-    });
+    };
+    config.tasks.push(added); openConfigTaskId = added.id;
+    saveCfg(); render({ keepScroll:true });
+  });
+  $('#addBookTask').addEventListener('click', ()=>{
+    const added = { id:'book-'+Date.now(), group:'must', type:'count', recordStyle:'book',
+      name:'読書の きろく', total:10, unit:'さつ', numbered:true,
+      bookFields:{ author:true, publisher:false, rating:true } };
+    config.tasks.push(added); openConfigTaskId = added.id;
+    saveCfg(); render({ keepScroll:true });
+  });
+  $('#addDailyTask').addEventListener('click', ()=>{
+    const added = { id:'daily-'+Date.now(), group:'daily', type:'daily',
+      name:'おてつだい', target:1, targetUnit:'かい', memoLabel:'やったこと' };
+    config.tasks.push(added); openConfigTaskId = added.id;
+    config.showDaily = true;
     saveCfg(); render({ keepScroll:true });
   });
 
@@ -2344,7 +2523,7 @@ function bindConfig(){
 
   $('#resetCfg').addEventListener('click', ()=>{
     if(confirm('項目を初期状態に戻しますか？\nこれまでの記録は残ります。')){
-      config = deepCopy(DEFAULT_CONFIG); saveCfg(); render(); toast('初期状態に戻しました');
+      config = freshConfig(); saveCfg(); render(); toast('初期状態に戻しました');
     }
   });
   $('#resetAll').addEventListener('click', ()=>{
