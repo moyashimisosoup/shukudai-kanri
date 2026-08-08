@@ -10,6 +10,8 @@
    --------------------------------------------------------- */
 /* ?new=1 は、今の家庭データと同期に触れず初期設定だけを試すための隔離モード。 */
 const TEST_MODE = new URLSearchParams(location.search).get('new') === '1';
+/* 保護者画面の確認用。preview専用キーだけを作るため、普段の家庭データには触れない。 */
+const DEBUG_PARENT = TEST_MODE && new URLSearchParams(location.search).get('debug') === 'parent';
 const K_CFG = TEST_MODE ? 'natsu.preview.config.v1' : 'natsu.config.v2';
 const K_ST  = TEST_MODE ? 'natsu.preview.state.v1'  : 'natsu.state.v2';
 /* 初期設定は端末ごとに一度だけ表示する。家庭の設定そのものは従来どおり
@@ -29,6 +31,11 @@ const STATS_VALUE = 'family-count';
 if(TEST_MODE){
   try{
     [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME].forEach(k=>localStorage.removeItem(k));
+    if(DEBUG_PARENT){
+      localStorage.setItem(K_ONBOARD, 'done');
+      localStorage.setItem(K_ROLE, 'parent');
+      localStorage.setItem(K_NAME, 'おためし');
+    }
   }catch(e){}
 }
 
@@ -1997,7 +2004,7 @@ function render(opts){
   const keepScroll = !!(opts && opts.keepScroll);
   const y = window.scrollY;
 
-  const shownTitle = TEST_MODE && !getLocal(K_ONBOARD) ? 'おためし用の設定' : config.title;
+  const shownTitle = TEST_MODE && (!getLocal(K_ONBOARD) || DEBUG_PARENT) ? 'おためし用の設定' : config.title;
   $('#appTitle').textContent = shownTitle;
   $('#todayLabel').textContent = fmtDate(new Date());
   document.title = shownTitle;
