@@ -814,7 +814,7 @@ function funToday(){
 }
 
 /* まだ この一巡で 出していない ものから ひとつ ランダムに えらぶ。
-   150件を ぜんぶ 出しきったら、新しい一巡を はじめる */
+   ぜんぶ 出しきったら、新しい一巡を はじめる */
 function funPick(){
   const f = funToday();
   let rest = FUN.map((_, i)=> i).filter(i => f.history.indexOf(i) < 0);
