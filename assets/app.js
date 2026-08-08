@@ -688,6 +688,7 @@ function contentDebugHTML(){
         <span class="fun-tag">${esc(f.t)} ${n+1}</span>
         <p class="fun-q">${rubyHTML(f.q)}</p>
         <p class="fun-a">${rubyHTML(f.a)}</p>
+        ${f.fig ? kanjiOriginHTML(f.fig) : ''}
         <div class="fun-debug-checks">
           <label class="fun-debug-check"><input type="checkbox" data-content-ok="${i}"> OK</label>
           <label class="fun-debug-check"><input type="checkbox" data-content-review="${i}"${status[i] === 'review'?' checked':''}> 削除・再検討</label>
@@ -862,6 +863,14 @@ function rubyHTML(text){
     (_, base, yomi) => `<ruby>${base}<rt>${yomi}</rt></ruby>`);
 }
 
+/* 漢字の なりたちは 絵が ないと 分かりにくいので、
+   assets/kanji-origin.js の 自作SVGを そえる。
+   読みこめていない ときは 何も 出さず、文だけで なりたつ */
+function kanjiOriginHTML(key){
+  const svg = (typeof KANJI_ORIGIN === 'object' && KANJI_ORIGIN && KANJI_ORIGIN[key]) || '';
+  return svg ? `<figure class="fun-fig">${svg}</figure>` : '';
+}
+
 /* きょうの 3件は日づけが かわったら 0から かぞえなおす。
    history は日を またいで のこし、FUNを ぜんぶ読むまで 同じ内容を 出さない。 */
 function funToday(){
@@ -912,7 +921,7 @@ function funHTML(){
       ? '<p class="fun-note">つかってみよう。ひみつの あんごうに なるかもね！</p>'
       : ''}
     <p class="fun-q">${rubyHTML(f.q)}</p>
-    ${funOpen ? `<p class="fun-a">${rubyHTML(f.a)}</p>` : ''}
+    ${funOpen ? `<p class="fun-a">${rubyHTML(f.a)}</p>${f.fig ? kanjiOriginHTML(f.fig) : ''}` : ''}
     ${bonus && seenCount === FUN_MAX
       ? '<p class="fun-bonus fun-bonus--on">「できた！」が ふえたので、きょうは もうひとつ！</p>'
       : ''}

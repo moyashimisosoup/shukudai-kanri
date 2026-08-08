@@ -850,6 +850,13 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   background:var(--kami); border:2px dashed var(--suika);
   border-radius:var(--r-s); padding:12px 16px; overflow-wrap:anywhere; min-width:0;
 }
+/* 漢字の なりたち 図。線の 色は currentColor なので テーマに ついてくる */
+.fun-fig{
+  margin:12px 0 0; padding:10px 12px;
+  background:var(--kami); border:2px solid var(--ai);
+  border-radius:var(--r-s); color:var(--ai);
+}
+.fun-fig svg{ display:block; width:100%; height:auto; }
 .fun-row{ display:flex; gap:10px; margin-top:14px; }
 .fun-debug-list{ display:grid; gap:14px; }
 .fun-debug-card{ margin:0; }
