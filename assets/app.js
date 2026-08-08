@@ -126,7 +126,7 @@ function readingGrade(){
   return [0,1,2,9].includes(g) ? g : 2;
 }
 function readingOptions(selected){
-  const labels = { 0:'ひらがな中心', 1:'小学1年生まで', 2:'小学2年生まで', 9:'漢字のまま' };
+  const labels = { 0:'すべてひらがな', 1:'小学1年生まで', 2:'小学2年生まで', 9:'漢字のまま' };
   return [0,1,2,9].map(g=>`<option value="${g}"${g===Number(selected)?' selected':''}>${labels[g]}</option>`).join('');
 }
 
@@ -635,7 +635,7 @@ function taskHTML(t){
       </div>`;
   }else{
     // count と step は 同じ 見た目。ランプは 14/14 の すぐ よこに ならべる
-    meter = `<div class="task-meter">
+    meter = `<div class="task-meter task-meter--bar">
         <div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div>
         <span class="task-count">${esc(p.text)}</span>${wrapMarksHTML(t, p)}
       </div>`;
@@ -2141,11 +2141,9 @@ function bindWelcomeStart(){
     setLocal(K_READING, grade);
     if(typeof setReadingGrade === 'function') setReadingGrade(grade);
     setLocal(K_ONBOARD, 'done');
-    if(role === 'parent'){
-      config.childName = name;
-      if(config.title === DEFAULT_CONFIG.title) config.title = name + 'の なつやすみの しゅくだい';
-      saveCfg();
-    }
+    config.childName = name;
+    if(config.title === DEFAULT_CONFIG.title) config.title = name + 'の なつやすみの しゅくだい';
+    saveCfg();
     if(sharing && !TEST_MODE && S && S.configured()){
       S.reconnect(code);
       /* 同じ家庭を複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */

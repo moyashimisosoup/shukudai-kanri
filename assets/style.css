@@ -888,6 +888,13 @@ body.no-tabbar{ padding-bottom:24px; }
   body{ font-size:18px; }
   .task-name{ font-size:22px; }
   .task{ grid-template-columns:1fr; }
+  .task-meter--bar{
+    display:grid; grid-template-columns:minmax(0,1fr) auto;
+    align-items:center; column-gap:10px; row-gap:7px;
+  }
+  .task-meter--bar .bar{ grid-column:1 / -1; width:100%; min-width:0; }
+  .task-meter--bar .task-count{ grid-column:1; min-width:0; text-align:left; }
+  .task-meter--bar .wrapmarks{ grid-column:2; justify-self:end; }
   .task-act{ grid-column:1; grid-row:auto; }
   .task-act .btn{ width:100%; }
   .pace-row{ grid-template-columns:84px 1fr 60px; }
