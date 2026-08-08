@@ -2168,10 +2168,14 @@ function stopSR(){ if(sr){ try{ sr.stop(); }catch(e){} sr = null; } $$('.mic.rec
 /* ---------------------------------------------------------
    えがく
    --------------------------------------------------------- */
+/* スクロールするのは #scroll の中だけ。ページ自体は 動かさない。
+   古い作りの画面でも こわれないよう、見つからなければ ページに もどす */
+function scrollBox(){ return $('#scroll') || document.scrollingElement || document.documentElement; }
+
 /* keepScroll: 今の位置のまま描き直す。タブを変えたときだけ先頭に戻す */
 function render(opts){
   const keepScroll = !!(opts && opts.keepScroll);
-  const y = window.scrollY;
+  const y = scrollBox().scrollTop;
   /* 同期の到着などで画面を描き直しても、保護者が入力途中の内容を
      消さない。保存前のメッセージ、サマリー、チェックの状態も含めて
      同じ id の欄へ戻す。 */
@@ -2211,7 +2215,7 @@ function render(opts){
   if(tab === 'stats')    bindStats();
   if(tab === 'settings'){ bindParent(); bindSync(); }
   if(tab === 'config')   bindConfig();
-  window.scrollTo(0, keepScroll ? y : 0);
+  scrollBox().scrollTop = keepScroll ? y : 0;
   applyReadingDisplay();
 }
 

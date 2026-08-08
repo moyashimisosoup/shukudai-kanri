@@ -45,8 +45,16 @@
 
 html{ -webkit-text-size-adjust:100%; }
 
+/* iPad の Safari では、ページを 拡大していなくても
+   position:fixed の 下タブが スクロール中に 浮いて 止まることが ある。
+   そこで ページ全体は スクロールさせず、上帯・中身・下タブの 3段に わけ、
+   中身（.scroll）だけを スクロールさせる。fixed に たよらないので ずれない。 */
+html,body{ height:100%; }
+
 body{
   margin:0;
+  display:flex; flex-direction:column;
+  overflow:hidden;
   font-family:var(--font);
   font-weight:500;
   font-size:19px;
@@ -59,7 +67,12 @@ body{
   background-size:var(--masu) var(--masu);
   background-position:center top;
   -webkit-tap-highlight-color:transparent;
-  padding-bottom:calc(96px + env(safe-area-inset-bottom));
+}
+
+.scroll{
+  flex:1 1 auto; min-height:0;
+  overflow-y:auto; overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
   overscroll-behavior-y:contain;
 }
 
@@ -77,7 +90,7 @@ button{ font:inherit; color:inherit; }
    うえの色帯（ジャポニカの帯）
    ========================================================= */
 .topband{
-  position:sticky; top:0; z-index:40;
+  flex:none; position:relative; z-index:40;
   background:var(--ai);
   border-bottom:var(--line) solid var(--ai);
   padding-top:env(safe-area-inset-top);
@@ -114,7 +127,7 @@ button{ font:inherit; color:inherit; }
    ========================================================= */
 .view{
   max-width:900px; margin:0 auto;
-  padding:20px 16px 8px;
+  padding:20px 16px 24px;
   display:flex; flex-direction:column; gap:20px;
 }
 .view:focus{ outline:none; }
@@ -1006,7 +1019,9 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 }
 
 /* 親ページはタブバーがないぶん下の余白を詰める */
-body.no-tabbar{ padding-bottom:24px; }
+/* 下タブは ふつうの 部品に なったので、そのぶんの すきまは いらない。
+   クラスは 他から 見ている ところが あるので のこす */
+body.no-tabbar{ padding-bottom:0; }
 
 /* 進捗の概要 */
 .pstat{ padding:18px; }
@@ -1147,7 +1162,7 @@ body.no-tabbar{ padding-bottom:24px; }
    したのタブ
    ========================================================= */
 .tabbar{
-  position:fixed; left:0; right:0; bottom:0; z-index:50;
+  flex:none; position:relative; z-index:50;
   display:flex; justify-content:center; gap:4px;
   background:var(--kami);
   border-top:var(--line) solid var(--ai);
@@ -1212,7 +1227,13 @@ body.no-tabbar{ padding-bottom:24px; }
   }
 }
 
-@media print{ .tabbar,.sheet-wrap{ display:none } }
+/* 印刷では 画面を 3段に わける しくみを 解いて、
+   ぜんぶの 中身が 何ページにも わたって 出るようにする */
+@media print{
+  .tabbar,.sheet-wrap{ display:none }
+  html,body{ height:auto; overflow:visible; display:block }
+  .scroll{ overflow:visible; height:auto }
+}
 
 /* =========================================================
    カレンダー
