@@ -1404,11 +1404,12 @@ function parentMessageEditorHTML(){
     <div class="paper parent-message-form">
       <div class="parent-message-fields">
         <div class="parent-sender-fields">
-          <label class="lab" for="parentMessageSender">表示する名前（より）
+          <label class="lab" for="parentMessageSender">表示する名前
             <select id="parentMessageSender">${parentSenderOptions(msg.sender)}</select></label>
           <label class="lab sender-custom" id="parentMessageCustomWrap" for="parentMessageCustom" hidden>名前
             <input id="parentMessageCustom" type="text" maxlength="20" value="${esc(msg.customSender)}" placeholder="例：おばあちゃん"></label>
         </div>
+        <span class="parent-message-from" aria-hidden="true">より</span>
         <label class="lab parent-message-text" for="parentMessageText">メッセージ
           <textarea id="parentMessageText" rows="1" maxlength="80" placeholder="例：きょうも おつかれさま！">${esc(msg.text)}</textarea></label>
       </div>

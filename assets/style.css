@@ -292,7 +292,7 @@ button{ font:inherit; color:inherit; }
    高いせいで 2枚目だけ 12px 下がり、高さも 12px 短くなる */
 .task-list:not(.task-list--2up) > .task + .task{ margin-top:12px; }
 
-/* まいにちの欄は2つで1段。自由記述だけは横いっぱいに広げる */
+/* まいにちの欄は2つで1段。種類にかかわらず同じ並び方にする。 */
 .task-list--2up{
   display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px;
 }
@@ -304,7 +304,6 @@ button{ font:inherit; color:inherit; }
 }
 .task-list--2up > .task .task-act{ margin-top:auto; align-self:stretch; padding-top:6px; }
 .task-list--2up > .task .task-act .btn{ width:100%; }
-.task-list--2up > .task-free{ grid-column:1 / -1; }
 /* まいにちが奇数のときは、最後の1枚を次の段いっぱいに広げる。 */
 .task-list--2up > .task:last-child:nth-child(odd){ grid-column:1 / -1; }
 
@@ -923,12 +922,16 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .parent-message-form{ padding:14px 16px; }
 .parent-message-fields{
   display:grid;
-  grid-template-columns:minmax(150px, .34fr) minmax(0, 1fr);
-  gap:12px;
+  grid-template-columns:minmax(118px, .34fr) auto minmax(0, 1fr);
+  gap:8px;
   align-items:end;
 }
 .parent-message-fields .lab{ display:grid; gap:6px; }
 .parent-sender-fields{ display:grid; gap:8px; }
+.parent-message-from{
+  align-self:end; margin-bottom:14px;
+  color:var(--ai-usu); font-size:13px; font-weight:900; white-space:nowrap;
+}
 .sender-custom[hidden]{ display:none; }
 .parent-message-text textarea{
   height:56px; min-height:56px; max-height:180px;
@@ -960,7 +963,6 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .welcome-role--share .codex-icon{ width:24px; height:24px; }
 
 @media (max-width:560px){
-  .parent-message-fields{ grid-template-columns:1fr; }
   .parent-message-controls{ align-items:stretch; flex-direction:column; }
   .parent-message-controls .btn{ width:100%; }
   .home-parent-message{ width:calc(100% - 16px); margin-top:8px; }
