@@ -35,7 +35,7 @@ const K_CODE = new URLSearchParams(location.search).get('new') === '1'
 
 /* 打ちまちがえない 文字だけ。0/O と 1/l/I は 入れない */
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
-const CODE_LEN = 20;
+const CODE_LEN = 5;
 
 /* ---------------------------------------------------------
    2. 状態
@@ -63,12 +63,24 @@ function getCode(){
   try{ return localStorage.getItem(K_CODE) || ''; }catch(e){ return ''; }
 }
 function setCode(code){
-  const c = String(code || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const c = String(code || '').trim().normalize('NFKC').replace(/\s+/g,'').replace(/[\/\u0000-\u001f]/g, '');
   try{
     if(c) localStorage.setItem(K_CODE, c);
     else  localStorage.removeItem(K_CODE);
   }catch(e){}
   return c;
+}
+/* 短い・日本語の合言葉も使えるよう、Firestore用のIDだけを十分な長さへ変換する。
+   以前の20文字英数字の合言葉は、既存データに接続できるようそのまま使う。 */
+function hashPart(text, seed){
+  let n = seed >>> 0;
+  for(let i=0; i<text.length; i++) n = Math.imul(n ^ text.charCodeAt(i), 0x01000193) >>> 0;
+  return n.toString(16).padStart(8, '0');
+}
+function houseIdFor(code){
+  const c = String(code || '');
+  if(/^[a-z0-9]+$/i.test(c) && c.length >= 16) return c.toLowerCase();
+  return 'phrase-' + hashPart(c, 0x811c9dc5) + hashPart(c, 0x9e3779b9);
 }
 function makeCode(){
   const buf = new Uint32Array(CODE_LEN);
@@ -92,7 +104,7 @@ async function connect(){
   const code = getCode();
 
   if(!configured()){ setStatus('off', 'Firebase が設定されていません'); return; }
-  if(code.length < 16){ setStatus('off', 'あいことばが設定されていません'); return; }
+  if(code.length < 5){ setStatus('off', 'あいことばが設定されていません'); return; }
 
   setStatus('connecting', 'つないでいます…');
 
@@ -106,7 +118,7 @@ async function connect(){
     }
 
     const fs = Sync._fs;
-    docRef = fs.doc(db, 'households', code);
+    docRef = fs.doc(db, 'households', houseIdFor(code));
 
     if(unsub){ unsub(); unsub = null; }
 
@@ -217,7 +229,7 @@ async function codeHash(code){
   return Array.from(new Uint8Array(digest), b=>b.toString(16).padStart(2,'0')).join('');
 }
 async function registerHousehold(code){
-  if(!configured() || String(code || '').length < 16) return;
+  if(!configured() || String(code || '').length < 5) return;
   if(!db){
     if(!initPromise) initPromise = initFirebase();
     await initPromise;

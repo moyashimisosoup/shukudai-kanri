@@ -119,6 +119,7 @@ function getLocal(key){ try{ return localStorage.getItem(key) || ''; }catch(e){ 
 function setLocal(key, value){ try{ localStorage.setItem(key, value); }catch(e){} }
 function isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
 function isStatsURL(){ return new URLSearchParams(location.search).get(STATS_PARAM) === STATS_VALUE; }
+function cleanCode(value){ return String(value || '').trim().normalize('NFKC').replace(/\s+/g,'').replace(/[\/\u0000-\u001f]/g,''); }
 
 /* ---------------------------------------------------------
    ほかの端末と 合わせる
@@ -462,9 +463,9 @@ function welcomeFormHTML(role){
     <label class="lab">こどもの なまえ
       <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
     ${privacyNoteHTML()}
-    ${syncReady ? `<label class="lab">このおうちの あいことば
-      <input id="welcomeCode" type="text" value="${esc(code)}" readonly></label>
-      <p class="set-note">このあいことばを、こどもの端末で「読みこむ」だけです。人に見せないでください。</p>`
+    ${syncReady ? `<label class="lab">このおうちの あいことば（5文字以上）
+      <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+      <p class="set-note">こどもの端末で同じ合言葉を入れると、記録がそろいます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" type="button">保護者ページを 開く</button>` : `
     <h3>こどもの 設定</h3>
@@ -479,7 +480,7 @@ function welcomeFormHTML(role){
 }
 
 function privacyNoteHTML(){
-  return `<p class="privacy-note">管理者が確認するのは登録家庭数だけです。アクセス元・名前・宿題名・記録内容が管理者へ通知されることはありません。同期を使わない場合、これらはこの端末にだけ保存されます。あいことば同期を使う場合は、同じ家庭の端末と共有するためFirebaseにも保存されます。</p>`;
+  return `<p class="privacy-note">管理者に届くのは登録家庭数だけです。名前・宿題名・記録内容は届きません。合言葉でつないだ端末だけで共有します。</p>`;
 }
 
 /* ---------------------------------------------------------
@@ -1418,9 +1419,7 @@ function syncSectionHTML(opts){
       <span class="sec-note" id="syncStatus">${mark} ${esc(S.statusText() || text)}</span></div>
     <div class="paper">
       ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
-      <p class="set-note">おなじ「あいことば」を入れた端末どうしで、記録と設定が自動でそろいます。
-      親の端末で作って、子の端末の同じ欄に貼り付けてください。
-      あいことばを知っている人は記録を見られるので、他人に渡さないでください。</p>
+      <p class="set-note">同じ「あいことば」を入れた端末どうしで、記録と設定がそろいます。</p>
       <div class="set-row"><span class="lab">あいことば</span>
         <input type="text" id="syncCode" value="${esc(code)}" spellcheck="false"
                autocapitalize="off" autocorrect="off" placeholder="まだ ありません"></div>
@@ -2009,9 +2008,10 @@ function render(opts){
   const keepScroll = !!(opts && opts.keepScroll);
   const y = window.scrollY;
 
-  $('#appTitle').textContent = config.title;
+  const shownTitle = TEST_MODE && !getLocal(K_ONBOARD) ? 'おためし用の設定' : config.title;
+  $('#appTitle').textContent = shownTitle;
   $('#todayLabel').textContent = fmtDate(new Date());
-  document.title = config.title;
+  document.title = shownTitle;
 
   const v = $('#view');
   if(timer){ clearInterval(timer); timer = null; }
@@ -2058,9 +2058,9 @@ function bindWelcome(){
       const name = String($('#welcomeName').value || '').trim();
       const S = window.NatsuSync;
       const codeEl = $('#welcomeCode');
-      const code = codeEl ? String(codeEl.value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+      const code = codeEl ? cleanCode(codeEl.value) : '';
       if(!name){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
-      if(S && S.configured() && code.length < 16){ toast('あいことばを 16文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
+      if(!TEST_MODE && S && S.configured() && code.length < 5){ toast('あいことばを 5文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
       setLocal(K_NAME, name);
       setLocal(K_ROLE, role);
       setLocal(K_ONBOARD, 'done');
@@ -2143,8 +2143,8 @@ function bindSync(){
   if(!input) return;
 
   $('#syncSave').addEventListener('click', ()=>{
-    const c = String(input.value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-    if(c.length < 16){ toast('あいことばが短すぎます（16文字以上）'); return; }
+    const c = cleanCode(input.value);
+    if(c.length < 5){ toast('あいことばを 5文字以上 入れてください'); return; }
     S.reconnect(c);
     toast('つないでいます…');
     render({ keepScroll:true });
