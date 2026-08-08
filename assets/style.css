@@ -112,6 +112,45 @@ button{ font:inherit; color:inherit; }
 }
 .view:focus{ outline:none; }
 
+/* Hallmark · component: setup flow · genre: playful editorial · theme: existing study-notebook
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (existing palette)
+ */
+/* =========================================================
+   はじめの設定
+   ========================================================= */
+.welcome{ max-width:600px; margin:10px auto 30px; }
+.welcome-kicker{ font-size:16px; font-weight:900; color:var(--ai-usu); letter-spacing:.12em; }
+.welcome > h2{ font-size:34px; font-weight:900; line-height:1.25; margin:4px 0 20px; }
+.welcome-step,.welcome-form{
+  display:flex; gap:14px; padding:18px; margin-top:14px;
+  border:var(--line) solid var(--ai); border-radius:var(--r);
+}
+.welcome-step h3,.welcome-form h3{ font-size:22px; font-weight:900; line-height:1.35; margin:0 0 5px; }
+.welcome-step p{ font-size:17px; font-weight:700; }
+.welcome-num{
+  flex:0 0 38px; height:38px; display:grid; place-items:center;
+  color:var(--kami); background:var(--suika); border-radius:50%; font-weight:900;
+}
+.welcome-roles{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; margin-top:12px; }
+.welcome-role{ min-height:74px; line-height:1.25; }
+.welcome-role small{ font-size:13px; font-weight:700; }
+.welcome-form{ display:block; }
+.welcome-form .lab{ display:block; font-size:16px; font-weight:900; margin:12px 0; }
+.welcome-form input{ margin-top:4px; }
+.welcome-form .btn-wide{ width:100%; margin-top:8px; }
+.stats-count{
+  margin:12px 0 6px; padding:16px; text-align:center;
+  font-family:var(--font-num); font-size:38px; font-weight:900;
+  color:var(--wakaba); background:var(--wakaba-usu); border:2px dashed var(--wakaba);
+  border-radius:var(--r-s); font-variant-numeric:tabular-nums;
+}
+@media (max-width:400px){
+  .welcome > h2{ font-size:29px; }
+  .welcome-step{ padding:15px; gap:11px; }
+  .welcome-roles{ grid-template-columns:1fr; }
+}
+
 /* かみ = カード */
 .paper{
   background:var(--kami);

@@ -10,8 +10,17 @@
    --------------------------------------------------------- */
 const K_CFG = 'natsu.config.v2';
 const K_ST  = 'natsu.state.v2';
+/* 初期設定は端末ごとに一度だけ表示する。家庭の設定そのものは従来どおり
+   Firebase（あいことば）経由で共有し、端末の役割・表示名だけは端末内に残す。 */
+const K_ONBOARD = 'natsu.onboarding.v1';
+const K_ROLE = 'natsu.device.role.v1';
+const K_NAME = 'natsu.device.name.v1';
+const K_METRIC = 'natsu.metric.registered.v1';
+/* URL の隠し入口。静的サイトなので認証ではなく、通常画面に出さないための合図。 */
+const STATS_PARAM = 'stats';
+const STATS_VALUE = 'family-count';
 
-const TABS = ['home','log','calendar','books','writes','settings','config'];
+const TABS = ['welcome','stats','home','log','calendar','books','writes','settings','config'];
 
 function isBook(t){ return t && t.type === 'count' && t.recordStyle === 'book'; }
 function isFree(t){ return t && t.type === 'daily' && t.recordStyle === 'free'; }
@@ -51,6 +60,13 @@ function migrate5to6(c){
    画面が切りかわらない（リンクが効かないように見える）ので、
    入口を ひとつに まとめる */
 function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[] }; }
+/* 複数家庭向けの新規セットアップでは「毎日やる」は最初から出さない。
+   以前から使っている家庭のデータは残すが、子ども画面・設定画面には表示しない。 */
+function freshConfig(){
+  const c = deepCopy(DEFAULT_CONFIG);
+  c.tasks = (c.tasks || []).filter(t => t.group !== 'daily');
+  return c;
+}
 
 function normalizeState(s){
   if(!s || typeof s !== 'object' || !s.progress) return emptyState();
@@ -65,8 +81,8 @@ function loadAll(){
     const c = JSON.parse(localStorage.getItem(K_CFG) || 'null');
     if(c && c.schema === SCHEMA)   config = c;
     else if(c && c.schema === 5) { config = migrate5to6(c); saveCfg(); }
-    else                           config = deepCopy(DEFAULT_CONFIG);
-  }catch(e){ config = deepCopy(DEFAULT_CONFIG); }
+    else                           config = freshConfig();
+  }catch(e){ config = freshConfig(); }
 
   try{
     state = normalizeState(JSON.parse(localStorage.getItem(K_ST) || 'null'));
@@ -89,6 +105,10 @@ function saveSt(){
   syncPush('state');
 }
 function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
+function getLocal(key){ try{ return localStorage.getItem(key) || ''; }catch(e){ return ''; } }
+function setLocal(key, value){ try{ localStorage.setItem(key, value); }catch(e){} }
+function isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+function isStatsURL(){ return new URLSearchParams(location.search).get(STATS_PARAM) === STATS_VALUE; }
 
 /* ---------------------------------------------------------
    ほかの端末と 合わせる
@@ -392,12 +412,82 @@ function overall(group){
 }
 
 /* ---------------------------------------------------------
+   ビュー：はじめの設定
+   iOS はブラウザ側の「ホーム画面に追加」を Web ページから直接開けないため、
+   先に分かりやすく案内し、あとから追加した場合の同期方法も明記する。 */
+function viewWelcome(){
+  const S = window.NatsuSync;
+  const hasSync = !!(S && S.configured());
+  const installed = isStandalone();
+  return `
+  <section class="welcome" aria-labelledby="welcomeTitle">
+    <p class="welcome-kicker">はじめの じゅんび</p>
+    <h2 id="welcomeTitle">この おうちの<br>しゅくだいノート</h2>
+    <div class="paper welcome-step">
+      <span class="welcome-num">1</span>
+      <div><h3>ホーム画面に 追加しよう</h3>
+      <p>${installed ? 'この端末はホーム画面から開いています。' : 'iPad / iPhone では、Safari の共有ボタン →「ホーム画面に追加」を押すと、いつも同じ場所から開けます。'}</p>
+      <p class="set-note">あとでホーム画面に追加したときも、あいことばを読み込めば同じ記録と設定がそろいます。</p></div>
+    </div>
+    <div class="paper welcome-step">
+      <span class="welcome-num">2</span>
+      <div><h3>この端末は だれが つかう？</h3>
+      <div class="welcome-roles">
+        <button class="btn btn-go welcome-role" data-welcome-role="parent" type="button">おうちの人<br><small>あいことばを 設定</small></button>
+        <button class="btn welcome-role" data-welcome-role="child" type="button">こども<br><small>あいことばを 読みこむ</small></button>
+      </div>
+      ${hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>'}</div>
+    </div>
+    <div class="paper welcome-form" id="welcomeForm" hidden></div>
+  </section>`;
+}
+
+function welcomeFormHTML(role){
+  const S = window.NatsuSync;
+  const syncReady = !!(S && S.configured());
+  const name = getLocal(K_NAME);
+  const code = role === 'parent' && syncReady ? S.makeCode() : '';
+  return role === 'parent' ? `
+    <h3>おうちの人の 設定</h3>
+    <label class="lab">こどもの なまえ
+      <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
+    ${syncReady ? `<label class="lab">このおうちの あいことば
+      <input id="welcomeCode" type="text" value="${esc(code)}" readonly></label>
+      <p class="set-note">このあいことばを、こどもの端末で「読みこむ」だけです。人に見せないでください。</p>`
+      : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
+    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" type="button">保護者ページを 開く</button>` : `
+    <h3>こどもの 設定</h3>
+    <label class="lab">なまえを 確認しよう
+      <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
+    ${syncReady ? `<label class="lab">おうちの人から もらった あいことば
+      <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
+      <p class="set-note">読みこむと、おうちの人が決めた宿題と記録が表示されます。</p>`
+      : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
+    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" type="button">こども画面を 開く</button>`;
+}
+
+/* ---------------------------------------------------------
+   ビュー：登録家庭数（URL の隠し入口からだけ開く） */
+function viewStats(){
+  return `
+  <section class="welcome" aria-labelledby="statsTitle">
+    <p class="welcome-kicker">うんよう よう</p>
+    <h2 id="statsTitle">登録家庭数</h2>
+    <div class="paper welcome-form">
+      <p class="set-note">初期設定を完了した家庭を、名前や記録内容を見ずに数えています。</p>
+      <p class="stats-count" id="statsCount">読みこんでいます…</p>
+      <p class="set-note" id="statsNote">この画面は通常のメニューには表示されません。</p>
+    </div>
+  </section>`;
+}
+
+/* ---------------------------------------------------------
    ビュー：ホーム
    --------------------------------------------------------- */
 function viewHome(){
   const must  = config.tasks.filter(t=>t.group==='must');
   const opt   = config.tasks.filter(t=>t.group==='option');
-  const daily = config.tasks.filter(t=>t.group==='daily');
+  const daily = config.showDaily ? config.tasks.filter(t=>t.group==='daily') : [];
   const o = overall('must');
   const nokori = must.filter(t=>!prog(t).isDone).length;
 
@@ -1080,8 +1170,6 @@ function viewParent(){
 
   ${group('must','必ずやる')}
   ${group('option','できればやる')}
-  ${group('daily','毎日')}
-
   ${bookSectionHTML()}
 
   <section class="sec">
@@ -1121,7 +1209,7 @@ function viewParent(){
 function viewConfig(){
   const t2opt = (v,cur,label) => `<option value="${v}"${v===cur?' selected':''}>${label}</option>`;
 
-  const taskRows = config.tasks.map((t,i)=>`
+  const taskRows = config.tasks.map((t,i)=>({t,i})).filter(row=>row.t.group!=='daily').map(({t,i})=>`
     <div class="set-task" data-i="${i}">
       <div class="set-task-top">
         <input type="text" data-f="name" value="${esc(t.name)}">
@@ -1134,14 +1222,12 @@ function viewConfig(){
           <select data-f="group">
             ${t2opt('must',t.group,'必ずやる')}
             ${t2opt('option',t.group,'できればやる')}
-            ${t2opt('daily',t.group,'毎日')}
           </select>
         </label>
         <label>進め方
           <select data-f="type">
             ${t2opt('count',t.type,'番号・数')}
             ${t2opt('step',t.type,'段階式')}
-            ${t2opt('daily',t.type,'毎日のノルマ')}
           </select>
         </label>
         ${t.type==='count' ? `
@@ -1912,7 +1998,9 @@ function render(opts){
   const v = $('#view');
   if(timer){ clearInterval(timer); timer = null; }
 
-  if(tab === 'home')          v.innerHTML = viewHome();
+  if(tab === 'welcome')       v.innerHTML = viewWelcome();
+  else if(tab === 'stats')    v.innerHTML = viewStats();
+  else if(tab === 'home')     v.innerHTML = viewHome();
   else if(tab === 'log')      v.innerHTML = viewLog();
   else if(tab === 'calendar') v.innerHTML = viewCalendar();
   else if(tab === 'books')    v.innerHTML = viewBooks();
@@ -1930,9 +2018,64 @@ function render(opts){
     renderCountdown();
     timer = setInterval(renderCountdown, 1000);
   }
+  if(tab === 'welcome')  bindWelcome();
+  if(tab === 'stats')    bindStats();
   if(tab === 'settings'){ bindParent(); bindSync(); }
   if(tab === 'config')   bindConfig();
   window.scrollTo(0, keepScroll ? y : 0);
+}
+
+function bindWelcome(){
+  $$('[data-welcome-role]').forEach(btn => btn.addEventListener('click', ()=>{
+    /* module の sync.js が読み込み途中なら、あいことば無しで始めて
+       しまわないよう一度だけ待ってもらう。読み込み完了時に画面は自動更新する。 */
+    if(!window.NatsuSync){ toast('同期の準備を 読みこんでいます…'); return; }
+    const form = $('#welcomeForm');
+    form.innerHTML = welcomeFormHTML(btn.dataset.welcomeRole);
+    form.hidden = false;
+    form.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    const start = $('#welcomeStart');
+    start.addEventListener('click', ()=>{
+      const role = start.dataset.role;
+      const name = String($('#welcomeName').value || '').trim();
+      const S = window.NatsuSync;
+      const codeEl = $('#welcomeCode');
+      const code = codeEl ? String(codeEl.value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+      if(!name){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
+      if(S && S.configured() && code.length < 16){ toast('あいことばを 16文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
+      setLocal(K_NAME, name);
+      setLocal(K_ROLE, role);
+      setLocal(K_ONBOARD, 'done');
+      if(role === 'parent'){
+        config.childName = name;
+        if(config.title === DEFAULT_CONFIG.title) config.title = name + 'の なつやすみの しゅくだい';
+        saveCfg();
+      }
+      if(S && S.configured()){
+        S.reconnect(code);
+        /* 同じ家庭を複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */
+        S.registerHousehold(code).catch(()=>{});
+      }
+      location.hash = role === 'parent' ? 'settings' : 'home';
+    });
+  }));
+}
+
+function bindStats(){
+  const S = window.NatsuSync;
+  const out = $('#statsCount');
+  const note = $('#statsNote');
+  if(!S || !S.configured()){
+    out.textContent = '集計を読みこめません';
+    note.textContent = 'Firebase の設定を確認してください。';
+    return;
+  }
+  S.getRegistrationCount().then(count=>{
+    out.textContent = Number(count || 0).toLocaleString('ja-JP') + ' 家庭';
+  }).catch(()=>{
+    out.textContent = '集計を読みこめません';
+    note.textContent = 'Firestore のルールに metrics の読み取り許可を追加してください。';
+  });
 }
 
 /* ---------------------------------------------------------
@@ -2469,11 +2612,17 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==
 /* かいたもの いちらんだけは 課題を えらぶので '#writes:<taskId>' の形にする。
    ハッシュに 課題を のせておけば、もどる・すすむでも 同じ画面に かえれる */
 function routeFromHash(){
+  if(isStatsURL()) return 'stats';
   const h = (location.hash || '').replace(/^#/, '');
   const c = h.indexOf(':');
   const name = c < 0 ? h : h.slice(0, c);
   if(name === 'writes'){ writesTaskId = c < 0 ? writesTaskId : h.slice(c + 1); return 'writes'; }
-  return TABS.indexOf(h) >= 0 ? h : 'home';
+  const requested = TABS.indexOf(h) >= 0 ? h : 'home';
+  /* すでにこの端末で使い始めている家庭は、導線変更で止めない。
+     保存済みデータのない新規端末だけ、最初の設定に案内する。 */
+  const hasExistingData = !!(getLocal(K_CFG) || getLocal(K_ST));
+  if(requested !== 'welcome' && !getLocal(K_ONBOARD) && !hasExistingData) return 'welcome';
+  return requested;
 }
 window.addEventListener('hashchange', ()=>{
   const t = routeFromHash();
@@ -2487,7 +2636,7 @@ window.addEventListener('hashchange', ()=>{
    ここで もう1回 描き直す（そうしないと「べつの端末と つなぐ」の欄が
    ずっと「読み込みに失敗しました」のまま 固まって見える） */
 window.addEventListener('natsu:sync-ready', ()=>{
-  if(tab === 'config' || tab === 'settings') render({ keepScroll:true });
+  if(tab === 'welcome' || tab === 'stats' || tab === 'config' || tab === 'settings') render({ keepScroll:true });
 }, { once:true });
 
 /* ---------------------------------------------------------

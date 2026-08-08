@@ -204,7 +204,44 @@ async function flush(){
 }
 
 /* ---------------------------------------------------------
-   6. 外に見せるもの
+   6. 匿名の登録家庭数
+   あいことばそのものは保存せず、SHA-256 の値だけで同じ家庭を見分ける。
+   初期設定の親端末から一度だけ呼ばれる。100家庭程度なら1文書の集計で十分で、
+   競合時は Firestore の transaction が再試行する。 */
+async function codeHash(code){
+  const bytes = new TextEncoder().encode(String(code || '').trim().toLowerCase());
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function registerHousehold(code){
+  if(!configured() || String(code || '').length < 16) return;
+  if(!db){
+    if(!initPromise) initPromise = initFirebase();
+    await initPromise;
+  }
+  const hash = await codeHash(code);
+  const ref = Sync._fs.doc(db, 'metrics', 'registrations');
+  await Sync._fs.runTransaction(db, async tx=>{
+    const snap = await tx.get(ref);
+    const data = snap.exists() ? (snap.data() || {}) : {};
+    const households = data.households || {};
+    if(households[hash]) return;
+    households[hash] = Date.now();
+    tx.set(ref, { count:Object.keys(households).length, households }, { merge:true });
+  });
+}
+async function getRegistrationCount(){
+  if(!configured()) throw new Error('Firebase が設定されていません');
+  if(!db){
+    if(!initPromise) initPromise = initFirebase();
+    await initPromise;
+  }
+  const snap = await Sync._fs.getDoc(Sync._fs.doc(db, 'metrics', 'registrations'));
+  return snap.exists() ? Number((snap.data() || {}).count || 0) : 0;
+}
+
+/* ---------------------------------------------------------
+   7. 外に見せるもの
    --------------------------------------------------------- */
 const Sync = {
   _fs: null,
@@ -217,6 +254,8 @@ const Sync = {
   pushAll,
   connect,
   disconnect,
+  registerHousehold,
+  getRegistrationCount,
   /* あいことばを 入れ替えて つなぎ直す */
   async reconnect(code){
     setCode(code);
