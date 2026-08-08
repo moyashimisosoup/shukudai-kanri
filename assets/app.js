@@ -460,6 +460,23 @@ function streakOf(days, target){
   return n;
 }
 
+/* 「1日 れんぞく」は 言い方が おかしいので、1日のうちは 「れんぞく」を つかわない。
+   streakOf は きょうが まだでも きのうまでを 数えるため、1日には
+   「きょう やった1日目」と「きのう やって きょうは まだ」の 2つが ある。
+   p.isDone（きょうの ぶんが すんだか）で 見わける。
+   きょう やった1日目は、できた ことが 数や ハートで もう 見えているので
+   何も 出さない。ここは あくまで れんぞくの ための そえ書き。 */
+function streakLabel(p){
+  if(!(p.streak > 0)) return '';
+  if(p.streak >= 2) return p.streak + '日 れんぞく';
+  return p.isDone ? '' : 'きのう できたね';
+}
+function streakLabelKanji(p){
+  if(!(p.streak > 0)) return '連続なし';
+  if(p.streak >= 2) return p.streak + '日連続';
+  return p.isDone ? '' : '昨日できた';
+}
+
 function nextLabel(task){
   const p = prog(task);
   if(p.isDone) return null;
@@ -800,13 +817,13 @@ function taskHTML(t){
       let hearts = '';
       for(let i=1;i<=n;i++) hearts += `<span class="heart${i<=p.done?' on':''}">❤️</span>`;
       meter = `<div class="task-meter"><div class="hearts">${hearts}</div>
-        ${p.streak>0 ? `<span class="streak">${p.streak}日 れんぞく</span>` : ''}
+        ${streakLabel(p) ? `<span class="streak">${streakLabel(p)}</span>` : ''}
       </div>`;
     }else{
       meter = `<div class="task-meter task-meter--bar task-meter--daily">
         <div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div>
         <span class="task-count">${esc(p.text)}</span>
-        ${p.streak>0 ? `<span class="streak">${p.streak}日 れんぞく</span>` : ''}
+        ${streakLabel(p) ? `<span class="streak">${streakLabel(p)}</span>` : ''}
       </div>`;
     }
   }else{
@@ -2760,7 +2777,7 @@ function summaryLine(t){
   if(t.type === 'daily'){
     const mark = p.isDone ? '✓ ' : '・';
     return mark + t.name + '  今日 ' + p.done + '/' + p.total + (t.targetUnit||'')
-         + (p.streak > 0 ? '  ' + p.streak + '日連続' : '  連続なし');
+         + (streakLabelKanji(p) ? '  ' + streakLabelKanji(p) : '');
   }
   if(p.isDone) return '✓ ' + t.name + '  ' + p.text + '  完了';
 
