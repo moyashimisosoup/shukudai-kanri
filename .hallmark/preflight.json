@@ -2,7 +2,7 @@
   "date": "2026-08-08",
   "framework": "vanilla-html",
   "font": "Zen Maru Gothic with Japanese system fallbacks",
-  "palette": "CSS custom properties with five data-theme variants",
+  "palette": "CSS custom properties with six data-theme variants",
   "motion": "motion-cut; CSS transitions only",
   "spacing": "4-point semantic scale in tokens.css"
 }

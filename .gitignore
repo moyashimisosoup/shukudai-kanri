@@ -3,3 +3,4 @@ Thumbs.db
 .playwright-mcp/
 *.log
 .claude/
+node_modules/

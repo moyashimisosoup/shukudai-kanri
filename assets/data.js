@@ -36,6 +36,7 @@ const DEFAULT_CONFIG = {
   parentMessage: {
     enabled: false,
     sender: 'おかあさん',
+    customSender: '',
     text: ''
   },
   startAt: '2026-07-21T00:00',
@@ -82,7 +83,7 @@ const DEFAULT_CONFIG = {
     },
     {
       id:'eco', group:'must', type:'step', wrapUp:true,
-      name:'なかの エコチャレンジ',
+      name:'エコチャレンジ',
       steps:['やることを きめる','1日め','2日め','3日め','4日め','5日め','6日め','7日め','かんそうを かく'],
       memoLabel:'きょう やった エコ'
     },

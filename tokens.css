@@ -1,5 +1,5 @@
 /* Hallmark · macrostructure: Workbench · genre: playful · tone: friendly-exact · anchor hue: study-blue
- * pre-emit critique: P5 H5 E4 S5 R4 V5
+ * pre-emit critique: P5 H5 E5 S5 R5 V5
  */
 :root,
 [data-theme="notebook"]{
@@ -75,21 +75,40 @@
 }
 
 [data-theme="block"]{
-  --ai:oklch(29% .075 145); --ai-usu:oklch(46% .055 145);
-  --kami:oklch(98% .018 95); --sora:oklch(88% .075 220); --hougan:oklch(72% .085 145);
-  --suika:oklch(45% .16 28); --himawari:oklch(75% .145 80);
-  --asagao:oklch(44% .135 300); --wakaba:oklch(42% .12 140);
-  --suika-usu:oklch(94% .035 28); --himawari-usu:oklch(95% .045 80);
-  --asagao-usu:oklch(94% .03 300); --wakaba-usu:oklch(92% .045 140);
-  --surface-soft:oklch(94% .035 95); --bar-track:oklch(91% .045 145);
-  --on-band-muted:oklch(83% .04 125); --on-must-muted:oklch(91% .04 28);
-  --on-option:oklch(32% .075 72); --on-daily-muted:oklch(88% .04 300);
-  --focus:oklch(55% .14 80); --star-off:oklch(81% .04 95);
-  --pace-past-a:oklch(72% .085 145); --pace-past-b:oklch(82% .06 145);
-  --fun-a:oklch(96% .035 95); --fun-b:oklch(92% .055 80);
+  --ai:oklch(29% .04 132); --ai-usu:oklch(45% .035 65);
+  --kami:oklch(98% .018 78); --sora:oklch(90% .075 132); --hougan:oklch(72% .07 64);
+  --suika:oklch(45% .15 28); --himawari:oklch(76% .14 78);
+  --asagao:oklch(44% .125 290); --wakaba:oklch(48% .145 132);
+  --suika-usu:oklch(94% .035 28); --himawari-usu:oklch(95% .045 78);
+  --asagao-usu:oklch(94% .03 290); --wakaba-usu:oklch(93% .055 132);
+  --surface-soft:oklch(94% .03 78); --bar-track:oklch(90% .045 64);
+  --on-band-muted:oklch(83% .045 132); --on-must-muted:oklch(91% .04 28);
+  --on-option:oklch(32% .075 72); --on-daily-muted:oklch(88% .04 290);
+  --focus:oklch(55% .14 78); --star-off:oklch(81% .04 78);
+  --pace-past-a:oklch(75% .07 64); --pace-past-b:oklch(84% .05 64);
+  --fun-a:oklch(97% .03 78); --fun-b:oklch(93% .045 64);
   --r:4px; --r-s:2px; --r-button:4px; --r-pill:4px; --line:3px; --masu:32px;
-  --shadow:0 5px 0 var(--ai); --shadow-lift:0 7px 0 var(--ai);
-  --page-pattern:blocks;
+  --shadow:0 4px 0 var(--ai); --shadow-lift:0 6px 0 var(--ai);
+  --page-pattern:flat;
+}
+
+[data-theme="cat"]{
+  --ai:oklch(31% .04 42); --ai-usu:oklch(50% .04 42);
+  --kami:oklch(99% .012 78); --sora:oklch(94% .035 45); --hougan:oklch(83% .045 25);
+  --suika:oklch(49% .15 22); --himawari:oklch(79% .14 80);
+  --asagao:oklch(48% .12 300); --wakaba:oklch(46% .11 148);
+  --suika-usu:oklch(96% .03 22); --himawari-usu:oklch(97% .04 80);
+  --asagao-usu:oklch(96% .025 300); --wakaba-usu:oklch(95% .035 148);
+  --surface-soft:oklch(96% .025 48); --bar-track:oklch(94% .03 35);
+  --on-band-muted:oklch(86% .035 42); --on-must-muted:oklch(93% .04 22);
+  --on-option:oklch(38% .08 72); --on-daily-muted:oklch(91% .04 300);
+  --focus:oklch(50% .13 300); --star-off:oklch(86% .03 42);
+  --pace-past-a:oklch(81% .045 35); --pace-past-b:oklch(89% .03 35);
+  --fun-a:oklch(99% .025 75); --fun-b:oklch(96% .035 42);
+  --cat-paw:oklch(87% .04 28);
+  --r:20px; --r-s:14px; --r-button:14px; --r-pill:999px; --line:2px; --masu:64px;
+  --shadow:0 3px 0 var(--ai); --shadow-lift:0 5px 0 var(--ai);
+  --page-pattern:paws;
 }
 
 :root{
@@ -106,7 +125,8 @@
   --preview-sunny-a:oklch(94% .05 91); --preview-sunny-b:oklch(79% .155 83); --preview-sunny-c:oklch(47% .16 28);
   --preview-soda-a:oklch(92% .055 190); --preview-soda-b:oklch(48% .145 245); --preview-soda-c:oklch(45% .115 160);
   --preview-berry-a:oklch(92% .045 320); --preview-berry-b:oklch(47% .135 285); --preview-berry-c:oklch(47% .155 15);
-  --preview-block-a:oklch(88% .075 220); --preview-block-b:oklch(42% .12 140); --preview-block-c:oklch(75% .145 80);
+  --preview-block-a:oklch(90% .075 132); --preview-block-b:oklch(48% .145 132); --preview-block-c:oklch(48% .075 64);
+  --preview-cat-a:oklch(94% .035 45); --preview-cat-b:oklch(83% .045 25); --preview-cat-c:oklch(49% .15 22);
 }
 
 html,body{overflow-x:clip}
@@ -120,5 +140,12 @@ body{background-image:linear-gradient(var(--hougan) 1px,transparent 1px),linear-
   background-size:var(--masu) var(--masu);
 }
 [data-theme="block"] body{
-  background-image:linear-gradient(var(--hougan) var(--line),transparent var(--line)),linear-gradient(90deg,var(--hougan) var(--line),transparent var(--line));
+  background-image:none;
+}
+[data-theme="cat"] body{
+  background-image:
+    radial-gradient(circle at 50% 58%,var(--cat-paw) 0 3px,transparent 3.5px),
+    radial-gradient(circle at 38% 34%,var(--cat-paw) 0 1.5px,transparent 2px),
+    radial-gradient(circle at 62% 34%,var(--cat-paw) 0 1.5px,transparent 2px);
+  background-size:var(--masu) var(--masu);
 }

@@ -52,11 +52,13 @@ const THEMES = [
   { id:'sunny',    name:'おひさま', note:'あかるい クリームいろ' },
   { id:'soda',     name:'ソーダ', note:'すずしい みずいろと ミント' },
   { id:'berry',    name:'ベリー', note:'やさしい むらさきと きのみいろ' },
-  { id:'block',    name:'ブロック', note:'マインクラフト風の しかくい デザイン' }
+  { id:'block',    name:'ブロック', note:'しかくい デザイン' },
+  { id:'cat',      name:'ネコ', note:'ねこちゃんの やさしい デザイン' }
 ];
 const THEME_IDS = THEMES.map(t=>t.id);
-const THEME_META = { notebook:'#14375E', sunny:'#59422E', soda:'#155466', berry:'#55344F', block:'#315A3A' };
+const THEME_META = { notebook:'#14375E', sunny:'#59422E', soda:'#155466', berry:'#55344F', block:'#31422B', cat:'#62483F' };
 const DAILY_UNIT_PRESETS = ['かい','ハート','ふん','ページ','もん'];
+const PARENT_SENDERS = ['おかあさん','おとうさん','その他','名前表示なし'];
 
 function taskKind(t){ return t && t.group === 'daily' ? 'daily' : (isBook(t) ? 'book' : 'normal'); }
 function dailyUnitPreset(unit){ return DAILY_UNIT_PRESETS.includes(unit) ? unit : 'custom'; }
@@ -112,7 +114,8 @@ function normalizeConfig(c){
   const msg = c.parentMessage && typeof c.parentMessage === 'object' ? c.parentMessage : {};
   c.parentMessage = {
     enabled: !!msg.enabled,
-    sender: msg.sender === 'おとうさん' ? 'おとうさん' : 'おかあさん',
+    sender: PARENT_SENDERS.includes(msg.sender) ? msg.sender : 'おかあさん',
+    customSender: String(msg.customSender || '').trim().slice(0, 20),
     text: String(msg.text || '').trim().slice(0, 80)
   };
   return c;
@@ -489,19 +492,44 @@ function viewWelcome(){
       <span class="welcome-num">1</span>
       <div><h3>ホーム画面に 追加しよう</h3>
       <p>${installed ? 'この端末はホーム画面から開いています。' : 'iPad / iPhone では、Safari の共有ボタン →「ホーム画面に追加」を押すと、いつも同じ場所から開けます。'}</p>
-      <p class="set-note">あとでホーム画面に追加したときも、あいことばを読み込めば同じ記録と設定がそろいます。</p></div>
+      <p class="set-note">あとでホーム画面に追加したときも、あいことばを読み込めば、同じ家庭の複数の端末で同じ記録と設定を使えます。</p></div>
     </div>
     <div class="paper welcome-step">
       <span class="welcome-num">2</span>
       <div><h3>どうやって つかう？</h3>
       <div class="welcome-roles">
         <button class="btn btn-go welcome-role" data-welcome-mode="solo" type="button">こどもだけで つかう<br><small>すぐに つかえます</small></button>
-        <button class="btn welcome-role" data-welcome-mode="share" type="button">保護者も 共有する<br><small>あとからでも 設定できます</small></button>
+        <button class="btn welcome-role welcome-role--share" data-welcome-mode="share" type="button">${icon('users')}<span>保護者も 共有する<br><small>あとからでも 設定できます</small></span></button>
       </div>
       ${TEST_MODE ? '<p class="set-note">おためしモードでは、いま使っている家庭のデータ・あいことば・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>')}</div>
     </div>
     <div class="paper welcome-form" id="welcomeForm" hidden></div>
   </section>`;
+}
+function icon(name){
+  const svg = window.CodeXIcons && window.CodeXIcons[name];
+  return svg ? `<span class="codex-icon" aria-hidden="true">${svg}</span>` : '';
+}
+function parentSenderOptions(selected){
+  return PARENT_SENDERS.map(value=>`<option value="${value}"${value===selected?' selected':''}>${parentSenderLabel(value)}</option>`).join('');
+}
+function parentSenderLabel(value){
+  const useKanji = readingGrade() >= 2;
+  if(value === 'おかあさん') return useKanji ? 'お母さん' : 'おかあさん';
+  if(value === 'おとうさん') return useKanji ? 'お父さん' : 'おとうさん';
+  return value;
+}
+function parentMessageHeading(msg){
+  if(msg.sender === '名前表示なし') return 'おうちの人からの メッセージ';
+  const sender = msg.sender === 'その他' ? (msg.customSender || 'おうちの人') : parentSenderLabel(msg.sender);
+  return `${sender}からの メッセージ`;
+}
+function bindParentSender(selectId, customWrapId){
+  const select = $('#'+selectId), wrap = $('#'+customWrapId);
+  if(!select || !wrap) return;
+  const update = ()=>{ wrap.hidden = select.value !== 'その他'; };
+  select.addEventListener('change', update);
+  update();
 }
 
 function welcomeRolePickerHTML(){
@@ -509,7 +537,8 @@ function welcomeRolePickerHTML(){
     <div class="welcome-roles">
       <button class="btn btn-go welcome-role" data-welcome-role="parent" type="button">おうちの人の端末<br><small>合言葉を 作る</small></button>
       <button class="btn welcome-role" data-welcome-role="child" type="button">こどもの端末<br><small>合言葉を 入れる</small></button>
-    </div>`;
+    </div>
+    <p class="set-note">同じ合言葉を入れると、同じ家庭の複数の端末で使えます。</p>`;
 }
 
 function welcomeFormHTML(role, sharing){
@@ -526,7 +555,7 @@ function welcomeFormHTML(role, sharing){
     ${privacyNoteHTML()}
     ${syncReady ? `<label class="lab">このおうちの あいことば（5文字以上）
       <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-      <p class="set-note">こどもの端末で同じ合言葉を入れると、記録がそろいます。</p>`
+      <p class="set-note">こどもの端末など、複数の端末で同じ合言葉を入れると、同じ記録と設定を使えます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes" type="button">保護者ページを 開く</button>` : `
     <h3>こどもの 設定</h3>
@@ -537,13 +566,13 @@ function welcomeFormHTML(role, sharing){
     ${privacyNoteHTML()}
     ${syncReady ? `<label class="lab">おうちの人から もらった あいことば
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
-      <p class="set-note">読みこむと、おうちの人が決めた宿題と記録が表示されます。</p>`
+      <p class="set-note">読みこむと、おうちの人が決めた宿題と記録を、複数の端末で使えます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="${sharing?'yes':'no'}" type="button">こども画面を 開く</button>`;
 }
 
 function privacyNoteHTML(){
-  return `<p class="privacy-note">管理者に届くのは登録家庭数だけです。名前・宿題名・記録内容は届きません。合言葉でつないだ端末だけで共有します。</p>`;
+  return `<p class="privacy-note">管理者に届くのは登録家庭数だけです。名前・宿題名・記録内容は届きません。合言葉でつないだ複数の端末だけで共有します。</p>`;
 }
 
 function welcomeMessageChoiceHTML(){
@@ -552,11 +581,10 @@ function welcomeMessageChoiceHTML(){
     <p class="welcome-kicker">さいごの かくにん</p>
     <h3>おうちの人からの メッセージを 使いますか？</h3>
     <p>保護者ページから、こどもの画面へ短いメッセージを出せます。</p>
-    <label class="lab">だれからの メッセージ？
-      <select id="welcomeMessageSender">
-        <option value="おかあさん"${msg.sender==='おかあさん'?' selected':''}>おかあさん</option>
-        <option value="おとうさん"${msg.sender==='おとうさん'?' selected':''}>おとうさん</option>
-      </select></label>
+    <label class="lab" for="welcomeMessageSender">だれからの メッセージ？
+      <select id="welcomeMessageSender">${parentSenderOptions(msg.sender)}</select></label>
+    <label class="lab sender-custom" id="welcomeMessageCustomWrap" for="welcomeMessageCustom" hidden>表示する名前
+      <input id="welcomeMessageCustom" type="text" maxlength="20" value="${esc(msg.customSender)}" placeholder="例：おばあちゃん"></label>
     <div class="welcome-roles welcome-message-actions">
       <button class="btn btn-go welcome-role" data-message-choice="yes" type="button">使う</button>
       <button class="btn welcome-role" data-message-choice="no" type="button">今は 使わない</button>
@@ -622,10 +650,11 @@ function viewHome(){
 function parentMessageHTML(){
   const msg = config.parentMessage;
   if(!msg.enabled || !msg.text) return '';
+  const heading = parentMessageHeading(msg);
   return `
-  <section class="home-parent-message" aria-label="${esc(msg.sender)}からの メッセージ">
+  <section class="home-parent-message" aria-label="${esc(heading)}">
     <div class="paper parent-message-note">
-      <strong>${esc(msg.sender)}からの メッセージ</strong>
+      <strong>${esc(heading)}</strong>
       <p>${esc(msg.text)}</p>
     </div>
   </section>`;
@@ -1335,17 +1364,18 @@ function parentMessageEditorHTML(){
     <div class="sec-head"><h2>こどもへの メッセージ</h2><span class="sec-note">80文字まで</span></div>
     <div class="paper parent-message-form">
       <div class="parent-message-fields">
-        <label class="lab" for="parentMessageSender">表示する名前
-          <select id="parentMessageSender">
-            <option value="おかあさん"${msg.sender==='おかあさん'?' selected':''}>おかあさん</option>
-            <option value="おとうさん"${msg.sender==='おとうさん'?' selected':''}>おとうさん</option>
-          </select></label>
+        <div class="parent-sender-fields">
+          <label class="lab" for="parentMessageSender">表示する名前
+            <select id="parentMessageSender">${parentSenderOptions(msg.sender)}</select></label>
+          <label class="lab sender-custom" id="parentMessageCustomWrap" for="parentMessageCustom" hidden>名前
+            <input id="parentMessageCustom" type="text" maxlength="20" value="${esc(msg.customSender)}" placeholder="例：おばあちゃん"></label>
+        </div>
         <label class="lab parent-message-text" for="parentMessageText">メッセージ
           <textarea id="parentMessageText" rows="2" maxlength="80" placeholder="例：きょうも おつかれさま！">${esc(msg.text)}</textarea></label>
       </div>
       <div class="parent-message-controls">
         <label class="parent-message-toggle"><input id="parentMessageEnabled" type="checkbox"${msg.enabled?' checked':''}> こども画面に 表示する</label>
-        <button class="btn btn-sm btn-do" id="parentMessageSave" type="button">保存する</button>
+        <button class="btn btn-sm btn-do btn-icon-text" id="parentMessageSave" type="button">${icon('save')}<span>保存する</span></button>
       </div>
       <p class="set-note">空欄またはチェックを外したときは、こども画面に表示されません。</p>
     </div>
@@ -1377,7 +1407,7 @@ function syncPromptHTML(){
   return `
   <section class="sec sync-prompt">
     ${syncSectionHTML({ lead:'この端末の記録は、まだこの端末の中だけにあります。'
-                           + 'ほかの端末と共有するには、あいことばを決めてください。' })}
+                           + 'あいことばを決めると、同じ家庭の複数の端末で使えます。' })}
   </section>`;
 }
 
@@ -1415,7 +1445,7 @@ function syncSectionHTML(opts){
       <span class="sec-note" id="syncStatus">${mark} ${esc(S.statusText() || text)}</span></div>
     <div class="paper">
       ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
-      <p class="set-note">同じ「あいことば」を入れた端末どうしで、記録と設定がそろいます。</p>
+      <p class="set-note">同じ「あいことば」を入れた複数の端末で、同じ記録と設定を使えます。</p>
       <div class="set-row"><span class="lab">あいことば</span>
         <input type="text" id="syncCode" value="${esc(code)}" spellcheck="false"
                autocapitalize="off" autocorrect="off" placeholder="まだ ありません"></div>
@@ -2122,9 +2152,9 @@ function taskEditorRow(t, i){
       <label class="set-field set-field--wide"><span>項目の名前</span><input type="text" data-f="name" maxlength="60" value="${esc(t.name)}"></label>
       <div class="set-grid">${fields}</div>
       <div class="set-task-actions">
-        <button class="btn btn-sm btn-ghost" data-move="-1" type="button" aria-label="${esc(t.name)}を上へ移動">上へ</button>
-        <button class="btn btn-sm btn-ghost" data-move="1" type="button" aria-label="${esc(t.name)}を下へ移動">下へ</button>
-        <button class="btn btn-sm btn-danger" data-del="1" type="button" aria-label="${esc(t.name)}を削除">削除</button>
+        <button class="btn btn-sm btn-ghost btn-icon-text" data-move="-1" type="button" aria-label="${esc(t.name)}を上へ移動">${icon('chevronUp')}<span>上へ</span></button>
+        <button class="btn btn-sm btn-ghost btn-icon-text" data-move="1" type="button" aria-label="${esc(t.name)}を下へ移動">${icon('chevronDown')}<span>下へ</span></button>
+        <button class="btn btn-sm btn-danger btn-icon-text" data-del="1" type="button" aria-label="${esc(t.name)}を削除">${icon('trash')}<span>削除</span></button>
       </div>
     </div>
   </details>`;
@@ -2159,13 +2189,13 @@ function viewConfig(){
 
   <section class="sec config-sec"><div class="sec-head"><h2>ふつうの 宿題</h2><span class="sec-note">${normal.length}こ</span></div>
     <div class="paper task-editor" id="normalTaskEditor">${taskGroupHTML(normal,'まだ 項目は ありません。')}</div>
-    <div class="set-actions"><button class="btn btn-sm" id="addNormalTask" type="button">＋ 宿題を 追加</button></div>
+    <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addNormalTask" type="button">${icon('plus')}<span>宿題を 追加</span></button></div>
   </section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>読書の きろく</h2><span class="sec-note">${books.length}こ</span></div>
     <p class="config-lead">本の名前・読んだ日・ひとことを1冊ずつ残す、読書専用の項目です。</p>
     <div class="paper task-editor" id="bookTaskEditor">${taskGroupHTML(books,'読書の きろくを 使わないときは、空のままでOKです。')}</div>
-    <div class="set-actions"><button class="btn btn-sm" id="addBookTask" type="button">＋ 読書を 追加</button></div>
+    <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addBookTask" type="button">${icon('plus')}<span>読書を 追加</span></button></div>
   </section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>まいにち</h2><span class="sec-note">学習アプリなど</span></div>
@@ -2173,7 +2203,7 @@ function viewConfig(){
       <label class="daily-switch"><input type="checkbox" id="cfgShowDaily"${config.showDaily?' checked':''}>
         <span><strong>こども画面に 表示する</strong><small>学習アプリ・音読・おてつだいなどに使えます。</small></span></label>
       <div class="task-editor" id="dailyTaskEditor">${taskGroupHTML(daily,'まいにちの 項目は まだありません。')}</div>
-      <div class="set-actions"><button class="btn btn-sm" id="addDailyTask" type="button">＋ まいにちを 追加</button></div>
+      <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addDailyTask" type="button">${icon('plus')}<span>まいにちを 追加</span></button></div>
     </div>
   </section>
 
@@ -2270,9 +2300,11 @@ function bindWelcomeStart(){
     if(role === 'parent' && sharing){
       const form = $('#welcomeForm');
       form.innerHTML = welcomeMessageChoiceHTML();
+      bindParentSender('welcomeMessageSender', 'welcomeMessageCustomWrap');
       $$('[data-message-choice]', form).forEach(btn=>btn.addEventListener('click', ()=>{
         config.parentMessage.enabled = btn.dataset.messageChoice === 'yes';
         config.parentMessage.sender = $('#welcomeMessageSender').value;
+        config.parentMessage.customSender = String($('#welcomeMessageCustom').value || '').trim().slice(0, 20);
         saveCfg();
         location.hash = 'settings';
         if(config.parentMessage.enabled) toast('保護者ページに メッセージ欄を 用意しました');
@@ -2306,8 +2338,11 @@ function bindStats(){
    --------------------------------------------------------- */
 /* 保護者ページ（進捗一覧）— サマリーの生成と書き出し */
 function bindParent(){
+  bindParentSender('parentMessageSender', 'parentMessageCustomWrap');
   $('#parentMessageSave').addEventListener('click', ()=>{
-    config.parentMessage.sender = $('#parentMessageSender').value === 'おとうさん' ? 'おとうさん' : 'おかあさん';
+    const sender = $('#parentMessageSender').value;
+    config.parentMessage.sender = PARENT_SENDERS.includes(sender) ? sender : 'おかあさん';
+    config.parentMessage.customSender = String($('#parentMessageCustom').value || '').trim().slice(0, 20);
     config.parentMessage.text = String($('#parentMessageText').value || '').trim().slice(0, 80);
     config.parentMessage.enabled = $('#parentMessageEnabled').checked && !!config.parentMessage.text;
     $('#parentMessageEnabled').checked = config.parentMessage.enabled;

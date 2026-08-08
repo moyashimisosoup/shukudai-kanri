@@ -6,5 +6,13 @@
     "theme": "five child-friendly selectable themes",
     "enrichment": "none",
     "brief": "Beginner-friendly homework settings, daily units, special reading records, and child themes"
+  },
+  {
+    "date": "2026-08-08",
+    "scope": "theme-controls",
+    "macrostructure": "Workbench",
+    "theme": "clean block palette plus restrained cat motif",
+    "enrichment": "CodeX Icons for semantic controls",
+    "brief": "Reduce block-theme noise, add a cat theme, and clarify shared-device setup"
   }
 ]
