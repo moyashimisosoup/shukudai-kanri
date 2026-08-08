@@ -174,15 +174,15 @@ button{ font:inherit; color:inherit; }
 /* 見出し（色帯つき） */
 .sec{ display:flex; flex-direction:column; gap:12px; }
 .sec-head{
-  display:flex; align-items:baseline; gap:12px;
+  display:flex; flex-wrap:wrap; align-items:baseline; gap:0 12px;
   padding:8px 14px;
   border-radius:999px;
   border:var(--line) solid var(--ai);
   box-shadow:var(--shadow);
   background:var(--kami);
 }
-.sec-head h2{ font-size:23px; font-weight:900; letter-spacing:.02em; }
-.sec-head .sec-note{ font-size:15px; font-weight:700; color:var(--ai-usu); }
+.sec-head h2{ max-width:100%; flex:none; font-size:23px; font-weight:900; letter-spacing:.02em; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sec-head .sec-note{ flex:0 0 auto; max-width:100%; font-size:15px; font-weight:700; color:var(--ai-usu); line-height:1.45; }
 .sec-must  .sec-head{ background:var(--suika);    color:var(--kami); }
 .sec-must  .sec-head .sec-note{ color:var(--on-must-muted); }
 .sec-opt   .sec-head{ background:var(--himawari); }
@@ -336,7 +336,7 @@ button{ font:inherit; color:inherit; }
 .set-task{ display:block; padding:0; border-bottom:2px dashed var(--hougan); }
 .set-task:last-child{ border-bottom:none; }
 .set-task-summary{
-  min-height:64px; padding:12px 16px; cursor:pointer;
+  min-height:76px; padding:12px 16px; cursor:pointer;
   display:grid; grid-template-columns:auto minmax(0,1fr) auto auto;
   align-items:center; gap:8px 12px; list-style:none;
   background:var(--kami); color:var(--ai);
@@ -345,7 +345,8 @@ button{ font:inherit; color:inherit; }
 .set-task-summary::after{ content:"＋"; grid-column:4; font-size:24px; font-weight:900; line-height:1; }
 .set-task[open] > .set-task-summary::after{ content:"−"; }
 .set-task-summary strong{
-  min-width:0; font-size:18px; line-height:1.35; overflow-wrap:anywhere;
+  grid-column:2; grid-row:1; min-width:0;
+  font-size:18px; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 [data-theme="cat"] .set-task-summary strong::before{
   content:""; display:inline-block; width:20px; height:20px;
@@ -353,8 +354,8 @@ button{ font:inherit; color:inherit; }
   -webkit-mask:url("paw.svg") center / contain no-repeat;
   mask:url("paw.svg") center / contain no-repeat;
 }
-.set-task-meta{ font-size:14px; font-weight:900; color:var(--ai-usu); white-space:nowrap; }
-.set-task-move{ display:flex; gap:4px; grid-column:3; grid-row:1; }
+.set-task-meta{ grid-column:2; grid-row:2; font-size:14px; font-weight:900; color:var(--ai-usu); line-height:1.4; }
+.set-task-move{ display:flex; gap:4px; grid-column:3; grid-row:1 / span 2; align-self:center; }
 .set-task-move-btn{
   width:34px; height:34px; padding:0; flex:none;
   display:grid; place-items:center;
@@ -364,7 +365,7 @@ button{ font:inherit; color:inherit; }
 .set-task-move-btn:active{ transform:translateY(1px); }
 .set-task-move-btn:focus-visible{ outline:3px solid var(--focus); outline-offset:1px; }
 .set-kind{
-  grid-row:1; font-size:13px; line-height:1; font-weight:900; white-space:nowrap;
+  grid-row:1 / span 2; align-self:center; font-size:13px; line-height:1; font-weight:900; white-space:nowrap;
   padding:5px 8px; border:2px solid var(--hougan); border-radius:var(--r-pill);
 }
 .set-kind--book{ color:var(--asagao); background:var(--asagao-usu); border-color:var(--asagao); }
@@ -850,6 +851,13 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   border-radius:var(--r-s); padding:12px 16px; overflow-wrap:anywhere; min-width:0;
 }
 .fun-row{ display:flex; gap:10px; margin-top:14px; }
+.fun-debug-list{ display:grid; gap:14px; }
+.fun-debug-card{ margin:0; }
+.fun-debug-tools{ padding:14px 16px; }
+.fun-debug-tools > p:first-child{ font-size:16px; font-weight:900; line-height:1.6; }
+.fun-debug-count{ margin-inline-start:10px; font-size:15px; font-weight:900; color:var(--ai-usu); }
+.fun-debug-check{ display:flex; align-items:center; gap:8px; margin-top:14px; font-size:16px; font-weight:900; }
+.fun-debug-check input{ width:24px; height:24px; accent-color:var(--suika); }
 
 /* =========================================================
    せってい（親ページ）
@@ -914,7 +922,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   position:relative;
   padding:12px 16px;
   border-color:var(--himawari);
-  background:var(--surface-raised);
+  background:var(--himawari-usu);
 }
 .parent-message-note strong{
   display:block;
@@ -986,9 +994,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 
 @media (max-width:420px){
   /* 見出しの言葉を途中で割らず、補足だけ次の行へ回せるようにする。 */
-  .parent-message-editor .sec-head{ flex-wrap:wrap; gap:0 8px; }
-  .parent-message-editor .sec-head h2{ white-space:nowrap; font-size:21px; }
-  .parent-message-editor .sec-head .sec-note{ margin-inline-start:auto; white-space:nowrap; }
+  .parent-message-editor .sec-head h2{ font-size:21px; }
   .toast{ max-width:calc(100vw - 24px); padding:10px 16px; font-size:16px; }
 }
 

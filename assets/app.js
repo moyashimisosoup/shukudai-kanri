@@ -12,6 +12,8 @@
 const TEST_MODE = new URLSearchParams(location.search).get('new') === '1';
 /* 保護者画面の確認用。preview専用キーだけを作るため、普段の家庭データには触れない。 */
 const DEBUG_PARENT = TEST_MODE && new URLSearchParams(location.search).get('debug') === 'parent';
+/* ミニコンテンツを確認するときだけ、豆知識を一覧で出す隠し入口。 */
+const DEBUG_TRIVIA = new URLSearchParams(location.search).get('debug') === 'trivia';
 const K_CFG = TEST_MODE ? 'natsu.preview.config.v1' : 'natsu.config.v2';
 const K_ST  = TEST_MODE ? 'natsu.preview.state.v1'  : 'natsu.state.v2';
 /* 初期設定は端末ごとに一度だけ表示する。家庭の設定そのものは従来どおり
@@ -21,6 +23,7 @@ const K_ROLE = TEST_MODE ? 'natsu.preview.role.v1' : 'natsu.device.role.v1';
 const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
 const K_READING = TEST_MODE ? 'natsu.preview.reading.v1' : 'natsu.device.reading.v1';
 const K_THEME = TEST_MODE ? 'natsu.preview.theme.v1' : 'natsu.device.theme.v1';
+const K_TRIVIA_REVIEW = TEST_MODE ? 'natsu.preview.trivia-review.v1' : 'natsu.trivia-review.v1';
 const K_METRIC = 'natsu.metric.registered.v1';
 /* URL の隠し入口。静的サイトなので認証ではなく、通常画面に出さないための合図。 */
 const STATS_PARAM = 'stats';
@@ -151,10 +154,13 @@ function loadAll(){
     state = normalizeState(JSON.parse(localStorage.getItem(K_ST) || 'null'));
   }catch(e){ state = emptyState(); }
 
-  /* きょうの ぶんを まだ 1つも 引いていなければ、ここで 1つめを 引く */
-  const ft = funToday();
-  if(ft.seen.length) funIdx = ft.seen[ft.seen.length - 1];
-  else funPick();
+  /* きょうの ぶんを まだ 1つも 引いていなければ、ここで 1つめを 引く。
+     豆知識の確認URLでは、確認だけで日ごとの抽選履歴を動かさない。 */
+  if(!DEBUG_TRIVIA){
+    const ft = funToday();
+    if(ft.seen.length) funIdx = ft.seen[ft.seen.length - 1];
+    else funPick();
+  }
   funOpen = false;
 }
 function saveCfg(){
@@ -530,9 +536,9 @@ function parentSenderLabel(value){
   return value;
 }
 function parentMessageHeading(msg){
-  if(msg.sender === '名前表示なし') return 'おうちの人からの メッセージ';
+  if(msg.sender === '名前表示なし') return 'おうちの人より';
   const sender = msg.sender === 'その他' ? (msg.customSender || 'おうちの人') : parentSenderLabel(msg.sender);
-  return `${sender}からの メッセージ`;
+  return `${sender}より`;
 }
 function bindParentSender(selectId, customWrapId){
   const select = $('#'+selectId), wrap = $('#'+customWrapId);
@@ -621,6 +627,7 @@ function viewStats(){
    ビュー：ホーム
    --------------------------------------------------------- */
 function viewHome(){
+  if(DEBUG_TRIVIA) return triviaDebugHTML();
   const must  = config.tasks.filter(t=>t.group==='must');
   const opt   = config.tasks.filter(t=>t.group==='option');
   const daily = config.showDaily ? config.tasks.filter(t=>t.group==='daily') : [];
@@ -655,6 +662,42 @@ function viewHome(){
   ${dailyAllDone ? dailySec : ''}
   ${funHTML()}
   `;
+}
+
+/* ?debug=trivia#home
+   日ごとの回数制限や抽選に影響させず、豆知識の文章だけを確認する。 */
+function triviaDebugHTML(){
+  const rows = FUN.map((f,i)=>({f,i})).filter(({f})=>f.t === 'まめちしき');
+  const review = triviaReviewSet();
+  return `
+  <section class="sec fun-debug">
+    <div class="sec-head"><h2>まめちしき（確認用）</h2><span class="sec-note">${rows.length}こ</span></div>
+    <div class="paper fun-debug-tools">
+      <p>「削除・再検討」にチェックした項目は、この端末だけに一時保存されます。</p>
+      <button class="btn btn-sm" data-trivia-copy type="button">選んだ項目をコピー</button>
+      <span class="fun-debug-count" id="triviaReviewCount">${review.size}こ選択中</span>
+      <p class="set-note">コピーした文章を、このチャットに貼り付けてください。</p>
+    </div>
+    <div class="fun-debug-list">${rows.map(({f,i},n)=>`
+      <article class="paper fun fun-debug-card">
+        <span class="fun-tag">まめちしき ${n+1}</span>
+        <p class="fun-q">${rubyHTML(f.q)}</p>
+        <p class="fun-a">${rubyHTML(f.a)}</p>
+        <label class="fun-debug-check"><input type="checkbox" data-trivia-review="${i}"${review.has(i)?' checked':''}> 削除・再検討</label>
+      </article>`).join('')}</div>
+  </section>`;
+}
+
+function triviaReviewSet(){
+  try{
+    return new Set((JSON.parse(getLocal(K_TRIVIA_REVIEW) || '[]') || [])
+      .filter(i=>Number.isInteger(i) && FUN[i] && FUN[i].t === 'まめちしき'));
+  }catch(e){ return new Set(); }
+}
+function saveTriviaReview(set){ setLocal(K_TRIVIA_REVIEW, JSON.stringify(Array.from(set).sort((a,b)=>a-b))); }
+function triviaReviewText(){
+  const rows = Array.from(triviaReviewSet()).map(i=>FUN[i]);
+  return rows.length ? rows.map((f,n)=>`${n+1}. ${f.q}\n${f.a}`).join('\n\n') : '';
 }
 
 function parentMessageHTML(){
@@ -2776,6 +2819,26 @@ function downloadBlob(blob, filename){
 }
 
 /* iPad Safari では clipboard API が使えない場面があるので選択方式も残す */
+function copyPlainText(text){
+  const done = ()=>toast('コピーしました');
+  if(navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(done, legacy);
+  }else legacy();
+
+  function legacy(){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly','');
+    ta.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try{ ok = document.execCommand('copy'); }catch(e){}
+    ta.remove();
+    ok ? done() : toast('コピーできませんでした');
+  }
+}
+
 function copyText(ta){
   const done = ()=> toast('コピーしました');
   if(navigator.clipboard && window.isSecureContext){
@@ -2818,6 +2881,17 @@ function importData(e){
 /* ---------------------------------------------------------
    イベント
    --------------------------------------------------------- */
+document.addEventListener('change', e=>{
+  const check = e.target.closest('[data-trivia-review]');
+  if(!check) return;
+  const set = triviaReviewSet();
+  const i = +check.dataset.triviaReview;
+  if(check.checked) set.add(i); else set.delete(i);
+  saveTriviaReview(set);
+  const count = $('#triviaReviewCount');
+  if(count) count.textContent = set.size + 'こ選択中';
+});
+
 document.addEventListener('click', e=>{
 
   const tabBtn = e.target.closest('.tab');
@@ -2845,6 +2919,13 @@ document.addEventListener('click', e=>{
 
   const open = e.target.closest('[data-open]');
   if(open){ openSheet(open.dataset.open, open.dataset.book); return; }
+
+  if(e.target.closest('[data-trivia-copy]')){
+    const text = triviaReviewText();
+    if(!text){ toast('先に項目をえらんでね'); return; }
+    copyPlainText(text);
+    return;
+  }
 
   if(e.target.closest('#bkCheck')){ checkKanji(); return; }
   if(e.target.closest('#bkFix')){ fixKanji(); return; }
