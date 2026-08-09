@@ -109,7 +109,13 @@ function migrate5to6(c){
    books が無いまま 保護者ページや 本の一覧を開くと 例外で止まり、
    画面が切りかわらない（リンクが効かないように見える）ので、
    入口を ひとつに まとめる */
-function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[] }; }
+function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[], trash:[] }; }
+
+/* 消した記録を のこす数。
+   これは「思い出のため」だけでは なく、消したことを 相手の端末に つたえる
+   墓標も かねている。ここから あふれた ぶんは、相手が ずっと オフラインだった
+   場合に かぎり 復活しうる。ふだんは 数秒で とどくので 50もあれば 足りる */
+const TRASH_MAX = 50;
 /* 「まいにち」の例は設定に残すが、新規家庭の子ども画面では初期非表示。 */
 function freshConfig(){
   return normalizeConfig(deepCopy(DEFAULT_CONFIG));
@@ -140,7 +146,50 @@ function normalizeState(s){
   if(!s.schema) s.schema = SCHEMA;
   if(!Array.isArray(s.logs))  s.logs  = [];
   if(!Array.isArray(s.books)) s.books = [];
+  if(!Array.isArray(s.trash)) s.trash = [];
   return s;
+}
+
+/* ---------------------------------------------------------
+   進みぐあいの 書きかえ
+
+   数や チェックを 書きかえるときは、「いつ その値に なったか」も のこす。
+   これが ないと、⑦を⑥に もどす 訂正が、相手の端末が 持っている 古い ⑦ に
+   押し戻されてしまう（相手は ただ 持っているだけで、新しく ⑦に したわけでは ない）。
+   時刻を くらべれば、「新しく そうした方」が 勝つので、
+   進んだ ぶんは 消えず、訂正だけが とどく。
+   --------------------------------------------------------- */
+function stampArray(before, after, at, t){
+  const b = Array.isArray(before) ? before : [];
+  const a = Array.isArray(after)  ? after  : [];
+  const old = Array.isArray(at) ? at : [];
+  return a.map((v,i)=> (!!v === !!b[i]) ? (old[i] | 0) : t);
+}
+function stampDays(before, after, at, t){
+  const b = before || {}, a = after || {}, old = at || {};
+  const out = {};
+  Object.keys(a).forEach(k=>{ out[k] = ((a[k]|0) === (b[k]|0)) ? (old[k] | 0) : t; });
+  return out;
+}
+function progPatch(id, patch, when){
+  const t = when || Date.now();
+  const cur = state.progress[id] || {};
+  const next = Object.assign({}, cur, patch);
+  if('done'  in patch && (cur.done|0) !== (patch.done|0)) next.doneAt = t;
+  if('steps' in patch) next.stepsAt = stampArray(cur.steps, patch.steps, cur.stepsAt, t);
+  if('wrap'  in patch) next.wrapAt  = stampArray(cur.wrap,  patch.wrap,  cur.wrapAt,  t);
+  if('days'  in patch) next.daysAt  = stampDays(cur.days,   patch.days,  cur.daysAt,  t);
+  state.progress[id] = next;
+  return next;
+}
+
+/* 消した記録を のこす。中身は おうちの人だけが 見る。
+   id は 消した記録の id そのもの。これが 墓標に なる */
+function pushTrash(entry){
+  if(!Array.isArray(state.trash)) state.trash = [];
+  state.trash = state.trash.filter(x=> x && x.id !== entry.id);
+  state.trash.unshift(Object.assign({ at: Date.now(), by: logBy() }, entry));
+  if(state.trash.length > TRASH_MAX) state.trash = state.trash.slice(0, TRASH_MAX);
 }
 
 function loadAll(){
@@ -234,6 +283,19 @@ function mergeById(local, remote, newerWins){
      rp … 相手の端末の progress
      localIsNewer … この端末の state のほうが あとに 保存されたか
 */
+/* 値ひとつぶんの 勝ち負け。
+   どちらかに 時刻が あれば「あとで そうした方」が 勝つ。
+   両方に 時刻が 無い（＝どちらも 古い版の端末）ときだけ、
+   これまで通りの 安全側（進んだ方・ついている方）に たおす。
+   これで、更新していない 端末を 新しい版に 入れかえるまでの あいだも
+   いまと同じ 動きの まま つかえる */
+function pickStamped(aVal, aAt, bVal, bAt, fallback){
+  const x = aAt|0, y = bAt|0;
+  if(!x && !y) return { value: fallback, at: 0 };
+  if(x === y)  return { value: fallback, at: x };
+  return x > y ? { value: aVal, at: x } : { value: bVal, at: y };
+}
+
 function mergeProgress(lp, rp, localIsNewer){
   const out = {};
   const ids = new Set([...Object.keys(lp || {}), ...Object.keys(rp || {})]);
@@ -244,23 +306,43 @@ function mergeProgress(lp, rp, localIsNewer){
     /* 知らない欄（あとで 足したもの）は 新しい方を のこす */
     const p = Object.assign({}, localIsNewer ? b : a, localIsNewer ? a : b);
 
-    /* かず（なつスキルの ⑦、本の さつ数）… 大きい方 */
-    if('done' in a || 'done' in b) p.done = Math.max(a.done|0, b.done|0);
-
-    /* まいにちノルマ … 日ごとに 独立しているので 全部あわせ、同じ日は 多い方 */
-    if(a.days || b.days){
-      const days = Object.assign({}, b.days);
-      Object.keys(a.days || {}).forEach(k=>{
-        days[k] = Math.max(a.days[k]|0, days[k]|0);
-      });
-      p.days = days;
+    /* かず（なつスキルの ⑦、本の さつ数） */
+    if('done' in a || 'done' in b){
+      const r = pickStamped(a.done|0, a.doneAt, b.done|0, b.doneAt,
+                            Math.max(a.done|0, b.done|0));
+      p.done = r.value;
+      if(r.at) p.doneAt = r.at; else delete p.doneAt;
     }
 
-    /* だんかい式の チェック … どちらかで ついていれば ついたまま */
-    ['steps','wrap'].forEach(key=>{
+    /* まいにちノルマ … 日ごとに 独立しているので 日づけごとに くらべる */
+    if(a.days || b.days){
+      const days = {}, daysAt = {};
+      const keys = new Set([...Object.keys(a.days || {}), ...Object.keys(b.days || {})]);
+      keys.forEach(k=>{
+        const av = (a.days || {})[k] | 0, bv = (b.days || {})[k] | 0;
+        const r = pickStamped(av, (a.daysAt || {})[k], bv, (b.daysAt || {})[k],
+                              Math.max(av, bv));
+        days[k] = r.value;
+        if(r.at) daysAt[k] = r.at;
+      });
+      p.days = days;
+      if(Object.keys(daysAt).length) p.daysAt = daysAt; else delete p.daysAt;
+    }
+
+    /* だんかい式の チェック … ますごとに くらべる。
+       ちがう ますを それぞれの端末で さわっても、どちらも 消えない */
+    [['steps','stepsAt'], ['wrap','wrapAt']].forEach(([key, atKey])=>{
       if(!Array.isArray(a[key]) && !Array.isArray(b[key])) return;
       const x = a[key] || [], y = b[key] || [];
-      p[key] = Array.from({ length: Math.max(x.length, y.length) }, (_, i)=> !!x[i] || !!y[i]);
+      const xa = a[atKey] || [], ya = b[atKey] || [];
+      const len = Math.max(x.length, y.length);
+      const val = [], at = [];
+      for(let i=0; i<len; i++){
+        const r = pickStamped(!!x[i], xa[i], !!y[i], ya[i], !!x[i] || !!y[i]);
+        val.push(r.value); at.push(r.at | 0);
+      }
+      p[key] = val;
+      if(at.some(Boolean)) p[atKey] = at; else delete p[atKey];
     });
 
     out[id] = p;
@@ -273,6 +355,19 @@ function mergeState(local, remote, localIsNewer){
   const out = normalizeState(deepCopy(localIsNewer ? local : remote));
   out.logs  = mergeById(local.logs,  remote.logs,  (a,b)=> String(a.at||'') >= String(b.at||''));
   out.books = mergeById(local.books, remote.books, ()=> localIsNewer);
+
+  /* 消したものの ひかえ。これが 墓標に なるので、合併したあとに
+     消された ものを 取りのぞく。これが 無いと、相手の端末が まだ 持っている
+     本の記録が そのまま よみがえる */
+  out.trash = mergeById(local.trash, remote.trash, (a,b)=> (a.at|0) >= (b.at|0))
+    .sort((x,y)=> (y.at|0) - (x.at|0))
+    .slice(0, TRASH_MAX);
+  const gone = new Set(out.trash.map(x=> x.id));
+  if(gone.size){
+    out.books = out.books.filter(b=> !gone.has(b.id));
+    out.logs  = out.logs.filter(l=> !gone.has(l.id));
+  }
+
   out.progress = mergeProgress(local.progress || {}, remote.progress || {}, localIsNewer);
   out.logs.sort((a,b)=> String(a.at||'').localeCompare(String(b.at||'')));
   if(out.logs.length > 3000) out.logs = out.logs.slice(-3000);
@@ -1490,6 +1585,7 @@ function viewParent(){
   ${group('must','必ずやる')}
   ${group('option','つぎに やる')}
   ${bookSectionHTML()}
+  ${trashSectionHTML()}
 
   <section class="sec">
     <div class="sec-head"><h2>進捗サマリー</h2></div>
@@ -1635,6 +1731,35 @@ function syncSectionHTML(opts){
         <button class="btn btn-sm btn-danger" id="syncOff" type="button">つなぐのをやめる</button>
       </div>` : ''}
     </div>
+  </section>`;
+}
+
+/* 消した記録のひかえ。保護者ページにだけ出す。
+   子ども画面には出さない（消したことを蒸し返さないため）。
+   データ自体は同期するので、子の端末で消した中身もここに出る */
+function trashSectionHTML(){
+  const rows = (state.trash || []).slice(0, 20);
+  if(!rows.length) return '';
+  const kindLabel = { book:'本の記録' };
+  return `
+  <section class="sec">
+    <div class="sec-head"><h2>消した記録</h2><span class="sec-note">${rows.length}件</span></div>
+    <details class="paper set-advanced">
+      <summary>消した中身を見る</summary>
+      <div class="set-advanced-body">
+        <p class="set-note">削除ボタンで消した記録の控えです。新しい順に最大${TRASH_MAX}件まで残り、あふれた分から消えます。冊数などの数字は戻したままで、ここから元に戻すことはできません。</p>
+        ${rows.map(r=>`
+        <div class="trash-row">
+          <div class="trash-head">
+            <span class="trash-kind">${esc(kindLabel[r.kind] || r.kind || '記録')}</span>
+            <span class="trash-at">${esc(fmtDate(new Date(r.at)))} ${esc(fmtTime(new Date(r.at)))}</span>
+            ${r.by ? `<span class="trash-by">${esc(logByLabel(r))}</span>` : ''}
+          </div>
+          <div class="trash-title">${esc(r.title || '')}</div>
+          ${r.text ? `<div class="trash-text">${esc(r.text)}</div>` : ''}
+        </div>`).join('')}
+      </div>
+    </details>
   </section>`;
 }
 
@@ -1906,7 +2031,7 @@ function saveFreeSheet(){
   const now = new Date();
   const days = Object.assign({}, (state.progress[t.id] || {}).days || {});
   days[dayKey(now)] = Math.max(1, days[dayKey(now)] | 0);
-  state.progress[t.id] = Object.assign({}, state.progress[t.id], { days });
+  progPatch(t.id, { days });
 
   state.logs.push({
     id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
@@ -1964,7 +2089,7 @@ function saveBookSheet(){
     rec.id = 'b' + now.getTime() + Math.floor(Math.random()*1000);
     rec.nth = p.done + 1;
     state.books.push(rec);
-    state.progress[t.id] = Object.assign({}, state.progress[t.id], { done: rec.nth });
+    progPatch(t.id, { done: rec.nth });
     state.logs.push({
       id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
       at: now.toISOString(), by: logBy(), taskId: t.id, name: t.name,
@@ -2131,7 +2256,7 @@ function saveSheet(){
   if(t.type === 'count'){
     const before = p.done;
     const after = clamp(sheetSel|0, 0, t.total|0);
-    state.progress[t.id] = Object.assign({}, state.progress[t.id], { done: after });
+    progPatch(t.id, { done: after });
     if(after > before){
       what = t.numbered
         ? maru(before+1) + (after>before+1 ? '〜'+maru(after) : '') + ' できた'
@@ -2145,7 +2270,7 @@ function saveSheet(){
   else if(t.type === 'step'){
     const before = (p.arr||[]);
     const added = (t.steps||[]).filter((s,i)=> sheetSteps[i] && !before[i]);
-    state.progress[t.id] = Object.assign({}, state.progress[t.id], { steps: sheetSteps.slice() });
+    progPatch(t.id, { steps: sheetSteps.slice() });
     what = added.length ? added.join('・') + ' が できた'
                         : (sheetSteps.filter(Boolean).length + '/' + (t.steps||[]).length + ' に なおした');
     ok = true;
@@ -2154,14 +2279,14 @@ function saveSheet(){
     const n = clamp(sheetSel|0, 0, 99);
     const days = Object.assign({}, (state.progress[t.id]||{}).days || {});
     days[dayKey(now)] = n;
-    state.progress[t.id] = Object.assign({}, state.progress[t.id], { days });
+    progPatch(t.id, { days });
     what = n + (t.targetUnit||'かい') + ' できた';
   }
 
   // さいごの しあげ。done / steps とは べつに のこす
   if(hasWrap(t) && sheetWrap){
     const added = WRAP_LABELS.filter((s,i)=> sheetWrap[i] && !p.wrap[i]);
-    state.progress[t.id] = Object.assign({}, state.progress[t.id], { wrap: sheetWrap.slice() });
+    progPatch(t.id, { wrap: sheetWrap.slice() });
     if(added.length) what = [what, added.join('・') + ' が できた'].filter(Boolean).join('　');
   }
 
@@ -3067,12 +3192,20 @@ document.addEventListener('click', e=>{
   if(delBook){
     const b = state.books.find(x=>x.id===delBook.dataset.delbook);
     if(b && confirm('「'+b.title+'」の記録を削除しますか？\n冊数も1つ戻ります。')){
+      /* 消した中身を おうちの人むけに のこす。
+         同時に、これが 相手の端末へ「消した」ことを つたえる 墓標に なる */
+      pushTrash({
+        id: b.id, kind:'book', taskId: b.taskId, title: b.title,
+        text: [b.date, b.author && 'さくしゃ：' + b.author,
+               b.rating ? 'おすすめ度 ' + '★'.repeat(b.rating) : '',
+               b.memo].filter(Boolean).join('\n')
+      });
       state.books = state.books.filter(x=>x.id!==b.id);
       // 残りの冊に通し番号を振り直し、進捗を実際の冊数に合わせる
       const same = state.books.filter(x=>x.taskId===b.taskId)
         .sort((x,y)=> x.nth - y.nth);
       same.forEach((x,i)=> x.nth = i+1);
-      state.progress[b.taskId] = Object.assign({}, state.progress[b.taskId], { done: same.length });
+      progPatch(b.taskId, { done: same.length });
       saveSt(); render({ keepScroll:true }); toast('削除しました');
     }
     return;
