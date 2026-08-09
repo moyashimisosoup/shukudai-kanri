@@ -212,6 +212,28 @@ button{ font:inherit; color:inherit; }
 }
 .dev-warn{ color:var(--suika); }
 
+/* その日に よんだ ミニコンテンツ。宿題の きろくとは 見た目を 分ける */
+.reads{ margin-top:10px; padding:12px 14px; }
+.reads-head{
+  font-size:15px; font-weight:900; color:var(--ai-usu);
+  display:flex; align-items:center; gap:8px;
+}
+.reads-cnt{
+  font-size:12px; font-weight:900; color:var(--kami);
+  background:var(--ai-usu); border-radius:var(--r-pill); padding:1px 9px;
+}
+.reads-row{
+  display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;
+  padding:6px 0; border-top:1px dashed var(--hougan);
+}
+.reads-row:first-of-type{ border-top:none; }
+.reads-tag{
+  flex:none; font-size:12px; font-weight:900;
+  background:var(--surface-soft); color:var(--ai-usu);
+  border-radius:var(--r-pill); padding:1px 9px;
+}
+.reads-q{ font-size:16px; font-weight:700; overflow-wrap:anywhere; min-width:0; }
+
 /* 記録1行ごとの 消すボタン */
 .ti-del{ align-self:start; flex:none; }
 

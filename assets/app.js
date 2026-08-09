@@ -125,7 +125,7 @@ function migrate5to6(c){
    books が無いまま 保護者ページや 本の一覧を開くと 例外で止まり、
    画面が切りかわらない（リンクが効かないように見える）ので、
    入口を ひとつに まとめる */
-function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[], trash:[], gone:[] }; }
+function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[], trash:[], gone:[], reads:[] }; }
 
 /* 消した記録を のこす数。
    これは「思い出のため」だけでは なく、消したことを 相手の端末に つたえる
@@ -172,6 +172,7 @@ function normalizeState(s){
   if(!Array.isArray(s.books)) s.books = [];
   if(!Array.isArray(s.trash)) s.trash = [];
   if(!Array.isArray(s.gone))  s.gone  = [];
+  if(!Array.isArray(s.reads)) s.reads = [];
   return s;
 }
 
@@ -206,6 +207,42 @@ function progPatch(id, patch, when){
   if('days'  in patch) next.daysAt  = stampDays(cur.days,   patch.days,  cur.daysAt,  t);
   state.progress[id] = next;
   return next;
+}
+
+/* きょう 読んだ ミニコンテンツの ひかえ。
+
+   きろく（logs）には 入れない。入れると「やったこと」が ふえ、
+   カレンダーが みどりに なり、ごほうびの 判定（didSomethingToday）まで
+   動いてしまう。読んだだけで 宿題を した ことには しない。
+   あとから ふりかえる ためだけの、べつの ひかえに する。 */
+const READS_MAX = 400;
+function pushRead(i){
+  const f = FUN[i];
+  if(!f) return;
+  if(!Array.isArray(state.reads)) state.reads = [];
+  const now = new Date();
+  const id = 'r' + now.getTime() + '-' + i;
+  if(state.reads.some(r=> r.id === id)) return;
+  state.reads.push({ id, at: now.toISOString(), t: f.t, q: f.q });
+  if(state.reads.length > READS_MAX) state.reads = state.reads.slice(-READS_MAX);
+  saveSt();
+}
+function readsOf(key){
+  return (state.reads || []).filter(r => dayKey(new Date(r.at)) === key);
+}
+/* その日に 読んだ ぶんの 一覧。読んだ ものが ない 日は 何も 出さない */
+function readsHTML(key){
+  const rows = readsOf(key);
+  if(!rows.length) return '';
+  return `
+  <div class="paper reads">
+    <p class="reads-head">よんだ ミニコンテンツ<span class="reads-cnt">${rows.length}こ</span></p>
+    ${rows.map(r=>`
+      <div class="reads-row">
+        <span class="reads-tag">${esc(r.t)}</span>
+        <span class="reads-q">${rubyHTML(r.q)}</span>
+      </div>`).join('')}
+  </div>`;
 }
 
 /* 消した「印」だけの ひかえ。中身は のこさない。
@@ -491,6 +528,10 @@ function mergeState(local, remote, localIsNewer){
     .sort((x,y)=> (y.at|0) - (x.at|0))
     .slice(0, TRASH_MAX);
   /* 印だけの ひかえ。1行けしなど、中身を のこさない 消しかたの 墓標 */
+  out.reads = mergeById(local.reads, remote.reads, (a,b)=> String(a.at||'') >= String(b.at||''))
+    .sort((x,y)=> String(x.at||'').localeCompare(String(y.at||'')))
+    .slice(-READS_MAX);
+
   out.gone = mergeById(local.gone, remote.gone, (a,b)=> (a.at|0) >= (b.at|0))
     .sort((x,y)=> (y.at|0) - (x.at|0))
     .slice(0, GONE_MAX);
@@ -1065,7 +1106,19 @@ function paceHTML(o){
   const mustShare = allTotal ? o.done / allTotal * 100 : 0;
   const gap = o.pct - natsu;                              // 判定は 必須だけ
 
-  const v = verdictOf(gap), cls = v.cls, msg = v.msg;
+  const v = verdictOf(gap);
+  let cls = v.cls, msg = v.msg;
+
+  /* 「かならず やる」は 追いついているのに、「つぎに やる」を 入れると
+     ぜんたいでは 足りない、という ことが ある。そこで「いいペース！」と
+     出すと、まだ 残っていることが 伝わらない。短く 言いかえる */
+  const optLeft = config.tasks
+    .filter(t => t.group === 'option' && t.type !== 'daily' && !prog(t).isDone).length;
+  const allGap = todo - natsu;
+  if(gap >= -6 && allGap <= -6 && optLeft > 0){
+    cls = 'v-hmm';
+    msg = 'つぎに やるが あと ' + optLeft + 'こ のこっているよ';
+  }
   /* のこりは「ばん」や「まい」の 合計では 数が 大きすぎて 伝わらない。
      見出しの「かならず やる のこり ◯こ」と 同じ 課題の数で かぞえる */
   const mustLeft = config.tasks
@@ -1576,19 +1629,28 @@ function fixWrites(){
    ビュー：やったこと（きろく）
    --------------------------------------------------------- */
 function viewLog(){
-  if(!state.logs.length){
-    return `<div class="paper"><p class="empty">まだ きろくが ないよ。</p></div>`;
-  }
   const byDay = {};
   state.logs.forEach(l=>{
     const k = dayKey(new Date(l.at));
     (byDay[k] = byDay[k] || []).push(l);
   });
+  /* 宿題は していなくても ミニコンテンツは 読んだ、という日も
+     ふりかえれるように、読んだ日も 見出しに ならべる */
+  (state.reads || []).forEach(r=>{
+    const k = dayKey(new Date(r.at));
+    if(!byDay[k]) byDay[k] = [];
+  });
   const keys = Object.keys(byDay).sort().reverse();
+  if(!keys.length){
+    return `<div class="paper"><p class="empty">まだ きろくが ないよ。</p></div>`;
+  }
   return keys.map(k=>`
     <section class="sec">
       <div class="day-head">${fmtDate(keyToDate(k))}<span class="cnt">${byDay[k].length}こ</span></div>
-      <div class="paper today-list">${byDay[k].slice().reverse().map(logRowHTML).join('')}</div>
+      ${byDay[k].length
+        ? `<div class="paper today-list">${byDay[k].slice().reverse().map(logRowHTML).join('')}</div>`
+        : ''}
+      ${readsHTML(k)}
     </section>`).join('');
 }
 
@@ -1724,9 +1786,10 @@ function calDetailHTML(key){
       ${(b.memoOut || b.memo) ? `<p class="cal-book-memo">${esc(b.memoOut || b.memo)}</p>` : ''}
     </div>`).join('');
 
-  const body = logs.length
+  const reads = readsHTML(key);
+  const body = (logs.length
     ? `<div class="paper today-list">${logs.map(logRowHTML).join('')}</div>`
-    : `<div class="paper"><p class="empty">この日は きろくが ないよ</p></div>`;
+    : (reads ? '' : `<div class="paper"><p class="empty">この日は きろくが ないよ</p></div>`)) + reads;
 
   return `
   <section class="sec cal-detail">
@@ -3715,7 +3778,7 @@ document.addEventListener('click', e=>{
 
   const fun = e.target.closest('[data-fun]');
   if(fun){
-    if(fun.dataset.fun === 'open') funOpen = true;
+    if(fun.dataset.fun === 'open'){ funOpen = true; pushRead(funIdx); }
     else{
       /* 説明を 読むまで 次へは 進めない。1日に 引ける かずも ここで かぎる。
          ボタンは 上限で 消えるが、
