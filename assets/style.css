@@ -1091,25 +1091,28 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   border-color:var(--himawari);
   background:var(--himawari-usu);
 }
-/* 「◯◯より」と 本文を よこに ならべ、1行 ぶん 節約する。
-   画面の うえを 占めるほど、しゅくだいが 下に おされるため。
-   はいらない ときは flex-wrap で 下に 回る */
-.parent-message-note{
-  display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px;
-}
 .parent-message-note strong{
-  flex:none;
+  display:block;
+  margin-bottom:4px;
   color:var(--ai-usu);
   font-size:14px;
 }
 .parent-message-note p{
-  flex:1 1 8em; min-width:0;
   font-size:17px;
   font-weight:900;
   line-height:1.55;
   white-space:pre-wrap;
   overflow-wrap:anywhere;
 }
+/* 「◯◯より」と 本文の よこ並び。1行ぶん 節約できるが、
+   スマホの はばでは 本文が 細長く なって 読みにくい。
+   ゆとりの ある はばの ときだけ よこに ならべる */
+@media (min-width:561px){
+  .parent-message-note{ display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }
+  .parent-message-note strong{ display:inline; margin-bottom:0; flex:none; }
+  .parent-message-note p{ flex:1 1 8em; min-width:0; }
+}
+
 .parent-message-form{ padding:14px 16px; }
 .parent-message-fields{
   display:grid;

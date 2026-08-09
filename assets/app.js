@@ -1871,9 +1871,11 @@ function viewParent(){
         : '終了'}</span>
     </div>
     <div class="pstat-bars">
+      ${/* 経過とすぐ見くらべたいのは「全体」なので、経過の真下に置く。
+            必須・つぎにやる は その内わけとして 下に つづける */''}
       ${pstatRow('夏休みの経過', nat, '', 'natsu')}
-      ${pstatRow('必須の宿題', s.pct, `${s.done}/${s.total}`, 'must')}
       ${pstatRow('全体', allTotal ? allDone/allTotal*100 : 0, `${allDone}/${allTotal}`, 'all')}
+      ${pstatRow('必須の宿題', s.pct, `${s.done}/${s.total}`, 'must')}
       ${so.total ? pstatRow('つぎに やる', so.pct, `${so.done}/${so.total}`, 'opt') : ''}
     </div>
   </section>
