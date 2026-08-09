@@ -605,6 +605,24 @@ function welcomeFormHTML(role, sharing){
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="${sharing?'yes':'no'}" type="button">こども画面を 開く</button>`;
 }
 
+/* 作者の表示。CC BY 4.0 は「利用する形に応じた合理的な方法」での
+   クレジット表示を求めるので、複製・改変して公開した人にも
+   そのまま残るよう、画面の中に置いておく。
+   子ども画面には出さず、保護者ページと設定の最後に小さく出す。 */
+const CREDIT = {
+  title: 'はじめ夏休みの宿題',
+  author: 'moyashimisosoup',
+  url: 'https://github.com/moyashimisosoup/shukudai-notebook'
+};
+function creditHTML(){
+  return `
+  <p class="credit">
+    <a href="${CREDIT.url}" target="_blank" rel="noopener">${esc(CREDIT.title)}</a>
+    （${esc(CREDIT.author)} 作）&copy; 2026 ・
+    プログラム: Apache-2.0 ／ 文章と図: CC BY 4.0
+  </p>`;
+}
+
 function privacyNoteHTML(){
   return `<p class="privacy-note">管理者に届くのは登録家庭数だけです。名前・宿題名・記録内容・アクセス元は届きません。共有設定済み端末数は、このおうち用のランダムな番号だけで数えます。</p>`;
 }
@@ -1481,7 +1499,8 @@ function viewParent(){
     <a class="btn btn-wide" href="#config" style="text-decoration:none;text-align:center">設定ページを開く</a>
   </div>
 
-  ${privacyNoteHTML()}`;
+  ${privacyNoteHTML()}
+  ${creditHTML()}`;
 }
 
 function parentMessageEditorHTML(){
@@ -2387,6 +2406,7 @@ function viewConfig(){
     <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">項目を 元に戻す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録を すべて削除</button></div></div>
   </details></section>
 
+  ${creditHTML()}
   `;
 }
 

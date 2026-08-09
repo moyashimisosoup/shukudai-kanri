@@ -211,7 +211,7 @@ PC で 1.3 秒、構築を含め約 2 秒。iPad ではさらに数倍）。
 ## GitHub Pages への公開
 
 ```bash
-cd "C:\Users\user\AI開発\shukudai-kanri"
+cd <このリポジトリを置いたフォルダ>
 git remote add origin https://github.com/<ユーザー名>/<リポジトリ名>.git
 git branch -M main
 git push -u origin main
@@ -378,3 +378,36 @@ assets/sync.js                端末間の共有（Firestore・未設定なら�
 - カウントダウンの数字は方眼のマス目に1文字ずつ入れる
 - 記録すると「できた！」のはんこが押される
 - `prefers-reduced-motion` に対応
+
+## ライセンス
+
+Copyright 2026 moyashimisosoup
+
+このリポジトリは、**プログラム**と**コンテンツ**でライセンスを分けています。
+
+| 対象 | ライセンス |
+|---|---|
+| プログラム（`index.html`、`assets/*.js`、`assets/style.css`、`tokens.css` など） | [Apache License 2.0](LICENSE) |
+| コンテンツ（ミニコンテンツの文章、漢字のなりたち図、画面の日本語） | [CC BY 4.0](LICENSE-CONTENT.md) |
+
+商用・非商用を問わず、複製・改変・再配布・再公開できます。条件は**クレジットの表示**だけです。
+
+- プログラムを改変して配布する場合は、著作権表示と [`NOTICE`](NOTICE) の内容を残し、変更した旨を明記してください（Apache-2.0 第4条）
+- コンテンツを使って Web で公開する場合は、**利用者から見える場所**に次の表示を置いてください
+
+```
+「はじめ夏休みの宿題」（moyashimisosoup 作）CC BY 4.0
+https://github.com/moyashimisosoup/shukudai-notebook
+```
+
+### お願い（義務ではありません）
+
+このアプリを使ってくださったら、どんなふうに使われたのか
+[Issues](https://github.com/moyashimisosoup/shukudai-notebook/issues) で教えていただけるととても嬉しいです。
+報告は義務ではないので、使うこと自体をためらわないでください。
+
+### 収録内容について
+
+引用している名言・ことわざ・故事成語・古語などの原典は、それぞれの作者・出典に帰属します。
+また、動物の生態や漢字の成り立ちといった**事実そのもの**に著作権はありません。
+上記のライセンスがかかるのは、それを子ども向けに書き起こした**文章と図の表現**です。

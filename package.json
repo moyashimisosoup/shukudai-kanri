@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "家庭向けのしゅくだいノート",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "dependencies": {
     "@codexteam/icons": "0.3.3"
   }

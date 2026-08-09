@@ -164,6 +164,14 @@ button{ font:inherit; color:inherit; }
   font-size:13px; line-height:1.55; font-weight:700; color:var(--ai-usu);
   background:var(--sora); border:1px solid var(--hougan); border-radius:var(--r-s);
 }
+/* 作者表示。じゃまにならない大きさで、けれど消さずに残るように */
+.credit{
+  margin:6px 0 10px; padding:0 4px;
+  font-size:12px; line-height:1.6; font-weight:700;
+  color:var(--ai-usu); text-align:center;
+}
+.credit a{ color:inherit; }
+
 .stats-count{
   margin:12px 0 6px; padding:16px; text-align:center;
   font-family:var(--font-num); font-size:38px; font-weight:900;
