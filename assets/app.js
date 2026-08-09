@@ -1073,7 +1073,7 @@ function paceHTML(o){
   /* バーは 伸びているのに おくれている、という 分かりにくい 状態のときだけ、
      何が のこっているのかを はっきり 伝える */
   const warn = (gap < -6 && mustLeft > 0 && opt.done > 0)
-    ? `<p class="pace-warn">「かならず やる」が あと ${mustLeft}こ のこっているよ。そちらから やろう！</p>`
+    ? `<p class="pace-warn">「かならず やる」が あと ${mustLeft}こ のこっているよ。さきに やろう！</p>`
     : '';
 
   return `
