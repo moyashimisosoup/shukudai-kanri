@@ -34,8 +34,16 @@ git push public-households HEAD:main && git push origin HEAD:main
 
 公開版の GitHub Actions Pages デプロイが、古いデプロイを「進行中」と誤認して失敗しました。そのため公開版は現在、GitHub Pages の `main` ブランチ直配信（legacy）に切り替えています。`.nojekyll` を追加済みです。
 
-- 公開版・家庭用版とも `main` への push で公開される
-- `.github/workflows/pages.yml` は残っているため Actions の失敗通知が出る可能性がある。公開は直配信で正常なので、通知を止めたい場合は公開版でこの workflow を無効化/削除することを検討する
+- **公開版・家庭用版とも GitHub Pages の `main` ブランチ直配信（legacy）**。push すれば数十秒で公開される
+- Actions によるデプロイは使わない。`.github/workflows/pages.yml` は 2026-08-09 に削除した。
+  actions/deploy-pages が「前のデプロイが進行中」と誤認して失敗し続け、家庭用版が5世代ぶん
+  古いまま配信される事故が起きたため（`f8902b7` のデプロイが固まり、以降を全てブロックした）
+- 配信されている版は次で確認できる。ブラウザのキャッシュに惑わされないこと
+
+```bash
+curl -s https://moyashimisosoup.github.io/shukudai-notebook/ | grep -o "app.js?v=[0-9a-z]*"
+curl -s https://moyashimisosoup.github.io/shukudai-kanri/   | grep -o "app.js?v=[0-9a-z]*"
+```
 
 ## 同期のしくみ
 
@@ -130,7 +138,6 @@ body（縦フレックス・overflow:hidden・height:100%）
 - `assets/style.css`: レスポンシブUI、テーマ、iPhone/iPad向け調整
 - `assets/sync.js`: Firebase同期・端末数
 - `assets/kanji.js`: 漢字レベルに合わせた表示変換
-- `.github/workflows/pages.yml`: Actions Pages（公開版では現在不要）
 
 ## 次に行う場合の注意
 
