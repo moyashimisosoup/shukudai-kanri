@@ -147,6 +147,11 @@ function normalizeConfig(c){
     c.theme = THEME_IDS.includes(legacyTheme) ? legacyTheme : 'notebook';
   }
   if(typeof c.showDaily !== 'boolean') c.showDaily = false;
+  /* 読める漢字。既存家庭は、その端末に のこっている 値を 引きつぐ */
+  if(![0,1,2,9].includes(Number(c.readingGrade))){
+    const legacy = Number(getLocal(K_READING));
+    c.readingGrade = [0,1,2,9].includes(legacy) ? legacy : 2;
+  }else c.readingGrade = Number(c.readingGrade);
   /* 記録の1行けし。ふだんは 切っておく。
      入れっぱなしだと、子どもが 誤って 記録を 消してしまう */
   if(typeof c.allowLogDelete !== 'boolean') c.allowLogDelete = false;
@@ -328,7 +333,14 @@ function setLocal(key, value){ try{ localStorage.setItem(key, value); }catch(e){
 function isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
 function isStatsURL(){ return new URLSearchParams(location.search).get(STATS_PARAM) === STATS_VALUE; }
 function cleanCode(value){ return String(value || '').trim().normalize('NFKC').replace(/\s+/g,'').replace(/[\/\u0000-\u001f]/g,''); }
+/* 読める漢字は これまで 端末ごとの 設定だった。
+   そのため おうちの人の端末で 変えても、子どもの端末は そのままで、
+   保護者から 直せない状態に なっていた。
+   デザイン（テーマ）と 同じく おうちの設定として 同期する。
+   まだ config に 無い 家庭は、その端末に のこっている 値を 引きつぐ。 */
 function readingGrade(){
+  const c = config && Number(config.readingGrade);
+  if([0,1,2,9].includes(c)) return c;
   const g = Number(getLocal(K_READING) || 2);
   return [0,1,2,9].includes(g) ? g : 2;
 }
@@ -1246,9 +1258,6 @@ function funHTML(){
       : ''}
     <p class="fun-q">${rubyHTML(f.q)}</p>
     ${funOpen ? `<p class="fun-a">${rubyHTML(f.a)}</p>${f.fig ? kanjiOriginHTML(f.fig) : ''}` : ''}
-    ${bonus && seenCount === FUN_MAX
-      ? '<p class="fun-bonus fun-bonus--on">「できた！」が ふえたので、きょうは もうひとつ！</p>'
-      : ''}
     <div class="fun-row">
       ${funOpen ? '' : `<button class="btn btn-sm" data-fun="open" type="button">${
         isQuiz ? 'こたえを 見る' : (f.ask || 'つづきを 見る')}</button>`}
@@ -1262,6 +1271,13 @@ function funHTML(){
         ? '<span class="fun-owari">きょうは ここまで。また あした！</span>'
         : ''}
     </div>
+    ${/* きほんの 3つを 読みおえ、ごほうびの 1つが のこっている ときだけ 出す。
+          説明と まぎれないよう、ボタンの 下に 小さく。
+          前は「3つ目に 出るはず」なのに 出かたが ずれて 見えていたので、
+          「のこりが あるか（left）」で 判断するように した */
+      bonus && seenCount >= FUN_MAX && left > 0
+      ? '<p class="fun-bonus--on">「できた！」が ふえたので、きょうは もうひとつ 読めるよ。</p>'
+      : ''}
   </section>`;
 }
 
@@ -2833,7 +2849,7 @@ function viewConfig(){
   <section class="sec config-sec"><div class="sec-head"><h2>この端末の 表示</h2></div><div class="paper">
     <div class="set-row"><label class="lab" for="cfgChildName">こどもの 名前</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
     <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
-    <p class="set-note">名前と漢字の表示は、この端末に合わせます。</p>
+    <p class="set-note">名前と読める漢字は、おうちの設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
     <fieldset class="theme-picker"><legend>いろと デザイン（おうちで共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
   </div></section>
 
@@ -2990,6 +3006,7 @@ function bindWelcomeStart(){
     setLocal(K_READING, grade);
     if(typeof setReadingGrade === 'function') setReadingGrade(grade);
     setLocal(K_ONBOARD, 'done');
+    config.readingGrade = grade;      // おうちの設定として 共有する
     config.childName = name;
     if(config.title === DEFAULT_CONFIG.title) config.title = name + 'の なつやすみの しゅくだい';
     saveCfg();
@@ -3191,8 +3208,12 @@ function bindConfig(){
   });
   $('#cfgReadingGrade').addEventListener('change', e=>{
     const grade = Number(e.target.value);
-    setLocal(K_READING, grade);
+    /* おうちの設定として 同期する。おうちの人の端末で 変えれば、
+       子どもの端末の 表示も 数秒で 追いつく */
+    config.readingGrade = grade;
+    setLocal(K_READING, grade);          // 古い版の端末との つなぎ
     if(typeof setReadingGrade === 'function') setReadingGrade(grade);
+    saveCfg();
     render({ keepScroll:true });
   });
   $('#cfgStart').addEventListener('change', e=>{ config.startAt = e.target.value; saveCfg(); });

@@ -956,8 +956,10 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   font-size:16px; font-weight:900; color:var(--ai-usu);
   align-self:center; line-height:1.6;
 }
+/* ごほうびの おしらせ。ボタンの下に、説明と まぎれない 小ささで */
 .fun-bonus--on{
-  margin-top:10px; color:var(--wakaba);
+  margin-top:10px; font-size:14px; font-weight:900;
+  line-height:1.6; color:var(--wakaba);
 }
 .fun-q{ font-size:23px; font-weight:900; line-height:1.5; overflow-wrap:anywhere; min-width:0; }
 .fun-a{
