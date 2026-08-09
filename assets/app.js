@@ -1052,7 +1052,7 @@ function viewHome(){
   ${parentMessageHTML()}
 
   ${dailyAllDone ? '' : dailySec}
-  ${sectionHTML('must','かならず やる', nokori>0 ? 'のこり '+nokori+'こ' : 'ぜんぶ できた！', must)}
+  ${sectionHTML('must','かならず やる', nokori>0 ? 'のこり '+nokori+'しゅるい' : 'ぜんぶ できた！', must)}
   ${opt.length   ? sectionHTML('opt','つぎに やる','かならず やるが すんだら、ここから えらぼう', opt) : ''}
 
   <section class="sec">
@@ -1165,7 +1165,7 @@ function paceHTML(o){
   let cls = v.cls, msg = v.msg;
 
   /* のこりは「ばん」や「まい」の 合計では 数が 大きすぎて 伝わらない。
-     見出しの「かならず やる のこり ◯こ」と 同じ 課題の数で かぞえる */
+     見出しの「かならず やる のこり ◯しゅるい」と 同じ 課題の数で かぞえる */
   const left = group => config.tasks
     .filter(t => t.group === group && t.type !== 'daily' && !prog(t).isDone).length;
   const mustLeft = left('must');
@@ -1186,7 +1186,7 @@ function paceHTML(o){
   /* バーは 伸びているのに おくれている、という 分かりにくい 状態のときだけ、
      何が のこっているのかを はっきり 伝える */
   const warn = (gap < -6 && mustLeft > 0 && opt.done > 0)
-    ? `<p class="pace-warn">「かならず やる」が あと ${mustLeft}こ のこっているよ。さきに やろう！</p>`
+    ? `<p class="pace-warn">「かならず やる」が あと ${mustLeft}しゅるい のこっているよ。さきに やろう！</p>`
     : '';
 
   return `

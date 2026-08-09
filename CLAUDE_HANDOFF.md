@@ -1,6 +1,6 @@
 # 宿題ノート：引き継ぎメモ（Claude / Codex 共用）
 
-更新日: 2026-08-09（JST）
+更新日: 2026-08-10（JST）
 
 このメモは、AIエージェント（Claude Code / Codex）が交代で作業するための共有メモです。
 作業を終えたら、変更点と「次に触る人がハマりやすい前提」をここへ書き足してください。
@@ -22,7 +22,7 @@
 - 家庭用版: https://moyashimisosoup.github.io/shukudai-kanri/
 - Git remote: `public-households` = 公開版、`origin` = 家庭用版
 - 作業ブランチ: `codex/multi-household-public`（`public-households/main` を追跡）
-- 最新コミット: `d0a17aa Keep the bottom tabs in place on iPad`
+- 最新コミット: `7dc09e6 Count the remaining work in kinds, not pieces`
 
 公開版・家庭用版のコードは同一です。変更は原則として両remoteの `main` へ push してください。
 
@@ -44,6 +44,60 @@ git push public-households HEAD:main && git push origin HEAD:main
 curl -s https://moyashimisosoup.github.io/shukudai-notebook/ | grep -o "app.js?v=[0-9a-z]*"
 curl -s https://moyashimisosoup.github.io/shukudai-kanri/   | grep -o "app.js?v=[0-9a-z]*"
 ```
+
+## state に入っているもの（同期する）
+
+`state` は記録の集まりで、`config`（設定）とちがって **id で合流**する。
+`config` は「あとに保存した方でまるごと置きかえる」ので、2台で同時に触ると片方が消える。
+**複数の端末から書きうるものは config に置かないこと。**
+
+| 欄 | 中身 | 合流のしかた |
+|---|---|---|
+| `logs` | やったことの記録 | id で合流。`gone`/`trash` の墓標にある id は取りのぞく |
+| `books` | 本の記録 | 同上 |
+| `progress` | 進みぐあい | 値ごとの時刻で新しい方が勝つ（下記） |
+| `trash` | 消した記録の控え（中身つき） | 保護者ページに出す。墓標も兼ねる。最大50件 |
+| `gone` | 消した印だけ | 中身を残さない削除に使う。最大300件 |
+| `reads` | その日に読んだミニコンテンツ | **logs には入れない**（下記）。最大400件 |
+| `messages` | こどもへのメッセージ | 最大3件。新しいものから3件にそろえる |
+
+### 触るときの注意
+
+- **`reads` を `logs` に混ぜない。** 混ぜると「やったこと」が増え、カレンダーが緑になり、
+  ごほうびの判定（`didSomethingToday`）まで動く。読んだだけで宿題をしたことにはしない
+- **削除は必ず墓標を残す。** `pushTrash()`（中身つき・保護者ページに表示）か
+  `pushGone()`（印だけ）を通す。残さないと相手の端末から復活する
+- **新しい欄を state に足したら `mergeState()` にも足す。** 足さないと同期で消える
+- `messages` は `config.parentMessage` から移行済み。移行は `migrateMessages()` が初回に1度だけ行う
+
+## 進捗バーの構成
+
+- しゅくだいバーは **必須＋任意の合算**。任意をやってもバーが伸びるようにするため。
+  バーの中を濃淡で分け、濃い緑＝かならずやる、うすい緑＝つぎにやる
+- **間に合うかの判定（いいペース！など）は必須だけ**で行う。任意を多くやるほど
+  「よゆう」と出て必須の遅れが隠れるため
+- 必須が残っているあいだは「かならず やるは ぜんぶ できた！」系の文言を出さない。
+  数が任意のぶんだけなのに必須も終わったように読めてしまう（実際に起きた）
+- 残りの数は「ばん」「まい」の合計ではなく**課題の数**で、単位は「しゅるい」
+
+## ミニコンテンツ（`assets/data.js` の `FUN`）
+
+- 配列の末尾が `.map()` になっていて、そこで分野ごとの問いかけ `ask` を解決している。
+  **この `.map()` を壊さないこと**。項目に足す値（`lv` など）はオブジェクトリテラルへ直接書く
+- `lv` は 2（小2まで）か 3（小3以上）。読める漢字の設定が「漢字のまま」のときだけ
+  `lv:3` も出す（`funAllowed()`）
+- 配列の添字がそのまま localStorage の既読履歴のキーになる。並べ替え・削除は履歴をずらす
+
+## 画面まわりで壊しやすいところ
+
+- `bindConfig()` は描き直しのたびに呼ばれる。**`#view` へ直接 addEventListener しない**。
+  `#view` は描き直しても要素が残るのでリスナーが積み重なり、1回のタップで何度も動く
+  （並べかえの ▲▼ が効かず、iPad では他のボタンまで固まった）。
+  一度だけ束ねる `bindConfig._edBound` のガードを外さないこと
+- 合わせた結果が変わったかの判定は `sameState()`。`JSON.stringify` の直接比較に戻すと、
+  欄の名前の並び順がちがうだけで「変わった」と判定し、端末間の送り合いが止まらなくなる
+- グリッドで `1fr` を使うと最小幅が `min-content` になり、折り返さない長い1行があると
+  はみ出す（iPhone で実際に起きた）。`minmax(0,1fr)` と `min-width:0` を使う
 
 ## 同期のしくみ
 
@@ -136,13 +190,14 @@ body（縦フレックス・overflow:hidden・height:100%）
 - `assets/data.js`: デフォルト設定、宿題サンプル、ミニコンテンツ `FUN`
 - `assets/kanji-origin.js`: 漢字のなりたち図（インラインSVG）
 - `assets/style.css`: レスポンシブUI、テーマ、iPhone/iPad向け調整
-- `assets/sync.js`: Firebase同期・端末数
+- `assets/sync.js`: Firebase同期・端末一覧（役割・呼び名・ver）
 - `assets/kanji.js`: 漢字レベルに合わせた表示変換
 
 ## 次に行う場合の注意
 
 - iPhone/iPad の Safari ではキャッシュが強い。`app.js` / `data.js` / `style.css` / `kanji-origin.js` を
-  変更したら `index.html` の `?v=` を更新する（現在 `20260809f`）
+  変更したら `index.html` の `?v=` を更新する（現在 `20260810k`）。
+  設定画面の「アプリの ver」に、その端末が動かしている版が出る
 - `FUN` は配列の添字がそのまま localStorage の既読履歴・確認状態のキーになっている。
   項目を消す・並べ替えると既存端末の履歴が1つずつズレる（壊れはしないが出題順が乱れる）
 - 既存家庭のデータ互換を守るため、`recordStyle:'book'`、`state.books`、`targetUnit` の
