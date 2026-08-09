@@ -54,8 +54,16 @@ let pending = { config:false, state:false };
 
 const listeners = [];
 const deviceListeners = [];
+const mapListeners = [];
 let deviceCount = 0;
-let registeredDeviceHouseId = '';
+let deviceMap = {};
+
+function setDeviceMap(m){
+  const next = (m && typeof m === 'object') ? m : {};
+  if(JSON.stringify(next) === JSON.stringify(deviceMap)) return;
+  deviceMap = next;
+  mapListeners.forEach(fn => { try{ fn(deviceMap); }catch(e){} });
+}
 
 function setStatus(s, text){
   status = s;
@@ -173,6 +181,7 @@ async function connect(){
 
         const d = snap.data() || {};
         setDeviceCount(Object.keys(d.devices || {}).length);
+        setDeviceMap(d.devices || {});
         registerDevice();
         const app_ = window.NatsuApp;
         if(app_ && typeof app_.onRemote === 'function'){
@@ -213,26 +222,47 @@ async function initFirebase(){
   });
 }
 
-/* 文書内の devices は { ランダム番号: true } だけ。merge 更新なので、
-   宿題・名前・記録の同期データへ影響を与えない。 */
+/* 文書内の devices は { ランダム番号: { 役割・呼び名・版・いつ } }。
+   merge 更新なので、宿題・名前・記録の同期データへ影響を与えない。
+   古い版は { ランダム番号: true } で書いているので、読む側で どちらも 通す。
+
+   名前は「こどもの呼び名」だけで、端末名・機種・場所は 送らない。
+   版を のせるのは、1台だけ 古いままの端末が 記録を もどしてしまう ことが
+   あり、それを 人が 気づける ようにするため。 */
+function deviceInfo(){
+  const app_ = window.NatsuApp;
+  const i = (app_ && typeof app_.deviceInfo === 'function') ? app_.deviceInfo() : {};
+  return {
+    role: String(i.role || ''),
+    name: String(i.name || ''),
+    ver:  String(i.ver  || ''),
+    at:   Date.now()
+  };
+}
+/* 中身が かわった ときだけ 書く。開くたびに 書くと むだに 通信する */
+let lastDeviceWrite = '';
 async function registerDevice(){
   if(!docRef || !Sync._fs) return;
-  const houseId = houseIdFor(getCode());
-  if(registeredDeviceHouseId === houseId) return;
-  registeredDeviceHouseId = houseId;
+  const info = deviceInfo();
+  const key = [houseIdFor(getCode()), info.role, info.name, info.ver].join('|');
+  if(lastDeviceWrite === key) return;
+  lastDeviceWrite = key;
   try{
     const id = getDeviceId();
-    await Sync._fs.setDoc(docRef, { devices:{ [id]:true } }, { merge:true });
+    await Sync._fs.setDoc(docRef, { devices:{ [id]: info } }, { merge:true });
   }catch(err){
-    registeredDeviceHouseId = '';
-    setStatus('error', '端末数を保存できません：' + (err && err.code || err));
+    lastDeviceWrite = '';
+    setStatus('error', '端末の記録を保存できません：' + (err && err.code || err));
   }
 }
+/* 役割を えらび直した ときなど、書き直させる */
+function refreshDevice(){ lastDeviceWrite = ''; registerDevice(); }
 
 function disconnect(){
   if(unsub){ unsub(); unsub = null; }
   docRef = null;
-  registeredDeviceHouseId = '';
+  lastDeviceWrite = '';
+  setDeviceMap({});
   setDeviceCount(0);
   setStatus('off', '');
 }
@@ -345,6 +375,9 @@ const Sync = {
   onStatus(fn){ listeners.push(fn); fn(status, statusText); },
   deviceCount: displayedDeviceCount,
   onDeviceCount(fn){ deviceListeners.push(fn); fn(displayedDeviceCount()); },
+  devices: () => deviceMap,
+  onDevices(fn){ mapListeners.push(fn); fn(deviceMap); },
+  refreshDevice,
   push,
   pushAll,
   connect,

@@ -36,6 +36,8 @@ const K_ROLE = TEST_MODE ? 'natsu.preview.role.v1' : 'natsu.device.role.v1';
 const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
 const K_READING = TEST_MODE ? 'natsu.preview.reading.v1' : 'natsu.device.reading.v1';
 const K_THEME = TEST_MODE ? 'natsu.preview.theme.v1' : 'natsu.device.theme.v1';
+/* sync.js が この端末に ふった ランダム番号。一覧で「この端末」を 見わけるのに つかう */
+const K_DEVICE_ID = TEST_MODE ? 'natsu.preview.sync.device.v1' : 'natsu.sync.device.v1';
 const K_TRIVIA_REVIEW = TEST_MODE ? 'natsu.preview.trivia-review.v1' : 'natsu.trivia-review.v1';
 const K_METRIC = 'natsu.metric.registered.v1';
 /* URL の隠し入口。静的サイトなので認証ではなく、通常画面に出さないための合図。 */
@@ -142,6 +144,9 @@ function normalizeConfig(c){
     c.theme = THEME_IDS.includes(legacyTheme) ? legacyTheme : 'notebook';
   }
   if(typeof c.showDaily !== 'boolean') c.showDaily = false;
+  /* 記録の1行けし。ふだんは 切っておく。
+     入れっぱなしだと、子どもが 誤って 記録を 消してしまう */
+  if(typeof c.allowLogDelete !== 'boolean') c.allowLogDelete = false;
   const msg = c.parentMessage && typeof c.parentMessage === 'object' ? c.parentMessage : {};
   c.parentMessage = {
     enabled: !!msg.enabled,
@@ -533,7 +538,13 @@ function applyRemote(remote){
 
 window.NatsuApp = {
   current: () => ({ config, state: stripLocal(state) }),
-  onRemote: applyRemote
+  onRemote: applyRemote,
+  /* 端末の 見わけに つかう ぶんだけ。端末名や 機種は 送らない */
+  deviceInfo: () => ({
+    role: getLocal(K_ROLE),
+    name: String(config.childName || getLocal(K_NAME) || '').trim(),
+    ver:  APP_VER
+  })
 };
 
 /* ---------------------------------------------------------
@@ -1107,9 +1118,16 @@ function logRowHTML(l){
         by ? `<span class="ti-by">（${esc(by)}）</span>` : ''}</div>
       ${l.memo ? `<div class="ti-memo">${esc(l.memo)}</div>` : ''}
     </div>
-    <button class="icon-btn del ti-del" data-dellog="${esc(l.id)}"
-            title="この記録を消す" aria-label="この記録を消す" type="button">🗑</button>
+    ${canDeleteLog() ? `<button class="icon-btn del ti-del" data-dellog="${esc(l.id)}"
+            title="この記録を消す" aria-label="この記録を消す" type="button">🗑</button>` : ''}
   </div>`;
+}
+
+/* 記録の1行けしを 出してよいか。
+   設定で 入れたうえで、この端末が おうちの人の端末の ときだけ。
+   子どもの端末では 出さない（誤って 消して しまわない ように） */
+function canDeleteLog(){
+  return !!config.allowLogDelete && getLocal(K_ROLE) === 'parent';
 }
 
 /* {漢字|よみ} を ふりがなに する。さきに esc() で エスケープしてから
@@ -1781,6 +1799,52 @@ function syncPromptHTML(){
   </section>`;
 }
 
+/* 共有している 端末の 一覧。
+   「親(1)」「子(はじめ)」のように 見わけられる ようにする。
+   番号は 先に つないだ 順。同じ 役割の 中だけで かぞえる。
+   古い版は devices の 中身が true しか 無いので、その場合は
+   「えらんでいない」に なる（役割を えらべば 次から 出る）。 */
+function deviceRows(map){
+  const rows = Object.keys(map || {}).map(id=>{
+    const v = map[id];
+    const o = (v && typeof v === 'object') ? v : {};
+    return { id, role:o.role || '', name:String(o.name || '').trim(), ver:o.ver || '', at:o.at | 0 };
+  });
+  rows.sort((a,b)=> (a.at - b.at) || a.id.localeCompare(b.id));
+  const n = { parent:0, child:0, '':0 };
+  const sameName = {};
+  rows.forEach(r=>{ if(r.role === 'child' && r.name) sameName[r.name] = (sameName[r.name] | 0) + 1; });
+  const used = {};
+  rows.forEach(r=>{
+    n[r.role] = (n[r.role] | 0) + 1;
+    if(r.role === 'parent') r.label = '親(' + n.parent + ')';
+    else if(r.role === 'child'){
+      const nm = r.name || 'こども';
+      used[nm] = (used[nm] | 0) + 1;
+      r.label = '子(' + nm + (sameName[nm] > 1 ? ' ' + used[nm] : '') + ')';
+    }else r.label = 'えらんでいない(' + n[''] + ')';
+  });
+  return rows;
+}
+function deviceListHTML(){
+  const S = window.NatsuSync;
+  const map = (S && typeof S.devices === 'function') ? S.devices() : {};
+  const rows = deviceRows(map);
+  if(!rows.length) return '<p class="set-note">まだ ほかの端末の情報が とどいていません。</p>';
+  const mine = getLocal(K_DEVICE_ID);
+  const newest = rows.map(r=> r.ver).filter(Boolean).sort().pop() || '';
+  return `<ul class="dev-list">${rows.map(r=>`
+    <li class="dev-row${r.id === mine ? ' is-me' : ''}">
+      <span class="dev-name">${esc(r.label)}</span>
+      ${r.ver ? `<span class="dev-ver${r.ver !== newest ? ' is-old' : ''}">版 ${esc(r.ver)}${
+        r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver is-old">版 不明（古い）</span>'}
+      ${r.id === mine ? '<span class="dev-me">この端末</span>' : ''}
+    </li>`).join('')}</ul>
+    ${rows.some(r=> !r.ver || r.ver !== newest)
+      ? '<p class="set-note dev-warn">古い版の端末があります。その端末で「アプリの版」の<b>さいしんに 更新する</b>を押してください。古いままだと、訂正や削除がその端末から元に戻されることがあります。</p>'
+      : ''}`;
+}
+
 function syncSectionHTML(opts){
   const lead = opts && opts.lead;
   const S = window.NatsuSync;
@@ -1825,6 +1889,7 @@ function syncSectionHTML(opts){
         ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作る</button>'}
       </div>
       ${code ? `<p class="set-note sync-device-count" id="syncDeviceCount">このおうちで共有設定済みの端末：${S.deviceCount()}台</p>
+      <div id="syncDeviceList">${deviceListHTML()}</div>
       <div class="set-row"><span class="lab">この端末は</span>
         <select id="deviceRole">
           <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>えらんでいない</option>
@@ -1875,10 +1940,9 @@ function syncTraceHTML(){
   const rows = traceRead();
   const t = ms => ms ? fmtTime(new Date(ms)) + ':' + pad2(new Date(ms).getSeconds()) : '（なし）';
   return `
-  <section class="sec config-sec">
-    <div class="sec-head"><h2>同期の記録</h2><span class="sec-note">${rows.length}件</span></div>
+  <section class="sec config-sec config-sec--quiet">
     <details class="paper set-advanced">
-      <summary>合わせたときに 入れかわった ところ</summary>
+      <summary>同期の記録（調べもの用・${rows.length}件）</summary>
       <div class="set-advanced-body">
         <p class="set-note">記録が 元に戻ってしまう ときに、どちらの端末の どの値が 勝ったのかを 見るための ひかえです。この端末の中だけに のこり、外へは 送りません。</p>
         <div class="set-actions">
@@ -2723,6 +2787,19 @@ function viewConfig(){
     </div>
   </section>
 
+  <section class="sec config-sec"><div class="sec-head"><h2>記録の手入れ</h2></div>
+    <div class="paper">
+      <label class="set-field set-field--wide set-check">
+        <input type="checkbox" id="allowLogDelete"${config.allowLogDelete ? ' checked' : ''}>
+        履歴削除機能を 有効にする</label>
+      <p class="set-note">誤操作や修正で記録が散らかってしまったときに履歴を消すことができます。残したい作業履歴や記録を消すと元に戻せないので気をつけてください。</p>
+      <p class="set-note">消せるのは「この端末は <b>おうちの人の端末</b>」を選んだ端末の「やったこと」の一覧からだけです。こどもの端末には消すボタンが出ません。すすみぐあいの数字は消えません。${
+        config.allowLogDelete && getLocal(K_ROLE) !== 'parent'
+          ? '<br><b>いまこの端末は おうちの人の端末に なっていません。</b>「べつの端末と つなぐ」の「この端末は」で選んでください。'
+          : ''}</p>
+    </div>
+  </section>
+
   ${syncTraceHTML()}
 
   <section class="sec config-sec"><div class="sec-head"><h2>データ管理</h2></div><details class="paper set-advanced"><summary>バックアップと 初期化</summary>
@@ -2911,6 +2988,8 @@ function bindSync(){
       const v = roleSel.value;
       if(v === 'child' || v === 'parent') setLocal(K_ROLE, v);
       else try{ localStorage.removeItem(K_ROLE); }catch(e){}
+      /* えらび直したことを、ほかの端末の 一覧にも すぐ とどける */
+      if(typeof S.refreshDevice === 'function') S.refreshDevice();
       toast('この端末の せっていを かえました');
     });
   }
@@ -2931,6 +3010,15 @@ function bindSync(){
     S.onDeviceCount(count=>{
       const el = $('#syncDeviceCount');
       if(el) el.textContent = 'このおうちで共有設定済みの端末：' + count + '台';
+    });
+  }
+  /* 端末の 一覧は とどくのが 遅れる ことが ある。
+     画面ごと 描き直すと 入力中の あいことばが 消えるので、ここだけ 差し替える */
+  if(!bindSync._devicesWatching && typeof S.onDevices === 'function'){
+    bindSync._devicesWatching = true;
+    S.onDevices(()=>{
+      const el = $('#syncDeviceList');
+      if(el) el.innerHTML = deviceListHTML();
     });
   }
 
@@ -3117,6 +3205,13 @@ function bindConfig(){
     const q = location.search.replace(/[?&]r=\d+/g, '').replace(/^&/, '?');
     const sep = q ? (q.startsWith('?') ? '&' : '?') : '?';
     location.replace(location.pathname + q + sep + 'r=' + Date.now() + location.hash);
+  });
+
+  const ald = $('#allowLogDelete');
+  if(ald) ald.addEventListener('change', ()=>{
+    config.allowLogDelete = ald.checked;
+    saveCfg(); render({ keepScroll:true });
+    toast(ald.checked ? '履歴削除を 有効にしました' : '履歴削除を 切りました');
   });
 
   const tc = $('#traceCopy');
@@ -3384,6 +3479,7 @@ document.addEventListener('click', e=>{
      消した印を のこさないと、相手の端末から また 戻ってくる */
   const delLog = e.target.closest('[data-dellog]');
   if(delLog){
+    if(!canDeleteLog()) return;      // 画面に のこっていても、切ってあれば 消さない
     const id = delLog.dataset.dellog;
     const l = (state.logs || []).find(x=> x.id === id);
     if(l && confirm('この記録を消しますか？\n「' + (l.what || '') + '」\nすすみぐあいの数字は そのままです。')){

@@ -165,6 +165,31 @@ button{ font:inherit; color:inherit; }
   font-size:13px; line-height:1.55; font-weight:700; color:var(--ai-usu);
   background:var(--sora); border:1px solid var(--hougan); border-radius:var(--r-s);
 }
+/* 調べもの用。ふだんは 目に入らないよう 小さく */
+.config-sec--quiet > .set-advanced > summary{
+  font-size:14px; font-weight:700; color:var(--ai-usu);
+}
+.config-sec--quiet .trace-body,
+.config-sec--quiet .set-note{ font-size:13px; }
+
+/* 共有している 端末の 一覧 */
+.dev-list{ margin:8px 0 0; padding:0; list-style:none; }
+.dev-row{
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  padding:7px 0; border-top:1px dashed var(--hougan);
+  font-size:15px; font-weight:700;
+}
+.dev-row:first-child{ border-top:none; }
+.dev-row.is-me{ color:var(--ai); }
+.dev-name{ font-weight:900; }
+.dev-ver{ font-size:13px; font-weight:700; color:var(--ai-usu); }
+.dev-ver.is-old{ color:var(--suika); }
+.dev-me{
+  font-size:12px; font-weight:900; color:var(--kami);
+  background:var(--ai); border-radius:var(--r-pill); padding:1px 9px;
+}
+.dev-warn{ color:var(--suika); }
+
 /* 記録1行ごとの 消すボタン */
 .ti-del{ align-self:start; flex:none; }
 
