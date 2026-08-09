@@ -1113,6 +1113,22 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   .parent-message-note p{ flex:1 1 8em; min-width:0; }
 }
 
+/* いま とどいている メッセージの ならび（保護者ページ） */
+.msg-empty{ margin-top:8px; }
+.msg-list{ margin-top:10px; display:grid; gap:8px; }
+.msg-row{
+  display:flex; align-items:flex-start; gap:10px;
+  padding:10px 12px; background:var(--himawari-usu);
+  border:2px solid var(--himawari); border-radius:var(--r-s);
+}
+.msg-main{ flex:1 1 auto; min-width:0; }
+.msg-from{ display:block; font-size:13px; font-weight:900; color:var(--ai-usu); }
+.msg-text{
+  display:block; font-size:16px; font-weight:700; line-height:1.55;
+  white-space:pre-wrap; overflow-wrap:anywhere;
+}
+.msg-row .icon-btn{ flex:none; }
+
 .parent-message-form{ padding:14px 16px; }
 .parent-message-fields{
   display:grid;

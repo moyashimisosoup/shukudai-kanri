@@ -125,7 +125,7 @@ function migrate5to6(c){
    books が無いまま 保護者ページや 本の一覧を開くと 例外で止まり、
    画面が切りかわらない（リンクが効かないように見える）ので、
    入口を ひとつに まとめる */
-function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[], trash:[], gone:[], reads:[] }; }
+function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[], trash:[], gone:[], reads:[], messages:[] }; }
 
 /* 消した記録を のこす数。
    これは「思い出のため」だけでは なく、消したことを 相手の端末に つたえる
@@ -173,6 +173,7 @@ function normalizeState(s){
   if(!Array.isArray(s.trash)) s.trash = [];
   if(!Array.isArray(s.gone))  s.gone  = [];
   if(!Array.isArray(s.reads)) s.reads = [];
+  if(!Array.isArray(s.messages)) s.messages = [];
   return s;
 }
 
@@ -351,6 +352,8 @@ function loadAll(){
     else funPick();
   }
   funOpen = false;
+  /* 旧しきの 1件だけの メッセージを、新しい ならびへ 移す（1度だけ） */
+  migrateMessages();
 }
 function saveCfg(){
   config = normalizeConfig(config);
@@ -528,6 +531,12 @@ function mergeState(local, remote, localIsNewer){
     .sort((x,y)=> (y.at|0) - (x.at|0))
     .slice(0, TRASH_MAX);
   /* 印だけの ひかえ。1行けしなど、中身を のこさない 消しかたの 墓標 */
+  /* メッセージは id で 合流。両方の 親が 同時に 送っても どちらも のこる。
+     3件を こえたら 新しい ものから 3件（どの端末でも 同じ 結果に なる） */
+  out.messages = mergeById(local.messages, remote.messages, (a,b)=> String(a.at||'') >= String(b.at||''))
+    .sort((x,y)=> String(x.at||'').localeCompare(String(y.at||'')))
+    .slice(-MESSAGES_MAX);
+
   out.reads = mergeById(local.reads, remote.reads, (a,b)=> String(a.at||'') >= String(b.at||''))
     .sort((x,y)=> String(x.at||'').localeCompare(String(y.at||'')))
     .slice(-READS_MAX);
@@ -842,6 +851,50 @@ function parentSenderLabel(value){
   if(value === 'おとうさん') return useKanji ? 'お父さん' : 'おとうさん';
   return value;
 }
+/* ---------------------------------------------------------
+   こどもへの メッセージ（さいだい3人ぶん）
+
+   config ではなく state に 置く。config は「あとに保存した方で
+   まるごと 置きかえる」ので、2台の親が 同時に 送ると 片方が 消える。
+   記録と 同じく id で 合流させれば、どちらも のこる。
+
+   消したときは gone（印だけの ひかえ）に 入れる。
+   これが 無いと 相手の端末から また 出てくる。
+   --------------------------------------------------------- */
+const MESSAGES_MAX = 3;
+function messages(){
+  const gone = new Set((state.gone || []).map(g=> g.id));
+  return (state.messages || [])
+    .filter(m => m && m.id && m.text && !gone.has(m.id))
+    .sort((a,b)=> String(a.at||'').localeCompare(String(b.at||'')))
+    .slice(-MESSAGES_MAX);
+}
+function messageHeading(m){
+  if(!m) return '';
+  if(m.sender === '名前表示なし') return 'おうちの人より';
+  const sender = m.sender === 'その他' ? (m.customSender || 'おうちの人') : parentSenderLabel(m.sender);
+  return `${sender}より`;
+}
+/* 旧しきの 1件だけの メッセージを、新しい ならびへ 移す。
+   1度だけ 動けばよいので、移したことを config に のこす */
+function migrateMessages(){
+  const old = config.parentMessage;
+  if(!old || config.parentMessageMoved) return;
+  config.parentMessageMoved = true;
+  if(old.enabled && old.text){
+    if(!Array.isArray(state.messages)) state.messages = [];
+    if(!state.messages.length){
+      state.messages.push({
+        id: 'm-legacy-' + Date.now(),
+        sender: old.sender, customSender: old.customSender,
+        text: old.text, at: new Date().toISOString(), by: logBy()
+      });
+      saveSt();
+    }
+  }
+  saveCfg();
+}
+
 function parentMessageHeading(msg){
   if(msg.sender === '名前表示なし') return 'おうちの人より';
   const sender = msg.sender === 'その他' ? (msg.customSender || 'おうちの人') : parentSenderLabel(msg.sender);
@@ -1060,16 +1113,18 @@ function contentReviewText(){
   return rows.length ? rows.map((f,n)=>`${n+1}. ${f.q}\n${f.a}`).join('\n\n') : '';
 }
 
+/* こども画面。とどいている ぶんを ぜんぶ ならべる（たたまない）。
+   3件までなので、たたむより そのまま 見えた ほうが 気づける */
 function parentMessageHTML(){
-  const msg = config.parentMessage;
-  if(!msg.enabled || !msg.text) return '';
-  const heading = parentMessageHeading(msg);
+  const rows = messages();
+  if(!rows.length) return '';
   return `
-  <section class="home-parent-message" aria-label="${esc(heading)}">
+  <section class="home-parent-message" aria-label="おうちの人からの メッセージ">
+    ${rows.map(m=>`
     <div class="paper parent-message-note">
-      <strong>${esc(heading)}</strong>
-      <p>${esc(msg.text)}</p>
-    </div>
+      <strong>${esc(messageHeading(m))}</strong>
+      <p>${esc(m.text)}</p>
+    </div>`).join('')}
   </section>`;
 }
 
@@ -1214,7 +1269,7 @@ function taskHTML(t){
     ${meter}
     <div class="task-act">
       <button class="btn ${p.isDone?'btn-ghost':'btn-do'}" data-open="${esc(t.id)}" type="button">
-        ${isFree(t) ? (p.isDone ? 'また かく' : 'かく') : (p.isDone ? 'なおす' : 'やった！')}
+        ${isFree(t) ? (p.isDone ? 'また かく' : 'かく') : (p.isDone ? 'ついか／なおす' : 'やった！')}
       </button>
       ${isBook(t) && p.done > 0
         ? `<a class="btn btn-sm btn-ghost task-sub" href="#books">よんだ本を 見る</a>` : ''}
@@ -1874,7 +1929,7 @@ function viewParent(){
       ${/* 経過とすぐ見くらべたいのは「全体」なので、経過の真下に置く。
             必須・つぎにやる は その内わけとして 下に つづける */''}
       ${pstatRow('夏休みの経過', nat, '', 'natsu')}
-      ${pstatRow('全体', allTotal ? allDone/allTotal*100 : 0, `${allDone}/${allTotal}`, 'all')}
+      ${pstatRow('全体の進捗', allTotal ? allDone/allTotal*100 : 0, `${allDone}/${allTotal}`, 'all')}
       ${pstatRow('必須の宿題', s.pct, `${s.done}/${s.total}`, 'must')}
       ${so.total ? pstatRow('つぎに やる', so.pct, `${so.done}/${so.total}`, 'opt') : ''}
     </div>
@@ -1919,6 +1974,24 @@ function viewParent(){
   ${creditHTML()}`;
 }
 
+/* いま とどいている メッセージ。どの端末からでも 消せる */
+function messageListHTML(){
+  const rows = messages();
+  if(!rows.length) return '<p class="set-note msg-empty">まだメッセージはありません。</p>';
+  return `
+  <div class="msg-list">
+    ${rows.map(m=>`
+      <div class="msg-row">
+        <div class="msg-main">
+          <span class="msg-from">${esc(messageHeading(m))}</span>
+          <span class="msg-text">${esc(m.text)}</span>
+        </div>
+        <button class="icon-btn del" data-delmsg="${esc(m.id)}" type="button"
+                title="このメッセージを消す" aria-label="${esc(messageHeading(m))}のメッセージを消す">🗑</button>
+      </div>`).join('')}
+  </div>`;
+}
+
 function parentMessageEditorHTML(){
   const msg = config.parentMessage;
   return `
@@ -1937,10 +2010,10 @@ function parentMessageEditorHTML(){
           <textarea id="parentMessageText" rows="1" maxlength="80" placeholder="例：きょうも おつかれさま！">${esc(msg.text)}</textarea></label>
       </div>
       <div class="parent-message-controls">
-        <label class="parent-message-toggle"><input id="parentMessageEnabled" type="checkbox"${msg.enabled?' checked':''}> こども画面に 表示する</label>
-        <button class="btn btn-sm btn-do btn-icon-text" id="parentMessageSave" type="button">${icon('save')}<span>保存する</span></button>
+        <button class="btn btn-sm btn-do btn-icon-text" id="parentMessageSave" type="button">${icon('save')}<span>おくる</span></button>
       </div>
-      <p class="set-note">空欄またはチェックを外したときは、こども画面に表示されません。</p>
+      <p class="set-note">こども画面には、新しいものから最大${MESSAGES_MAX}件まで並びます。同じ名前で送ると、その名前のメッセージを差しかえます。</p>
+      ${messageListHTML()}
     </div>
   </section>`;
 }
@@ -3190,14 +3263,57 @@ function bindParent(){
   fitMessageText();
   messageText.addEventListener('input', fitMessageText);
   $('#parentMessageSave').addEventListener('click', ()=>{
-    const sender = $('#parentMessageSender').value;
-    config.parentMessage.sender = PARENT_SENDERS.includes(sender) ? sender : 'おかあさん';
-    config.parentMessage.customSender = String($('#parentMessageCustom').value || '').trim().slice(0, 20);
-    config.parentMessage.text = String($('#parentMessageText').value || '').trim().slice(0, 80);
-    config.parentMessage.enabled = $('#parentMessageEnabled').checked && !!config.parentMessage.text;
-    $('#parentMessageEnabled').checked = config.parentMessage.enabled;
-    saveCfg();
-    toast(config.parentMessage.enabled ? '表示しました' : '非表示にしました');
+    const senderRaw = $('#parentMessageSender').value;
+    const sender = PARENT_SENDERS.includes(senderRaw) ? senderRaw : 'おかあさん';
+    const customSender = String($('#parentMessageCustom').value || '').trim().slice(0, 20);
+    const text = String($('#parentMessageText').value || '').trim().slice(0, 80);
+    if(!text){ toast('メッセージを 入れてください'); return; }
+
+    /* つぎに 送る ぶんの 見出し。同じ 見出しが すでに あれば 差しかえる */
+    const draft = { sender, customSender, text };
+    const heading = messageHeading(draft);
+    const now = messages();
+    const same = now.find(m => messageHeading(m) === heading);
+
+    if(same){
+      if(!confirm('「' + heading + '」の メッセージは すでに あります。\n差しかえますか？')) return;
+      pushGone(same.id);
+    }else if(now.length >= MESSAGES_MAX){
+      /* いっぱいの ときは、どれと 入れかえるかを えらんでもらう */
+      const list = now.map((m,i)=> (i+1) + '：' + messageHeading(m) + '　' + m.text).join('\n');
+      const ans = prompt('メッセージは ' + MESSAGES_MAX + '件までです。\n' +
+        'どれと 入れかえますか？ 番号を 入れてください。\n\n' + list, '1');
+      const n = Number(ans);
+      if(!(n >= 1 && n <= now.length)) { toast('入れかえを やめました'); return; }
+      pushGone(now[n-1].id);
+    }
+
+    if(!Array.isArray(state.messages)) state.messages = [];
+    state.messages.push(Object.assign({
+      id: 'm' + Date.now() + Math.floor(Math.random()*1000),
+      at: new Date().toISOString(),
+      by: logBy()
+    }, draft));
+    /* 3件を こえた ぶんは、古い ものから 落とす（合流の 規則と そろえる） */
+    state.messages = messages();
+    saveSt();
+    $('#parentMessageText').value = '';
+    render({ keepScroll:true });
+    toast('おくりました');
+  });
+
+  const delMsg = $('.msg-list');
+  if(delMsg) delMsg.addEventListener('click', e=>{
+    const b = e.target.closest('[data-delmsg]');
+    if(!b) return;
+    const m = messages().find(x => x.id === b.dataset.delmsg);
+    if(!m) return;
+    if(!confirm('このメッセージを 消しますか？\n「' + m.text + '」')) return;
+    pushGone(m.id);                       // 印を のこさないと 相手の端末から 戻る
+    state.messages = (state.messages || []).filter(x => x.id !== m.id);
+    saveSt();
+    render({ keepScroll:true });
+    toast('消しました');
   });
   $('#sumMake').addEventListener('click', ()=>{
     $('#sumOut').value = buildSummary(+$('#sumDays').value);
