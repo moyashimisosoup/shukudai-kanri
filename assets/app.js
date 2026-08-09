@@ -1047,12 +1047,34 @@ function natsuPct(){
   return span > 0 ? clamp((new Date() - st) / span * 100, 0, 100) : 0;
 }
 
+/* しゅくだいバーは「かならず やる」と「つぎに やる」を あわせて 出す。
+   必須だけで 作ると、任意の 宿題を やっても バーが 動かず、
+   必須が おわると そこで 止まってしまう。やったことは かならず
+   目に 見えて 増える、という ところを いちばん だいじにする。
+
+   ただし 間に合うかの 判定（いいペース！など）は これまでどおり
+   必須だけで する。任意を たくさん やるほど「よゆう」と 出て、
+   必須が おくれていることが 隠れてしまうため。
+   バーが 伸びているのに おくれている ときは、その理由を そえる。 */
 function paceHTML(o){
   const natsu = natsuPct();
-  const todo = o.pct;
-  const gap = todo - natsu;
+  const opt = overall('option');
+  const allDone  = o.done + opt.done;
+  const allTotal = o.total + opt.total;
+  const todo = allTotal ? allDone / allTotal * 100 : 0;   // バーは 合算
+  const mustShare = allTotal ? o.done / allTotal * 100 : 0;
+  const gap = o.pct - natsu;                              // 判定は 必須だけ
 
   const v = verdictOf(gap), cls = v.cls, msg = v.msg;
+  /* のこりは「ばん」や「まい」の 合計では 数が 大きすぎて 伝わらない。
+     見出しの「かならず やる のこり ◯こ」と 同じ 課題の数で かぞえる */
+  const mustLeft = config.tasks
+    .filter(t => t.group === 'must' && t.type !== 'daily' && !prog(t).isDone).length;
+  /* バーは 伸びているのに おくれている、という 分かりにくい 状態のときだけ、
+     何が のこっているのかを はっきり 伝える */
+  const warn = (gap < -6 && mustLeft > 0 && opt.done > 0)
+    ? `<p class="pace-warn">「かならず やる」が あと ${mustLeft}こ のこっているよ。そちらから やろう！</p>`
+    : '';
 
   return `
   <div class="pace">
@@ -1063,10 +1085,17 @@ function paceHTML(o){
     </div>
     <div class="pace-row">
       <span class="pace-name">しゅくだい</span>
-      <div class="bar"><div class="bar-fill bar-fill--todo" style="width:${todo.toFixed(1)}%"></div></div>
+      <div class="bar">
+        <div class="bar-fill bar-fill--todo" style="width:${todo.toFixed(1)}%"></div>
+        <div class="bar-fill bar-fill--must" style="width:${mustShare.toFixed(1)}%"></div>
+      </div>
       <span class="pace-pct">${Math.round(todo)}%</span>
     </div>
+    ${opt.total ? `<p class="pace-legend">
+      <span class="pace-key pace-key--must"></span>かならず やる
+      <span class="pace-key pace-key--opt"></span>つぎに やる</p>` : ''}
     <p class="pace-verdict ${cls}">${msg}</p>
+    ${warn}
   </div>`;
 }
 
@@ -1225,10 +1254,21 @@ function funToday(){
 
 /* まだ この一巡で 出していない ものから ひとつ ランダムに えらぶ。
    ぜんぶ 出しきったら、新しい一巡を はじめる */
+/* 読める漢字の せっていに あわせて、出す内容を えらぶ。
+   小2までの せっていでは、名言・故事成語・古語のように
+   背景を 知らないと 味わえない ものを 出さない（lv:3）。
+   「漢字のまま」＝3年生いじょう と みなして ぜんぶ 出す。 */
+function funAllowed(i){
+  const f = FUN[i];
+  if(!f) return false;
+  return readingGrade() >= 9 ? true : (Number(f.lv) || 2) <= 2;
+}
+
 function funPick(){
   const f = funToday();
-  let rest = FUN.map((_, i)=> i).filter(i => f.history.indexOf(i) < 0);
-  if(!rest.length){ f.history = []; rest = FUN.map((_, i)=> i); }
+  let rest = FUN.map((_, i)=> i).filter(i => funAllowed(i) && f.history.indexOf(i) < 0);
+  if(!rest.length){ f.history = []; rest = FUN.map((_, i)=> i).filter(funAllowed); }
+  if(!rest.length) rest = FUN.map((_, i)=> i);   // 念のため（ぜんぶ 対象外の とき）
   const pool = rest;
   funIdx = pool[Math.floor(Math.random() * pool.length)];
   funOpen = false;

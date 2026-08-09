@@ -371,7 +371,28 @@ button{ font:inherit; color:inherit; }
   transition:width .5s cubic-bezier(.2,.8,.3,1);
 }
 .bar-fill--natsu{ background:repeating-linear-gradient(45deg,var(--pace-past-a) 0 8px,var(--pace-past-b) 8px 16px); }
-.bar-fill--todo{ background:var(--wakaba); }
+/* しゅくだいバーは 2枚がさね。うすい緑＝ぜんぶ、こい緑＝かならず やる。
+   同じ 1本の 中で 内わけが 見えるので、バーが 増えることの
+   うれしさを 損なわずに、必須ぶんも わかる */
+.bar-fill--todo{ background:var(--wakaba); opacity:.42; }
+.bar-fill--must{
+  position:absolute; left:0; top:0;
+  background:var(--wakaba);
+}
+.pace-legend{
+  margin-top:6px; text-align:center;
+  font-size:12px; font-weight:700; color:var(--ai-usu);
+}
+.pace-key{
+  display:inline-block; width:12px; height:12px; margin:0 4px 0 10px;
+  border:1px solid var(--ai); border-radius:3px; vertical-align:-1px;
+}
+.pace-key--must{ background:var(--wakaba); }
+.pace-key--opt{ background:var(--wakaba); opacity:.42; }
+.pace-warn{
+  margin-top:6px; text-align:center;
+  font-size:15px; font-weight:900; line-height:1.6; color:var(--suika);
+}
 .pace-verdict{
   margin-top:6px; text-align:center;
   font-size:21px; font-weight:900;
