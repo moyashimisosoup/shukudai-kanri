@@ -969,7 +969,7 @@ function contentDebugHTML(){
   const ok = Object.values(status).filter(v=>v === 'ok').length;
   return `
   <section class="sec fun-debug">
-    <div class="sec-head"><h2>ミニコンテンツ（確認用）</h2><span class="sec-note">残り ${rows.length}こ</span></div>
+    <div class="sec-head"><h2>ミニコンテンツ（確認用）</h2><span class="sec-note">残り ${rows.length}件</span></div>
     <div class="paper fun-debug-tools">
       <p>OKを付けた項目は一覧から消えます。「削除・再検討」は、この端末だけに一時保存されます。</p>
       <button class="btn btn-sm" data-content-copy type="button">再検討項目をコピー</button>
@@ -2826,13 +2826,13 @@ function viewConfig(){
     <p class="set-note">日づけはカウントダウンとペースの計算に使います。</p>
   </div></section>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>宿題</h2><span class="sec-note">${normal.length}こ</span></div>
+  <section class="sec config-sec"><div class="sec-head"><h2>宿題</h2><span class="sec-note">${normal.length}件</span></div>
     <p class="config-lead">上へ・下へで、この欄の順番を変えられます。</p>
     <div class="paper task-editor" id="normalTaskEditor">${taskGroupHTML(normal,'まだ項目はありません。')}</div>
     <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addNormalTask" type="button">${icon('plus')}<span>宿題を追加</span></button></div>
   </section>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>読書の記録</h2><span class="sec-note">${books.length}こ</span></div>
+  <section class="sec config-sec"><div class="sec-head"><h2>読書の記録</h2><span class="sec-note">${books.length}件</span></div>
     <p class="config-lead">本の名前・読んだ日・ひとことを1冊ずつ残す、読書専用の項目です。上へ・下へで順番を変えられます。</p>
     <div class="paper task-editor" id="bookTaskEditor">${taskGroupHTML(books,'読書の記録を使わないときは、空のままで構いません。')}</div>
     <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addBookTask" type="button">${icon('plus')}<span>読書を追加</span></button></div>
@@ -3190,7 +3190,15 @@ function bindConfig(){
     saveCfg();
   });
 
+  /* #view は 描き直しても 要素そのものは のこる。ここに 毎回 addEventListener すると
+     リスナーが 積み重なり、1回の タップで 何度も 動いてしまう。並べかえの ▲▼ は
+     入れ替えては また 戻すを くり返して 何も 起きないように 見え、そのたびに
+     保存と 描き直しが 走るので、iPad では ほかの ボタンも 効かなくなる。
+     ここだけは 1度だけ 束ねる（中の ボタンは 描き直しの たびに 束ね直す） */
   const ed = $('#view');
+  if(!bindConfig._edBound){
+  bindConfig._edBound = true;
+
   ed.addEventListener('change', e=>{
     const row = e.target.closest('.set-task'); if(!row) return;
     const t = config.tasks[+row.dataset.i]; if(!t) return;
@@ -3274,6 +3282,7 @@ function bindConfig(){
       }
     }
   });
+  }
 
   $('#addNormalTask').addEventListener('click', ()=>{
     const added = {
