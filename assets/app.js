@@ -230,22 +230,45 @@ function traceAdd(rows){
   const a = rows.concat(traceRead()).slice(0, TRACE_MAX);
   setLocal(K_TRACE, JSON.stringify(a));
 }
+/* 送り主を 見わける。送るとき、devices の中に 送った時刻（lastAt）を
+   stateAt と 同じ値で のこしている。それを 突き合わせる。
+   新しい 欄を 作らないのは、規則の 許可キーから 外れると 書けなくなるため */
+function senderIdOf(stateAt){
+  const S = window.NatsuSync;
+  const map = (S && typeof S.devices === 'function') ? S.devices() : {};
+  const hit = Object.keys(map).find(id=>{
+    const v = map[id];
+    return v && typeof v === 'object' && (v.lastAt | 0) === (stateAt | 0);
+  });
+  return hit || '';
+}
+/* 端末の ランダム番号 → 「親(1)」などの 見やすい 名前 */
+function deviceLabelOf(id){
+  if(!id) return '';
+  const S = window.NatsuSync;
+  const map = (S && typeof S.devices === 'function') ? S.devices() : {};
+  const row = deviceRows(map).find(r=> r.id === id);
+  return row ? row.label : '';
+}
+
 /* 合わせる前と あとの progress を くらべ、変わった ところを 書きだす */
 function traceProgress(before, after, remote, remoteAt){
   const rows = [];
   const at = Date.now();
+  const meId = getLocal(K_DEVICE_ID);
+  const youId = senderIdOf(remoteAt);
   const ids = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
   ids.forEach(id=>{
     const b = (before || {})[id] || {}, a = (after || {})[id] || {}, r = (remote || {})[id] || {};
     if((b.done|0) !== (a.done|0)){
-      rows.push({ at, id, f:'done',
+      rows.push({ at, id, f:'done', meId, youId,
                   mine:(b.done|0), mineAt:(b.doneAt|0),
                   theirs:(r.done|0), theirsAt:(r.doneAt|0),
                   won:(a.done|0), remoteAt: remoteAt|0 });
     }
     ['wrap','steps'].forEach(k=>{
       const x = JSON.stringify(b[k] || []), y = JSON.stringify(a[k] || []);
-      if(x !== y) rows.push({ at, id, f:k, mine:x, mineAt:JSON.stringify(b[k+'At'] || []),
+      if(x !== y) rows.push({ at, id, f:k, meId, youId, mine:x, mineAt:JSON.stringify(b[k+'At'] || []),
                               theirs:JSON.stringify(r[k] || []), theirsAt:JSON.stringify(r[k+'At'] || []),
                               won:y, remoteAt: remoteAt|0 });
     });
@@ -838,7 +861,7 @@ function creditHTML(){
     <span class="credit-name">${esc(CREDIT.title)}</span>
     &copy; ${esc(CREDIT.year)} ${esc(CREDIT.author)}
     ・<a href="${CREDIT.url}" target="_blank" rel="noopener">ライセンス</a>
-    ・版 ${esc(APP_VER)}
+    ・ver ${esc(APP_VER)}
   </p>`;
 }
 
@@ -1845,12 +1868,12 @@ function deviceListHTML(){
   return `<ul class="dev-list">${rows.map(r=>`
     <li class="dev-row${r.id === mine ? ' is-me' : ''}">
       <span class="dev-name">${esc(r.label)}</span>
-      ${r.ver ? `<span class="dev-ver${r.ver !== newest ? ' is-old' : ''}">版 ${esc(r.ver)}${
-        r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver is-old">版 不明（古い）</span>'}
+      ${r.ver ? `<span class="dev-ver${r.ver !== newest ? ' is-old' : ''}">ver ${esc(r.ver)}${
+        r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver is-old">ver 不明（古い）</span>'}
       ${r.id === mine ? '<span class="dev-me">この端末</span>' : ''}
     </li>`).join('')}</ul>
     ${rows.some(r=> !r.ver || r.ver !== newest)
-      ? '<p class="set-note dev-warn">古い版の端末があります。その端末で「アプリの版」の<b>さいしんに 更新する</b>を押してください。古いままだと、訂正や削除がその端末から元に戻されることがあります。</p>'
+      ? '<p class="set-note dev-warn">古い版の端末があります。その端末で「アプリの ver」の<b>さいしんに 更新する</b>を押してください。古いままだと、訂正や削除がその端末から元に戻されることがあります。</p>'
       : ''}`;
 }
 
@@ -1898,17 +1921,22 @@ function syncSectionHTML(opts){
         ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作る</button>'}
       </div>
       ${code ? `<p class="set-note sync-device-count" id="syncDeviceCount">このおうちで共有設定済みの端末：${S.deviceCount()}台</p>
-      <div id="syncDeviceList">${deviceListHTML()}</div>
-      <div class="set-row"><span class="lab">この端末は</span>
-        <select id="deviceRole">
-          <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>えらんでいない</option>
-          <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>こどもの端末</option>
-          <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>おうちの人の端末</option>
-        </select></div>
-      <p class="set-note">えらんでおくと、記録に「だれが入れたか」が小さく付きます。共有しているときだけ付きます。この設定は端末ごとで、同期しません。</p>
-      <div class="set-actions">
-        <button class="btn btn-sm btn-danger" id="syncOff" type="button">つなぐのをやめる</button>
-      </div>` : ''}
+      <details class="set-advanced sync-detail">
+        <summary>詳細</summary>
+        <div class="set-advanced-body">
+          <div id="syncDeviceList">${deviceListHTML()}</div>
+          <div class="set-row"><span class="lab">この端末は</span>
+            <select id="deviceRole">
+              <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>えらんでいない</option>
+              <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>こどもの端末</option>
+              <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>おうちの人の端末</option>
+            </select></div>
+          <p class="set-note">えらんでおくと、記録に「だれが入れたか」が小さく付きます。共有しているときだけ付きます。この設定は端末ごとで、同期しません。</p>
+          <div class="set-actions">
+            <button class="btn btn-sm btn-danger" id="syncOff" type="button">つなぐのをやめる</button>
+          </div>
+        </div>
+      </details>` : ''}
     </div>
   </section>`;
 }
@@ -1951,20 +1979,23 @@ function syncTraceHTML(){
   return `
   <section class="sec config-sec config-sec--quiet">
     <details class="paper set-advanced">
-      <summary>同期の記録（調べもの用・${rows.length}件）</summary>
+      <summary>デバッグ用：同期の記録（${rows.length}件）</summary>
       <div class="set-advanced-body">
-        <p class="set-note">記録が 元に戻ってしまう ときに、どちらの端末の どの値が 勝ったのかを 見るための ひかえです。この端末の中だけに のこり、外へは 送りません。</p>
+        <p class="set-note">開発者向けの記録です。通常の利用では触る必要はありません。記録が元に戻ってしまうときに、どちらの端末のどの値が採用されたかを調べるために使います。この端末の中だけに残り、外へは送りません。</p>
         <div class="set-actions">
           <button class="btn btn-sm" id="traceCopy" type="button">コピー</button>
           <button class="btn btn-sm btn-ghost" id="traceClear" type="button">消す</button>
         </div>
-        ${rows.length ? rows.map(r=>`
+        ${rows.length ? rows.map(r=>{
+          const me  = deviceLabelOf(r.meId)  || 'この端末';
+          const you = deviceLabelOf(r.youId) || 'もう一方の端末';
+          return `
           <div class="trace-row">
             <div class="trace-head">${esc(fmtTime(new Date(r.at)))} ・ ${esc(r.id)} の ${esc(r.f)}</div>
-            <div class="trace-body">こちら：<b>${esc(String(r.mine))}</b>（${esc(t(typeof r.mineAt === 'number' ? r.mineAt : 0))}）
-            ／ あちら：<b>${esc(String(r.theirs))}</b>（${esc(t(typeof r.theirsAt === 'number' ? r.theirsAt : 0))}）
+            <div class="trace-body">${esc(me)}：<b>${esc(String(r.mine))}</b>（${esc(t(typeof r.mineAt === 'number' ? r.mineAt : 0))}）
+            ／ ${esc(you)}：<b>${esc(String(r.theirs))}</b>（${esc(t(typeof r.theirsAt === 'number' ? r.theirsAt : 0))}）
             → のこった値：<b>${esc(String(r.won))}</b></div>
-          </div>`).join('')
+          </div>`; }).join('')
         : '<p class="set-empty">まだ ありません。</p>'}
       </div>
     </details>
@@ -2782,10 +2813,10 @@ function viewConfig(){
 
   ${syncSectionHTML()}
 
-  <section class="sec config-sec"><div class="sec-head"><h2>アプリの版</h2>
+  <section class="sec config-sec"><div class="sec-head"><h2>アプリの ver</h2>
     <span class="sec-note">${esc(APP_VER)}</span></div>
     <div class="paper">
-      <p class="set-note">この端末は <b>${esc(APP_VER)}</b> を動かしています。
+      <p class="set-note">この端末は <b>ver ${esc(APP_VER)}</b> を動かしています。
       記録の合わせ方は版によって変わるため、<b>共有しているすべての端末を同じ版にそろえてください</b>。
       片方が古いままだと、訂正が相手の端末から元に戻されることがあります。</p>
       <div class="set-actions">
@@ -2798,14 +2829,17 @@ function viewConfig(){
 
   <section class="sec config-sec"><div class="sec-head"><h2>記録の手入れ</h2></div>
     <div class="paper">
-      <label class="set-field set-field--wide set-check">
+      <label class="opt-toggle">
         <input type="checkbox" id="allowLogDelete"${config.allowLogDelete ? ' checked' : ''}>
-        履歴削除機能を 有効にする</label>
-      <p class="set-note">誤操作や修正で記録が散らかってしまったときに履歴を消すことができます。残したい作業履歴や記録を消すと元に戻せないので気をつけてください。</p>
-      <p class="set-note">消せるのは「この端末は <b>おうちの人の端末</b>」を選んだ端末の「やったこと」の一覧からだけです。こどもの端末には消すボタンが出ません。すすみぐあいの数字は消えません。${
-        config.allowLogDelete && getLocal(K_ROLE) !== 'parent'
-          ? '<br><b>いまこの端末は おうちの人の端末に なっていません。</b>「べつの端末と つなぐ」の「この端末は」で選んでください。'
-          : ''}</p>
+        <span class="opt-toggle-text">
+          <b>履歴削除機能を 有効にする</b>
+          <small>誤操作や修正で記録が散らかってしまったときに履歴を消すことができます。残したい作業履歴や記録を消すと元に戻せないので気をつけてください。</small>
+        </span>
+      </label>
+      <p class="set-note">消せるのは「この端末は <b>おうちの人の端末</b>」を選んだ端末の「やったこと」の一覧からだけです。こどもの端末には消すボタンが出ません。すすみぐあいの数字は消えません。</p>
+      ${config.allowLogDelete && getLocal(K_ROLE) !== 'parent'
+        ? '<p class="set-note dev-warn"><b>いまこの端末は「おうちの人の端末」になっていません。</b>「べつの端末と つなぐ」→「詳細」→「この端末は」で選んでください。</p>'
+        : ''}
     </div>
   </section>
 

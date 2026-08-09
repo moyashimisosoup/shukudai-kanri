@@ -292,7 +292,16 @@ async function flush(){
   const payload = {};
 
   if(pending.config){ payload.config = cur.config; payload.configAt = now; }
-  if(pending.state) { payload.state  = cur.state;  payload.stateAt  = now; }
+  if(pending.state) {
+    payload.state   = cur.state;
+    payload.stateAt = now;
+    /* どの端末が 送ったかを のこす。合わなかった ときに、どちらの端末の
+       値だったのかを 名前で 見られる ようにする。
+       新しい 欄を 作ると 規則の 許可から 外れて 書けなくなるので、
+       すでに ある devices の 中に しまう。stateAt と 同じ値なので、
+       受け取った側は 時刻を 突き合わせて 送り主を 見わけられる */
+    payload.devices = { [getDeviceId()]: { lastAt: now } };
+  }
   pending = { config:false, state:false };
 
   if(!Object.keys(payload).length) return;
