@@ -1181,6 +1181,8 @@ body.no-tabbar{ padding-bottom:0; }
   border:2px solid var(--hougan); border-radius:var(--r-s);
   min-width:0;   /* 中の数字が はみ出して 列を 押し広げないように */
 }
+/* 子ども画面のバーと 同じ「全体」。ならびの中で 見つけやすいよう 少しだけ 強く */
+.pstat-all{ border-color:var(--wakaba) !important; background:var(--wakaba-usu) !important; }
 .pstat-lab{ display:block; font-size:14px; font-weight:900; color:var(--ai-usu); }
 .pstat-val{
   display:block; font-size:28px; font-weight:900; line-height:1.2;

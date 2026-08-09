@@ -1814,6 +1814,11 @@ function viewParent(){
   const nat = natsuPct();
   const s = overall('must');
   const so = overall('option');
+  /* 子ども画面のバーは 必須＋任意の 合算なので、保護者ページでも
+     同じ「全体」を 並べて 出す。必須だけを 見ていると、
+     子どもの画面で 何が 起きているのかが 分からなくなるため */
+  const allDone  = s.done + so.done;
+  const allTotal = s.total + so.total;
 
   const row = t=>{
     const p = prog(t);
@@ -1868,6 +1873,8 @@ function viewParent(){
         <span class="pstat-val">${Math.round(nat)}<small>%</small></span></div>
       <div><span class="pstat-lab">必須の宿題</span>
         <span class="pstat-val">${Math.round(s.pct)}<small>% (${s.done}/${s.total})</small></span></div>
+      <div class="pstat-all"><span class="pstat-lab">全体</span>
+        <span class="pstat-val">${allTotal ? Math.round(allDone/allTotal*100) : 0}<small>% (${allDone}/${allTotal})</small></span></div>
       <div><span class="pstat-lab">つぎに やる</span>
         <span class="pstat-val">${so.total ? Math.round(so.pct) : 0}<small>% (${so.done}/${so.total})</small></span></div>
     </div>
