@@ -165,6 +165,15 @@ button{ font:inherit; color:inherit; }
   font-size:13px; line-height:1.55; font-weight:700; color:var(--ai-usu);
   background:var(--sora); border:1px solid var(--hougan); border-radius:var(--r-s);
 }
+/* 記録1行ごとの 消すボタン */
+.ti-del{ align-self:start; flex:none; }
+
+/* 同期の記録（調べもの用） */
+.trace-row{ padding:8px 0; border-top:1px dashed var(--hougan); }
+.trace-row:first-of-type{ border-top:none; }
+.trace-head{ font-size:13px; font-weight:900; color:var(--ai-usu); }
+.trace-body{ font-size:14px; line-height:1.6; overflow-wrap:anywhere; }
+
 /* 消した記録のひかえ（保護者ページだけ） */
 .trash-row{
   padding:10px 0; border-top:1px dashed var(--hougan);

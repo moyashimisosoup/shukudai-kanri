@@ -120,7 +120,7 @@ function migrate5to6(c){
    books が無いまま 保護者ページや 本の一覧を開くと 例外で止まり、
    画面が切りかわらない（リンクが効かないように見える）ので、
    入口を ひとつに まとめる */
-function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[], trash:[] }; }
+function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[], trash:[], gone:[] }; }
 
 /* 消した記録を のこす数。
    これは「思い出のため」だけでは なく、消したことを 相手の端末に つたえる
@@ -158,6 +158,7 @@ function normalizeState(s){
   if(!Array.isArray(s.logs))  s.logs  = [];
   if(!Array.isArray(s.books)) s.books = [];
   if(!Array.isArray(s.trash)) s.trash = [];
+  if(!Array.isArray(s.gone))  s.gone  = [];
   return s;
 }
 
@@ -192,6 +193,59 @@ function progPatch(id, patch, when){
   if('days'  in patch) next.daysAt  = stampDays(cur.days,   patch.days,  cur.daysAt,  t);
   state.progress[id] = next;
   return next;
+}
+
+/* 消した「印」だけの ひかえ。中身は のこさない。
+   デバッグ用の 1行けしなど、数が 多くなる 消しかたは こちらを つかい、
+   おうちの人に 見せる trash（中身つき）を うめないようにする */
+const GONE_MAX = 300;
+function pushGone(id){
+  if(!Array.isArray(state.gone)) state.gone = [];
+  state.gone = state.gone.filter(x=> x && x.id !== id);
+  state.gone.unshift({ id, at: Date.now() });
+  if(state.gone.length > GONE_MAX) state.gone = state.gone.slice(0, GONE_MAX);
+}
+
+/* ---------------------------------------------------------
+   同期の記録（調べもの用）
+
+   端末どうしで 記録が 合わないとき、どちらの端末の どの値が
+   勝ったのかが 分からないと 直しようがない。
+   合わせた ときに 変わった ところだけを、その端末に のこす。
+   外へは 送らない。
+   --------------------------------------------------------- */
+const K_TRACE = 'natsu.sync.trace.v1';
+const TRACE_MAX = 40;
+function traceRead(){
+  try{ const a = JSON.parse(getLocal(K_TRACE) || '[]'); return Array.isArray(a) ? a : []; }
+  catch(e){ return []; }
+}
+function traceAdd(rows){
+  if(!rows.length) return;
+  const a = rows.concat(traceRead()).slice(0, TRACE_MAX);
+  setLocal(K_TRACE, JSON.stringify(a));
+}
+/* 合わせる前と あとの progress を くらべ、変わった ところを 書きだす */
+function traceProgress(before, after, remote, remoteAt){
+  const rows = [];
+  const at = Date.now();
+  const ids = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+  ids.forEach(id=>{
+    const b = (before || {})[id] || {}, a = (after || {})[id] || {}, r = (remote || {})[id] || {};
+    if((b.done|0) !== (a.done|0)){
+      rows.push({ at, id, f:'done',
+                  mine:(b.done|0), mineAt:(b.doneAt|0),
+                  theirs:(r.done|0), theirsAt:(r.doneAt|0),
+                  won:(a.done|0), remoteAt: remoteAt|0 });
+    }
+    ['wrap','steps'].forEach(k=>{
+      const x = JSON.stringify(b[k] || []), y = JSON.stringify(a[k] || []);
+      if(x !== y) rows.push({ at, id, f:k, mine:x, mineAt:JSON.stringify(b[k+'At'] || []),
+                              theirs:JSON.stringify(r[k] || []), theirsAt:JSON.stringify(r[k+'At'] || []),
+                              won:y, remoteAt: remoteAt|0 });
+    });
+  });
+  traceAdd(rows);
 }
 
 /* 消した記録を のこす。中身は おうちの人だけが 見る。
@@ -373,7 +427,12 @@ function mergeState(local, remote, localIsNewer){
   out.trash = mergeById(local.trash, remote.trash, (a,b)=> (a.at|0) >= (b.at|0))
     .sort((x,y)=> (y.at|0) - (x.at|0))
     .slice(0, TRASH_MAX);
-  const gone = new Set(out.trash.map(x=> x.id));
+  /* 印だけの ひかえ。1行けしなど、中身を のこさない 消しかたの 墓標 */
+  out.gone = mergeById(local.gone, remote.gone, (a,b)=> (a.at|0) >= (b.at|0))
+    .sort((x,y)=> (y.at|0) - (x.at|0))
+    .slice(0, GONE_MAX);
+
+  const gone = new Set([...out.trash.map(x=> x.id), ...out.gone.map(x=> x.id)]);
   if(gone.size){
     out.books = out.books.filter(b=> !gone.has(b.id));
     out.logs  = out.logs.filter(l=> !gone.has(l.id));
@@ -423,10 +482,13 @@ function applyRemote(remote){
   }
 
   if(remote.state){
+    const before = deepCopy(state.progress || {});
     const merged = mergeState(normalizeState(state),
                               normalizeState(remote.state),
                               (at.state || 0) >= remote.stateAt);
     if(JSON.stringify(merged) !== JSON.stringify(state)){
+      /* どちらの端末の どの値が 勝ったのかを のこす。調べもの用 */
+      traceProgress(before, merged.progress, (remote.state || {}).progress, remote.stateAt);
       state = merged;
       localStorage.setItem(K_ST, JSON.stringify(state));
       markSaved('state');
@@ -1016,6 +1078,8 @@ function logRowHTML(l){
         by ? `<span class="ti-by">（${esc(by)}）</span>` : ''}</div>
       ${l.memo ? `<div class="ti-memo">${esc(l.memo)}</div>` : ''}
     </div>
+    <button class="icon-btn del ti-del" data-dellog="${esc(l.id)}"
+            title="この記録を消す" aria-label="この記録を消す" type="button">🗑</button>
   </div>`;
 }
 
@@ -1770,6 +1834,36 @@ function trashSectionHTML(){
           <div class="trash-title">${esc(r.title || '')}</div>
           ${r.text ? `<div class="trash-text">${esc(r.text)}</div>` : ''}
         </div>`).join('')}
+      </div>
+    </details>
+  </section>`;
+}
+
+/* 同期で 値が 入れかわった ところの ひかえ（調べもの用）。
+   「こちらの値・その時刻」と「相手の値・その時刻」、どちらが 勝ったかを 出す。
+   端末の 中だけに のこり、外へは 送らない */
+function syncTraceHTML(){
+  const rows = traceRead();
+  const t = ms => ms ? fmtTime(new Date(ms)) + ':' + pad2(new Date(ms).getSeconds()) : '（なし）';
+  return `
+  <section class="sec config-sec">
+    <div class="sec-head"><h2>同期の記録</h2><span class="sec-note">${rows.length}件</span></div>
+    <details class="paper set-advanced">
+      <summary>合わせたときに 入れかわった ところ</summary>
+      <div class="set-advanced-body">
+        <p class="set-note">記録が 元に戻ってしまう ときに、どちらの端末の どの値が 勝ったのかを 見るための ひかえです。この端末の中だけに のこり、外へは 送りません。</p>
+        <div class="set-actions">
+          <button class="btn btn-sm" id="traceCopy" type="button">コピー</button>
+          <button class="btn btn-sm btn-ghost" id="traceClear" type="button">消す</button>
+        </div>
+        ${rows.length ? rows.map(r=>`
+          <div class="trace-row">
+            <div class="trace-head">${esc(fmtTime(new Date(r.at)))} ・ ${esc(r.id)} の ${esc(r.f)}</div>
+            <div class="trace-body">こちら：<b>${esc(String(r.mine))}</b>（${esc(t(typeof r.mineAt === 'number' ? r.mineAt : 0))}）
+            ／ あちら：<b>${esc(String(r.theirs))}</b>（${esc(t(typeof r.theirsAt === 'number' ? r.theirsAt : 0))}）
+            → のこった値：<b>${esc(String(r.won))}</b></div>
+          </div>`).join('')
+        : '<p class="set-empty">まだ ありません。</p>'}
       </div>
     </details>
   </section>`;
@@ -2581,6 +2675,8 @@ function viewConfig(){
     </div>
   </section>
 
+  ${syncTraceHTML()}
+
   <section class="sec config-sec"><div class="sec-head"><h2>データ管理</h2></div><details class="paper set-advanced"><summary>バックアップと 初期化</summary>
     <div class="set-advanced-body"><p class="set-note">記録はこの端末に保存されます。時々バックアップすると安心です。</p>
     <div class="set-actions"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
@@ -2975,6 +3071,19 @@ function bindConfig(){
     location.replace(location.pathname + q + sep + 'r=' + Date.now() + location.hash);
   });
 
+  const tc = $('#traceCopy');
+  if(tc) tc.addEventListener('click', ()=>{
+    const rows = traceRead();
+    const text = ['版 ' + APP_VER + ' / 役割 ' + (getLocal(K_ROLE) || 'えらんでいない') +
+                  ' / いまの時刻 ' + new Date().toISOString()]
+      .concat(rows.map(r=> JSON.stringify(r))).join('\n');
+    copyPlainText(text);
+  });
+  const tx = $('#traceClear');
+  if(tx) tx.addEventListener('click', ()=>{
+    setLocal(K_TRACE, '[]'); render({ keepScroll:true }); toast('消しました');
+  });
+
   $('#expBtn').addEventListener('click', exportData);
   $('#impBtn').addEventListener('click', ()=> $('#impFile').click());
   $('#impFile').addEventListener('change', importData);
@@ -3222,6 +3331,20 @@ document.addEventListener('click', e=>{
   if(e.target.closest('#bkFix')){ fixKanji(); return; }
   if(e.target.closest('#wrCheck')){ checkWrites(); return; }
   if(e.target.closest('#wrFix')){ fixWrites(); return; }
+
+  /* 記録を 1行だけ 消す。数（すすみぐあい）は さわらない。
+     消した印を のこさないと、相手の端末から また 戻ってくる */
+  const delLog = e.target.closest('[data-dellog]');
+  if(delLog){
+    const id = delLog.dataset.dellog;
+    const l = (state.logs || []).find(x=> x.id === id);
+    if(l && confirm('この記録を消しますか？\n「' + (l.what || '') + '」\nすすみぐあいの数字は そのままです。')){
+      pushGone(id);
+      state.logs = state.logs.filter(x=> x.id !== id);
+      saveSt(); render({ keepScroll:true }); toast('消しました');
+    }
+    return;
+  }
 
   const delBook = e.target.closest('[data-delbook]');
   if(delBook){
