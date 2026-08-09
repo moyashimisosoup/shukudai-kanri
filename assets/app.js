@@ -818,18 +818,27 @@ function welcomeFormHTML(role, sharing){
    クレジット表示を求めるので、複製・改変して公開した人にも
    そのまま残るよう、画面の中に置いておく。
    子ども画面には出さず、保護者ページと設定の最後に小さく出す。 */
+/* 作品の 名前は「しゅくだいノート」。
+   画面の 見出し（config.title）は 家ごとに 変えられるので、
+   作品を さす 名前は こちらに 固定しておく。
+
+   ライセンスの 名前を 画面に ならべても、つかう人には 意味が 通らない。
+   「ライセンス」の 一語だけを リンクに して、中身は リンク先に まかせる。
+   このリンクは 作者の 義務では ないが、丸ごと コピーした人が
+   そのまま 条件を みたせるように のこしてある。 */
 const CREDIT = {
-  title: 'はじめ夏休みの宿題',
+  title: 'しゅくだいノート',
   author: 'moyashimisosoup',
+  year: '2026',
   url: 'https://github.com/moyashimisosoup/shukudai-notebook'
 };
 function creditHTML(){
   return `
   <p class="credit">
-    <a href="${CREDIT.url}" target="_blank" rel="noopener">${esc(CREDIT.title)}</a>
-    （${esc(CREDIT.author)} 作）&copy; 2026 ・
-    プログラム: Apache-2.0 ／ 文章と図: CC BY 4.0<br>
-    この端末の版：<b>${esc(APP_VER)}</b>
+    <span class="credit-name">${esc(CREDIT.title)}</span>
+    &copy; ${esc(CREDIT.year)} ${esc(CREDIT.author)}
+    ・<a href="${CREDIT.url}" target="_blank" rel="noopener">ライセンス</a>
+    ・版 ${esc(APP_VER)}
   </p>`;
 }
 

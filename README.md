@@ -404,7 +404,7 @@ Copyright 2026 moyashimisosoup
 - コンテンツを使って Web で公開する場合は、**利用者から見える場所**に次の表示を置いてください
 
 ```
-「はじめ夏休みの宿題」（moyashimisosoup 作）CC BY 4.0
+「しゅくだいノート」© 2026 moyashimisosoup ／ CC BY 4.0
 https://github.com/moyashimisosoup/shukudai-notebook
 ```
 

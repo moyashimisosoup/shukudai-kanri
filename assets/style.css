@@ -231,6 +231,7 @@ button{ font:inherit; color:inherit; }
   color:var(--ai-usu); text-align:center;
 }
 .credit a{ color:inherit; }
+.credit-name{ font-weight:900; }
 
 .stats-count{
   margin:12px 0 6px; padding:16px; text-align:center;

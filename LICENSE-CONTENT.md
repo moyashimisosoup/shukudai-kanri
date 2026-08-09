@@ -36,7 +36,7 @@ Copyright 2026 moyashimisosoup
 **利用する形態に応じた合理的な方法で、次のクレジットを示してください。**
 
 ```
-「はじめ夏休みの宿題」（moyashimisosoup 作）CC BY 4.0
+「しゅくだいノート」© 2026 moyashimisosoup ／ CC BY 4.0
 https://github.com/moyashimisosoup/shukudai-notebook
 ```
 
