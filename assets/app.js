@@ -1117,7 +1117,7 @@ function paceHTML(o){
   const allGap = todo - natsu;
   if(gap >= -6 && allGap <= -6 && optLeft > 0){
     cls = 'v-hmm';
-    msg = 'つぎに やるが あと ' + optLeft + 'こ のこっているよ';
+    msg = 'ゴールまで あと ' + optLeft + 'こ！';
   }
   /* のこりは「ばん」や「まい」の 合計では 数が 大きすぎて 伝わらない。
      見出しの「かならず やる のこり ◯こ」と 同じ 課題の数で かぞえる */
@@ -1864,19 +1864,17 @@ function viewParent(){
   ${parentMessageEditorHTML()}
 
   <section class="paper pstat">
-    <div class="pstat-grid">
-      <div><span class="pstat-lab">残り</span>
-        <span class="pstat-val">${ms > 0
-          ? `<span class="pstat-num">${Math.floor(ms/86400000)}</span><small class="pstat-unit">日</small><span class="pstat-num">${Math.floor(ms/3600000)%24}</span><small class="pstat-unit">時間</small>`
-          : '終了'}</span></div>
-      <div><span class="pstat-lab">夏休みの経過</span>
-        <span class="pstat-val">${Math.round(nat)}<small>%</small></span></div>
-      <div><span class="pstat-lab">必須の宿題</span>
-        <span class="pstat-val">${Math.round(s.pct)}<small>% (${s.done}/${s.total})</small></span></div>
-      <div class="pstat-all"><span class="pstat-lab">全体</span>
-        <span class="pstat-val">${allTotal ? Math.round(allDone/allTotal*100) : 0}<small>% (${allDone}/${allTotal})</small></span></div>
-      <div><span class="pstat-lab">つぎに やる</span>
-        <span class="pstat-val">${so.total ? Math.round(so.pct) : 0}<small>% (${so.done}/${so.total})</small></span></div>
+    <div class="pstat-left">
+      <span class="pstat-lab">夏休みの残り</span>
+      <span class="pstat-val">${ms > 0
+        ? `<span class="pstat-num">${Math.floor(ms/86400000)}</span><small class="pstat-unit">日</small><span class="pstat-num">${Math.floor(ms/3600000)%24}</span><small class="pstat-unit">時間</small>`
+        : '終了'}</span>
+    </div>
+    <div class="pstat-bars">
+      ${pstatRow('夏休みの経過', nat, '', 'natsu')}
+      ${pstatRow('必須の宿題', s.pct, `${s.done}/${s.total}`, 'must')}
+      ${pstatRow('全体', allTotal ? allDone/allTotal*100 : 0, `${allDone}/${allTotal}`, 'all')}
+      ${so.total ? pstatRow('つぎに やる', so.pct, `${so.done}/${so.total}`, 'opt') : ''}
     </div>
   </section>
 
@@ -2102,6 +2100,20 @@ function syncSectionHTML(opts){
       </details>` : ''}
     </div>
   </section>`;
+}
+
+/* 保護者ページの すすみぐあい。
+   数字を 5つ ならべると 折り返しが 半端に なり、くらべにくい。
+   子ども画面と 同じ バーで そろえ、上から下へ 目で 追えるようにする。 */
+function pstatRow(label, pct, count, kind){
+  const p = clamp(Number(pct) || 0, 0, 100);
+  return `
+    <div class="pstat-row">
+      <span class="pstat-row-lab">${esc(label)}</span>
+      <div class="bar"><div class="bar-fill pstat-fill--${kind}" style="width:${p.toFixed(1)}%"></div></div>
+      <span class="pstat-row-num">${Math.round(p)}<small>%</small>${
+        count ? `<small class="pstat-row-cnt">${esc(count)}</small>` : ''}</span>
+    </div>`;
 }
 
 /* 消した記録のひかえ。保護者ページにだけ出す。
