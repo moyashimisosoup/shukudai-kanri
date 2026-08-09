@@ -346,8 +346,11 @@ button{ font:inherit; color:inherit; }
 /* 横に並ぶ2枚は同じ高さに引きのばされる。グリッドのままだと余った高さが
    中の各行に分配され、カードごとに中身の縦位置がズレる。縦並びに変えて
    ボタンだけを下端に送れば、上は見出し・下はボタンで両方そろう */
+/* min-width:0 が ないと、中に 折り返さない 文字（きろくの1行目など）が
+   あったとき、カードが その文字の 長さまで ふくらんで 画面から はみ出す */
 .task-list--2up > .task{
   display:flex; flex-direction:column; align-items:stretch; gap:6px;
+  min-width:0;
 }
 .task-list--2up > .task .task-act{ margin-top:auto; align-self:stretch; padding-top:6px; }
 .task-list--2up > .task .task-act .btn{ width:100%; }
@@ -364,7 +367,10 @@ button{ font:inherit; color:inherit; }
 }
 
 @media (max-width:560px){
-  .task-list--2up{ grid-template-columns:1fr; }
+  /* 1fr のままだと 最小幅が min-content に なるので、
+     長い1行が あるカードが 画面の 外まで のびてしまう（iPhone で 出た）。
+     minmax(0,1fr) にして、はみ出さずに 縮められるようにする */
+  .task-list--2up{ grid-template-columns:minmax(0,1fr); }
 }
 
 /* =========================================================

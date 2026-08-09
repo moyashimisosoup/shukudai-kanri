@@ -6,6 +6,17 @@
 (function () {
 'use strict';
 
+/* この端末が いま動かしている 版。index.html の ?v= を そのまま よむので、
+   書きうつす 手間も ずれも ない。
+   iPad は index.html を つよく ためこむので、再起動しても 古い版の ままの
+   ことが ある。端末どうしで 記録を 合わせる やり方は 版で ちがうため、
+   「両方とも 新しい版か」を その場で 見られるように しておく。 */
+const APP_VER = (function(){
+  const s = document.currentScript;
+  const m = s && String(s.src || '').match(/[?&]v=([^&]*)/);
+  return m ? decodeURIComponent(m[1]) : '（不明）';
+})();
+
 /* ---------------------------------------------------------
    ほぞん
    --------------------------------------------------------- */
@@ -715,7 +726,8 @@ function creditHTML(){
   <p class="credit">
     <a href="${CREDIT.url}" target="_blank" rel="noopener">${esc(CREDIT.title)}</a>
     （${esc(CREDIT.author)} 作）&copy; 2026 ・
-    プログラム: Apache-2.0 ／ 文章と図: CC BY 4.0
+    プログラム: Apache-2.0 ／ 文章と図: CC BY 4.0<br>
+    この端末の版：<b>${esc(APP_VER)}</b>
   </p>`;
 }
 
@@ -2555,6 +2567,20 @@ function viewConfig(){
 
   ${syncSectionHTML()}
 
+  <section class="sec config-sec"><div class="sec-head"><h2>アプリの版</h2>
+    <span class="sec-note">${esc(APP_VER)}</span></div>
+    <div class="paper">
+      <p class="set-note">この端末は <b>${esc(APP_VER)}</b> を動かしています。
+      記録の合わせ方は版によって変わるため、<b>共有しているすべての端末を同じ版にそろえてください</b>。
+      片方が古いままだと、訂正が相手の端末から元に戻されることがあります。</p>
+      <div class="set-actions">
+        <button class="btn btn-sm" id="appUpdate" type="button">さいしんに 更新する</button>
+      </div>
+      <p class="set-note">iPad は画面をためこむので、閉じて開き直すだけでは新しくならないことがあります。
+      このボタンは、ためこんだ画面を通さずに読み直します。記録は消えません。</p>
+    </div>
+  </section>
+
   <section class="sec config-sec"><div class="sec-head"><h2>データ管理</h2></div><details class="paper set-advanced"><summary>バックアップと 初期化</summary>
     <div class="set-advanced-body"><p class="set-note">記録はこの端末に保存されます。時々バックアップすると安心です。</p>
     <div class="set-actions"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
@@ -2939,6 +2965,15 @@ function bindConfig(){
   });
 
   bindSync();
+
+  /* ためこんだ画面を通さずに読み直す。
+     アドレスに毎回ちがう印を付けると、iPad も 取り直さざるを得なくなる */
+  const upd = $('#appUpdate');
+  if(upd) upd.addEventListener('click', ()=>{
+    const q = location.search.replace(/[?&]r=\d+/g, '').replace(/^&/, '?');
+    const sep = q ? (q.startsWith('?') ? '&' : '?') : '?';
+    location.replace(location.pathname + q + sep + 'r=' + Date.now() + location.hash);
+  });
 
   $('#expBtn').addEventListener('click', exportData);
   $('#impBtn').addEventListener('click', ()=> $('#impFile').click());
