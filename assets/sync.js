@@ -233,10 +233,11 @@ function deviceInfo(){
   const app_ = window.NatsuApp;
   const i = (app_ && typeof app_.deviceInfo === 'function') ? app_.deviceInfo() : {};
   return {
-    role: String(i.role || ''),
-    name: String(i.name || ''),
-    ver:  String(i.ver  || ''),
-    at:   Date.now()
+    role:  String(i.role  || ''),
+    name:  String(i.name  || ''),
+    label: String(i.label || ''),
+    ver:   String(i.ver   || ''),
+    at:    Date.now()
   };
 }
 /* 中身が かわった ときだけ 書く。開くたびに 書くと むだに 通信する */
@@ -244,7 +245,7 @@ let lastDeviceWrite = '';
 async function registerDevice(){
   if(!docRef || !Sync._fs) return;
   const info = deviceInfo();
-  const key = [houseIdFor(getCode()), info.role, info.name, info.ver].join('|');
+  const key = [houseIdFor(getCode()), info.role, info.name, info.label, info.ver].join('|');
   if(lastDeviceWrite === key) return;
   lastDeviceWrite = key;
   try{

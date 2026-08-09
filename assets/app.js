@@ -37,6 +37,9 @@ const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
 const K_READING = TEST_MODE ? 'natsu.preview.reading.v1' : 'natsu.device.reading.v1';
 const K_THEME = TEST_MODE ? 'natsu.preview.theme.v1' : 'natsu.device.theme.v1';
 /* sync.js が この端末に ふった ランダム番号。一覧で「この端末」を 見わけるのに つかう */
+/* この端末の 呼び名（父・母 など）。共有した ときに 端末を 見わけるため。
+   端末ごとの ものなので 同期しない（同期すると 全部 同じ名前に なる） */
+const K_DEVICE_LABEL = TEST_MODE ? 'natsu.preview.device.label.v1' : 'natsu.device.label.v1';
 const K_DEVICE_ID = TEST_MODE ? 'natsu.preview.sync.device.v1' : 'natsu.sync.device.v1';
 const K_TRIVIA_REVIEW = TEST_MODE ? 'natsu.preview.trivia-review.v1' : 'natsu.trivia-review.v1';
 const K_METRIC = 'natsu.metric.registered.v1';
@@ -564,9 +567,10 @@ window.NatsuApp = {
   onRemote: applyRemote,
   /* 端末の 見わけに つかう ぶんだけ。端末名や 機種は 送らない */
   deviceInfo: () => ({
-    role: getLocal(K_ROLE),
-    name: String(config.childName || getLocal(K_NAME) || '').trim(),
-    ver:  APP_VER
+    role:  getLocal(K_ROLE),
+    name:  String(config.childName || getLocal(K_NAME) || '').trim(),
+    label: String(getLocal(K_DEVICE_LABEL) || '').trim().slice(0, 12),
+    ver:   APP_VER
   })
 };
 
@@ -807,6 +811,17 @@ function welcomeRolePickerHTML(){
     <p class="set-note">同じ合言葉を入れると、同じ家庭の複数の端末で使えます。</p>`;
 }
 
+/* 共有する ときだけ 出す、この端末の 呼び名。
+   入れなくても 進める。入れて おくと、記録や 端末の一覧が
+   「父」「母」で 並ぶので、どの端末の ことか すぐ わかる。 */
+function deviceLabelFieldHTML(){
+  return `<label class="lab">この端末を つかう人（任意）
+      <input id="welcomeDeviceLabel" type="text" maxlength="12"
+             value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></label>
+    <p class="set-note">どなたがお使いの端末か、わかりやすい名前を設定してください（父、母など）。
+    複数の端末で共有するとき、記録や端末の一覧にこの名前が出ます。入れなくてもかまいません。</p>`;
+}
+
 function welcomeFormHTML(role, sharing){
   const S = window.NatsuSync;
   const syncReady = !!sharing && !TEST_MODE && !!(S && S.configured());
@@ -822,6 +837,7 @@ function welcomeFormHTML(role, sharing){
       <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
       <p class="set-note">こどもの端末など、複数の端末で同じ合言葉を入れると、同じ記録と設定を使えます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
+    ${syncReady ? deviceLabelFieldHTML() : ''}
     ${privacyNoteHTML()}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes" type="button">保護者ページを 開く</button>` : `
     <h3>こどもの 設定</h3>
@@ -833,6 +849,7 @@ function welcomeFormHTML(role, sharing){
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
       <p class="set-note">読みこむと、おうちの人が決めた宿題と記録を、複数の端末で使えます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
+    ${syncReady ? deviceLabelFieldHTML() : ''}
     ${privacyNoteHTML()}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="${sharing?'yes':'no'}" type="button">こども画面を 開く</button>`;
 }
@@ -1840,21 +1857,37 @@ function deviceRows(map){
   const rows = Object.keys(map || {}).map(id=>{
     const v = map[id];
     const o = (v && typeof v === 'object') ? v : {};
-    return { id, role:o.role || '', name:String(o.name || '').trim(), ver:o.ver || '', at:o.at | 0 };
+    return {
+      id,
+      role: o.role || '',
+      name: String(o.name  || '').trim(),   // こどもの なまえ
+      own:  String(o.label || '').trim(),   // この端末に つけた 呼び名（父・母 など）
+      ver:  o.ver || '',
+      at:   o.at | 0
+    };
   });
   rows.sort((a,b)=> (a.at - b.at) || a.id.localeCompare(b.id));
-  const n = { parent:0, child:0, '':0 };
-  const sameName = {};
-  rows.forEach(r=>{ if(r.role === 'child' && r.name) sameName[r.name] = (sameName[r.name] | 0) + 1; });
-  const used = {};
+
+  /* 呼び名を 付けていない 端末が 1台だけなら、番号は 付けない。
+     2台以上 あって はじめて「親(1)」「親(2)」と 区別する */
+  const bare = {};
+  rows.forEach(r=>{ if(!r.own) bare[r.role] = (bare[r.role] | 0) + 1; });
+  const seen = {};
+  const dup = {};
+  rows.forEach(r=>{ if(r.own) dup[r.own] = (dup[r.own] | 0) + 1; });
+  const usedOwn = {};
+
   rows.forEach(r=>{
-    n[r.role] = (n[r.role] | 0) + 1;
-    if(r.role === 'parent') r.label = '親(' + n.parent + ')';
-    else if(r.role === 'child'){
-      const nm = r.name || 'こども';
-      used[nm] = (used[nm] | 0) + 1;
-      r.label = '子(' + nm + (sameName[nm] > 1 ? ' ' + used[nm] : '') + ')';
-    }else r.label = 'えらんでいない(' + n[''] + ')';
+    if(r.own){
+      usedOwn[r.own] = (usedOwn[r.own] | 0) + 1;
+      r.label = r.own + (dup[r.own] > 1 ? '(' + usedOwn[r.own] + ')' : '');
+      return;
+    }
+    seen[r.role] = (seen[r.role] | 0) + 1;
+    const num = bare[r.role] > 1 ? '(' + seen[r.role] + ')' : '';
+    if(r.role === 'parent')     r.label = '親' + num;
+    else if(r.role === 'child') r.label = r.name ? '子(' + r.name + ')' + num : '子' + num;
+    else                        r.label = 'えらんでいない' + num;
   });
   return rows;
 }
@@ -1862,7 +1895,7 @@ function deviceListHTML(){
   const S = window.NatsuSync;
   const map = (S && typeof S.devices === 'function') ? S.devices() : {};
   const rows = deviceRows(map);
-  if(!rows.length) return '<p class="set-note">まだ ほかの端末の情報が とどいていません。</p>';
+  if(!rows.length) return '<p class="set-note">ほかの端末の情報がまだ届いていません。</p>';
   const mine = getLocal(K_DEVICE_ID);
   const newest = rows.map(r=> r.ver).filter(Boolean).sort().pop() || '';
   return `<ul class="dev-list">${rows.map(r=>`
@@ -1873,7 +1906,7 @@ function deviceListHTML(){
       ${r.id === mine ? '<span class="dev-me">この端末</span>' : ''}
     </li>`).join('')}</ul>
     ${rows.some(r=> !r.ver || r.ver !== newest)
-      ? '<p class="set-note dev-warn">古い版の端末があります。その端末で「アプリの ver」の<b>さいしんに 更新する</b>を押してください。古いままだと、訂正や削除がその端末から元に戻されることがあります。</p>'
+      ? '<p class="set-note dev-warn">古いバージョンの端末があります。その端末で「アプリの ver」の<b>最新に更新する</b>を実行してください。古いままだと、修正や削除がその端末から元に戻されることがあります。</p>'
       : ''}`;
 }
 
@@ -1883,7 +1916,7 @@ function syncSectionHTML(opts){
   if(!S){
     return `
   <section class="sec">
-    <div class="sec-head"><h2>べつの端末と つなぐ</h2></div>
+    <div class="sec-head"><h2>ほかの端末と共有</h2></div>
     <div class="paper">
       <p class="set-note">同期の読み込みに失敗しました。記録はこの端末に保存されています。</p>
     </div>
@@ -1893,7 +1926,7 @@ function syncSectionHTML(opts){
   if(!S.configured()){
     return `
   <section class="sec">
-    <div class="sec-head"><h2>べつの端末と つなぐ</h2></div>
+    <div class="sec-head"><h2>ほかの端末と共有</h2></div>
     <div class="paper">
       <p class="set-note">まだ準備ができていません。<code>assets/sync.js</code> の
       <code>FIREBASE_CONFIG</code> に Firebase の設定を貼ると、この欄が使えるようになります。
@@ -1907,16 +1940,16 @@ function syncSectionHTML(opts){
 
   return `
   <section class="sec">
-    <div class="sec-head"><h2>べつの端末と つなぐ</h2>
+    <div class="sec-head"><h2>ほかの端末と共有</h2>
       <span class="sec-note" id="syncStatus">${mark} ${esc(S.statusText() || text)}</span></div>
     <div class="paper">
       ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
-      <p class="set-note">同じ「あいことば」を入れた複数の端末で、同じ記録と設定を使えます。</p>
+      <p class="set-note">同じ「あいことば」を入力した複数の端末で、同じ記録と設定を共有できます。</p>
       <div class="set-row"><span class="lab">あいことば</span>
         <input type="text" id="syncCode" value="${esc(code)}" spellcheck="false"
                autocapitalize="off" autocorrect="off" placeholder="まだ ありません"></div>
       <div class="set-actions">
-        <button class="btn btn-sm" id="syncSave" type="button">この あいことばで つなぐ</button>
+        <button class="btn btn-sm" id="syncSave" type="button">この あいことばで 接続</button>
         <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
         ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作る</button>'}
       </div>
@@ -1925,15 +1958,19 @@ function syncSectionHTML(opts){
         <summary>詳細</summary>
         <div class="set-advanced-body">
           <div id="syncDeviceList">${deviceListHTML()}</div>
+          <div class="set-row"><span class="lab">この端末の呼び名</span>
+            <input type="text" id="deviceLabel" maxlength="12"
+                   value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></div>
+          <p class="set-note">どなたが使う端末か分かる名前を設定すると、上の一覧や記録にこの名前が表示されます。未設定の場合は「親」「子（名前）」と表示されます。端末ごとの設定で、同期しません。</p>
           <div class="set-row"><span class="lab">この端末は</span>
             <select id="deviceRole">
-              <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>えらんでいない</option>
-              <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>こどもの端末</option>
-              <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>おうちの人の端末</option>
+              <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>未選択</option>
+              <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>子どもの端末</option>
+              <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>保護者の端末</option>
             </select></div>
-          <p class="set-note">えらんでおくと、記録に「だれが入れたか」が小さく付きます。共有しているときだけ付きます。この設定は端末ごとで、同期しません。</p>
+          <p class="set-note">設定しておくと、記録に「誰が入力したか」が小さく表示されます。共有している場合のみ表示されます。この設定は端末ごとで、同期しません。</p>
           <div class="set-actions">
-            <button class="btn btn-sm btn-danger" id="syncOff" type="button">つなぐのをやめる</button>
+            <button class="btn btn-sm btn-danger" id="syncOff" type="button">共有を解除する</button>
           </div>
         </div>
       </details>` : ''}
@@ -2685,8 +2722,8 @@ function themeChoicesHTML(){
 
 function taskSummary(t){
   if(isBook(t)) return `${Math.max(1,t.total|0)}さつ`;
-  if(t.group === 'daily') return isFree(t) ? 'ことばで きろく' : `1日 ${Math.max(1,t.target|0)}${esc(t.targetUnit||'')}`;
-  if(t.type === 'step') return `${(t.steps||[]).length}この じゅんばん`;
+  if(t.group === 'daily') return isFree(t) ? '文章で記録' : `1日 ${Math.max(1,t.target|0)}${esc(t.targetUnit||'')}`;
+  if(t.type === 'step') return `${(t.steps||[]).length}段階`;
   return `${Math.max(1,t.total|0)}${esc(t.unit||'')}`;
 }
 
@@ -2704,23 +2741,23 @@ function taskEditorRow(t, i){
   if(kind === 'book'){
     fields = `${groupField}
       <label class="set-field"><span>目標の冊数</span><span class="set-inline"><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"><b>さつ</b></span></label>
-      <fieldset class="set-field set-field--wide set-checks"><legend>本ごとに のこすこと</legend>
-        <label><input type="checkbox" data-bf="author"${bf.author?' checked':''}> さくしゃ</label>
-        <label><input type="checkbox" data-bf="publisher"${bf.publisher?' checked':''}> しゅっぱんしゃ</label>
+      <fieldset class="set-field set-field--wide set-checks"><legend>本ごとに残す項目</legend>
+        <label><input type="checkbox" data-bf="author"${bf.author?' checked':''}> 作者</label>
+        <label><input type="checkbox" data-bf="publisher"${bf.publisher?' checked':''}> 出版社</label>
         <label><input type="checkbox" data-bf="rating"${bf.rating?' checked':''}> おすすめ度</label>
       </fieldset>
       <p class="set-help set-field--wide">本の名前・読んだ日・ひとことを1冊ずつ残します。</p>`;
   }else if(kind === 'daily'){
     fields = `
-      <label class="set-field"><span>きろくの しかた</span><select data-f="recordStyle">
-        ${opt('',t.recordStyle||'','かずで きろく')}${opt('free',t.recordStyle||'','ことばで きろく')}
+      <label class="set-field"><span>記録のしかた</span><select data-f="recordStyle">
+        ${opt('',t.recordStyle||'','数で記録')}${opt('free',t.recordStyle||'','文章で記録')}
       </select></label>
       ${!isFree(t) ? `
-        <label class="set-field"><span>1日の めあて</span><input type="number" data-f="target" min="1" max="999" value="${t.target|0}"></label>
+        <label class="set-field"><span>1日の目標</span><input type="number" data-f="target" min="1" max="999" value="${t.target|0}"></label>
         <label class="set-field"><span>単位</span><select data-f="targetUnitPreset">
           ${DAILY_UNIT_PRESETS.map(u=>opt(u,unitMode,u)).join('')}${opt('custom',unitMode,'そのほか（自由）')}
         </select></label>
-        ${unitMode==='custom' ? `<label class="set-field"><span>単位を 入力</span><input type="text" data-f="targetUnitCustom" maxlength="8" value="${esc(t.targetUnit||'')}"></label>` : ''}
+        ${unitMode==='custom' ? `<label class="set-field"><span>単位を入力</span><input type="text" data-f="targetUnitCustom" maxlength="8" value="${esc(t.targetUnit||'')}"></label>` : ''}
       ` : `
         <label class="set-field set-field--wide"><span>こどもへの よびかけ</span>
           <input type="text" data-f="freeHint" value="${esc(t.freeHint||'')}" placeholder="きょうの ことを かいてみよう"></label>`}
@@ -2740,11 +2777,11 @@ function taskEditorRow(t, i){
       <label class="set-field set-field--wide set-check"><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> さいごに「マルつけ」と「なおし」を つける</label>
       <label class="set-field set-field--wide"><span>きろくするときの しつもん（なくてもOK）</span>
         <textarea data-f="questions" rows="3" placeholder="はっぱの かたちや いろは？">${esc((t.questions||[]).join('\n'))}</textarea></label>
-      <label class="set-field set-field--wide"><span>メモ欄の 見出し</span>
+      <label class="set-field set-field--wide"><span>メモ欄の見出し</span>
         <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう"></label>`;
   }
 
-  const label = kind === 'book' ? '読書' : (kind === 'daily' ? 'まいにち' : (t.type === 'step' ? 'じゅんばん' : 'かず'));
+  const label = kind === 'book' ? '読書' : (kind === 'daily' ? '毎日' : (t.type === 'step' ? '順番' : '数'));
   return `<details class="set-task" data-i="${i}"${t.id===openConfigTaskId?' open':''}>
     <summary class="set-task-summary"><span class="set-kind set-kind--${kind}">${label}</span>
       <strong>${esc(t.name)}</strong><span class="set-task-meta">${taskSummary(t)}</span>
@@ -2784,30 +2821,30 @@ function viewConfig(){
 
   <section class="sec config-sec"><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
     <div class="set-row"><label class="lab" for="cfgTitle">タイトル</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
-    <div class="set-row"><label class="lab" for="cfgStart">はじまる日</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
-    <div class="set-row"><label class="lab" for="cfgEnd">おわる日</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
+    <div class="set-row"><label class="lab" for="cfgStart">開始日</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
+    <div class="set-row"><label class="lab" for="cfgEnd">終了日</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
     <p class="set-note">日づけはカウントダウンとペースの計算に使います。</p>
   </div></section>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>ふつうの 宿題</h2><span class="sec-note">${normal.length}こ</span></div>
+  <section class="sec config-sec"><div class="sec-head"><h2>宿題</h2><span class="sec-note">${normal.length}こ</span></div>
     <p class="config-lead">上へ・下へで、この欄の順番を変えられます。</p>
-    <div class="paper task-editor" id="normalTaskEditor">${taskGroupHTML(normal,'まだ 項目は ありません。')}</div>
-    <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addNormalTask" type="button">${icon('plus')}<span>宿題を 追加</span></button></div>
+    <div class="paper task-editor" id="normalTaskEditor">${taskGroupHTML(normal,'まだ項目はありません。')}</div>
+    <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addNormalTask" type="button">${icon('plus')}<span>宿題を追加</span></button></div>
   </section>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>読書の きろく</h2><span class="sec-note">${books.length}こ</span></div>
+  <section class="sec config-sec"><div class="sec-head"><h2>読書の記録</h2><span class="sec-note">${books.length}こ</span></div>
     <p class="config-lead">本の名前・読んだ日・ひとことを1冊ずつ残す、読書専用の項目です。上へ・下へで順番を変えられます。</p>
-    <div class="paper task-editor" id="bookTaskEditor">${taskGroupHTML(books,'読書の きろくを 使わないときは、空のままでOKです。')}</div>
-    <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addBookTask" type="button">${icon('plus')}<span>読書を 追加</span></button></div>
+    <div class="paper task-editor" id="bookTaskEditor">${taskGroupHTML(books,'読書の記録を使わないときは、空のままで構いません。')}</div>
+    <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addBookTask" type="button">${icon('plus')}<span>読書を追加</span></button></div>
   </section>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>まいにち</h2><span class="sec-note">学習アプリなど</span></div>
+  <section class="sec config-sec"><div class="sec-head"><h2>毎日の項目</h2><span class="sec-note">学習アプリなど</span></div>
     <div class="paper daily-settings">
       <label class="daily-switch"><input type="checkbox" id="cfgShowDaily"${config.showDaily?' checked':''}>
-        <span><strong>こども画面に 表示する</strong><small>学習アプリ・音読・おてつだいなどに使えます。</small></span></label>
+        <span><strong>子ども画面に表示する</strong><small>学習アプリ・音読・おてつだいなどに使えます。</small></span></label>
       <p class="config-lead">上へ・下へで順番を変えられます。</p>
-      <div class="task-editor" id="dailyTaskEditor">${taskGroupHTML(daily,'まいにちの 項目は まだありません。')}</div>
-      <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addDailyTask" type="button">${icon('plus')}<span>まいにちを 追加</span></button></div>
+      <div class="task-editor" id="dailyTaskEditor">${taskGroupHTML(daily,'毎日の項目はまだありません。')}</div>
+      <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addDailyTask" type="button">${icon('plus')}<span>毎日の項目を追加</span></button></div>
     </div>
   </section>
 
@@ -2820,7 +2857,7 @@ function viewConfig(){
       記録の合わせ方は版によって変わるため、<b>共有しているすべての端末を同じ版にそろえてください</b>。
       片方が古いままだと、訂正が相手の端末から元に戻されることがあります。</p>
       <div class="set-actions">
-        <button class="btn btn-sm" id="appUpdate" type="button">さいしんに 更新する</button>
+        <button class="btn btn-sm" id="appUpdate" type="button">最新に更新する</button>
       </div>
       <p class="set-note">iPad は画面をためこむので、閉じて開き直すだけでは新しくならないことがあります。
       このボタンは、ためこんだ画面を通さずに読み直します。記録は消えません。</p>
@@ -2832,13 +2869,13 @@ function viewConfig(){
       <label class="opt-toggle">
         <input type="checkbox" id="allowLogDelete"${config.allowLogDelete ? ' checked' : ''}>
         <span class="opt-toggle-text">
-          <b>履歴削除機能を 有効にする</b>
+          <b>履歴削除機能を有効にする</b>
           <small>誤操作や修正で記録が散らかってしまったときに履歴を消すことができます。残したい作業履歴や記録を消すと元に戻せないので気をつけてください。</small>
         </span>
       </label>
-      <p class="set-note">消せるのは「この端末は <b>おうちの人の端末</b>」を選んだ端末の「やったこと」の一覧からだけです。こどもの端末には消すボタンが出ません。すすみぐあいの数字は消えません。</p>
+      <p class="set-note">削除できるのは「この端末は <b>保護者の端末</b>」を選んだ端末の「やったこと」の一覧からのみです。子どもの端末には削除ボタンを表示しません。進捗の数値は変わりません。</p>
       ${config.allowLogDelete && getLocal(K_ROLE) !== 'parent'
-        ? '<p class="set-note dev-warn"><b>いまこの端末は「おうちの人の端末」になっていません。</b>「べつの端末と つなぐ」→「詳細」→「この端末は」で選んでください。</p>'
+        ? '<p class="set-note dev-warn"><b>この端末は「保護者の端末」に設定されていません。</b>「ほかの端末と共有」→「詳細」→「この端末は」で選択してください。</p>'
         : ''}
     </div>
   </section>
@@ -2926,6 +2963,10 @@ function bindWelcomeStart(){
     const code = codeEl ? cleanCode(codeEl.value) : '';
     if(!name){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
     if(sharing && !TEST_MODE && S && S.configured() && code.length < 8){ toast('あいことばを 8文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
+    const devLabel = String(($('#welcomeDeviceLabel') && $('#welcomeDeviceLabel').value) || '')
+      .trim().slice(0, 12);
+    if(devLabel) setLocal(K_DEVICE_LABEL, devLabel);
+    else try{ localStorage.removeItem(K_DEVICE_LABEL); }catch(e){}
     setLocal(K_NAME, name);
     setLocal(K_ROLE, role);
     setLocal(K_READING, grade);
@@ -3025,6 +3066,25 @@ function bindSync(){
 
   /* この端末が こども用か おうちの人用か。記録に そえる 名前に つかう。
      端末ごとの 設定なので 同期しない（同期すると 全部の端末が 同じに なる） */
+  /* 端末の 呼び名。打っている 途中で 送ると うるさいので、
+     欄から はなれた ときに ためる */
+  const devLabel = $('#deviceLabel');
+  if(devLabel){
+    const save = ()=>{
+      const v = String(devLabel.value || '').trim().slice(0, 12);
+      const before = getLocal(K_DEVICE_LABEL);
+      if(v === before) return;
+      if(v) setLocal(K_DEVICE_LABEL, v);
+      else try{ localStorage.removeItem(K_DEVICE_LABEL); }catch(e){}
+      if(typeof S.refreshDevice === 'function') S.refreshDevice();
+      const el = $('#syncDeviceList');
+      if(el) el.innerHTML = deviceListHTML();
+      toast(v ? 'この端末を「' + v + '」にしました' : '呼び名を けしました');
+    };
+    devLabel.addEventListener('change', save);
+    devLabel.addEventListener('blur', save);
+  }
+
   const roleSel = $('#deviceRole');
   if(roleSel){
     roleSel.addEventListener('change', ()=>{
