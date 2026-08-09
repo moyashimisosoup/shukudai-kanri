@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* =========================================================
    sync.js — 端末のあいだで データを 共有する（Firebase Firestore）
 
@@ -277,8 +278,23 @@ async function flush(){
 
 /* ---------------------------------------------------------
    6. 匿名の登録家庭数
+
    あいことばそのものは保存せず、SHA-256 の値だけで同じ家庭を見分ける。
-   初期設定の親端末から一度だけ呼ばれる。100家庭程度なら1文書の集計で十分で、
+   初期設定の親端末から一度だけ呼ばれる。
+
+   以前は metrics/registrations の中に
+   { households: { <あいことばのSHA-256>: 登録日時 } } を持っていた。
+   数を数えるには その一覧を 読む必要が あるため、規則で 読みを 止められず、
+   誰でも 全家庭ぶんの ハッシュを 取り出せる状態に なっていた。
+   あいことばは 8文字なので、一覧が 出ると 総当たりで 割られ、
+   その家庭の 記録まで 読まれてしまう。
+
+   そこで 2つに 分けた。
+   ・metrics/registrations      … 数（count）だけ。増やす向きにしか 書けない
+   ・metrics_households/<SHA-256> … 中身のない 目印。IDが ハッシュそのもの
+
+   目印は「IDを 知っている人＝あいことばを 知っている人」しか たどり着けないので、
+   一覧を 禁止する 規則に できる。詳しくは firestore.rules を 見てください。
    競合時は Firestore の transaction が再試行する。 */
 async function codeHash(code){
   const bytes = new TextEncoder().encode(String(code || '').trim().toLowerCase());
@@ -292,14 +308,19 @@ async function registerHousehold(code){
     await initPromise;
   }
   const hash = await codeHash(code);
-  const ref = Sync._fs.doc(db, 'metrics', 'registrations');
-  await Sync._fs.runTransaction(db, async tx=>{
-    const snap = await tx.get(ref);
-    const data = snap.exists() ? (snap.data() || {}) : {};
-    const households = data.households || {};
-    if(households[hash]) return;
-    households[hash] = Date.now();
-    tx.set(ref, { count:Object.keys(households).length, households }, { merge:true });
+  const fs = Sync._fs;
+  const marker  = fs.doc(db, 'metrics_households', hash);
+  const counter = fs.doc(db, 'metrics', 'registrations');
+  await fs.runTransaction(db, async tx=>{
+    /* transaction は 読みを ぜんぶ 先に すませてから 書く */
+    const mine = await tx.get(marker);
+    if(mine.exists()) return;                 // この家庭は すでに 数えてある
+    const now = await tx.get(counter);
+    const next = (now.exists() ? Number((now.data() || {}).count || 0) : 0) + 1;
+    tx.set(marker, { at: Date.now() });
+    /* merge を つけない。古い形式の households（ハッシュ一覧）が
+       のこっていても、ここで count だけの 文書に 置きかわる */
+    tx.set(counter, { count: next });
   });
 }
 async function getRegistrationCount(){

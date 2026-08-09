@@ -1,0 +1,82 @@
+rules_version = '2';
+
+/* =========================================================
+   Firestore セキュリティルール
+
+   このファイルは記録用です。実際に効くのは Firebase Console
+   （Firestore Database → ルール）に貼った内容なので、
+   ここを変えたら Console にも貼り直してください。
+
+   考え方
+   ・アプリはサーバーを持たない静的サイトなので、
+     「あいことばを知っている＝その家庭の人」という前提で守る。
+   ・したがって守るべきは「あいことばを知らない人が、
+     当てずっぽうや一覧取得でたどり着けないこと」。
+   ・list（コレクションの一覧）は、アプリが一度も使わないので
+     すべて禁止する。get だけ許せば、IDを知らない人は何も読めない。
+   ========================================================= */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* あいことばから作る家庭のID。
+       phrase-<16桁の16進> か、以前の20文字英数字のどちらか。 */
+    function validHouseId(id) {
+      return id.matches('phrase-[0-9a-f]{16}')
+          || id.matches('[a-z0-9]{16,64}');
+    }
+
+    /* アプリが書きこむ欄はこの5つだけ。
+       ほかの名前の欄を混ぜた書きこみは受けつけない。 */
+    function onlyKnownFields() {
+      return request.resource.data.keys()
+        .hasOnly(['config', 'state', 'configAt', 'stateAt', 'devices']);
+    }
+
+    /* ---------- 家庭のデータ ----------
+       ID を知っている人だけが読み書きできる。
+       list を許すとコレクションを丸ごと持って行かれるので禁止。 */
+    match /households/{houseId} {
+      allow get:            if request.auth != null && validHouseId(houseId);
+      allow list:           if false;
+      allow create, update: if request.auth != null && validHouseId(houseId)
+                            && onlyKnownFields();
+      allow delete:         if false;
+    }
+
+    /* ---------- 登録家庭数（数だけ） ----------
+       中身は count のみ。あいことばの手がかりは置かない。
+       増やす方向にしか書きかえられないようにして、
+       水増し・消去・巻き戻しを防ぐ。 */
+    match /metrics/registrations {
+      allow get:    if request.auth != null;
+      allow list:   if false;
+      allow create: if request.auth != null
+                    && request.resource.data.keys().hasOnly(['count'])
+                    && request.resource.data.count == 1;
+      allow update: if request.auth != null
+                    && request.resource.data.keys().hasOnly(['count'])
+                    && request.resource.data.count == resource.data.count + 1;
+      allow delete: if false;
+    }
+
+    /* ---------- 同じ家庭を二重に数えないための目印 ----------
+       ID があいことばの SHA-256。中身は登録日時だけ。
+       ID を知っている＝あいことばを知っている人なので get は許すが、
+       一覧は禁止する。これで「ハッシュの一覧が漏れて総当たりされる」
+       という以前の弱点がなくなる。
+       一度作ったら書きかえも削除もできない。 */
+    match /metrics_households/{hash} {
+      allow get:    if request.auth != null && hash.matches('[0-9a-f]{64}');
+      allow list:   if false;
+      allow create: if request.auth != null && hash.matches('[0-9a-f]{64}')
+                    && request.resource.data.keys().hasOnly(['at']);
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /* 上に書いていない場所は、すべて禁止 */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
