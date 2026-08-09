@@ -1701,13 +1701,13 @@ function viewParent(){
     const nx = nextLabel(t);
     const next = p.isDone ? '完了'
       : (t.type === 'daily' ? (isFree(t) ? (p.done ? '本日記入済み' : '本日未記入')
-                                         : '本日 ' + p.done + '/' + p.total + (t.targetUnit||''))
+                                         : '本日 ' + p.done + '/' + p.total + unitAdult(t.targetUnit))
                             : (nx ? '次は ' + nx.num + nx.tail : ''));
     return `
       <tr class="${p.isDone ? 'is-done' : ''}">
         <th>${esc(t.name)}</th>
         <td class="pg-bar"><div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div></td>
-        <td class="pg-num">${esc(p.text)}</td>
+        <td class="pg-num">${esc(adultText(t, p))}</td>
         <td class="pg-next">${esc(next)}</td>
       </tr>`;
   };
@@ -2023,7 +2023,7 @@ function syncTraceHTML(){
           <button class="btn btn-sm" id="traceCopy" type="button">コピー</button>
           <button class="btn btn-sm btn-ghost" id="traceClear" type="button">消す</button>
         </div>
-        ${rows.length ? rows.map(r=>{
+        ${rows.length ? '<div class="trace-list">' + rows.map(r=>{
           const me  = deviceLabelOf(r.meId)  || 'この端末';
           const you = deviceLabelOf(r.youId) || 'もう一方の端末';
           return `
@@ -2032,7 +2032,7 @@ function syncTraceHTML(){
             <div class="trace-body">${esc(me)}：<b>${esc(String(r.mine))}</b>（${esc(t(typeof r.mineAt === 'number' ? r.mineAt : 0))}）
             ／ ${esc(you)}：<b>${esc(String(r.theirs))}</b>（${esc(t(typeof r.theirsAt === 'number' ? r.theirsAt : 0))}）
             → のこった値：<b>${esc(String(r.won))}</b></div>
-          </div>`; }).join('')
+          </div>`; }).join('') + '</div>'
         : '<p class="set-empty">まだ ありません。</p>'}
       </div>
     </details>
@@ -2720,11 +2720,29 @@ function themeChoicesHTML(){
     </label>`).join('');
 }
 
+/* 単位は 子ども画面の 見え方に あわせて ひらがなで もっている。
+   保護者ページと 設定では 大人向けの 漢字に 読みかえて 出す。
+   もとの データは 変えない（子ども画面は これまで どおり） */
+const ADULT_UNIT = { ばん:'番', まい:'枚', さつ:'冊', かい:'回', こ:'個', ページ:'ページ', ぷん:'分', ふん:'分' };
+function unitAdult(u){
+  const s = String(u || '').trim();
+  return ADULT_UNIT[s] || s;
+}
+
+/* 進捗の 文字（14/14ばん など）の 単位だけを 大人向けに 読みかえる。
+   prog() の text は 子ども画面でも つかうので、ここでは 作り直す */
+function adultText(t, p){
+  if(isBook(t))            return p.done + '/' + p.total + '冊';
+  if(t.type === 'daily')   return p.done + '/' + p.total + unitAdult(t.unit);
+  if(t.type === 'step')    return p.done + '/' + p.total;
+  return p.done + '/' + p.total + unitAdult(t.unit);
+}
+
 function taskSummary(t){
-  if(isBook(t)) return `${Math.max(1,t.total|0)}さつ`;
-  if(t.group === 'daily') return isFree(t) ? '文章で記録' : `1日 ${Math.max(1,t.target|0)}${esc(t.targetUnit||'')}`;
+  if(isBook(t)) return `${Math.max(1,t.total|0)}冊`;
+  if(t.group === 'daily') return isFree(t) ? '文章で記録' : `1日 ${Math.max(1,t.target|0)}${esc(unitAdult(t.targetUnit))}`;
   if(t.type === 'step') return `${(t.steps||[]).length}段階`;
-  return `${Math.max(1,t.total|0)}${esc(t.unit||'')}`;
+  return `${Math.max(1,t.total|0)}${esc(unitAdult(t.unit))}`;
 }
 
 function taskEditorRow(t, i){
@@ -2766,22 +2784,22 @@ function taskEditorRow(t, i){
   }else{
     fields = `${groupField}
       <label class="set-field"><span>すすめかた</span><select data-f="type">
-        ${opt('count',t.type,'回数・ページで すすむ')}${opt('step',t.type,'じゅんばんに すすむ')}
+        ${opt('count',t.type,'回数・ページで進める')}${opt('step',t.type,'段階をクリア')}
       </select></label>
       ${t.type==='count' ? `
         <label class="set-field"><span>ぜんぶで</span><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
         <label class="set-field"><span>単位</span><input type="text" data-f="unit" maxlength="8" value="${esc(t.unit||'')}"></label>
         <label class="set-field set-check"><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> つぎの番号を ①②で 表示</label>` : `
-        <label class="set-field set-field--wide"><span>じゅんばん（1行に1つ）</span>
+        <label class="set-field set-field--wide"><span>段階（1行に1つ）</span>
           <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea></label>`}
-      <label class="set-field set-field--wide set-check"><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> さいごに「マルつけ」と「なおし」を つける</label>
-      <label class="set-field set-field--wide"><span>きろくするときの しつもん（なくてもOK）</span>
+      <label class="set-field set-field--wide set-check"><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> 「マルつけ・なおし」の項目を表示</label>
+      <label class="set-field set-field--wide"><span>記録するときの質問（任意）</span>
         <textarea data-f="questions" rows="3" placeholder="はっぱの かたちや いろは？">${esc((t.questions||[]).join('\n'))}</textarea></label>
       <label class="set-field set-field--wide"><span>メモ欄の見出し</span>
         <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう"></label>`;
   }
 
-  const label = kind === 'book' ? '読書' : (kind === 'daily' ? '毎日' : (t.type === 'step' ? '順番' : '数'));
+  const label = kind === 'book' ? '読書' : (kind === 'daily' ? '毎日' : (t.type === 'step' ? '段階' : '数'));
   return `<details class="set-task" data-i="${i}"${t.id===openConfigTaskId?' open':''}>
     <summary class="set-task-summary"><span class="set-kind set-kind--${kind}">${label}</span>
       <strong>${esc(t.name)}</strong><span class="set-task-meta">${taskSummary(t)}</span>

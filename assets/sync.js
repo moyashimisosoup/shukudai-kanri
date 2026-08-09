@@ -251,6 +251,11 @@ async function registerDevice(){
   try{
     const id = getDeviceId();
     await Sync._fs.setDoc(docRef, { devices:{ [id]: info } }, { merge:true });
+    /* 自分が 書いたぶんは onSnapshot が 読み飛ばす（hasPendingWrites）。
+       そのため 一覧の 自分の行だけが 古いままに なり、
+       呼び名を つけても 出ない、最新なのに「古い」と 出る、が 起きる。
+       書けた時点で 手元の 一覧にも 反映する */
+    setDeviceMap(Object.assign({}, deviceMap, { [id]: info }));
   }catch(err){
     lastDeviceWrite = '';
     setStatus('error', '端末の記録を保存できません：' + (err && err.code || err));

@@ -189,8 +189,13 @@ button{ font:inherit; color:inherit; }
 .config-sec--quiet .trace-body,
 .config-sec--quiet .set-note{ font-size:13px; }
 
-/* 共有している 端末の 一覧 */
-.dev-list{ margin:8px 0 0; padding:0; list-style:none; }
+/* 共有している 端末の 一覧。
+   ほかの 設定欄と 同じ 余白・同じ 囲みに そろえる */
+.dev-list{
+  margin:2px 0 10px; padding:10px 14px; list-style:none;
+  background:var(--surface-soft); border:2px solid var(--hougan);
+  border-radius:var(--r-s);
+}
 .dev-row{
   display:flex; flex-wrap:wrap; align-items:center; gap:8px;
   padding:7px 0; border-top:1px dashed var(--hougan);
@@ -211,6 +216,11 @@ button{ font:inherit; color:inherit; }
 .ti-del{ align-self:start; flex:none; }
 
 /* 同期の記録（調べもの用） */
+.trace-list{
+  margin:2px 0 0; padding:10px 14px;
+  background:var(--surface-soft); border:2px solid var(--hougan);
+  border-radius:var(--r-s);
+}
 .trace-row{ padding:8px 0; border-top:1px dashed var(--hougan); }
 .trace-row:first-of-type{ border-top:none; }
 .trace-head{ font-size:13px; font-weight:900; color:var(--ai-usu); }
