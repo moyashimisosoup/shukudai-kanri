@@ -879,13 +879,34 @@ function todayHTML(){
   return rows.slice().reverse().map(logRowHTML).join('');
 }
 
+/* だれが 記録したか。
+   共有していない家庭は 端末が 1つなので 見分ける必要が なく、
+   よけいな 表示を 出さない。共有している ときだけ のこす。 */
+function sharingOn(){
+  const S = window.NatsuSync;
+  return !!(S && S.configured() && String(S.getCode() || '').length >= 8);
+}
+function logBy(){
+  if(!sharingOn()) return '';
+  const role = getLocal(K_ROLE);
+  return (role === 'parent' || role === 'child') ? role : '';
+}
+/* 表示は その時の 名前を つかう。あとで 名前を 直しても 古い記録に ついてくる */
+function logByLabel(l){
+  if(l.by === 'child')  return String(config.childName || '').trim() || 'こども';
+  if(l.by === 'parent') return 'おうちの人';
+  return '';
+}
+
 function logRowHTML(l){
+  const by = logByLabel(l);
   return `
   <div class="today-item">
     <span class="ti-time">${fmtTime(new Date(l.at))}</span>
     <div class="ti-body">
       <div class="ti-name">${esc(l.name)}</div>
-      <div class="ti-what">${esc(l.what)}</div>
+      <div class="ti-what">${esc(l.what)}${
+        by ? `<span class="ti-by">（${esc(by)}）</span>` : ''}</div>
       ${l.memo ? `<div class="ti-memo">${esc(l.memo)}</div>` : ''}
     </div>
   </div>`;
@@ -1602,7 +1623,15 @@ function syncSectionHTML(opts){
         <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
         ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作る</button>'}
       </div>
-      ${code ? `<p class="set-note sync-device-count" id="syncDeviceCount">このおうちで共有設定済みの端末：${S.deviceCount()}台</p><div class="set-actions">
+      ${code ? `<p class="set-note sync-device-count" id="syncDeviceCount">このおうちで共有設定済みの端末：${S.deviceCount()}台</p>
+      <div class="set-row"><span class="lab">この端末は</span>
+        <select id="deviceRole">
+          <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>えらんでいない</option>
+          <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>こどもの端末</option>
+          <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>おうちの人の端末</option>
+        </select></div>
+      <p class="set-note">えらんでおくと、記録に「だれが入れたか」が小さく付きます。共有しているときだけ付きます。この設定は端末ごとで、同期しません。</p>
+      <div class="set-actions">
         <button class="btn btn-sm btn-danger" id="syncOff" type="button">つなぐのをやめる</button>
       </div>` : ''}
     </div>
@@ -1881,7 +1910,7 @@ function saveFreeSheet(){
 
   state.logs.push({
     id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
-    at: now.toISOString(), taskId: t.id, name: t.name,
+    at: now.toISOString(), by: logBy(), taskId: t.id, name: t.name,
     what: 'きょうの きろく', memo: text
   });
   saveSt();
@@ -1938,7 +1967,7 @@ function saveBookSheet(){
     state.progress[t.id] = Object.assign({}, state.progress[t.id], { done: rec.nth });
     state.logs.push({
       id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
-      at: now.toISOString(), taskId: t.id, name: t.name,
+      at: now.toISOString(), by: logBy(), taskId: t.id, name: t.name,
       what: (t.numbered ? maru(rec.nth) : rec.nth + (t.unit||'')) + '　「' + title + '」',
       memo: [rec.author && 'さくしゃ：' + rec.author,
              rec.rating ? 'おすすめ度 ' + '★'.repeat(rec.rating) : '',
@@ -2147,7 +2176,7 @@ function saveSheet(){
 
   state.logs.push({
     id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
-    at: now.toISOString(),
+    at: now.toISOString(), by: logBy(),
     taskId: t.id, name: t.name, what, memo: fullMemo
   });
   if(state.logs.length > 3000) state.logs = state.logs.slice(-3000);
@@ -2578,6 +2607,18 @@ function bindParent(){
 function bindSync(){
   const S = window.NatsuSync;
   if(!S || !S.configured()) return;
+
+  /* この端末が こども用か おうちの人用か。記録に そえる 名前に つかう。
+     端末ごとの 設定なので 同期しない（同期すると 全部の端末が 同じに なる） */
+  const roleSel = $('#deviceRole');
+  if(roleSel){
+    roleSel.addEventListener('change', ()=>{
+      const v = roleSel.value;
+      if(v === 'child' || v === 'parent') setLocal(K_ROLE, v);
+      else try{ localStorage.removeItem(K_ROLE); }catch(e){}
+      toast('この端末の せっていを かえました');
+    });
+  }
 
   /* つなぎ具合が かわったら 見出しの右の文字だけ 書きかえる。
      画面ごと 描き直すと 入力中の あいことばが 消えてしまう */

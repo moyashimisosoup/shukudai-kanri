@@ -165,6 +165,13 @@ button{ font:inherit; color:inherit; }
   font-size:13px; line-height:1.55; font-weight:700; color:var(--ai-usu);
   background:var(--sora); border:1px solid var(--hougan); border-radius:var(--r-s);
 }
+/* 「だれが 入れたか」。本文より 一段 小さく、目立たせない */
+.ti-by{
+  margin-inline-start:6px;
+  font-size:.78em; font-weight:700; color:var(--ai-usu);
+  white-space:nowrap;
+}
+
 /* 作者表示。じゃまにならない大きさで、けれど消さずに残るように */
 .credit{
   margin:6px 0 10px; padding:0 4px;
