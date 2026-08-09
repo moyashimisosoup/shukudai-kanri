@@ -1251,7 +1251,7 @@ function funHTML(){
       : ''}
     <div class="fun-row">
       ${funOpen ? '' : `<button class="btn btn-sm" data-fun="open" type="button">${
-        isQuiz ? 'こたえを 見る' : 'つづきを 見る'}</button>`}
+        isQuiz ? 'こたえを 見る' : (f.ask || 'つづきを 見る')}</button>`}
       ${funOpen && left > 0
         ? `<button class="btn btn-sm" data-fun="next" type="button">つぎの はなし（あと ${left}かい）</button>`
         : ''}
