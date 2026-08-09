@@ -416,6 +416,26 @@ function mergeProgress(lp, rp, localIsNewer){
   return out;
 }
 
+/* 中身が 同じかどうかを くらべる。
+   JSON.stringify を そのまま くらべると、欄の 名前の 並び順が ちがうだけで
+   「変わった」と 見なしてしまう。合わせるたびに 欄を 作り直している ので、
+   並び順は かんたんに 入れかわる。
+   そうなると「変わった → 相手に 送る → 相手も 変わったと 思って 送り返す」が
+   いつまでも 止まらず、画面が 描き直され つづける。
+   名前を そろえてから くらべる */
+function canon(v){
+  if(Array.isArray(v)) return v.map(canon);
+  if(v && typeof v === 'object'){
+    const o = {};
+    Object.keys(v).sort().forEach(k=>{ o[k] = canon(v[k]); });
+    return o;
+  }
+  return v;
+}
+function sameState(a, b){
+  return JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+}
+
 function mergeState(local, remote, localIsNewer){
   const out = normalizeState(deepCopy(localIsNewer ? local : remote));
   out.logs  = mergeById(local.logs,  remote.logs,  (a,b)=> String(a.at||'') >= String(b.at||''));
@@ -439,7 +459,16 @@ function mergeState(local, remote, localIsNewer){
   }
 
   out.progress = mergeProgress(local.progress || {}, remote.progress || {}, localIsNewer);
-  out.logs.sort((a,b)=> String(a.at||'').localeCompare(String(b.at||'')));
+  /* 並びは どの端末でも 同じに なるように そろえる。
+     同じ時刻の 記録が あると 並びが 端末ごとに ちがい、
+     それだけで「変わった」と 判定されて 送り合いが 止まらなくなる */
+  const byIdThen = key => (a,b)=>
+    String(a[key]||'').localeCompare(String(b[key]||'')) ||
+    String(a.id||'').localeCompare(String(b.id||''));
+  out.logs.sort(byIdThen('at'));
+  out.books.sort(byIdThen('date'));
+  out.trash.sort((a,b)=> (b.at|0)-(a.at|0) || String(a.id||'').localeCompare(String(b.id||'')));
+  out.gone.sort((a,b)=> (b.at|0)-(a.at|0) || String(a.id||'').localeCompare(String(b.id||'')));
   if(out.logs.length > 3000) out.logs = out.logs.slice(-3000);
   /* ミニコンテンツは 基本1日3回。端末ごとに かぞえる（下の stripLocal を 見てください）*/
   if(local.fun) out.fun = local.fun; else delete out.fun;
@@ -486,7 +515,7 @@ function applyRemote(remote){
     const merged = mergeState(normalizeState(state),
                               normalizeState(remote.state),
                               (at.state || 0) >= remote.stateAt);
-    if(JSON.stringify(merged) !== JSON.stringify(state)){
+    if(!sameState(merged, state)){
       /* どちらの端末の どの値が 勝ったのかを のこす。調べもの用 */
       traceProgress(before, merged.progress, (remote.state || {}).progress, remote.stateAt);
       state = merged;
@@ -2460,6 +2489,7 @@ function render(opts){
      消さない。保存前のメッセージ、サマリー、チェックの状態も含めて
      同じ id の欄へ戻す。 */
   const formDraft = captureFormDraft();
+  const openDetails = captureOpenDetails();
 
   const shownTitle = TEST_MODE && (!getLocal(K_ONBOARD) || DEBUG_PARENT) ? 'おためし用の設定' : config.title;
   $('#appTitle').textContent = shownTitle;
@@ -2480,6 +2510,7 @@ function render(opts){
   else                        v.innerHTML = viewParent();
 
   restoreFormDraft(formDraft);
+  restoreOpenDetails(openDetails);
 
   $$('.tab').forEach(b=> b.classList.toggle('is-on', b.dataset.tab === tab));
   // 子ども画面以外ではタブバーを隠す（それぞれ「もどる」で戻す）
@@ -2497,6 +2528,23 @@ function render(opts){
   if(tab === 'config')   bindConfig();
   scrollBox().scrollTop = keepScroll ? y : 0;
   applyReadingDisplay();
+}
+
+/* 折りたたみの 開け閉めは、描き直すと 元に もどってしまう。
+   同期が とどくたびに 閉じると 中を 読めないので、開いていた ものを おぼえておく。
+   id が 無い ものは 見出しの 文字で 見わける */
+function detailsKey(d, i){
+  const s = d.querySelector('summary');
+  return d.id || (s ? 'sum:' + s.textContent.trim() : 'idx:' + i);
+}
+function captureOpenDetails(){
+  const out = {};
+  $$('#view details').forEach((d,i)=>{ if(d.open) out[detailsKey(d, i)] = true; });
+  return out;
+}
+function restoreOpenDetails(map){
+  if(!map) return;
+  $$('#view details').forEach((d,i)=>{ if(map[detailsKey(d, i)]) d.open = true; });
 }
 
 function captureFormDraft(){
