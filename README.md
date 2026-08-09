@@ -268,21 +268,25 @@ const FIREBASE_CONFIG = {
 
 ### 3. セキュリティルールを設定する
 
-`Firestore Database → ルール` を次の内容に置き換えて公開します。
+`Firestore Database → ルール` を、リポジトリの [`firestore.rules`](firestore.rules) の
+内容にそっくり置き換えて公開します。ファイルの中にどう守っているかを書いてあります。
 
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /households/{houseId} {
-      allow read, write: if request.auth != null && houseId.size() >= 16;
-    }
-    match /metrics/registrations {
-      allow read, write: if request.auth != null;
-    }
-  }
-}
-```
+要点は次の3つです。
+
+- **`list` をすべて禁止する。** アプリはコレクションの一覧を一度も使いません。
+  `read` とだけ書くと `list` も許してしまい、`households` を丸ごと取得できます
+- **家庭数の集計に、あいことばの手がかりを置かない。** `metrics/registrations` には
+  数だけを置き、重複の判定は `metrics_households/<あいことばのSHA-256>` という
+  **中身のない目印**で行います。ID を知っている＝あいことばを知っている人しか
+  たどり着けないので、一覧を禁止すれば漏れません
+- **書ける内容を絞る。** 欄の名前、ID の形、`count` は増える向きだけ、と限定して、
+  ゴミ文書の作成や集計の改ざんを防ぎます
+
+> **以前のルールを使っていた場合**
+> `metrics/registrations` の中に `households`（あいことばの SHA-256 の一覧）が
+> 残っていることがあります。**Console でこのフィールドを削除してください。**
+> 一覧が読めると総当たりであいことばを割り出せるため、ルールの更新とあわせて
+> 必ず消す必要があります。
 
 ### 4. 端末をつなぐ
 
