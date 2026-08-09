@@ -1164,20 +1164,25 @@ function paceHTML(o){
   const v = verdictOf(gap);
   let cls = v.cls, msg = v.msg;
 
-  /* 「かならず やる」は 追いついているのに、「つぎに やる」を 入れると
-     ぜんたいでは 足りない、という ことが ある。そこで「いいペース！」と
-     出すと、まだ 残っていることが 伝わらない。短く 言いかえる */
-  const optLeft = config.tasks
-    .filter(t => t.group === 'option' && t.type !== 'daily' && !prog(t).isDone).length;
-  const allGap = todo - natsu;
-  if(gap >= -6 && allGap <= -6 && optLeft > 0){
-    cls = 'v-hmm';
-    msg = 'ゴールまで あと ' + optLeft + 'こ！';
-  }
   /* のこりは「ばん」や「まい」の 合計では 数が 大きすぎて 伝わらない。
      見出しの「かならず やる のこり ◯こ」と 同じ 課題の数で かぞえる */
-  const mustLeft = config.tasks
-    .filter(t => t.group === 'must' && t.type !== 'daily' && !prog(t).isDone).length;
+  const left = group => config.tasks
+    .filter(t => t.group === group && t.type !== 'daily' && !prog(t).isDone).length;
+  const mustLeft = left('must');
+  const optLeft  = left('option');
+  const allGap = todo - natsu;
+
+  /* 「かならず やる」を ぜんぶ 終えたのに、「つぎに やる」が のこっていて
+     ぜんたいでは 足りない、という ことが ある。そこで「よゆうだね！」と
+     出すと、まだ のこっていることが 伝わらない。
+
+     必須が のこっている あいだは ここを 通さない。通すと、数は 任意の ぶんだけ
+     なのに 必須も 終わったように 読めてしまう（そういう 出かたを していた）。
+     必須が のこる 場合は、下の「さきに やろう！」が 受けもつ。 */
+  if(mustLeft === 0 && optLeft > 0 && allGap <= -6){
+    cls = 'v-hmm';
+    msg = 'かならず やるは ぜんぶ できた！ のこり ' + optLeft + 'こ';
+  }
   /* バーは 伸びているのに おくれている、という 分かりにくい 状態のときだけ、
      何が のこっているのかを はっきり 伝える */
   const warn = (gap < -6 && mustLeft > 0 && opt.done > 0)
