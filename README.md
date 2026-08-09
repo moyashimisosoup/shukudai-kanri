@@ -1,4 +1,4 @@
-# はじめ夏休みの宿題
+# しゅくだいノート
 
 小学2年生が自分で使える、夏休みの宿題の進捗管理アプリ。
 静的ファイルのみで動作し、GitHub Pages に置けば iPad の Safari から使えます。
@@ -362,6 +362,7 @@ assets/kanji.js               小2までの配当漢字の判定と書き写し�
 assets/kanji-worker.js        形態素解析（メインスレッドを止めないため分離）
 assets/app.js                 進捗計算、描画、記録、設定
 assets/sync.js                端末間の共有（Firestore・未設定なら何もしない）
+firestore.rules               Firestore のセキュリティルール
 .github/workflows/pages.yml   GitHub Pages へのデプロイ
 .nojekyll                     Jekyll 処理を無効化
 LICENSE                       ソースコードのライセンス（Apache-2.0）

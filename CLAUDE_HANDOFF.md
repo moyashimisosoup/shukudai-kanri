@@ -37,6 +37,15 @@ git push public-households HEAD:main && git push origin HEAD:main
 - 公開版・家庭用版とも `main` への push で公開される
 - `.github/workflows/pages.yml` は残っているため Actions の失敗通知が出る可能性がある。公開は直配信で正常なので、通知を止めたい場合は公開版でこの workflow を無効化/削除することを検討する
 
+## 同期のしくみ
+
+- `progress` は値ごとに更新時刻（`doneAt` / `stepsAt` / `wrapAt` / `daysAt`）を持ち、新しい方が勝つ。両方に時刻が無いときだけ従来の max / OR に倒す
+- 書きかえは必ず `progPatch()` を通すこと。直接 `state.progress` を代入しない
+- 削除は `state.trash`（中身つき・保護者ページに表示）と `state.gone`（印だけ）に墓標を残す。これが無いと相手の端末から復活する
+- 変更判定は `sameState()`（キー順をそろえてから比較）。`JSON.stringify` の直接比較に戻すと端末間で送り合いが止まらなくなる
+- Firestore の `household` 文書に新しいトップレベルの欄を足すときは、`firestore.rules` の `hasOnly([...])` にも足さないと書き込みが拒否される
+- 端末ごとの `ver` は `devices` に入れ、古い版が混ざると訂正が巻き戻る
+
 ## 画面の作り（2026-08-09 に変更・要注意）
 
 iPadOS Safari で `position: fixed` の下タブがスクロール中に浮いて途中で止まる不具合があったため、**ページ全体をスクロールさせない作り**に変更しました。ここを知らずに CSS を触ると崩れます。
