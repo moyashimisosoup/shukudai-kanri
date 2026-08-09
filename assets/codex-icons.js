@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: Apache-2.0 */
 /* @codexteam/icons 0.3.3 — MIT License
  * 使用するアイコンだけをローカル配信し、実行時の外部通信を増やさない。
  */

@@ -353,12 +353,16 @@ iOS の長押しは文字選択や虫めがねに取られて切れることが�
 index.html                    画面の骨組みとタブ
 assets/style.css              デザイン（方眼紙・色帯・はんこ）
 assets/data.js                初期設定の宿題データ、なぞなぞ・豆知識
+assets/kanji-origin.js        漢字のなりたち図（インラインSVG）
 assets/kanji.js               小2までの配当漢字の判定と書き写し用の変換
 assets/kanji-worker.js        形態素解析（メインスレッドを止めないため分離）
 assets/app.js                 進捗計算、描画、記録、設定
 assets/sync.js                端末間の共有（Firestore・未設定なら何もしない）
 .github/workflows/pages.yml   GitHub Pages へのデプロイ
 .nojekyll                     Jekyll 処理を無効化
+LICENSE                       ソースコードのライセンス（Apache-2.0）
+NOTICE                        著作権・第三者ライセンスの通知
+LICENSE-CONTENT.md            収録コンテンツのライセンス（CC BY 4.0）
 ```
 
 ビルド不要。ファイルを置くだけで動きます。外部への通信は次の2つだけで、

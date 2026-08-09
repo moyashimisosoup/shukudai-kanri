@@ -1,3 +1,6 @@
+/* SPDX-License-Identifier: Apache-2.0 AND CC-BY-4.0
+   コード部分は Apache-2.0、収録した文章・図は CC BY 4.0。
+   詳細は LICENSE と LICENSE-CONTENT.md を参照 */
 /* =========================================================
    漢字の なりたち 図
    外部の 画像は つかわず、その場で えがく インライン SVG。
