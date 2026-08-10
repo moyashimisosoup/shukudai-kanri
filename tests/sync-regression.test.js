@@ -973,7 +973,7 @@ test('保護者ページは未共有の入口と子ども画面の修正方法�
   `)({NatsuSync:{configured:()=>true,getCode:()=>''}})();
   assert.match(badge, /共有なし/);
   assert.match(badge, /接続設定はこちら/);
-  assert.match(APP, /<h2>保護者の方へ<\/h2>[\s\S]*子ども画面から該当する項目を開いて変更/);
+  assert.match(APP, /<h2>保護者の方へ<\/h2>[\s\S]*子ども画面で該当する項目を開いて行います/);
   assert.match(APP, /このページで変更すると、共有中の子ども端末のデザインも変更/);
 });
 
@@ -1091,7 +1091,7 @@ test('設定画面の共有は、作成でそのままつながり、参加は�
 
 test('宿題の項目を消したら、サンプルを復活させず登録をうながす', ()=>{
   const bind = grab(APP, 'bindConfig');
-  const reset = bind.slice(bind.indexOf("$('#resetCfg')"));
+  const reset = bind.slice(bind.indexOf("on('#resetCfg'"));
   assert.doesNotMatch(reset.slice(0, 400), /freshConfig\(\)/,
     'サンプルの宿題一式を復活させないこと');
   assert.match(reset, /config\.tasks = \[\]/);
@@ -1104,4 +1104,83 @@ test('宿題の項目を消したら、サンプルを復活させず登録を�
   assert.match(empty, /宿題を登録してください/);
   assert.match(empty, /data-no-reading/, '大人あての案内はかな変換から外すこと');
   assert.match(STYLE, /\.empty-home\{/);
+});
+
+/* 実機で、まいにちの項目を 1回 押してしまうと 0 に もどせなかった。
+   「空の保存を止める」ガードが、取り消しまで巻きこんでいた。 */
+test('記録があるものは0にもどせる。無いものは空保存のまま止める', ()=>{
+  const save = grab(APP, 'saveSheet');
+  assert.match(save, /const hadValue = \(p\.done \| 0\) > 0/);
+  /* 記録が無いときだけ、これまで通りの案内で止める */
+  assert.match(save, /if\(!hadValue\)\{[\s\S]{0,120}やったところを えらんでね[\s\S]{0,40}return;/);
+  /* 記録があるときは、消してよいか聞いてから通す */
+  assert.match(save, /やらなかったことに しますか？[\s\S]{0,120}return;/);
+  /* 0 は「できた」ではない */
+  assert.match(save, /n > 0 \? n \+ \(t\.targetUnit\|\|'かい'\) \+ ' できた'/);
+  assert.match(save, /'きょうは やらなかったことに した'/);
+  assert.match(save, /\(after\.done \| 0\) === 0 && hadValue\) toast/,
+    '取り消しに「できた！」のはんこを出さないこと');
+});
+
+/* 折りたたみの開閉は、描き直しの前後で見出しの文字を鍵にしていた。
+   毎日の項目は既定名が同じなので、1つ開くと同名の行がすべて開いた。 */
+test('折りたたみの復元は、見出しの文字ではなく項目のidで見分ける', ()=>{
+  const key = grab(APP, 'detailsKey');
+  assert.match(key, /d\.dataset\.detailsKey/, '明示した鍵を最優先にすること');
+  const row = grab(APP, 'taskEditorRow');
+  assert.match(row, /data-details-key="task:\$\{esc\(t\.id\)\}"/,
+    '課題の行は id を鍵にすること');
+  /* 人が手で開いた行も覚える（覚えないと、前にいじった別の行が開く） */
+  const bind = grab(APP, 'bindConfig');
+  assert.match(bind, /addEventListener\('toggle'[\s\S]{0,320}\}, true\)/,
+    'toggle はバブルしないので capture でとること');
+  assert.match(bind, /if\(row\.open\) openConfigTaskId = t\.id/);
+});
+
+/* 設定を2ページに分けたとき、片方にしか無い欄を直に束ねていたため
+   #cfgShowDaily が null になり、そこから下（削除・書き出し・保存）が
+   すべて未接続になった。保存されないまま再読込すると freshConfig() が
+   走り、消したはずのサンプル宿題が戻る。 */
+test('設定ページの束ねは、欄が無いページでも止まらない', ()=>{
+  const bind = grab(APP, 'bindConfig');
+  assert.doesNotMatch(bind, /\$\('#[A-Za-z][\w-]*'\)\.addEventListener/,
+    '片方のページにしか無い欄を直に束ねないこと（null で以降が全部止まる）');
+  /* 宿題ページ側の欄 */
+  ['#cfgShowDaily','#addNormalTask','#addBookTask','#addDailyTask'].forEach(sel=>{
+    assert.match(bind, new RegExp("on\\('" + sel + "'"), sel + ' は on() で束ねること');
+  });
+  /* 設定ページ側の欄 */
+  ['#resetCfg','#resetAll','#expBtn','#cfgTitle'].forEach(sel=>{
+    assert.match(bind, new RegExp("on\\('" + sel + "'"), sel + ' は on() で束ねること');
+  });
+  const on = grab(APP, 'on');
+  assert.match(on, /if\(el\) el\.addEventListener\(ev, fn\)/);
+});
+
+/* 大人向けページを足したら、かな変換・クレジット・入力元の印の
+   判定にも足す必要がある。足し忘れると設定画面が子ども向けに変換される。 */
+test('大人向けページの判定は1か所にまとめる', ()=>{
+  const f = grab(APP, 'isAdultTab');
+  assert.match(f, /'settings'/);
+  assert.match(f, /'tasks'/);
+  assert.match(f, /'config'/);
+  assert.match(APP, /TABS = \[[^\]]*'tasks'[^\]]*\]/, '新しいページを TABS に足すこと');
+  assert.match(APP, /else if\(tab === 'tasks'\)\s+v\.innerHTML = viewTasks\(\);/);
+  assert.match(APP, /if\(tab === 'tasks' \|\| tab === 'config'\) bindConfig\(\);/);
+});
+
+/* 招待・QRで入った端末は初期設定を通らないため役割が未設定。
+   そのまま子ども画面に出ると、保護者が自分の端末をつないでも
+   子ども向けの「ホーム画面に追加」しか案内されない。 */
+test('招待で入った端末には、先に保護者か子どもかを聞く', ()=>{
+  const need = grab(APP, 'joinRoleNeeded');
+  assert.match(need, /sharingOn\(\) && !getLocal\(K_ROLE\)/);
+  const home = grab(APP, 'viewHome');
+  assert.match(home, /if\(joinRoleNeeded\(\)\) return joinRolePickHTML\(\)/);
+  const pick = grab(APP, 'joinRolePickHTML');
+  assert.match(pick, /data-join-role="parent"/);
+  assert.match(pick, /data-join-role="child"/);
+  /* 選んだ役割はこの端末だけの設定。家庭の設定に混ぜない */
+  assert.match(APP, /setLocal\(K_ROLE, role\)/);
+  assert.match(APP, /if\(role === 'parent'\) location\.hash = 'settings'/);
 });

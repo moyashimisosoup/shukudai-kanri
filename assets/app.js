@@ -74,7 +74,11 @@ if(TEST_MODE){
   }catch(e){}
 }
 
-const TABS = ['welcome','stats','home','log','calendar','books','writes','settings','config'];
+const TABS = ['welcome','stats','home','log','calendar','books','writes','settings','tasks','config'];
+/* 大人が読む画面。かな変換をかけず、クレジットと入力元の印を出す。
+   ページを足したら ここにも 足すこと（足し忘れると 子ども向けの
+   かな変換が 設定画面に かかる） */
+function isAdultTab(t){ return t === 'settings' || t === 'tasks' || t === 'config'; }
 
 function isBook(t){ return t && t.type === 'count' && t.recordStyle === 'book'; }
 function isFree(t){ return t && t.type === 'daily' && t.recordStyle === 'free'; }
@@ -915,6 +919,17 @@ window.NatsuApp = {
    --------------------------------------------------------- */
 const $  = (s, r) => (r||document).querySelector(s);
 const $$ = (s, r) => Array.from((r||document).querySelectorAll(s));
+/* 設定は「宿題を決める」と「アプリの設定」の 2ページに 分かれている。
+   片方に しか 無い 欄を $('#x').addEventListener で 直に つなぐと、
+   もう片方の ページでは null になって **そこから 下の 束ねが すべて 止まる**。
+   実際、宿題ページを 分けた ときに #cfgShowDaily が 設定ページから 消え、
+   削除ボタンが 効かず、保存されないまま 既定の宿題が 戻る事故が 起きた。
+   無い ものは だまって とばす */
+function on(sel, ev, fn, root){
+  const el = $(sel, root);
+  if(el) el.addEventListener(ev, fn);
+  return el;
+}
 
 function esc(s){
   return String(s == null ? '' : s)
@@ -1406,6 +1421,11 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
    「ライセンス」の 一語だけを リンクに して、中身は リンク先に まかせる。
    このリンクは 作者の 義務では ないが、丸ごと コピーした人が
    そのまま 条件を みたせるように のこしてある。 */
+/* **この CREDIT を 自分の名前に 置きかえないこと。**
+   ここは「作品の 出どころ」を 示す 表示で、CC BY 4.0 が 残すことを 求めている。
+   改変して 公開する ときは、この表示を **残した うえで**、あなたの名義と
+   「変更を 加えた」旨を 足すこと（置きかえは 表示義務を 満たさない）。
+   詳しくは LICENSE-CONTENT.md を 見ること。 */
 const CREDIT = {
   title: 'しゅくだいノート',
   author: 'moyashimisosoup',
@@ -1484,14 +1504,39 @@ function homeEmptyHTML(){
   <section class="sec">
     <div class="paper empty-home">
       <p class="empty-home-lead">まだ しゅくだいが ないよ。</p>
-      <p class="empty-home-note" data-no-reading>宿題を登録してください。保護者ページの「設定」→「宿題の項目」から追加できます。</p>
-      <a class="btn btn-go btn-wide" href="#config" data-no-reading>設定を開く</a>
+      <p class="empty-home-note" data-no-reading>宿題を登録してください。保護者ページの「宿題」から追加できます。</p>
+      <a class="btn btn-go btn-wide" href="#tasks" data-no-reading>宿題を決めるページを開く</a>
+    </div>
+  </section>`;
+}
+
+/* 招待リンク・QR で 入った 端末は、初期設定を とばして つながる。
+   そのため 役割（保護者／子ども）を 一度も 聞いていない。
+   これまでは そのまま 子ども画面に 出ていたので、保護者が 自分の端末を
+   つないだ ときも「ホーム画面に追加」の 案内が 子ども向けページの
+   ものしか 出なかった。先に どちらの端末かを 聞き、それぞれの
+   ページへ 送る（追加の案内は どちらの ページにも すでに ある）。 */
+function joinRoleNeeded(){
+  return sharingOn() && !getLocal(K_ROLE);
+}
+function joinRolePickHTML(){
+  return `
+  <section class="sec join-role" data-no-reading>
+    <div class="paper join-role-body">
+      <p class="join-install-for">おうちの共有につながりました</p>
+      <h2 class="join-role-head">この端末は どちらですか？</h2>
+      <p class="set-note">選ぶと、それぞれのページと「ホーム画面に追加」の手順を表示します。あとから「アプリの設定」→「ほかの端末と共有」で変更できます。</p>
+      <div class="join-role-actions">
+        <button class="btn btn-go btn-wide" data-join-role="parent" type="button">保護者の端末</button>
+        <button class="btn btn-go btn-wide" data-join-role="child" type="button">子どもの端末</button>
+      </div>
     </div>
   </section>`;
 }
 
 function viewHome(){
   if(DEBUG_CONTENT) return contentDebugHTML();
+  if(joinRoleNeeded()) return joinRolePickHTML();
   if(!config.tasks.length) return homeEmptyHTML();
   const must  = config.tasks.filter(t=>t.group==='must');
   const opt   = config.tasks.filter(t=>t.group==='option');
@@ -1802,7 +1847,7 @@ function logByLabel(l){
 function logRowHTML(l){
   /* だれが 入れたかは、おうちの人が 見るための もの。
      子ども画面では じゃまに なるので 出さない */
-  const by = (tab === 'settings' || tab === 'config') ? logByLabel(l) : '';
+  const by = isAdultTab(tab) ? logByLabel(l) : '';
   return `
   <div class="today-item">
     <span class="ti-time">${fmtTime(new Date(l.at))}</span>
@@ -2399,22 +2444,18 @@ function viewParent(){
   };
 
   return `
+  ${adultNavHTML('settings')}
   <div class="paper parent-head">
     <div>
       <h2>保護者用ページ</h2>
       <p>${esc(config.title)}</p>
       ${parentShareBadgeHTML()}
     </div>
-    <a class="btn btn-sm" href="#config">設定</a>
-    <a class="btn btn-sm" id="openChildPage" href="#home">子ども画面へ</a>
   </div>
 
   ${syncPromptHTML()}
 
-  <aside class="paper parent-child-guide">
-    <h2>保護者の方へ</h2>
-    <p>「子ども画面へ」から、子どもが見ている画面を確認できます。課題の進捗を修正するときも、子ども画面から該当する項目を開いて変更してください。</p>
-  </aside>
+  ${parentChildGuideHTML()}
 
   ${homeInstallGuideHTML()}
 
@@ -2760,8 +2801,17 @@ function deviceListHTML(){
         ? '<span class="dev-me">この端末</span>'
         : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">解除</button>`}
     </li>`).join('')}</ul>
-    <p class="set-note">「親」「子」は、それぞれの端末の「この端末は」で選んだ役割です。「未設定」の端末では、その端末の共有設定から選んでください。</p>
-    <p class="set-note">使わなくなった端末は「解除」で共有から切り離せます。解除した端末は、次に開いたときに合言葉が消え、再接続には入力し直しが必要になります。LINEなどの一時的なブラウザで接続してしまい、その端末から操作できなくなったときに使ってください。記録そのものは消えません。</p>
+    ${/* 説明が 4段落 続くと 一覧そのものが 押し出される。ふだんは たたむ。
+          data-details-key を 付けないと、detailsKey() が 見出しの 文字を
+          鍵に してしまい、同じ 文の 折りたたみが 巻きぞえで 開く */''}
+    <details class="set-advanced sync-help" data-details-key="deviceHelp">
+      <summary>この一覧の見かた（呼び名・役割・解除）</summary>
+      <div class="set-advanced-body">
+        <p class="set-note">「親」「子」は、それぞれの端末の「この端末は」で選んだ役割です。「未設定」の端末では、その端末の共有設定から選んでください。</p>
+        <p class="set-note">使わなくなった端末は「解除」で共有から切り離せます。解除した端末は、次に開いたときに合言葉が消え、再接続には入力し直しが必要になります。LINEなどの一時的なブラウザで接続してしまい、その端末から操作できなくなったときに使ってください。記録そのものは消えません。</p>
+      </div>
+    </details>
+    ${/* 版ちがいの 注意は 実害の 警告なので たたまない */''}
     ${[...new Set(rows.map(r=> r.ver).filter(Boolean))].length > 1
       ? '<p class="set-note dev-warn">古いバージョンの端末があります。その端末で「アプリ情報」の<b>最新に更新する</b>を実行してください。古いままだと、修正や削除がその端末から元に戻されることがあります。</p>'
       : ''}`;
@@ -2844,18 +2894,23 @@ function syncSectionHTML(opts){
            <div id="syncDeviceList">${deviceListHTML()}</div>
            <h3 class="sync-subhead">この端末の表示と役割</h3>
            <div class="sync-local-settings">
-             <p class="set-note">呼び名と役割は、この端末で決めます。共有中は、ほかの端末の一覧にも見分けるための情報として表示されますが、ほかの端末から変更されることはありません。</p>
              <div class="set-row"><span class="lab">この端末の呼び名</span>
                <input type="text" id="deviceLabel" maxlength="12"
                       value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></div>
-             <p class="set-note">共有中の端末一覧で見分けるための名前です（父、母など）。未設定のときは「${esc(deviceKindLabel(navigator.userAgent, navigator.maxTouchPoints))}」のように端末の種類で表示されます。ブラウザは機種名（iPhone SE など）までは通知しないため、細かく分けたいときは呼び名を入れてください。</p>
              <div class="set-row"><span class="lab">この端末は</span>
                <select id="deviceRole">
                  <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>未選択</option>
                  <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>子どもの端末</option>
                  <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>保護者の端末</option>
                </select></div>
-             <p class="set-note">この端末を使う人を選ぶと、共有中は保護者ページの記録に「誰が入力したか」が小さく表示されます。「保護者の端末」を選ぶと、下の「記録の手入れ」で1件ずつ削除できるように設定できます。</p>
+             <details class="set-advanced sync-help" data-details-key="deviceOwnHelp">
+               <summary>呼び名と役割のくわしい説明</summary>
+               <div class="set-advanced-body">
+                 <p class="set-note">呼び名と役割は、この端末で決めます。共有中は、ほかの端末の一覧にも見分けるための情報として表示されますが、ほかの端末から変更されることはありません。</p>
+                 <p class="set-note">呼び名は、共有中の端末一覧で見分けるための名前です（父、母など）。未設定のときは「${esc(deviceKindLabel(navigator.userAgent, navigator.maxTouchPoints))}」のように端末の種類で表示されます。ブラウザは機種名（iPhone SE など）までは通知しないため、細かく分けたいときは呼び名を入れてください。</p>
+                 <p class="set-note">この端末を使う人を選ぶと、共有中は保護者ページの記録に「誰が入力したか」が小さく表示されます。「保護者の端末」を選ぶと、「アプリの設定」の「記録の手入れ」で1件ずつ削除できるように設定できます。</p>
+               </div>
+             </details>
            </div>
            <h3 class="sync-subhead">共有を解除する</h3>
            <p class="set-note">この端末だけを共有から外します。ほかの端末や記録はそのまま残ります。この端末をもう一度接続するには、合言葉を入力し直してください。</p>
@@ -3428,10 +3483,20 @@ function saveSheet(){
     : dailySelection > 0;
   const hasWrapSelection = !!(sheetWrap && sheetWrap.some(Boolean));
   /* 何も選ばずに保存しても 0/6 の訂正ログを作らない。
-     そのような空ログが「できた！」の回数を増やすことも防ぐ。 */
+     そのような空ログが「できた！」の回数を増やすことも防ぐ。
+
+     ただし **すでに 記録が ある ものを 0 に もどす**のは、
+     まちがえて 押した ぶんの 取り消しであって「空の保存」ではない。
+     以前は ここで まとめて 止めていたので、1回でも 押して しまうと
+     二度と 0 に もどせなかった。記録が ある ときだけ 聞いて 通す。 */
+  const hadValue = (p.done | 0) > 0;
   if(!hasSelection && !hasWrapSelection && !memo && !hasAnswer){
-    toast('やったところを えらんでね');
-    return;
+    if(!hadValue){
+      toast('やったところを えらんでね');
+      return;
+    }
+    if(!confirm('きょうは やらなかったことに しますか？\n' +
+                'いまの きろく（' + p.text + '）を 0 に もどします。')) return;
   }
   const now = new Date();
   let what = '';
@@ -3464,7 +3529,9 @@ function saveSheet(){
     const days = Object.assign({}, (state.progress[t.id]||{}).days || {});
     days[dayKey(now)] = n;
     progPatch(t.id, { days });
-    what = n + (t.targetUnit||'かい') + ' できた';
+    /* 0 は「できた」ではない。取り消したことが 記録に のこるようにする */
+    what = n > 0 ? n + (t.targetUnit||'かい') + ' できた'
+                 : 'きょうは やらなかったことに した';
   }
 
   // さいごの しあげ。done / steps とは べつに のこす
@@ -3493,7 +3560,10 @@ function saveSheet(){
 
   const after = prog(t);
   closeSheet();
-  stamp(after.isDone ? 'ぜんぶ できた！' : 'できた！');
+  /* 取り消し（0 にもどした）ときに「できた！」の はんこは 出さない。
+     押しまちがいを 直しに 来た人に、できたと 言わない */
+  if((after.done | 0) === 0 && hadValue) toast('0 に もどしました');
+  else stamp(after.isDone ? 'ぜんぶ できた！' : 'できた！');
   setTimeout(()=> render({ keepScroll:true }), 60);
   return ok;
 }
@@ -3611,6 +3681,7 @@ function render(opts){
   else if(tab === 'calendar') v.innerHTML = viewCalendar();
   else if(tab === 'books')    v.innerHTML = viewBooks();
   else if(tab === 'writes')   v.innerHTML = viewWrites();
+  else if(tab === 'tasks')    v.innerHTML = viewTasks();
   else if(tab === 'config')   v.innerHTML = viewConfig();
   else                        v.innerHTML = viewParent();
 
@@ -3623,7 +3694,7 @@ function render(opts){
   $('.tabbar').hidden = noTabs;
   document.body.classList.toggle('no-tabbar', noTabs);
   /* 保護者ページと設定は、大人が読む画面。見出しの見え方をそろえるために印をつける */
-  document.body.classList.toggle('adult-view', tab === 'settings' || tab === 'config');
+  document.body.classList.toggle('adult-view', isAdultTab(tab));
 
   if(tab === 'home'){
     renderCountdown();
@@ -3632,7 +3703,8 @@ function render(opts){
   if(tab === 'welcome')  bindWelcome();
   if(tab === 'stats')    bindStats();
   if(tab === 'settings'){ bindParent(); bindSync(); }
-  if(tab === 'config')   bindConfig();
+  if(isAdultTab(tab)) bindAdultNav();
+  if(tab === 'tasks' || tab === 'config') bindConfig();
   scrollBox().scrollTop = keepScroll ? y : 0;
   applyReadingDisplay();
   jumpToSection();
@@ -3678,9 +3750,16 @@ function jumpToSection(){
 /* 折りたたみの 開け閉めは、描き直すと 元に もどってしまう。
    同期が とどくたびに 閉じると 中を 読めないので、開いていた ものを おぼえておく。
    id が 無い ものは 見出しの 文字で 見わける */
+/* 描き直しの前後で「同じ折りたたみ」と言えるための鍵。
+   見出しの文字を鍵にすると、**同じ名前の項目が すべて 巻きぞえで 開く**。
+   毎日の項目は 既定の名前が「おてつだい」なので、2つ足しただけで 起きる。
+   利用者からは「順番を 入れかえると 下の項目が 展開される」と 見える。
+   数えた番号（idx:）も、並べかえで ずれるので 鍵にできない。
+   中身で 見分けが つくものは `data-details-key` を 付けること */
 function detailsKey(d, i){
   const s = d.querySelector('summary');
-  return d.id || (s ? 'sum:' + s.textContent.trim() : 'idx:' + i);
+  return d.dataset.detailsKey ? 'key:' + d.dataset.detailsKey
+    : (d.id || (s ? 'sum:' + s.textContent.trim() : 'idx:' + i));
 }
 function captureOpenDetails(){
   const out = {};
@@ -3806,7 +3885,7 @@ function taskEditorRow(t, i){
   }
 
   const label = kind === 'book' ? '読書' : (kind === 'daily' ? '毎日' : (t.type === 'step' ? '段階' : '数'));
-  return `<details class="set-task" data-i="${i}"${t.id===openConfigTaskId?' open':''}>
+  return `<details class="set-task" data-i="${i}" data-details-key="task:${esc(t.id)}"${t.id===openConfigTaskId?' open':''}>
     <summary class="set-task-summary"><span class="set-kind set-kind--${kind}">${label}</span>
       <strong>${esc(t.name)}</strong><span class="set-task-meta">${taskSummary(t)}</span>
       <span class="set-task-move" aria-label="${esc(t.name)}の順番を変える">
@@ -3827,36 +3906,74 @@ function taskGroupHTML(rows, empty){
   return rows.length ? rows.map(({t,i})=>taskEditorRow(t,i)).join('') : `<p class="set-empty">${esc(empty)}</p>`;
 }
 
-function viewConfig(){
-  const rows = config.tasks.map((t,i)=>({t,i}));
-  const normal = rows.filter(({t})=>taskKind(t)==='normal');
-  const books = rows.filter(({t})=>taskKind(t)==='book');
-  const daily = rows.filter(({t})=>taskKind(t)==='daily');
-  const openShareSettings = openSyncDetails;
-  openSyncDetails = false;
+/* 保護者ページの 使い方の 案内。
+   ずっと 出していると 画面の 上ばかり とるので、読んだら 消せるように する。
+   消した ことは この端末に だけ のこす（家庭の 設定に 入れると、
+   1台で 消しただけで 全部の 端末から 消える）。 */
+const K_GUIDE_DONE = TEST_MODE ? 'natsu.preview.guide.parent.v1' : 'natsu.guide.parent.v1';
+function parentChildGuideHTML(){
+  if(getLocal(K_GUIDE_DONE) === 'done') return '';
   return `
-  <div class="paper parent-head config-head"><div><h2>設定</h2><p>変更はすぐに保存されます。</p></div>
-    <span class="autosave" aria-live="polite">自動保存</span><a class="btn btn-sm" href="#settings">保護者ページに戻る</a></div>
+  <aside class="paper parent-child-guide">
+    <div class="parent-child-guide-body">
+      <h2>保護者の方へ</h2>
+      <p>お子さんの誤操作などで記録の修正が必要になったときは、「子ども画面へ」から、子どもが見ている画面を開いてください。進捗の修正は、子ども画面で該当する項目を開いて行います。</p>
+    </div>
+    <button class="btn btn-sm" id="parentGuideOk" type="button">OK</button>
+  </aside>`;
+}
 
-  <section class="sec config-sec"><div class="sec-head"><h2>子どもの名前とこの端末の表示</h2></div><div class="paper">
-    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（家庭で共有）</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
-    <p class="set-note">子どもの名前はここで入力・変更できます。共有中は、保護者・子どもの端末で同じ名前を表示します。</p>
-    <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
-    <p class="set-note">名前と読める漢字は、家庭の設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
-    <fieldset class="theme-picker"><legend>色とデザイン（家庭で共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
-    <p class="set-note">このページで変更すると、共有中の子ども端末のデザインも変更されます。</p>
-  </div></section>
+/* 大人向けの3ページを行き来する帯。
+   下の .tabbar は 子ども画面 専用なので つかえない（render() の noTabs）。
+   position:fixed / sticky は 3層レイアウトを 壊すので つかわない。
+   #view の 中を ふつうに 流す。
 
-  <section class="sec config-sec"><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
-    <div class="set-row"><label class="lab" for="cfgTitle">タイトル</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
-    <div class="set-row"><label class="lab" for="cfgStart">開始日</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
-    <div class="set-row"><label class="lab" for="cfgEnd">終了日</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
-    <p class="set-note">日付はカウントダウンとペースの計算に使います。</p>
-  </div></section>
+   role="tab" ではなく ふつうの <a> ＋ aria-current。
+   ここは ハッシュを 変えて #view ごと 描き直す 本物の 画面遷移で、
+   tabpanel が 常設されない。role="tab" を 名乗ると aria-controls・
+   矢印キー・roving tabindex が 要るのに、得られるものが 無い。
+   <a> なら フォーカスも「戻る」も ブラウザ任せで 正しく 動く。 */
+const ADULT_PAGES = [
+  { tab:'settings', href:'#settings', short:'ようす', title:'保護者用ページ' },
+  { tab:'tasks',    href:'#tasks',    short:'宿題',   title:'宿題を決める' },
+  { tab:'config',   href:'#config',   short:'設定',   title:'アプリの設定' }
+];
+function adultNavHTML(current){
+  return `
+  <nav class="pagenav" aria-label="保護者向けのページ">
+    ${ADULT_PAGES.map(p=>`<a class="pagenav-item" href="${p.href}"${
+      p.tab === current ? ' aria-current="page"' : ''}>${esc(p.short)}</a>`).join('')}
+    <a class="pagenav-child" id="openChildPage" href="#home">子ども画面へ</a>
+  </nav>`;
+}
+function adultHeadHTML(current, lead){
+  const page = ADULT_PAGES.find(p=>p.tab === current) || ADULT_PAGES[0];
+  return `
+  ${adultNavHTML(current)}
+  <div class="paper parent-head config-head"><div><h2>${esc(page.title)}</h2><p>${esc(lead)}</p></div>
+    <span class="autosave" aria-live="polite">自動保存</span></div>`;
+}
 
-  <section class="sec config-sec"><div class="sec-head"><h2>宿題</h2><span class="sec-note">${normal.length}件</span></div>
-    <div class="paper task-editor" id="normalTaskEditor"><p class="config-section-note">上へ・下へで、この欄の順番を変更できます。</p>${taskGroupHTML(normal,'まだ項目はありません。')}</div>
+/* 宿題そのものを決めるページ。
+   「必ず行う」「次に行う」は 独立した 欄では なく、課題ごとの group。
+   ならべかえの まとまり（taskOrderBucket）も group 単位なので、
+   画面も 分けた ほうが 実際の 動きと そろう。 */
+function viewTasks(){
+  const rows = config.tasks.map((t,i)=>({t,i}));
+  const must   = rows.filter(({t})=>taskKind(t)==='normal' && t.group === 'must');
+  const option = rows.filter(({t})=>taskKind(t)==='normal' && t.group !== 'must');
+  const books  = rows.filter(({t})=>taskKind(t)==='book');
+  const daily  = rows.filter(({t})=>taskKind(t)==='daily');
+  return `
+  ${adultHeadHTML('tasks', '変更はすぐに保存されます。')}
+
+  <section class="sec config-sec"><div class="sec-head"><h2>必ず行う宿題</h2><span class="sec-note">${must.length}件</span></div>
+    <div class="paper task-editor" id="normalTaskEditor"><p class="config-section-note">子ども画面の「かならず やる」に出ます。上へ・下へで順番を変更できます。「表示する場所」を変えると、下の「次に行う宿題」へ移ります。</p>${taskGroupHTML(must,'まだ項目はありません。')}</div>
     <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addNormalTask" type="button">${icon('plus')}<span>宿題を追加</span></button></div>
+  </section>
+
+  <section class="sec config-sec"><div class="sec-head"><h2>次に行う宿題</h2><span class="sec-note">${option.length}件</span></div>
+    <div class="paper task-editor" id="optionTaskEditor"><p class="config-section-note">必ず行う宿題が終わってから取り組む欄です。進みぐあいの判定には数えません。</p>${taskGroupHTML(option,'まだ項目はありません。')}</div>
   </section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>読書の記録</h2><span class="sec-note">${books.length}件</span></div>
@@ -3873,6 +3990,37 @@ function viewConfig(){
       <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addDailyTask" type="button">${icon('plus')}<span>毎日の項目を追加</span></button></div>
     </div>
   </section>
+
+  ${creditHTML()}
+  `;
+}
+
+function viewConfig(){
+  const openShareSettings = openSyncDetails;
+  openSyncDetails = false;
+  return `
+  ${adultHeadHTML('config', '変更はすぐに保存されます。')}
+
+  <section class="sec config-sec"><div class="sec-head"><h2>名前と画面の設定</h2></div><div class="paper">
+    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（家庭で共有）</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
+    <p class="set-note">子どもの名前はここで入力・変更できます。共有中は、保護者・子どもの端末で同じ名前を表示します。</p>
+    <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
+    <p class="set-note">名前と読める漢字は、家庭の設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
+    <fieldset class="theme-picker"><legend>色とデザイン（家庭で共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
+    <p class="set-note">このページで変更すると、共有中の子ども端末のデザインも変更されます。</p>
+  </div></section>
+
+  <section class="sec config-sec"><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
+    <div class="set-row"><label class="lab" for="cfgTitle">タイトル</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
+    <div class="set-row"><label class="lab" for="cfgStart">開始日</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
+    <div class="set-row"><label class="lab" for="cfgEnd">終了日</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
+    <p class="set-note">日付はカウントダウンとペースの計算に使います。</p>
+  </div></section>
+
+  <section class="sec config-sec"><div class="sec-head"><h2>宿題の項目</h2></div><div class="paper">
+    <p class="set-note">宿題・読書・毎日の項目は「宿題を決める」ページにまとめました。</p>
+    <div class="set-actions"><a class="btn btn-sm" href="#tasks">宿題を決めるページを開く</a></div>
+  </div></section>
 
   ${syncSectionHTML({ openDetails:openShareSettings })}
 
@@ -3929,7 +4077,7 @@ function applyReadingDisplay(){
   setReadingGrade(grade);
   /* 保護者用ページと設定画面は大人が読むため、端末の漢字レベルに
      かかわらず元の漢字表記を保つ。変換するのは子ども向け画面だけ。 */
-  if(tab === 'settings' || tab === 'config' || tab === 'stats') return;
+  if(isAdultTab(tab) || tab === 'stats') return;
   if(grade === 9 || !getLocal(K_READING) || typeof convertForTranscription !== 'function') return;
   const root = $('#view');
   const pass = ++readingPass;
@@ -4298,6 +4446,21 @@ function bindParentShareBadge(){
     location.hash = 'config';
   };
 }
+/* 大人向け3ページに共通の帯。settings 以外でも 子ども画面へ 行けるように、
+   render() から どのページでも 呼ぶ */
+function bindAdultNav(){
+  const openChild = $('#openChildPage');
+  if(openChild) openChild.addEventListener('click', e=>{
+    e.preventDefault();
+    if(confirm('子ども画面へ移動します。\n保護者ページに戻るには、画面上部のタイトルを5回タップするか、2秒長押ししてください。')) location.hash = 'home';
+  });
+  const guideOk = $('#parentGuideOk');
+  if(guideOk) guideOk.addEventListener('click', ()=>{
+    setLocal(K_GUIDE_DONE, 'done');
+    render({ keepScroll:true });
+  });
+}
+
 function bindParent(){
   const S = window.NatsuSync;
   if(S && !bindParent._devicesWatching && typeof S.onDevices === 'function'){
@@ -4333,11 +4496,6 @@ function bindParent(){
       homeInstall.hidden = true;
       guide.scrollIntoView({ behavior:'smooth', block:'nearest' });
     }
-  });
-  const openChild = $('#openChildPage');
-  if(openChild) openChild.addEventListener('click', e=>{
-    e.preventDefault();
-    if(confirm('子ども画面へ移動します。\n保護者ページに戻るには、画面上部のタイトルを5回タップするか、2秒長押ししてください。')) location.hash = 'home';
   });
   bindParentSender('parentMessageSender', 'parentMessageCustomWrap');
   const messageText = $('#parentMessageText');
@@ -4606,7 +4764,7 @@ function bindSync(){
 
 /* 保護者ページ（設定）*/
 function bindConfig(){
-  $('#cfgChildName').addEventListener('change', e=>{
+  on('#cfgChildName', 'change', e=>{
     const name = e.target.value.trim();
     const oldName = config.childName;
     const titleWasGenerated = isGeneratedTitle(config.title, oldName);
@@ -4615,11 +4773,11 @@ function bindConfig(){
     setLocal(K_NAME, name);
     saveCfg();
   });
-  $('#cfgTitle').addEventListener('change', e=>{
+  on('#cfgTitle', 'change', e=>{
     config.title = e.target.value.trim() || defaultTitleFor(config.childName);
     saveCfg(); render({ keepScroll:true });
   });
-  $('#cfgReadingGrade').addEventListener('change', e=>{
+  on('#cfgReadingGrade', 'change', e=>{
     const grade = Number(e.target.value);
     /* おうちの設定として 同期する。おうちの人の端末で 変えれば、
        子どもの端末の 表示も 数秒で 追いつく */
@@ -4629,15 +4787,15 @@ function bindConfig(){
     saveCfg();
     render({ keepScroll:true });
   });
-  $('#cfgStart').addEventListener('change', e=>{ config.startAt = e.target.value; saveCfg(); });
-  $('#cfgEnd').addEventListener('change',   e=>{ config.endAt   = e.target.value; saveCfg(); });
+  on('#cfgStart', 'change', e=>{ config.startAt = e.target.value; saveCfg(); });
+  on('#cfgEnd', 'change',   e=>{ config.endAt   = e.target.value; saveCfg(); });
 
   $$('.theme-choice input[name="theme"]').forEach(input=>input.addEventListener('change', e=>{
     if(!THEME_IDS.includes(e.target.value)) return;
     config.theme = e.target.value;
     saveCfg();
   }));
-  $('#cfgShowDaily').addEventListener('change', e=>{
+  on('#cfgShowDaily', 'change', e=>{
     config.showDaily = e.target.checked;
     saveCfg();
   });
@@ -4650,6 +4808,20 @@ function bindConfig(){
   const ed = $('#view');
   if(!bindConfig._edBound){
   bindConfig._edBound = true;
+
+  /* どの行を 開いているかを おぼえる。
+     以前は「種類」「表示する場所」を 変えた ときにしか おぼえておらず、
+     人が 手で 開いた 行は 記録されなかった。そのため 並べかえなどで
+     描き直すと、開いていた 行が 閉じ、**前に いじった 別の行が 開く**。
+     利用者からは「順番を 入れかえると 下の項目が 展開される」と 見える。
+     toggle は バブルしないので capture で とる */
+  ed.addEventListener('toggle', e=>{
+    const row = e.target.closest && e.target.closest('.set-task');
+    if(!row) return;
+    const t = config.tasks[+row.dataset.i]; if(!t) return;
+    if(row.open) openConfigTaskId = t.id;
+    else if(openConfigTaskId === t.id) openConfigTaskId = null;
+  }, true);
 
   ed.addEventListener('change', e=>{
     const row = e.target.closest('.set-task'); if(!row) return;
@@ -4736,7 +4908,7 @@ function bindConfig(){
   });
   }
 
-  $('#addNormalTask').addEventListener('click', ()=>{
+  on('#addNormalTask', 'click', ()=>{
     const added = {
       id: 't' + Date.now(), group:'option', type:'count',
       name:'あたらしい しゅくだい', total:10, unit:'かい', numbered:false,
@@ -4745,14 +4917,14 @@ function bindConfig(){
     config.tasks.push(added); openConfigTaskId = added.id;
     saveCfg(); render({ keepScroll:true });
   });
-  $('#addBookTask').addEventListener('click', ()=>{
+  on('#addBookTask', 'click', ()=>{
     const added = { id:'book-'+Date.now(), group:'must', type:'count', recordStyle:'book',
       name:'読書の きろく', total:10, unit:'さつ', numbered:true,
       bookFields:{ author:true, publisher:false, rating:true } };
     config.tasks.push(added); openConfigTaskId = added.id;
     saveCfg(); render({ keepScroll:true });
   });
-  $('#addDailyTask').addEventListener('click', ()=>{
+  on('#addDailyTask', 'click', ()=>{
     const added = { id:'daily-'+Date.now(), group:'daily', type:'daily',
       name:'おてつだい', target:1, targetUnit:'かい', memoLabel:'やったこと' };
     config.tasks.push(added); openConfigTaskId = added.id;
@@ -4795,21 +4967,21 @@ function bindConfig(){
     setLocal(K_TRACE, '[]'); render({ keepScroll:true }); toast('消しました');
   });
 
-  $('#expBtn').addEventListener('click', exportData);
-  $('#impBtn').addEventListener('click', ()=> $('#impFile').click());
-  $('#impFile').addEventListener('change', importData);
+  on('#expBtn', 'click', exportData);
+  on('#impBtn', 'click', ()=> $('#impFile').click());
+  on('#impFile', 'change', importData);
 
   /* 以前は freshConfig() でサンプルの宿題一式が復活していた。
      「消したのに知らない宿題が並ぶ」ため、空にして登録をうながす。
      名前・デザイン・期間などの設定は項目ではないので残す。 */
-  $('#resetCfg').addEventListener('click', ()=>{
+  on('#resetCfg', 'click', ()=>{
     if(confirm('宿題の項目をすべて消しますか？\nこれまでの記録は残ります。')){
       config.tasks = [];
       config.showDaily = false;
       saveCfg(); render(); toast('宿題の項目を消しました');
     }
   });
-  $('#resetAll').addEventListener('click', ()=>{
+  on('#resetAll', 'click', ()=>{
     if(confirm('進捗と記録をすべての共有端末から削除しますか？\nこの操作は取り消せません。')){
       state = resetState(Date.now()); saveSt(); render(); toast('すべての端末へ削除を送信しました');
     }
@@ -5051,6 +5223,19 @@ document.addEventListener('click', e=>{
     const k = calCell.dataset.day;
     calDay = (calDay === k) ? null : k;  // 同じ日を もう一度おすと とじる
     render({ keepScroll:true });
+    return;
+  }
+
+  /* 招待で つながった 端末に、どちらの端末かを 聞く。
+     選んだ 役割は この端末だけの 設定（家庭の 設定には 入れない）。
+     保護者を 選んだら、そのまま 保護者ページへ 送る */
+  const joinRole = e.target.closest('[data-join-role]');
+  if(joinRole){
+    const role = joinRole.dataset.joinRole;
+    setLocal(K_ROLE, role);
+    if(typeof window.NatsuSync?.refreshDevice === 'function') window.NatsuSync.refreshDevice();
+    if(role === 'parent') location.hash = 'settings';
+    else render();
     return;
   }
 
@@ -5421,7 +5606,7 @@ function applyJoinCode(){
 
 window.addEventListener('natsu:sync-ready', ()=>{
   applyJoinCode();
-  if(tab === 'welcome' || tab === 'stats' || tab === 'config' || tab === 'settings') render({ keepScroll:true });
+  if(tab === 'welcome' || tab === 'stats' || isAdultTab(tab)) render({ keepScroll:true });
 }, { once:true });
 
 /* PWAとしての追加確認を使えるブラウザでは、勝手に出さず保護者ページの
