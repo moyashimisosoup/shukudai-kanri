@@ -1273,7 +1273,7 @@ function deviceLabelFieldHTML(role){
    合言葉を使う順番を明示する。 */
 function welcomeShareSetupHTML(role, code){
   if(role === 'child') return `
-    <div class="welcome-share-setup" id="welcomeShareSetup" aria-label="共有へ接続する手順">
+    <div class="welcome-share-setup" id="welcomeShareSetup" aria-label="共有をはじめる手順">
       <ol>
         <li>保護者から受け取った合言葉を、上の欄に入力します。</li>
         <li>下のボタンを押すと、同じ家庭の宿題・設定・記録を読み込みます。</li>
@@ -1308,7 +1308,7 @@ function welcomeParentConnectionPlanHTML(mode, code, nextStep){
   return `
     <div class="welcome-connect-plan" id="welcomeConnectPlan">
       <p class="set-note welcome-recommend"><b>できれば、先に子ども端末も接続しておくことをおすすめします。</b></p>
-      <p class="set-note">あとから接続するときは、子ども画面のタイトルを5回タップして保護者ページを開き、冒頭の「共有なし：接続設定はこちら」から合言葉を入力できます。</p>
+      <p class="set-note">あとから共有するときは、子ども画面のタイトルを5回タップして保護者ページを開き、冒頭の「共有なし：共有の設定はこちら」から合言葉を作成・入力できます。</p>
       <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes"
         data-creating="yes" data-next-step="${Number(nextStep) || 8}" type="button">先に保護者ページを開く</button>
     </div>`;
@@ -1454,7 +1454,8 @@ function shareSafetyText(){
     '',
     '・合言葉には、普段使っているパスワードや秘密の言葉を使わないでください。このアプリが自動で作る合言葉の利用をおすすめします。',
     '・QRコードや招待リンクを受け取った人は、家庭の共有データに接続できます。信頼できる家族だけに渡してください。',
-    '・名前・宿題・記録は、端末間で共有するためクラウドに保存されます。この機能は家庭向けの簡易共有で、記録そのものはエンドツーエンド暗号化されません。',
+    '・名前・宿題・記録は、端末間で共有するためクラウドに保存されます。保存の前にこの端末で暗号化するため、保管しているサーバー側では中身を読めません。',
+    '・鍵は合言葉から作られ、どこにも送られません。**合言葉をすべての端末で忘れると、クラウド上の記録は誰にも復元できません。** 大切な記録は「データ管理」から書き出して保管してください。',
     '・住所、学校名、連絡先など、知られて困る情報は入力しないでください。'
   ].join('\n');
 }
@@ -2766,10 +2767,10 @@ function parentShareBadgeHTML(){
   const S = window.NatsuSync;
   if(!S || !S.configured()) return '';
   if(!S.getCode()) return `<button class="parent-share-badge is-none" id="parentShareBadge" type="button"
-    title="共有なし・接続設定を開く">
+    title="共有なし・共有の設定を開く">
     <span class="parent-share-mark" aria-hidden="true">共有なし</span>
-    <span class="parent-share-full">：接続設定はこちら</span>
-    <span class="parent-share-short">：接続設定はこちら</span>
+    <span class="parent-share-full">：共有の設定はこちら</span>
+    <span class="parent-share-short">：共有の設定はこちら</span>
   </button>`;
   const summary = parentShareSummary(
     deviceRows(typeof S.devices === 'function' ? S.devices() : {}),
@@ -2871,6 +2872,20 @@ function syncSectionHTML(opts){
         <div class="set-actions">
           <button class="btn btn-go" id="syncMake" type="button">合言葉を作成する</button>
         </div>
+        ${/* 最初の設定と同じく、ここでも 自分で 決められるように する。
+              決め方が ちがっても、押した 時点で 共有が 始まるのは 同じ */''}
+        <details class="set-advanced" data-details-key="syncOwnCode">
+          <summary>合言葉を自分で決める</summary>
+          <div class="set-advanced-body">
+            <p class="set-note">8文字以上にしてください。ふだん使っているパスワードや、家族の名前・誕生日など推測できる言葉は使わないでください。おまかせで作るほうが安全です。</p>
+            <div class="set-row"><span class="lab">決めた合言葉</span>
+              <input type="text" id="syncOwnCode" value="" spellcheck="false"
+                     autocapitalize="off" autocorrect="off" placeholder="8文字以上"></div>
+            <div class="set-actions">
+              <button class="btn btn-go" id="syncMakeOwn" type="button">この合言葉で作成する</button>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="sync-start">
         <h3 class="sync-subhead">ほかの端末で作った合言葉に参加する</h3>
@@ -2888,7 +2903,7 @@ function syncSectionHTML(opts){
       ${code ? `<details class="set-advanced sync-detail"${opts && opts.openDetails ? ' open' : ''}>
         <summary><span class="sync-device-count" id="syncDeviceCount">共有リンク・端末ごとの設定（設定済み：${S.deviceCount()}台）</span></summary>
         <div class="set-advanced-body">
-          <h3 class="sync-subhead">ほかの端末を接続する</h3>
+          <h3 class="sync-subhead">ほかの端末から読み取る</h3>
           ${inviteHTML()}
           <h3 class="sync-subhead">接続中の端末</h3>
            <div id="syncDeviceList">${deviceListHTML()}</div>
@@ -2913,7 +2928,7 @@ function syncSectionHTML(opts){
              </details>
            </div>
            <h3 class="sync-subhead">共有を解除する</h3>
-           <p class="set-note">この端末だけを共有から外します。ほかの端末や記録はそのまま残ります。この端末をもう一度接続するには、合言葉を入力し直してください。</p>
+           <p class="set-note">この端末だけを共有から外します。ほかの端末や記録はそのまま残ります。この端末をもう一度参加させるには、合言葉を入力し直してください。</p>
            <div class="set-actions">
              <button class="btn btn-sm btn-danger" id="syncOff" type="button">共有を解除する</button>
            </div>
@@ -4739,17 +4754,26 @@ function bindSync(){
      さらに「この合言葉で接続」を 押す 必要が あった。
      どちらを 押した 時点で ほかの端末から 読めるのかが 分からない、
      という 指摘に そって 1操作に まとめた */
-  const make = $('#syncMake');
-  if(make) make.addEventListener('click', ()=>{
+  const startSharing = code=>{
     if(!confirmShareSafety()) return;
-    const c = S.makeCode();
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
-    forgetConfigStampForNewHousehold(c);
-    S.reconnect(c);
-    S.registerHousehold(c).catch(()=>{});
+    forgetConfigStampForNewHousehold(code);
+    S.reconnect(code);
+    S.registerHousehold(code).catch(()=>{});
     openSyncDetails = true;          // QR・招待リンクをすぐ開いて見せる
     toast('作成しました。ほかの端末から この合言葉で 読み取れます');
     render({ keepScroll:true });
+  };
+  on('#syncMake', 'click', ()=> startSharing(S.makeCode()));
+  on('#syncMakeOwn', 'click', ()=>{
+    const input = $('#syncOwnCode');
+    const c = cleanCode(input ? input.value : '');
+    if(c.length < 8){
+      toast('合言葉は 8文字以上に してください');
+      if(input) input.focus();
+      return;
+    }
+    startSharing(c);
   });
 
   const off = $('#syncOff');

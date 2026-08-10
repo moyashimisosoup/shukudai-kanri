@@ -29,7 +29,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/12.17.1/';
 
 /* あいことばは この端末の localStorage に のこす。
    Firestore では SHA-256 で変換したIDの1件を端末どうしで見に行く。
-   旧版が作った書類も、読み取り時だけ従来IDを試して引き継ぐ。 */
+   中身は この端末で 鍵を かけてから 送る（下の「1.5 中身の 暗号化」）。 */
 /* ?new=1 のおためしモードは、普段使っている家庭のあいことばを読まない。 */
 const K_CODE = new URLSearchParams(location.search).get('new') === '1'
   ? 'natsu.preview.sync.code.v1'
@@ -146,25 +146,106 @@ function getDeviceId(){
     return 'memory-' + Math.random().toString(16).slice(2, 26).padEnd(24, '0');
   }
 }
-/* 旧版のFirestore用ID。既存の家庭に接続し続けるため、読み取り時だけ使う。 */
-function hashPart(text, seed){
-  let n = seed >>> 0;
-  for(let i=0; i<text.length; i++) n = Math.imul(n ^ text.charCodeAt(i), 0x01000193) >>> 0;
-  return n.toString(16).padStart(8, '0');
-}
-function legacyHouseIdFor(code){
-  const c = String(code || '');
-  if(/^[a-z0-9]+$/i.test(c) && c.length >= 16) return c.toLowerCase();
-  return 'phrase-' + hashPart(c, 0x811c9dc5) + hashPart(c, 0x9e3779b9);
-}
-/* 新しい家庭では、共有コードをFirestoreの文書IDへそのまま置かない。
-   これはIDの推測を難しくするためで、記録内容を暗号化するものではない。 */
+/* 旧方式（合言葉をそのまま文書IDにする版）は 廃止した。
+   中身に 鍵を かける ようにした ので、鍵の ない 旧文書は そもそも
+   読めない。読み取りだけ 残しても「見つかったのに 読めない」に なる。
+   旧方式で ためた 記録は、書き出し／読み込み（設定の「データ管理」）で
+   移すこと。 */
+/* 共有コードを Firestore の文書IDへ そのまま 置かない。IDの 推測を
+   難しくする ための もので、中身を 守るのは 下の 暗号化のほう。
+   **この値を 鍵の 塩に つかわないこと**（保存された 値と 鍵の 材料が
+   同じに なる）。 */
 async function houseIdFor(code){
-  const normalized = String(code || '').trim().normalize('NFKC').replace(/\s+/g, '').toLowerCase();
-  const data = new TextEncoder().encode(normalized);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(digest), n=>n.toString(16).padStart(2, '0')).join('');
+  const digest = await sha256Bytes(normalizeCode(code));
+  return Array.from(digest, n=>n.toString(16).padStart(2, '0')).join('');
 }
+/* ---------------------------------------------------------
+   1.5 中身の 暗号化（エンドツーエンド）
+
+   名前・宿題・記録は、この端末で 鍵を かけてから Firestore へ 送る。
+   鍵は 合言葉から 作り、どこにも 送らない。だから Firebase の
+   管理者でも 中身は 読めない。
+
+   **塩に 合言葉そのものや 文書ID を つかわないこと。**
+   文書IDは すでに SHA-256(合言葉) で、これを 塩に すると
+   「保存されている 値」と「鍵の 材料」が 同じに なってしまう。
+   用途を 分ける ため、別の 文字を 混ぜてから もう一度 ハッシュする。
+
+   塩は 決まった 値に する（乱数を 文書に 置かない）。あとから 参加する
+   端末は 合言葉しか 持っておらず、文書を 読む 前に 鍵が 要るため。
+   --------------------------------------------------------- */
+const ENC_PREFIX = 'v1:';
+const ENC_ITERATIONS = 250000;
+let cryptoKey = null;
+let cryptoKeyCode = '';
+
+function normalizeCode(code){
+  return String(code || '').trim().normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+}
+async function sha256Bytes(text){
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)));
+}
+async function deriveKey(code){
+  const normalized = normalizeCode(code);
+  if(cryptoKey && cryptoKeyCode === normalized) return cryptoKey;
+  const salt = await sha256Bytes('natsu.e2ee.salt.v1|' + normalized);
+  const material = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(normalized), 'PBKDF2', false, ['deriveKey']);
+  cryptoKey = await crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt, iterations:ENC_ITERATIONS, hash:'SHA-256' },
+    material, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']);
+  cryptoKeyCode = normalized;
+  return cryptoKey;
+}
+function bytesToBase64(bytes){
+  let s = '';
+  bytes.forEach(b=>{ s += String.fromCharCode(b); });
+  return btoa(s);
+}
+function base64ToBytes(text){
+  const bin = atob(text);
+  const out = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+/* 欄の名前を 追加の 認証データに 入れる。こうすると、管理者が
+   config の 中身を state の 欄へ 移しかえても 復号に 失敗する */
+async function encryptField(name, code, value){
+  const key = await deriveKey(code);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = new TextEncoder().encode(JSON.stringify(value === undefined ? null : value));
+  const buf = await crypto.subtle.encrypt(
+    { name:'AES-GCM', iv, additionalData:new TextEncoder().encode(name) }, key, data);
+  const body = new Uint8Array(buf);
+  const all = new Uint8Array(iv.length + body.length);
+  all.set(iv, 0);
+  all.set(body, iv.length);
+  return ENC_PREFIX + bytesToBase64(all);
+}
+function isCiphertext(v){ return typeof v === 'string' && v.slice(0, ENC_PREFIX.length) === ENC_PREFIX; }
+/* 一覧の 呼び名だけを あけ直す。1台 読めなくても 一覧ぜんたいは 出す
+   （役割・版は 平文なので、名前が 空でも 見分けは つく） */
+async function decryptDevices(devs, code){
+  const out = {};
+  for(const id of Object.keys(devs || {})){
+    const v = devs[id] || {};
+    if(!isCiphertext(v.enc)){ out[id] = v; continue; }
+    try{
+      const open = await decryptField('device', code, v.enc);
+      out[id] = Object.assign({}, v, { name:String(open.name||''), label:String(open.label||'') });
+    }catch(e){ out[id] = v; }
+  }
+  return out;
+}
+async function decryptField(name, code, text){
+  const key = await deriveKey(code);
+  const all = base64ToBytes(text.slice(ENC_PREFIX.length));
+  const buf = await crypto.subtle.decrypt(
+    { name:'AES-GCM', iv:all.slice(0, 12), additionalData:new TextEncoder().encode(name) },
+    key, all.slice(12));
+  return JSON.parse(new TextDecoder().decode(buf));
+}
+
 function makeCode(){
   const buf = new Uint32Array(CODE_LEN);
   crypto.getRandomValues(buf);
@@ -190,15 +271,16 @@ async function verifyHousehold(code){
   const secureId = await houseIdFor(c);
   const secureRef = fs.doc(db, 'households', secureId);
   const secureSnap = await read(secureRef);
-  if(secureSnap.exists()) return { found:true, config:(secureSnap.data() || {}).config || null };
-
-  const legacyId = legacyHouseIdFor(c);
-  if(legacyId !== secureId){
-    const legacyRef = fs.doc(db, 'households', legacyId);
-    const legacySnap = await read(legacyRef);
-    if(legacySnap.exists()) return { found:true, config:(legacySnap.data() || {}).config || null };
+  if(!secureSnap.exists()) return { found:false };
+  /* 見つかっても、鍵が あわなければ 中身は 見せない。
+     参加の 前に 名前・漢字設定を 出すのは この復号が できた ときだけ */
+  const raw = (secureSnap.data() || {}).config;
+  if(!isCiphertext(raw)) return { found:true, config:null, unreadable:true };
+  try{
+    return { found:true, config: await decryptField('config', c, raw) };
+  }catch(e){
+    return { found:true, config:null, unreadable:true };
   }
-  return { found:false };
 }
 
 /* ---------------------------------------------------------
@@ -214,7 +296,7 @@ let initPromise = null;
    ブラウザ内へためておく仕組みまで始められなくなるため。
    新方式の書類がオンラインで「ない」と確認できた時だけ、旧方式の
    書類を一度試す。これで既存家庭を引き継ぎつつ、通信待ちで記録を失わない。 */
-function watchHousehold(fs, ref, code, mayUseLegacy){
+function watchHousehold(fs, ref, code){
   if(unsub){ unsub(); unsub = null; }
   docRef = ref;
   activeHouseId = ref.id;
@@ -229,31 +311,12 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
            オフラインの既存端末が別の家庭を作ってしまうため、オンラインの
            確認が来るまで保留する。保存操作の pending はそのまま残る。
 
-           **この判定に mayUseLegacy を混ぜないこと。** 以前は
-           `mayUseLegacy && fromCache` になっていて、旧方式の家庭へ
-           切りかえた あとの watcher（mayUseLegacy = false）だけ
-           素通りしていた。招待リンクで 入ったばかりの 端末は その参照を
-           まだ ためていないので、「文書なし（キャッシュ）」が 1回 来る。
-           そこで pushAll() すると、**まだ 家庭の 設定を 受け取っていない
-           端末の 初期値が 家庭ぜんたいへ 配られる**。 */
+           **ここに 例外を 作らないこと。** 以前は 旧方式へ 切りかえた
+           あとの watcher だけ 素通りしていた。招待リンクで 入ったばかりの
+           端末は その参照を まだ ためていないので、「文書なし（キャッシュ）」が
+           1回 来る。そこで pushAll() すると、**まだ 家庭の 設定を
+           受け取っていない 端末の 初期値が 家庭ぜんたいへ 配られる**。 */
         if(snap.metadata.fromCache) return;
-        if(mayUseLegacy){
-          const legacyId = legacyHouseIdFor(code);
-          if(legacyId !== ref.id){
-            try{
-              const legacyRef = fs.doc(db, 'households', legacyId);
-              const legacySnap = await fs.getDoc(legacyRef);
-              if(docRef !== ref) return;
-              if(legacySnap.exists()){
-                watchHousehold(fs, legacyRef, code, false);
-                return;
-              }
-            }catch(e){
-              /* 次のsnapshotで再試行する。安全確認なしに新規作成はしない。 */
-              return;
-            }
-          }
-        }
         /* 招待リンクなどで「ある家庭へ入る」つもりの端末は、ここで
            家庭を作らない。この端末の初期値が家庭の中身になってしまう。
            あいことばの取りちがえ・旧方式IDの取りこぼしを、静かに
@@ -273,14 +336,9 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
         return;
       }
 
-      /* 中身があるキャッシュ、またはオンラインで確認できた文書だけを
-         「家庭の設定を受信済み」とする。空のキャッシュを受信済みにすると、
-         QR参加直後の初期設定を家庭へ送れる状態になってしまう。 */
-      const firstSnapshot = !gotSnapshot;
-      gotSnapshot = true;
-      joiningExisting = false;      // 家庭を受け取れた。以後はふつうの端末
-
       const d = snap.data() || {};
+      /* はずされた 判定は 平文の まま 先に。鍵が 合わなくても
+         「もう この家庭の 端末では ない」ことは 分かる */
       if(revokedForMe(d.devices)){
         rememberRevokedCode(getCode());
         setCode('');
@@ -289,15 +347,41 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
         return;
       }
 
+      /* **鍵を あけられない うちは、受信済みに しないこと。**
+         gotSnapshot を 先に 立てると configHeldBack() が false に なり、
+         次の saveCfg() が この端末の 初期値を 家庭ぜんたいへ 配る。
+         「まだ 家庭を 受け取っていない 端末が 家庭を 上書きする」という、
+         この作りで くり返し 起きてきた 事故と 同じ 道すじ。
+         読めない ときは 何も 受け取らなかった ことに して、画面に 出す */
+      let plainConfig = null;
+      let plainState = null;
+      try{
+        if(isCiphertext(d.config)) plainConfig = await decryptField('config', code, d.config);
+        else if(d.config !== undefined && d.config !== null) throw new Error('not-encrypted');
+        if(isCiphertext(d.state)) plainState = await decryptField('state', code, d.state);
+        else if(d.state !== undefined && d.state !== null) throw new Error('not-encrypted');
+      }catch(e){
+        setStatus('error', 'この端末では 中身を 読めません。合言葉を 確かめてください');
+        return;
+      }
+      if(docRef !== ref) return;    // 読んでいる あいだに つなぎ直された
+
+      /* 中身があるキャッシュ、またはオンラインで確認できた文書だけを
+         「家庭の設定を受信済み」とする。空のキャッシュを受信済みにすると、
+         QR参加直後の初期設定を家庭へ送れる状態になってしまう。 */
+      const firstSnapshot = !gotSnapshot;
+      gotSnapshot = true;
+      joiningExisting = false;      // 家庭を受け取れた。以後はふつうの端末
+
       const devs = d.devices || {};
       setDeviceCount(Object.keys(devs).filter(k => !(devs[k] && devs[k].revoked)).length);
-      setDeviceMap(devs);
+      setDeviceMap(await decryptDevices(devs, code));
       registerDevice();
       const app_ = window.NatsuApp;
       if(app_ && typeof app_.onRemote === 'function'){
         app_.onRemote({
-          config:   d.config   || null,
-          state:    d.state    || null,
+          config:   plainConfig,
+          state:    plainState,
           configAt: d.configAt || 0,
           stateAt:  d.stateAt  || 0,
           /* つなぎ直してから 最初に 受け取った 家庭の中身かどうか。
@@ -336,7 +420,7 @@ async function connect(){
        オンラインで空だった時だけ watchHousehold() が確認する。 */
     const secureId = await houseIdFor(code);
     const secureRef = fs.doc(db, 'households', secureId);
-    watchHousehold(fs, secureRef, code, true);
+    watchHousehold(fs, secureRef, code);
 
   }catch(err){
     setStatus('error', 'つながりません：' + (err && err.message || err));
@@ -391,12 +475,20 @@ let lastDeviceWrite = '';
 async function registerDevice(){
   if(!docRef || !Sync._fs) return;
   const info = deviceInfo();
-  const key = [activeHouseId || legacyHouseIdFor(getCode()), info.role, info.name, info.label, info.ver].join('|');
+  const key = [activeHouseId, info.role, info.name, info.label, info.ver].join('|');
   if(lastDeviceWrite === key) return;
   lastDeviceWrite = key;
   try{
     const id = getDeviceId();
-    await Sync._fs.setDoc(docRef, { devices:{ [id]: info } }, { merge:true });
+    /* 一覧に 出る 呼び名と 子どもの 名前も 中身と 同じで、外から
+       読めては いけない。役割・版・はずした印・時刻は 平文の まま。
+       これらは 復号する 前に 使う（はずされた 端末の 判定、台数、
+       版ちがいの 注意）ので、鍵を かけると 見られなくなる */
+    const stored = Object.assign({}, info, {
+      name:'', label:'',
+      enc: await encryptField('device', getCode(), { name:info.name, label:info.label })
+    });
+    await Sync._fs.setDoc(docRef, { devices:{ [id]: stored } }, { merge:true });
     /* 自分が 書いたぶんは onSnapshot が 読み飛ばす（hasPendingWrites）。
        そのため 一覧の 自分の行だけが 古いままに なり、
        呼び名を つけても 出ない、最新なのに「古い」と 出る、が 起きる。
@@ -497,9 +589,13 @@ async function flush(){
   const now = Date.now();
   const payload = {};
 
-  if(pending.config){ payload.config = cur.config; payload.configAt = now; }
+  /* 中身は 鍵を かけてから 出す。時刻は 平文の まま。
+     時刻まで 隠すと、どちらが 新しいかを 決めるのに 復号が 要り、
+     鍵の ない 端末が「文書は あるのに 何も 分からない」状態に なる */
+  const code = getCode();
+  if(pending.config){ payload.config = await encryptField('config', code, cur.config); payload.configAt = now; }
   if(pending.state) {
-    payload.state   = cur.state;
+    payload.state   = await encryptField('state', code, cur.state);
     payload.stateAt = now;
     /* どの端末が 送ったかを のこす。合わなかった ときに、どちらの端末の
        値だったのかを 名前で 見られる ようにする。

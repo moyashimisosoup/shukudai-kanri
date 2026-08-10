@@ -206,44 +206,65 @@ test('同梱QRライブラリが招待URLをSVG化できる', ()=>{
   assert.match(svg, /role="img"/);
 });
 
+/* 暗号化の部品。sync.js の本物をそのまま持ちこむので、
+   実装が変わればテストも一緒に動く。 */
+const CRYPTO_PARTS = "let cryptoKey=null, cryptoKeyCode='';\nconst ENC_PREFIX='v1:'; const ENC_ITERATIONS=250000;\n"
+  + ['normalizeCode','sha256Bytes','deriveKey','bytesToBase64','base64ToBytes','encryptField','isCiphertext']
+      .map(n=>grab(SYNC, n)).join('\n');
+
 test('接続前の保留送信は初回snapshot後に再開できる', async ()=>{
   const names = ['flushPendingSoon', 'flush'];
-  const harness = new Function(`
+  const harness = new Function('crypto', 'TextEncoder', 'btoa', `
     let docRef=null, pushTimer=null, pending={config:false,state:true};
-    let writes=0;
+    let writes=0, last=null;
     const window={NatsuApp:{current:()=>({config:{},state:{logs:[]}})}};
-    const Sync={_fs:{setDoc:async()=>{ writes++; }}};
+    const Sync={_fs:{setDoc:async(_ref,payload)=>{ writes++; last=payload; }}};
     function getDeviceId(){ return 'device-1'; }
+    function getCode(){ return 'abcdefghjkmnpqrs'; }
     function setStatus(){}
+    ${CRYPTO_PARTS}
     ${names.map(n=>grab(SYNC, n)).join('\n')}
     return {
       flush, flushPendingSoon,
       connect:()=>{ docRef={}; },
       writes:()=>writes,
+      last:()=>last,
       pending:()=>Object.assign({},pending)
     };
-  `)();
+  `)(webcrypto, TextEncoder, btoa);
 
   await harness.flush();
   assert.equal(harness.writes(), 0);
   assert.equal(harness.pending().state, true);
   harness.connect();
   harness.flushPendingSoon();
-  await new Promise(resolve=>setTimeout(resolve, 10));
+  /* 送信は 鍵を 作ってから。PBKDF2 は わざと 遅いので、
+     決め打ちの 待ち時間では なく 書けるまで 待つ */
+  for(let i=0; i<200 && harness.writes() === 0; i++){
+    await new Promise(resolve=>setTimeout(resolve, 10));
+  }
   assert.equal(harness.writes(), 1);
   assert.equal(harness.pending().state, false);
+
+  /* 記録は 鍵を かけて 出す。時刻は そのまま（新旧の 判定に つかう） */
+  const sent = harness.last();
+  assert.match(sent.state, /^v1:/, '中身は暗号文で送ること');
+  assert.equal(typeof sent.stateAt, 'number', '時刻は平文のままにすること');
+  assert.doesNotMatch(sent.state, /logs/, '平文が混ざらないこと');
 });
 
 test('Firestore書き込み失敗時は送信予約を失わない', async ()=>{
-  const harness = new Function(`
+  const harness = new Function('crypto', 'TextEncoder', 'btoa', `
     let docRef={}, pushTimer=null, pending={config:false,state:true};
     const window={NatsuApp:{current:()=>({config:{},state:{logs:[]}})}};
     const Sync={_fs:{setDoc:async()=>{ throw new Error('offline'); }}};
     function getDeviceId(){ return 'device-1'; }
+    function getCode(){ return 'abcdefghjkmnpqrs'; }
     function setStatus(){}
+    ${CRYPTO_PARTS}
     ${grab(SYNC, 'flush')}
     return { flush, pending:()=>Object.assign({},pending) };
-  `)();
+  `)(webcrypto, TextEncoder, btoa);
   await harness.flush();
   assert.equal(harness.pending().state, true);
 });
@@ -257,25 +278,32 @@ test('合言葉を入れ直した端末の再登録は「はずす」印を解�
   assert.equal(harness().revoked, false);
 });
 
-test('新しい共有コードはFirestoreの文書IDに平文で置かず、旧方式の家庭も判別できる', async ()=>{
+test('共有コードはFirestoreの文書IDに平文で置かない', async ()=>{
   const house = new Function('crypto', 'TextEncoder', `
-    ${grab(SYNC, 'hashPart')}
-    ${grab(SYNC, 'legacyHouseIdFor')}
+    ${grab(SYNC, 'normalizeCode')}
+    ${grab(SYNC, 'sha256Bytes')}
     ${grab(SYNC, 'houseIdFor')}
-    return { legacyHouseIdFor, houseIdFor };
+    return { houseIdFor };
   `)(webcrypto, TextEncoder);
   const code = 'abcdefghjkmnpqrs';
   const secure = await house.houseIdFor(code);
   assert.match(secure, /^[0-9a-f]{64}$/);
   assert.notEqual(secure, code);
   assert.equal(await house.houseIdFor(code.toUpperCase()), secure);
-  assert.equal(house.legacyHouseIdFor(code), code);
-  assert.match(house.legacyHouseIdFor('なつやすみ'), /^phrase-[0-9a-f]{16}$/);
   assert.match(SYNC, /if\(snap\.metadata\.fromCache\) return/);
+  /* 旧方式（合言葉をそのまま文書IDにする版）は廃止した。
+     鍵のない旧文書は読めないので、読み取りだけ残しても
+     「見つかったのに読めない」になる。 */
+  assert.doesNotMatch(SYNC, /legacyHouseIdFor|hashPart|mayUseLegacy/,
+    '旧方式の探索を残さないこと');
 });
 
 test('保護者画面の案内は実際の保存方式と操作先を明示する', ()=>{
-  assert.match(APP, /記録そのものはエンドツーエンド暗号化されません/);
+  /* 中身を暗号化したので、案内も実態に合わせる。
+     鍵は合言葉からしか作れない＝全端末で忘れたら復元できないことも書く。 */
+  assert.match(APP, /保存の前にこの端末で暗号化するため、保管しているサーバー側では中身を読めません/);
+  assert.match(APP, /合言葉をすべての端末で忘れると、クラウド上の記録は誰にも復元できません/);
+  assert.doesNotMatch(APP, /エンドツーエンド暗号化されません/);
   assert.match(APP, /普段使っているパスワードや秘密の言葉を使わない/);
   assert.match(APP, /function parentTodayLogsHTML\(/);
   assert.match(APP, /if\(confirm\('子ども画面へ移動します/);
@@ -972,7 +1000,7 @@ test('保護者ページは未共有の入口と子ども画面の修正方法�
     return parentShareBadgeHTML;
   `)({NatsuSync:{configured:()=>true,getCode:()=>''}})();
   assert.match(badge, /共有なし/);
-  assert.match(badge, /接続設定はこちら/);
+  assert.match(badge, /共有の設定はこちら/);
   assert.match(APP, /<h2>保護者の方へ<\/h2>[\s\S]*子ども画面で該当する項目を開いて行います/);
   assert.match(APP, /このページで変更すると、共有中の子ども端末のデザインも変更/);
 });
@@ -1072,16 +1100,23 @@ test('同期の記録は、まいにちの項目が増減したことも残す',
    ほかの端末から読めるのかが読み取れなかった。作成＝共有開始にそろえる。 */
 test('設定画面の共有は、作成でそのままつながり、参加は確認後だけ進む', ()=>{
   const bind = grab(APP, 'bindSync');
-  const make = bind.slice(bind.indexOf("$('#syncMake')"));
-  assert.match(make, /S\.reconnect\(c\)/, '作成した時点でつなぐこと');
+  const make = bind.slice(bind.indexOf("const startSharing"));
+  assert.match(make, /S\.reconnect\(code\)/, '作成した時点でつなぐこと');
   assert.match(make, /openSyncDetails = true/, '作成後にQR・招待リンクを開くこと');
   assert.doesNotMatch(make, /この合言葉で接続/, '作成後にもう1操作を求めないこと');
+  /* おまかせでも 自分で決めても、押した時点で共有が始まるのは同じ */
+  assert.match(make, /on\('#syncMake', 'click', \(\)=> startSharing\(S\.makeCode\(\)\)\)/);
+  assert.match(make, /on\('#syncMakeOwn', 'click'/);
+  assert.match(make, /if\(c\.length < 8\)/, '自分で決めた合言葉は8文字以上を求めること');
 
   const section = grab(APP, 'syncSectionHTML');
   assert.match(section, /合言葉を作成する/);
   assert.match(section, /ほかの端末から読み取れるようになります/,
     '作成で何が起きるかを書くこと');
   assert.match(section, /id="syncVerify"[^>]*>接続を確認/);
+  /* 設定からも 自分で 決められる（最初の設定と そろえる） */
+  assert.match(section, /id="syncOwnCode"/);
+  assert.match(section, /id="syncMakeOwn"[^>]*>この合言葉で作成する/);
   assert.match(section, /id="syncSave"[^>]*hidden[^>]*>この家庭に参加する|id="syncSave" type="button" hidden/);
 
   /* 参加は確認ずみのあいことばだけ。未確認では reconnect まで進ませない */
@@ -1183,4 +1218,90 @@ test('招待で入った端末には、先に保護者か子どもかを聞く',
   /* 選んだ役割はこの端末だけの設定。家庭の設定に混ぜない */
   assert.match(APP, /setLocal\(K_ROLE, role\)/);
   assert.match(APP, /if\(role === 'parent'\) location\.hash = 'settings'/);
+});
+
+/* 中身のエンドツーエンド暗号化。Firebase の管理者に名前・宿題・記録を
+   読ませないための層。合言葉から鍵を作り、鍵はどこへも送らない。 */
+function cryptoHarness(){
+  return new Function('crypto', 'TextEncoder', 'TextDecoder', 'btoa', 'atob', `
+    ${CRYPTO_PARTS}
+    ${grab(SYNC, 'decryptField')}
+    ${grab(SYNC, 'houseIdFor')}
+    return { encryptField, decryptField, isCiphertext, houseIdFor,
+             salt:(code)=>sha256Bytes('natsu.e2ee.salt.v1|' + normalizeCode(code)) };
+  `)(webcrypto, TextEncoder, TextDecoder, btoa, atob);
+}
+
+test('家庭の中身は暗号化して往復でき、平文が残らない', async ()=>{
+  const c = cryptoHarness();
+  const code = 'abcdefghjkmnpqrs';
+  const config = { childName:'テスト児童', tasks:[{ id:'t1', name:'かん字ドリル' }] };
+  const sealed = await c.encryptField('config', code, config);
+
+  assert.ok(c.isCiphertext(sealed));
+  assert.deepEqual(await c.decryptField('config', code, sealed), config);
+  /* 個人情報が そのまま 出ていないこと */
+  assert.doesNotMatch(sealed, /テスト児童|かん字ドリル|childName/);
+});
+
+test('同じ値でも書くたびに違う暗号文になる（IVを使い回さない）', async ()=>{
+  const c = cryptoHarness();
+  const code = 'abcdefghjkmnpqrs';
+  const a = await c.encryptField('state', code, { logs:[1,2,3] });
+  const b = await c.encryptField('state', code, { logs:[1,2,3] });
+  assert.notEqual(a, b);
+});
+
+test('ちがう合言葉・ちがう欄では復号できない', async ()=>{
+  const c = cryptoHarness();
+  const sealed = await c.encryptField('config', 'abcdefghjkmnpqrs', { childName:'あ' });
+  await assert.rejects(()=> c.decryptField('config', 'zyxwvutsrqponmkj', sealed),
+    'ちがう合言葉では開かないこと');
+  /* 欄の名前を認証データに入れているので、config を state へ移されても開かない */
+  await assert.rejects(()=> c.decryptField('state', 'abcdefghjkmnpqrs', sealed),
+    '欄を入れかえたら開かないこと');
+});
+
+test('鍵の塩は、保存される文書IDと別物にする', async ()=>{
+  const c = cryptoHarness();
+  const code = 'abcdefghjkmnpqrs';
+  const salt = Array.from(await c.salt(code), n=>n.toString(16).padStart(2,'0')).join('');
+  assert.notEqual(salt, await c.houseIdFor(code),
+    '文書IDを塩にすると、保存された値がそのまま鍵の材料になる');
+});
+
+/* この作りで くり返し 起きてきた事故。まだ家庭を受け取っていない端末が
+   自分の初期値で家庭を上書きする。復号できないうちに gotSnapshot を
+   立てると configHeldBack() が false になり、同じ道すじが再びひらく。 */
+test('復号できないうちは、受信済みにも上書き可能にもしない', ()=>{
+  const watch = grab(SYNC, 'watchHousehold');
+  const failIdx = watch.indexOf('この端末では 中身を 読めません');
+  const gotIdx  = watch.indexOf('gotSnapshot = true');
+  assert.ok(failIdx > -1, '読めないことを画面に出すこと');
+  assert.ok(gotIdx > failIdx,
+    'gotSnapshot を立てるのは復号に成功したあとにすること');
+  const fail = watch.slice(failIdx, gotIdx);
+  assert.match(fail, /return;/, '読めないときはそこで戻ること');
+  assert.doesNotMatch(fail, /pushAll\(\)|flushPendingSoon\(\)|joiningExisting = false/,
+    '読めないまま家庭へ送り出さないこと');
+  /* 平文のまま置かれた文書も「読めない」に倒す（黙って上書きしない） */
+  assert.match(watch, /throw new Error\('not-encrypted'\)/);
+});
+
+test('はずされた判定と台数は、鍵が合わなくても動く', ()=>{
+  const watch = grab(SYNC, 'watchHousehold');
+  const revokeIdx = watch.indexOf('revokedForMe(d.devices)');
+  const decryptIdx = watch.indexOf("decryptField('config'");
+  assert.ok(revokeIdx > -1 && decryptIdx > revokeIdx,
+    'はずされた判定は復号より先に行うこと（鍵がなくても外れられる）');
+  /* 呼び名だけは暗号文。役割・版・はずした印は平文のまま */
+  const reg = grab(SYNC, 'registerDevice');
+  assert.match(reg, /name:'', label:''/, '一覧の名前を平文で置かないこと');
+  assert.match(reg, /enc: await encryptField\('device'/);
+});
+
+test('参加前の確認は、鍵が合ったときだけ中身を見せる', ()=>{
+  const v = grab(SYNC, 'verifyHousehold');
+  assert.match(v, /if\(!isCiphertext\(raw\)\) return \{ found:true, config:null, unreadable:true \}/);
+  assert.match(v, /catch\(e\)\{\s*return \{ found:true, config:null, unreadable:true \};/);
 });

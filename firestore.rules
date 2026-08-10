@@ -18,11 +18,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /* 家庭のID。新規の共有コードはSHA-256（64桁の16進）に変換し、
-       phrase-<16桁の16進> と英数字IDは旧版の家庭を引き継ぐために残す。 */
+    /* 家庭のID。共有コードの SHA-256（64桁の16進）だけ。
+       旧方式（合言葉をそのままIDにする版）は廃止した。中身に鍵を
+       かけたので、鍵のない旧文書はそもそも読めない。 */
     function validHouseId(id) {
-      return id.matches('phrase-[0-9a-f]{16}')
-          || id.matches('[a-z0-9]{16,64}');
+      return id.matches('[0-9a-f]{64}');
     }
 
     /* アプリが書きこむ欄はこの5つだけ。
@@ -32,6 +32,16 @@ service cloud.firestore {
         .hasOnly(['config', 'state', 'configAt', 'stateAt', 'devices']);
     }
 
+    /* config と state は、端末で鍵をかけた文字列でしか置かせない。
+       ここを通ると、あいことばを知らない者はもちろん、
+       このプロジェクトの管理者も中身を読めない。 */
+    function sealedContent() {
+      return (!('config' in request.resource.data)
+              || request.resource.data.config is string)
+          && (!('state' in request.resource.data)
+              || request.resource.data.state is string);
+    }
+
     /* ---------- 家庭のデータ ----------
        ID を知っている人だけが読み書きできる。
        list を許すとコレクションを丸ごと持って行かれるので禁止。 */
@@ -39,7 +49,7 @@ service cloud.firestore {
       allow get:            if request.auth != null && validHouseId(houseId);
       allow list:           if false;
       allow create, update: if request.auth != null && validHouseId(houseId)
-                            && onlyKnownFields();
+                            && onlyKnownFields() && sealedContent();
       allow delete:         if false;
     }
 
