@@ -1430,7 +1430,7 @@ function funHTML(){
           説明と まぎれないよう、ボタンの 下に 小さく。
           前は「3つ目に 出るはず」なのに 出かたが ずれて 見えていたので、
           「のこりが あるか（left）」で 判断するように した */
-      bonus && seenCount >= FUN_MAX && left > 0
+      funOpen && bonus && seenCount >= FUN_MAX && left > 0
       ? '<p class="fun-bonus--on">「できた！」が ふえたので、きょうは もうひとつ 読めるよ。</p>'
       : ''}
   </section>`;
@@ -1993,7 +1993,9 @@ function inviteURL(){
   const code = (S && S.getCode()) || '';
   if(!code) return '';
   return location.origin + location.pathname +
-         '?' + JOIN_PARAM + '=' + encodeURIComponent(code) + '&openExternalBrowser=1';
+         '?' + JOIN_PARAM + '=' + encodeURIComponent(code) +
+         '&r=' + Date.now() +          // ためこんだ古い画面を 配らないための 印
+         '&openExternalBrowser=1';
 }
 function inviteHTML(){
   const url = inviteURL();
@@ -4085,6 +4087,21 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==
      その 右がわの すき間を 押しても 反応しないと 当てにくい */
   const el = $('.topband') || $('#appTitle');
   if(!el) return;
+
+  /* iPhone の「画面いちばん上を さわると 先頭に もどる」は、
+     ページ ぜんたいが スクロールする ときだけ 効く。この アプリは
+     中身の ところ（#scroll）だけを スクロールさせる 作りなので 効かない
+     （下タブが iPad で ずれる のを 直すために そうした）。
+     そのかわり、上の 帯を さわったら 先頭に もどるように しておく。
+     長押しや 5回タップの 合図とは ぶつからない（あちらは 押しつづける・
+     くりかえす ことで 成りたつ） */
+  el.addEventListener('click', ()=>{
+    const box = scrollBox();
+    if(box && box.scrollTop > 0){
+      try{ box.scrollTo({ top:0, behavior:'smooth' }); }
+      catch(e){ box.scrollTop = 0; }
+    }
+  });
 
   const HOLD_MS  = 2000;   // 長押しの ながさ
   const MOVE_TOL = 14;     // 指の ゆれを 許す はば（px）
