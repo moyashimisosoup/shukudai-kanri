@@ -1919,7 +1919,7 @@ function viewParent(){
 
   ${syncPromptHTML()}
 
-  ${window.NatsuSync && window.NatsuSync.getCode() ? `<p class="set-note sync-device-count" id="syncDeviceCount">このおうちで共有設定済みの端末：${window.NatsuSync.deviceCount()}台</p>` : ''}
+  ${window.NatsuSync && window.NatsuSync.getCode() ? `<p class="set-note sync-device-count" id="syncDeviceCount">共有設定済みの端末：${window.NatsuSync.deviceCount()}台</p>` : ''}
 
   ${parentMessageEditorHTML()}
 
@@ -2058,7 +2058,11 @@ function syncPromptHTML(){
    古い版は devices の 中身が true しか 無いので、その場合は
    「えらんでいない」に なる（役割を えらべば 次から 出る）。 */
 function deviceRows(map){
-  const rows = Object.keys(map || {}).map(id=>{
+  /* はずした端末は、消さずに 印だけ のこして ある（その端末に
+     気づかせて あいことばを 消させるため）。一覧からは のぞく */
+  const rows = Object.keys(map || {})
+    .filter(id => { const v = (map || {})[id]; return !(v && typeof v === 'object' && v.revoked); })
+    .map(id=>{
     const v = map[id];
     const o = (v && typeof v === 'object') ? v : {};
     return {
@@ -2111,7 +2115,7 @@ function deviceListHTML(){
         ? '<span class="dev-me">この端末</span>'
         : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">はずす</button>`}
     </li>`).join('')}</ul>
-    <p class="set-note">使わなくなった端末は「はずす」で一覧から消せます。LINEなどの一時的なブラウザでつないでしまい、その端末から操作できなくなったときに使ってください。はずした端末がもう一度開いた場合は、また一覧に出ます（あいことばを入れ直す必要はありません）。</p>
+    <p class="set-note">使わなくなった端末は「はずす」で共有から切りはなせます。はずした端末は、次に開いたときにあいことばが消え、つなぐには入れ直しが必要になります。LINEなどの一時的なブラウザでつないでしまい、その端末から操作できなくなったときに使ってください。記録そのものは消えません。</p>
     ${rows.some(r=> !r.ver || r.ver !== newest)
       ? '<p class="set-note dev-warn">古いバージョンの端末があります。その端末で「アプリの ver」の<b>最新に更新する</b>を実行してください。古いままだと、修正や削除がその端末から元に戻されることがあります。</p>'
       : ''}`;
@@ -2160,9 +2164,8 @@ function syncSectionHTML(opts){
         <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
         ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作る</button>'}
       </div>
-      ${code ? `<p class="set-note sync-device-count" id="syncDeviceCount">このおうちで共有設定済みの端末：${S.deviceCount()}台</p>
-      <details class="set-advanced sync-detail">
-        <summary>詳細</summary>
+      ${code ? `<details class="set-advanced sync-detail">
+        <summary><span class="sync-device-count" id="syncDeviceCount">共有設定済みの端末：${S.deviceCount()}台</span></summary>
         <div class="set-advanced-body">
           <div id="syncDeviceList">${deviceListHTML()}</div>
           <div class="set-row"><span class="lab">この端末の呼び名</span>
@@ -2879,6 +2882,8 @@ function render(opts){
   const noTabs = (tab !== 'home' && tab !== 'log' && tab !== 'calendar');
   $('.tabbar').hidden = noTabs;
   document.body.classList.toggle('no-tabbar', noTabs);
+  /* 保護者ページと設定は、大人が読む画面。見出しの見え方をそろえるために印をつける */
+  document.body.classList.toggle('adult-view', tab === 'settings' || tab === 'config');
 
   if(tab === 'home'){
     renderCountdown();
@@ -3359,8 +3364,9 @@ function bindSync(){
     const id = b.dataset.devoff;
     const row = deviceRows(S.devices()).find(r => r.id === id);
     const name = row ? row.label : 'この端末';
-    if(!confirm('「' + name + '」を 一覧から はずしますか？\n' +
-                'その端末の 記録は 消えません。もう一度 開いたときは、また 一覧に 出ます。')) return;
+    if(!confirm('「' + name + '」を 共有から はずしますか？\n' +
+                'その端末では あいことばが 消え、つなぐには 入れ直しが 必要に なります。\n' +
+                '記録そのものは 消えません。')) return;
     b.disabled = true;
     const ok = await S.removeDevice(id);
     const el = $('#syncDeviceList');
@@ -3414,7 +3420,7 @@ function bindSync(){
     bindSync._deviceWatching = true;
     S.onDeviceCount(count=>{
       const el = $('#syncDeviceCount');
-      if(el) el.textContent = 'このおうちで共有設定済みの端末：' + count + '台';
+      if(el) el.textContent = '共有設定済みの端末：' + count + '台';
     });
   }
   /* 端末の 一覧は とどくのが 遅れる ことが ある。

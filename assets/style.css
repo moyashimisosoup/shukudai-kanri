@@ -322,6 +322,13 @@ button{ font:inherit; color:inherit; }
 .sec-daily .sec-head{ background:var(--asagao);   color:var(--kami); }
 .sec-daily .sec-head .sec-note{ color:var(--on-daily-muted); }
 
+/* 保護者ページと設定は、見出しが白のままだと 中身の紙と 見分けが つかない。
+   子ども画面のように 色で 分けると、大人の画面では かえって うるさいので、
+   ぜんぶ 同じ 濃い帯に そろえて 反転させる。
+   色分けの規則（.sec-must など）より あとに 置いて 上書きする */
+.adult-view .sec-head{ background:var(--ai); color:var(--kami); }
+.adult-view .sec-head .sec-note{ color:var(--on-band-muted); }
+
 /* =========================================================
    シグネチャ 1 : マス目のカウントダウン
    ========================================================= */

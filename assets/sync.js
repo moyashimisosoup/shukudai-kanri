@@ -180,8 +180,19 @@ async function connect(){
         }
 
         const d = snap.data() || {};
-        setDeviceCount(Object.keys(d.devices || {}).length);
-        setDeviceMap(d.devices || {});
+
+        /* はずされた ときは、ここで あいことばを 消して 切る。
+           registerDevice() より 先に 見ないと、すぐ 登録し直して しまう */
+        if(revokedForMe(d.devices)){
+          setCode('');
+          disconnect();
+          setStatus('off', 'この端末は はずされました。あいことばを 入れ直してください');
+          return;
+        }
+
+        const devs = d.devices || {};
+        setDeviceCount(Object.keys(devs).filter(k => !(devs[k] && devs[k].revoked)).length);
+        setDeviceMap(devs);
         registerDevice();
         const app_ = window.NatsuApp;
         if(app_ && typeof app_.onRemote === 'function'){
@@ -276,16 +287,39 @@ async function removeDevice(id){
   if(!docRef || !Sync._fs) return false;
   if(!/^[a-z0-9-]{1,64}$/i.test(String(id || ''))) return false;
   try{
-    await Sync._fs.updateDoc(docRef, { ['devices.' + id]: Sync._fs.deleteField() });
+    /* 消すのでは なく「はずした」印を つける。
+       消すだけだと、その端末に あいことばが のこっている かぎり、
+       つぎに 開いた ときに 自分で 登録し直して 戻ってきてしまう。
+       印を のこせば、はずされた端末が それを 見て、自分の あいことばを
+       消す（＝つぎは 入れ直しが 要る）。
+
+       新しい 欄を 作らず devices の 中に 置くのは、規則の
+       hasOnly([...]) から 外れると 書けなくなるため。 */
+    await Sync._fs.updateDoc(docRef, {
+      ['devices.' + id]: { revoked: true, at: Date.now() }
+    });
     const next = Object.assign({}, deviceMap);
-    delete next[id];
+    next[id] = { revoked: true, at: Date.now() };
     setDeviceMap(next);                    // 自分の書きこみは 読み飛ばされるので ここで 反映
-    setDeviceCount(Object.keys(next).length);
+    setDeviceCount(Object.keys(next).filter(k => !(next[k] && next[k].revoked)).length);
     return true;
   }catch(err){
     setStatus('error', '端末をはずせません：' + (err && err.code || err));
     return false;
   }
+}
+
+/* 自分が はずされて いないかを 見る。はずされていたら、
+   この端末の あいことばを 消して つながりを 切る。
+   もう一度 つなぐには あいことばの 入れ直しが 要る。
+
+   あいことばを 入れ直した 直後の 1回だけは 見のがす。
+   でないと、入れ直した とたんに また 切られて 堂々めぐりに なる。 */
+let skipRevokeOnce = false;
+function revokedForMe(devices){
+  if(skipRevokeOnce){ skipRevokeOnce = false; return false; }
+  const mine = (devices || {})[getDeviceId()];
+  return !!(mine && typeof mine === 'object' && mine.revoked);
 }
 
 function disconnect(){
@@ -426,6 +460,9 @@ const Sync = {
   getRegistrationCount,
   /* あいことばを 入れ替えて つなぎ直す */
   async reconnect(code){
+    /* 入れ直した 直後の 1回は「はずされた」印を 見のがす。
+       でないと 入れたとたんに また 切られる */
+    skipRevokeOnce = true;
     setCode(code);
     disconnect();
     await connect();
