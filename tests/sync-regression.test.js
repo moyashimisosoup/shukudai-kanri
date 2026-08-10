@@ -37,7 +37,8 @@ function grab(src, name){
 const APP_NAMES = [
   'emptyState', 'normalizeState', 'ms', 'deepCopy', 'mergeById',
   'pickStamped', 'mergeProgress', 'mergeState', 'resetState',
-  'canon', 'sameState', 'stripLocal', 'cacheBustURL'
+  'canon', 'sameState', 'stripLocal', 'cacheBustURL', 'homeInstallPlatform',
+  'parentShareSummary'
 ];
 const appFns = new Function('location', `
   const SCHEMA=6, TRASH_MAX=50, GONE_MAX=300, MESSAGES_MAX=3, READS_MAX=400;
@@ -118,6 +119,24 @@ test('更新URLは既存引数とhashを保ち、rを1個の新しい値へ置�
   assert.deepEqual(url.searchParams.getAll('r'), ['12345']);
   assert.equal(url.searchParams.get('openExternalBrowser'), '1');
   assert.equal(url.hash, '#config');
+});
+
+test('ホーム画面への追加案内はOSごとに安全な手順へ切り替わる', ()=>{
+  assert.equal(appFns.homeInstallPlatform('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', 0), 'ios');
+  assert.equal(appFns.homeInstallPlatform('Mozilla/5.0 (Linux; Android 15; Pixel)', 0), 'android');
+  assert.equal(appFns.homeInstallPlatform('Mozilla/5.0 (Macintosh; Intel Mac OS X)', 5), 'ios');
+  assert.equal(appFns.homeInstallPlatform('Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 0), 'desktop');
+});
+
+test('保護者ページの共有表示は子ども端末を最優先し、総台数を出さない', ()=>{
+  const rows = [
+    {id:'parent-1', role:'parent'},
+    {id:'child-1', role:'child', name:'はな'}
+  ];
+  assert.deepEqual(appFns.parentShareSummary(rows, 'parent-1', ''), {
+    state:'child', full:'子ども（はな）端末と共有中', short:'子（はな）と共有中'
+  });
+  assert.equal(appFns.parentShareSummary([{id:'parent-1', role:'parent'}], 'parent-1', '').state, 'waiting');
 });
 
 test('同梱QRライブラリが招待URLをSVG化できる', ()=>{

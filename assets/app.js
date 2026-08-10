@@ -96,6 +96,9 @@ function applyTheme(theme){
 let config, state;
 let tab = 'home';
 let timer = null;
+/* Chromium 系が出す「インストール」確認は、利用者が押すまでここで預かる。
+   iOS Safari はこのイベントを出さないため、同じボタンで手順案内へ切り替える。 */
+let deferredInstallPrompt = null;
 let funIdx = 0, funOpen = false;
 /* カレンダーが 見せている月（その月の1日）と、下にひらいている日。
    描き直しても 見ている場所が とばないよう、画面の外で おぼえておく */
@@ -392,6 +395,35 @@ function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
 function getLocal(key){ try{ return localStorage.getItem(key) || ''; }catch(e){ return ''; } }
 function setLocal(key, value){ try{ localStorage.setItem(key, value); }catch(e){} }
 function isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+function homeInstallPlatform(ua, touchPoints){
+  const text = String(ua || '');
+  const ios = /iPad|iPhone|iPod/.test(text) || (/Macintosh/.test(text) && Number(touchPoints) > 1);
+  if(ios) return 'ios';
+  if(/Android/i.test(text)) return 'android';
+  if(/Windows|Macintosh|Linux/i.test(text)) return 'desktop';
+  return 'other';
+}
+function homeInstallGuideHTML(){
+  const platform = homeInstallPlatform(navigator.userAgent, navigator.maxTouchPoints);
+  const text = platform === 'ios'
+    ? 'Safariでこのページを開き、画面下（iPadは上）の共有ボタン □↑ を押して、「ホーム画面に追加」→「追加」を選びます。LINEなどのアプリ内ブラウザでは、先に「Safariで開く」を選んでください。'
+    : platform === 'android'
+      ? 'Chromeなどのメニュー ⋮ を開き、「ホーム画面に追加」または「アプリをインストール」を選びます。表示名を確認して追加してください。'
+      : platform === 'desktop'
+        ? 'ブラウザのアドレス欄にあるインストールの印、またはメニューから「インストール」／「アプリとしてインストール」を選びます。'
+        : 'お使いのブラウザのメニューから「ホーム画面に追加」または「インストール」を選びます。';
+  return `
+  <section class="sec home-install">
+    <div class="sec-head"><h2>ホーム画面に追加</h2></div>
+    <div class="paper home-install-paper">
+      <p class="set-note">${isStandalone()
+        ? 'この端末は、すでにホーム画面から開いています。'
+        : 'いつも使う端末では、ホーム画面に追加しておくと見つけやすくなります。'}</p>
+      ${isStandalone() ? '' : `<div class="set-actions"><button class="btn btn-sm" id="homeInstallBtn" type="button">ホーム画面に追加する</button></div>
+      <p class="set-note home-install-guide" id="homeInstallGuide" hidden>${esc(text)}</p>`}
+    </div>
+  </section>`;
+}
 function isStatsURL(){ return new URLSearchParams(location.search).get(STATS_PARAM) === STATS_VALUE; }
 function cleanCode(value){ return String(value || '').trim().normalize('NFKC').replace(/\s+/g,'').replace(/[\/\u0000-\u001f]/g,''); }
 /* 読める漢字は これまで 端末ごとの 設定だった。
@@ -1958,6 +1990,7 @@ function viewParent(){
     <div>
       <h2>保護者用ページ</h2>
       <p>${esc(config.title)}</p>
+      ${parentShareBadgeHTML()}
     </div>
     <a class="btn btn-sm" href="#config">設定</a>
     <a class="btn btn-sm" id="openChildPage" href="#home">子ども画面へ</a>
@@ -1965,7 +1998,7 @@ function viewParent(){
 
   ${syncPromptHTML()}
 
-  ${window.NatsuSync && window.NatsuSync.getCode() ? `<p class="set-note sync-device-count" id="syncDeviceCount">共有設定済みの端末：${window.NatsuSync.deviceCount()}台</p>` : ''}
+  ${homeInstallGuideHTML()}
 
   ${parentMessageEditorHTML()}
 
@@ -2214,6 +2247,38 @@ function deviceRows(map){
   });
   return rows;
 }
+/* 保護者ページの見出しでは、端末の総数よりも「子ども端末と共有できているか」を
+   先に伝える。台数や個々の端末の管理は設定ページの一覧で行うため、ここでは
+   最小限の状態だけを短いバッジで示す。 */
+function parentShareSummary(rows, mine, fallbackName){
+  const other = (rows || []).filter(r => r && r.id !== mine);
+  const children = other.filter(r => r.role === 'child');
+  if(children.length){
+    const name = String(children[0].name || fallbackName || '').trim();
+    return {
+      state: 'child',
+      full: name ? '子ども（' + name + '）端末と共有中' : '子ども端末と共有中',
+      short: name ? '子（' + name + '）と共有中' : '子どもと共有中'
+    };
+  }
+  if(other.length) return { state:'other', full:'ほかの端末と共有中', short:'ほかの端末と共有中' };
+  return { state:'waiting', full:'共有設定済み・子ども端末の接続待ち', short:'子ども端末の接続待ち' };
+}
+
+function parentShareBadgeHTML(){
+  const S = window.NatsuSync;
+  if(!S || !S.getCode()) return '';
+  const summary = parentShareSummary(
+    deviceRows(typeof S.devices === 'function' ? S.devices() : {}),
+    getLocal(K_DEVICE_ID), config.childName || getLocal(K_NAME)
+  );
+  return `<span class="parent-share-badge is-${summary.state}" id="parentShareBadge" title="${esc(summary.full)}">
+    <span class="parent-share-mark" aria-hidden="true">共有</span>
+    <span class="parent-share-full">${esc(summary.full)}</span>
+    <span class="parent-share-short">${esc(summary.short)}</span>
+  </span>`;
+}
+
 function deviceListHTML(){
   const S = window.NatsuSync;
   const map = (S && typeof S.devices === 'function') ? S.devices() : {};
@@ -2228,9 +2293,9 @@ function deviceListHTML(){
         r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver">ver ―</span>'}
       ${r.id === mine
         ? '<span class="dev-me">この端末</span>'
-        : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">はずす</button>`}
+        : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">解除</button>`}
     </li>`).join('')}</ul>
-    <p class="set-note">使わなくなった端末は「はずす」で共有から切りはなせます。はずした端末は、次に開いたときにあいことばが消え、つなぐには入れ直しが必要になります。LINEなどの一時的なブラウザでつないでしまい、その端末から操作できなくなったときに使ってください。記録そのものは消えません。</p>
+    <p class="set-note">使わなくなった端末は「解除」で共有から切り離せます。解除した端末は、次に開いたときに合言葉が消え、再接続には入力し直しが必要になります。LINEなどの一時的なブラウザで接続してしまい、その端末から操作できなくなったときに使ってください。記録そのものは消えません。</p>
     ${[...new Set(rows.map(r=> r.ver).filter(Boolean))].length > 1
       ? '<p class="set-note dev-warn">古いバージョンの端末があります。その端末で「アプリ情報」の<b>最新に更新する</b>を実行してください。古いままだと、修正や削除がその端末から元に戻されることがあります。</p>'
       : ''}`;
@@ -2254,9 +2319,9 @@ function syncSectionHTML(opts){
   <section class="sec">
     <div class="sec-head"><h2>ほかの端末と共有</h2></div>
     <div class="paper">
-      <p class="set-note">まだ準備ができていません。<code>assets/sync.js</code> の
-      <code>FIREBASE_CONFIG</code> に Firebase の設定を貼ると、この欄が使えるようになります。
-      手順は README の「端末間で共有する」にあります。</p>
+      <p class="set-note">同期機能は未設定です。<code>assets/sync.js</code> の
+      <code>FIREBASE_CONFIG</code> に Firebase の設定を貼り付けると、この欄が使えるようになります。
+      手順は README の「端末間で共有する」を参照してください。</p>
     </div>
   </section>`;
   }
@@ -2270,38 +2335,42 @@ function syncSectionHTML(opts){
       <span class="sec-note" id="syncStatus">${mark} ${esc(S.statusText() || text)}</span></div>
     <div class="paper">
       ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
-      <p class="set-note">同じ「あいことば」を入力した複数の端末で、同じ記録と設定を共有できます。</p>
-      <div class="set-row"><span class="lab">あいことば</span>
+      <p class="set-note">同じ「合言葉」を入力した複数の端末で、同じ記録と設定を共有できます。</p>
+      <div class="set-row"><span class="lab">合言葉</span>
         <input type="text" id="syncCode" value="${esc(code)}" spellcheck="false"
-               autocapitalize="off" autocorrect="off" placeholder="まだ ありません"></div>
+               autocapitalize="off" autocorrect="off" placeholder="未設定"></div>
       <div class="set-actions">
-        <button class="btn btn-sm" id="syncSave" type="button">この あいことばで 接続</button>
+        <button class="btn btn-sm" id="syncSave" type="button">この合言葉で接続</button>
         <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
-        ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作る</button>'}
+        ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作成</button>'}
       </div>
       ${code ? `<details class="set-advanced sync-detail">
         <summary><span class="sync-device-count" id="syncDeviceCount">共有リンク・端末ごとの設定（設定済み：${S.deviceCount()}台）</span></summary>
         <div class="set-advanced-body">
-          <h3 class="sync-subhead">ほかの端末をつなぐ</h3>
+          <h3 class="sync-subhead">ほかの端末を接続する</h3>
           ${inviteHTML()}
-          <h3 class="sync-subhead">つながっている端末</h3>
-          <div id="syncDeviceList">${deviceListHTML()}</div>
-          <h3 class="sync-subhead">この端末だけの設定</h3>
-          <p class="set-note">端末を見分けるための設定です。ほかの端末へは同期されません。</p>
-          <div class="set-row"><span class="lab">この端末の呼び名</span>
-            <input type="text" id="deviceLabel" maxlength="12"
-                   value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></div>
-          <p class="set-note">上の端末一覧で見分けるための名前です。未設定の場合は「親」「子（名前）」と表示されます。</p>
-          <div class="set-row"><span class="lab">この端末は</span>
-            <select id="deviceRole">
-              <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>未選択</option>
-              <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>子どもの端末</option>
-              <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>保護者の端末</option>
-            </select></div>
-          <p class="set-note">この端末を使う人を選ぶと、共有中は保護者ページの記録に「誰が入力したか」が小さく表示されます。「保護者の端末」を選ぶと、下の「記録の手入れ」で1件ずつ削除できるように設定できます。</p>
-          <div class="set-actions">
-            <button class="btn btn-sm btn-danger" id="syncOff" type="button">共有を解除する</button>
-          </div>
+          <h3 class="sync-subhead">接続中の端末</h3>
+           <div id="syncDeviceList">${deviceListHTML()}</div>
+           <h3 class="sync-subhead">この端末の表示と役割</h3>
+           <div class="sync-local-settings">
+             <p class="set-note">呼び名と役割は、この端末で決めます。共有中は、ほかの端末の一覧にも見分けるための情報として表示されますが、ほかの端末から変更されることはありません。</p>
+             <div class="set-row"><span class="lab">この端末の呼び名</span>
+               <input type="text" id="deviceLabel" maxlength="12"
+                      value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></div>
+             <p class="set-note">共有中の端末一覧で見分けるための名前です。ほかの端末の一覧にも表示されますが、変更できるのはこの端末だけです。未設定の場合は「親」「子（名前）」と表示されます。</p>
+             <div class="set-row"><span class="lab">この端末は</span>
+               <select id="deviceRole">
+                 <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>未選択</option>
+                 <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>子どもの端末</option>
+                 <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>保護者の端末</option>
+               </select></div>
+             <p class="set-note">この端末を使う人を選ぶと、共有中は保護者ページの記録に「誰が入力したか」が小さく表示されます。「保護者の端末」を選ぶと、下の「記録の手入れ」で1件ずつ削除できるように設定できます。</p>
+           </div>
+           <h3 class="sync-subhead">共有を解除する</h3>
+           <p class="set-note">この端末だけを共有から外します。ほかの端末や記録はそのまま残ります。この端末をもう一度接続するには、合言葉を入力し直してください。</p>
+           <div class="set-actions">
+             <button class="btn btn-sm btn-danger" id="syncOff" type="button">共有を解除する</button>
+           </div>
         </div>
       </details>` : ''}
     </div>
@@ -3098,22 +3167,22 @@ function taskEditorRow(t, i){
   const bf = bookFields(t);
   const groupField = kind === 'daily' ? '' : `
     <label class="set-field"><span>表示する場所</span><select data-f="group">
-      ${opt('must',t.group,'かならず やる')}${opt('option',t.group,'つぎに やる')}
+      ${opt('must',t.group,'必ず行う')}${opt('option',t.group,'次に行う')}
     </select></label>`;
 
   let fields = '';
   if(kind === 'book'){
     fields = `${groupField}
-      <label class="set-field"><span>目標の冊数</span><span class="set-inline"><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"><b>さつ</b></span></label>
+      <label class="set-field"><span>目標の冊数</span><span class="set-inline"><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"><b>冊</b></span></label>
       <fieldset class="set-field set-field--wide set-checks"><legend>本ごとに残す項目</legend>
         <label><input type="checkbox" data-bf="author"${bf.author?' checked':''}> 作者</label>
         <label><input type="checkbox" data-bf="publisher"${bf.publisher?' checked':''}> 出版社</label>
         <label><input type="checkbox" data-bf="rating"${bf.rating?' checked':''}> おすすめ度</label>
       </fieldset>
-      <p class="set-help set-field--wide">本の名前・読んだ日・ひとことを1冊ずつ残します。</p>`;
+      <p class="set-help set-field--wide">本の名前・読んだ日・一言を1冊ずつ残します。</p>`;
   }else if(kind === 'daily'){
     fields = `
-      <label class="set-field"><span>記録のしかた</span><select data-f="recordStyle">
+      <label class="set-field"><span>記録方法</span><select data-f="recordStyle">
         ${opt('',t.recordStyle||'','数で記録')}${opt('free',t.recordStyle||'','文章で記録')}
       </select></label>
       ${!isFree(t) ? `
@@ -3123,26 +3192,26 @@ function taskEditorRow(t, i){
         </select></label>
         ${unitMode==='custom' ? `<label class="set-field"><span>単位を入力</span><input type="text" data-f="targetUnitCustom" maxlength="8" value="${esc(t.targetUnit||'')}"></label>` : ''}
       ` : `
-        <label class="set-field set-field--wide"><span>こどもへの よびかけ</span>
-          <input type="text" data-f="freeHint" value="${esc(t.freeHint||'')}" placeholder="きょうの ことを かいてみよう"></label>`}
-      <label class="set-field set-field--wide"><span>${isFree(t)?'見出し':'メモ欄の 見出し'}</span>
-        <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう"></label>`;
+        <label class="set-field set-field--wide"><span>子どもへの呼びかけ</span>
+          <input type="text" data-f="freeHint" value="${esc(t.freeHint||'')}" placeholder="今日のことを書いてみよう"></label>`}
+      <label class="set-field set-field--wide"><span>${isFree(t)?'見出し':'メモ欄の見出し'}</span>
+        <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを書く"></label>`;
   }else{
     fields = `${groupField}
-      <label class="set-field"><span>すすめかた</span><select data-f="type">
+      <label class="set-field"><span>進め方</span><select data-f="type">
         ${opt('count',t.type,'回数・ページで進める')}${opt('step',t.type,'段階をクリア')}
       </select></label>
       ${t.type==='count' ? `
-        <label class="set-field"><span>ぜんぶで</span><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
+        <label class="set-field"><span>合計</span><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
         <label class="set-field"><span>単位</span><input type="text" data-f="unit" maxlength="8" value="${esc(t.unit||'')}"></label>
-        <label class="set-field set-check"><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> つぎの番号を ①②で 表示</label>` : `
+        <label class="set-field set-check"><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> 次の番号を①②で表示</label>` : `
         <label class="set-field set-field--wide"><span>段階（1行に1つ）</span>
           <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea></label>`}
-      <label class="set-field set-field--wide set-check"><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> 「マルつけ・なおし」の項目を表示</label>
+      <label class="set-field set-field--wide set-check"><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> 「丸付け・直し」の項目を表示</label>
       <label class="set-field set-field--wide"><span>記録するときの質問（任意）</span>
-        <textarea data-f="questions" rows="3" placeholder="はっぱの かたちや いろは？">${esc((t.questions||[]).join('\n'))}</textarea></label>
+        <textarea data-f="questions" rows="3" placeholder="葉っぱの形や色は？">${esc((t.questions||[]).join('\n'))}</textarea></label>
       <label class="set-field set-field--wide"><span>メモ欄の見出し</span>
-        <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを かこう"></label>`;
+        <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを書く"></label>`;
   }
 
   const label = kind === 'book' ? '読書' : (kind === 'daily' ? '毎日' : (t.type === 'step' ? '段階' : '数'));
@@ -3173,31 +3242,31 @@ function viewConfig(){
   const books = rows.filter(({t})=>taskKind(t)==='book');
   const daily = rows.filter(({t})=>taskKind(t)==='daily');
   return `
-  <div class="paper parent-head config-head"><div><h2>設定</h2><p>変更は すぐに 保存されます。</p></div>
+  <div class="paper parent-head config-head"><div><h2>設定</h2><p>変更はすぐに保存されます。</p></div>
     <span class="autosave" aria-live="polite">自動保存</span><a class="btn btn-sm" href="#settings">保護者ページに戻る</a></div>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>この端末の 表示</h2></div><div class="paper">
-    <div class="set-row"><label class="lab" for="cfgChildName">こどもの 名前</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
+  <section class="sec config-sec"><div class="sec-head"><h2>この端末の表示</h2></div><div class="paper">
+    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
     <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
-    <p class="set-note">名前と読める漢字は、おうちの設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
-    <fieldset class="theme-picker"><legend>いろと デザイン（おうちで共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
+    <p class="set-note">名前と読める漢字は、家庭の設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
+    <fieldset class="theme-picker"><legend>色とデザイン（家庭で共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
   </div></section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
     <div class="set-row"><label class="lab" for="cfgTitle">タイトル</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
     <div class="set-row"><label class="lab" for="cfgStart">開始日</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
     <div class="set-row"><label class="lab" for="cfgEnd">終了日</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
-    <p class="set-note">日づけはカウントダウンとペースの計算に使います。</p>
+    <p class="set-note">日付はカウントダウンとペースの計算に使います。</p>
   </div></section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>宿題</h2><span class="sec-note">${normal.length}件</span></div>
-    <p class="config-lead">上へ・下へで、この欄の順番を変えられます。</p>
+    <p class="config-lead">上へ・下へで、この欄の順番を変更できます。</p>
     <div class="paper task-editor" id="normalTaskEditor">${taskGroupHTML(normal,'まだ項目はありません。')}</div>
     <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addNormalTask" type="button">${icon('plus')}<span>宿題を追加</span></button></div>
   </section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>読書の記録</h2><span class="sec-note">${books.length}件</span></div>
-    <p class="config-lead">本の名前・読んだ日・ひとことを1冊ずつ残す、読書専用の項目です。上へ・下へで順番を変えられます。</p>
+    <p class="config-lead">本の名前・読んだ日・一言を1冊ずつ残す、読書専用の項目です。上へ・下へで順番を変更できます。</p>
     <div class="paper task-editor" id="bookTaskEditor">${taskGroupHTML(books,'読書の記録を使わないときは、空のままで構いません。')}</div>
     <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addBookTask" type="button">${icon('plus')}<span>読書を追加</span></button></div>
   </section>
@@ -3205,8 +3274,8 @@ function viewConfig(){
   <section class="sec config-sec"><div class="sec-head"><h2>毎日の項目</h2><span class="sec-note">学習アプリなど</span></div>
     <div class="paper daily-settings">
       <label class="daily-switch"><input type="checkbox" id="cfgShowDaily"${config.showDaily?' checked':''}>
-        <span><strong>子ども画面に表示する</strong><small>学習アプリ・音読・おてつだいなどに使えます。</small></span></label>
-      <p class="config-lead">上へ・下へで順番を変えられます。</p>
+        <span><strong>子ども画面に表示する</strong><small>学習アプリ・音読・お手伝いなどに使えます。</small></span></label>
+      <p class="config-lead">上へ・下へで順番を変更できます。</p>
       <div class="task-editor" id="dailyTaskEditor">${taskGroupHTML(daily,'毎日の項目はまだありません。')}</div>
       <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addDailyTask" type="button">${icon('plus')}<span>毎日の項目を追加</span></button></div>
     </div>
@@ -3218,13 +3287,13 @@ function viewConfig(){
     <span class="sec-note">${esc(APP_VER)}</span></div>
     <div class="paper">
       <p class="set-note">この端末は <b>ver ${esc(APP_VER)}</b> を動かしています。
-      記録の合わせ方は版によって変わるため、<b>共有しているすべての端末を同じ版にそろえてください</b>。
+      同期の仕組みはバージョンによって変わるため、<b>共有しているすべての端末を同じバージョンに揃えてください</b>。
       片方が古いままだと、訂正が相手の端末から元に戻されることがあります。</p>
       <div class="set-actions">
         <button class="btn btn-sm" id="appUpdate" type="button">最新に更新する</button>
       </div>
-      <p class="set-note">iPad は画面をためこむので、閉じて開き直すだけでは新しくならないことがあります。
-      このボタンは、ためこんだ画面を通さずに読み直します。記録は消えません。</p>
+      <p class="set-note">iPad は古い画面を保存しているため、閉じて開き直すだけでは新しくならないことがあります。
+      このボタンは、保存された古い画面を使わずに読み直します。記録は消えません。</p>
     </div>
   </section>
 
@@ -3244,13 +3313,13 @@ function viewConfig(){
     </div>
   </section>
 
-  ${syncTraceHTML()}
-
-  <section class="sec config-sec"><div class="sec-head"><h2>データ管理</h2></div><details class="paper set-advanced"><summary>バックアップと 初期化</summary>
-    <div class="set-advanced-body"><p class="set-note">記録はこの端末に保存されます。時々バックアップすると安心です。</p>
+  <section class="sec config-sec"><div class="sec-head"><h2>データ管理</h2></div><details class="paper set-advanced"><summary>バックアップと初期化</summary>
+    <div class="set-advanced-body"><p class="set-note">記録はこの端末に保存されます。定期的にバックアップすると安心です。</p>
     <div class="set-actions"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
-    <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">項目を 元に戻す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録を すべて削除</button></div></div>
+    <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">項目を初期状態に戻す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録をすべて削除</button></div></div>
   </details></section>
+
+  ${syncTraceHTML()}
 
   ${creditHTML()}
   `;
@@ -3386,6 +3455,37 @@ function bindStats(){
    --------------------------------------------------------- */
 /* 保護者ページ（進捗一覧）— サマリーの生成と書き出し */
 function bindParent(){
+  const S = window.NatsuSync;
+  if(S && !bindParent._devicesWatching && typeof S.onDevices === 'function'){
+    bindParent._devicesWatching = true;
+    S.onDevices(()=>{
+      if(tab !== 'settings') return;
+      const badge = $('#parentShareBadge');
+      if(badge) badge.outerHTML = parentShareBadgeHTML();
+    });
+  }
+  const homeInstall = $('#homeInstallBtn');
+  if(homeInstall) homeInstall.addEventListener('click', async ()=>{
+    /* Android Chrome / Edge などが利用可能なときだけ、OSの確認を直接出せる。
+       それ以外（iOSを含む）は、同じボタンから正しい手順を見せる。 */
+    const prompt = deferredInstallPrompt;
+    if(prompt && typeof prompt.prompt === 'function'){
+      deferredInstallPrompt = null;
+      try{
+        await prompt.prompt();
+        const choice = await prompt.userChoice;
+        toast(choice && choice.outcome === 'accepted' ? 'ホーム画面に追加しました' : '追加はいつでもできます');
+      }catch(e){ toast('追加の画面を開けませんでした。下の手順で追加してください'); }
+      render({ keepScroll:true });
+      return;
+    }
+    const guide = $('#homeInstallGuide');
+    if(guide){
+      guide.hidden = false;
+      homeInstall.hidden = true;
+      guide.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    }
+  });
   const openChild = $('#openChildPage');
   if(openChild) openChild.addEventListener('click', ()=>{
     alert('保護者ページに戻るには、画面上部のタイトルを5回タップするか、2秒長押ししてください。');
@@ -3525,7 +3625,7 @@ function bindSync(){
       else try{ localStorage.removeItem(K_ROLE); }catch(e){}
       /* えらび直したことを、ほかの端末の 一覧にも すぐ とどける */
       if(typeof S.refreshDevice === 'function') S.refreshDevice();
-      toast('この端末の せっていを かえました');
+      toast('この端末の設定を変えました');
     });
   }
 
@@ -3564,21 +3664,21 @@ function bindSync(){
 
   $('#syncSave').addEventListener('click', ()=>{
     const c = cleanCode(input.value);
-    if(c.length < 8){ toast('あいことばを 8文字以上 入れてください'); return; }
+    if(c.length < 8){ toast('合言葉を8文字以上入力してください'); return; }
     S.reconnect(c);
-    toast('つないでいます…');
+    toast('接続しています…');
     render({ keepScroll:true });
   });
 
   $('#syncCopy').addEventListener('click', ()=>{
-    if(!input.value){ toast('先に あいことばを 作ってください'); return; }
+    if(!input.value){ toast('先に合言葉を作成してください'); return; }
     copyText(input);
   });
 
   const make = $('#syncMake');
   if(make) make.addEventListener('click', ()=>{
     input.value = S.makeCode();
-    toast('作りました。「この あいことばで つなぐ」を押してください');
+    toast('作成しました。「この合言葉で接続」を押してください');
   });
 
   const off = $('#syncOff');
@@ -3757,7 +3857,7 @@ function bindConfig(){
   if(ald) ald.addEventListener('change', ()=>{
     config.allowLogDelete = ald.checked;
     saveCfg(); render({ keepScroll:true });
-    toast(ald.checked ? '「やったこと」の削除を 有効にしました' : '「やったこと」の削除を 切りました');
+    toast(ald.checked ? '「やったこと」の削除を有効にしました' : '「やったこと」の削除を無効にしました');
   });
 
   const inv = $('#inviteCopy');
@@ -3769,8 +3869,8 @@ function bindConfig(){
   const tc = $('#traceCopy');
   if(tc) tc.addEventListener('click', ()=>{
     const rows = traceRead();
-    const text = ['版 ' + APP_VER + ' / 役割 ' + (getLocal(K_ROLE) || 'えらんでいない') +
-                  ' / いまの時刻 ' + new Date().toISOString()]
+    const text = ['版 ' + APP_VER + ' / 役割 ' + (getLocal(K_ROLE) || '未選択') +
+                  ' / 現在時刻 ' + new Date().toISOString()]
       .concat(rows.map(r=> JSON.stringify(r))).join('\n');
     copyPlainText(text);
   });
@@ -4314,6 +4414,19 @@ window.addEventListener('natsu:sync-ready', ()=>{
   applyJoinCode();
   if(tab === 'welcome' || tab === 'stats' || tab === 'config' || tab === 'settings') render({ keepScroll:true });
 }, { once:true });
+
+/* PWAとしての追加確認を使えるブラウザでは、勝手に出さず保護者ページの
+   ボタンを押したときだけ出す。Safari / Firefoxなどは下の案内に自然に落ちる。 */
+window.addEventListener('beforeinstallprompt', e=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if(tab === 'settings') render({ keepScroll:true });
+});
+window.addEventListener('appinstalled', ()=>{
+  deferredInstallPrompt = null;
+  toast('ホーム画面に追加しました');
+  if(tab === 'settings') render({ keepScroll:true });
+});
 
 /* ---------------------------------------------------------
    はじめる

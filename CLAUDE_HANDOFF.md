@@ -232,7 +232,7 @@ body（縦フレックス・overflow:hidden・height:100%）
 ## 次に行う場合の注意
 
 - iPhone/iPad の Safari ではキャッシュが強い。`app.js` / `sync.js` / `data.js` / `style.css` / `kanji-origin.js` を
-  変更したら `index.html` の `?v=` を更新する（現在 `20260810w`）。
+  変更したら `index.html` の `?v=` を更新する（現在 `20260810ac`）。
   設定画面の「アプリの ver」に、その端末が動かしている版が出る
 - `FUN` は配列の添字がそのまま localStorage の既読履歴・確認状態のキーになっている。
   項目を消す・並べ替えると既存端末の履歴が1つずつズレる（壊れはしないが出題順が乱れる）

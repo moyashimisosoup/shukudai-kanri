@@ -1,0 +1,16 @@
+{
+  "name": "しゅくだいノート",
+  "short_name": "しゅくだいノート",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#FFF9EF",
+  "theme_color": "#14375E",
+  "icons": [
+    {
+      "src": "assets/paw.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1014,7 +1014,23 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   margin-top:10px; font-size:14px; font-weight:900;
   line-height:1.6; color:var(--wakaba);
 }
-.fun-q{ font-size:23px; font-weight:900; line-height:1.5; overflow-wrap:anywhere; min-width:0; }
+.fun,
+.fun-q,
+.fun-a{
+  min-inline-size:0; max-inline-size:100%; box-sizing:border-box;
+}
+.fun-q{
+  font-size:23px; font-weight:900; line-height:1.5;
+  overflow-wrap:anywhere; word-break:break-word;
+}
+/* ルビは1つの塊として幅を押し広げるブラウザがある。長い専門用語でも
+   カード幅を超えないよう、ルビ自身にも折り返しを明示する。 */
+.fun-q ruby,
+.fun-a ruby{
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-all;
+}
 .fun-a{
   margin-top:12px; font-size:22px; font-weight:900; color:var(--suika);
   background:var(--kami); border:2px dashed var(--suika);
@@ -1047,6 +1063,17 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .parent-head h2{ font-size:21px; font-weight:900; }
 .parent-head p{ font-size:16px; font-weight:700; color:var(--ai-usu); }
 .parent-head .btn{ text-decoration:none; display:inline-flex; align-items:center; }
+.parent-share-badge{
+  display:inline-flex; align-items:center; gap:6px; max-width:100%;
+  margin-top:5px; padding:3px 10px 3px 4px;
+  border-radius:999px; background:var(--ai); color:var(--kami);
+  font-size:13px; font-weight:900; line-height:1.45;
+}
+.parent-share-mark{
+  flex:none; padding:1px 6px; border-radius:999px;
+  background:var(--kami); color:var(--ai); font-size:11px;
+}
+.parent-share-short{ display:none; min-width:0; }
 
 /* スマホの幅では、見出しと ボタンを おなじ行に おさめて たて幅を 節約する。
    折り返しを 止め、見出しを 縮ませて（min-width:0）ボタンは そのままの
@@ -1060,6 +1087,13 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   /* そえ書きは うえの 色帯と おなじ 文字列で、せまい画面では
      ただ たけを のばすだけ なので 出さない */
   .parent-head p{ display:none; }
+  .parent-share-badge{
+    max-width:100%; margin-top:2px; padding:2px 7px 2px 3px;
+    font-size:11px; line-height:1.35; white-space:nowrap;
+  }
+  .parent-share-mark{ padding:1px 5px; font-size:10px; }
+  .parent-share-full{ display:none; }
+  .parent-share-short{ display:inline; overflow:hidden; text-overflow:ellipsis; }
   /* 見出しは 折り返さず、入りきらなければ … で 切る。
      縦に 割れると かえって たけが のびて しまう */
   .parent-head h2{
@@ -1088,6 +1122,19 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
    「べつの端／末と つなぐ」と 割れるので、たてに ならべる */
 .sync-prompt .sec-head{ flex-wrap:wrap; row-gap:2px; }
 .sync-prompt .sec-head h2{ flex:1 0 100%; }
+
+/* ホーム画面へ追加する案内。端末ごとの操作なので共有設定の中には混ぜず、
+   保護者ページからいつでも開ける小さな独立欄にする。 */
+.home-install-paper{ padding:14px 16px; }
+.home-install-guide{
+  margin:12px 0 0;
+  padding:10px 12px;
+  border:2px solid var(--asagao);
+  border-radius:var(--r-s);
+  background:var(--asagao-usu);
+  color:var(--ai);
+  line-height:1.65;
+}
 
 /* おうちの人からの短いメッセージ。子ども画面では宿題カードより
    小さく中央に置き、未使用時は要素ごと描画しない。 */
@@ -1152,6 +1199,15 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   border-top:2px dashed var(--hougan);
 }
 .set-advanced-body > .sync-subhead:first-child{ border-top:0; }
+.sync-local-settings{
+  margin:0 16px 4px;
+  border:2px solid var(--hougan); border-radius:var(--r-s);
+  background:var(--surface-soft);
+}
+.sync-local-settings .set-row{ padding:10px 12px; border-bottom:0; }
+.sync-local-settings .set-note{ padding:10px 12px; }
+.sync-local-settings .set-note:first-child{ padding-bottom:6px; }
+.sync-local-settings .set-row + .set-note{ padding-top:2px; }
 .parent-message-fields .lab{ display:grid; gap:6px; }
 .parent-sender-fields{ display:grid; gap:8px; }
 .parent-message-from{
