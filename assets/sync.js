@@ -190,10 +190,6 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
   unsub = fs.onSnapshot(ref,
     async snap => {
       if(docRef !== ref || snap.metadata.hasPendingWrites) return;
-      /* 中身が 空でも「受け取った」。ここを こえたら、手元の 設定を
-         ふつうに 送ってよい（新しい おうちを 作る 場合も 通る） */
-      gotSnapshot = true;
-
       setStatus(snap.metadata.fromCache ? 'offline' : 'online',
                 snap.metadata.fromCache ? 'オフライン（この端末に ためています）' : 'つながっています');
 
@@ -223,6 +219,11 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
         pushAll();
         return;
       }
+
+      /* 中身があるキャッシュ、またはオンラインで確認できた文書だけを
+         「家庭の設定を受信済み」とする。空のキャッシュを受信済みにすると、
+         QR参加直後の初期設定を家庭へ送れる状態になってしまう。 */
+      gotSnapshot = true;
 
       const d = snap.data() || {};
       if(revokedForMe(d.devices)){

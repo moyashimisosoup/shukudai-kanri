@@ -1130,9 +1130,23 @@ function creditHTML(){
 }
 
 function privacyNoteHTML(){
-  return `<aside class="privacy-note"><b>共有コードと記録の取り扱い</b><br>
-    新しく作る共有コードは16文字のランダムな文字列で、Firestoreではそのままではなくハッシュ値をIDとして扱います。<br>
-    ただし、このアプリの家庭共有は<strong>エンドツーエンド暗号化ではありません</strong>。Firebaseプロジェクトの管理者は、保存された名前・宿題・記録を確認できる可能性があります。普段使うパスワードや秘密の言葉は使わず、このアプリ専用の、知られても困らない共有コードにしてください。招待リンクにも共有コードが含まれるため、信頼できる相手にだけ送ってください。</aside>`;
+  return `<aside class="privacy-note">
+    <span><b>注意事項</b><small>合言葉と共有データの取り扱い</small></span>
+    <button class="btn btn-sm btn-ghost" type="button" data-share-safety>内容を確認</button>
+  </aside>`;
+}
+function shareSafetyText(){
+  return [
+    '共有する前にご確認ください',
+    '',
+    '・合言葉には、普段使っているパスワードや秘密の言葉を使わないでください。このアプリが自動で作る合言葉の利用をおすすめします。',
+    '・QRコードや招待リンクを受け取った人は、家庭の共有データに接続できます。信頼できる家族だけに渡してください。',
+    '・名前・宿題・記録は、端末間で共有するためクラウドに保存されます。この機能は家庭向けの簡易共有で、記録そのものはエンドツーエンド暗号化されません。',
+    '・住所、学校名、連絡先など、知られて困る情報は入力しないでください。'
+  ].join('\n');
+}
+function confirmShareSafety(){
+  return confirm(shareSafetyText() + '\n\n内容を確認して接続しますか？');
 }
 
 function welcomeMessageChoiceHTML(){
@@ -1265,11 +1279,13 @@ function parentMessageHTML(){
   if(!rows.length) return '';
   return `
   <section class="home-parent-message" aria-label="おうちの人からの メッセージ">
+    <div class="paper parent-message-stack">
     ${rows.map(m=>`
-    <div class="paper parent-message-note">
+    <div class="parent-message-note">
       <strong>${esc(messageHeading(m))}</strong>
       <p>${esc(m.text)}</p>
     </div>`).join('')}
+    </div>
   </section>`;
 }
 
@@ -1448,7 +1464,9 @@ function parentTodayLogsHTML(){
     <div class="paper today-list">${rows.length
       ? rows.slice().reverse().map(logRowHTML).join('')
       : '<p class="empty">本日の記録はまだありません。</p>'}</div>
-    <p class="set-note parent-log-help">保護者が追加・修正した内容も、ここに記録されます。記録を整理・削除するには、設定ページの「記録の手入れ」で「やったこと」の削除を有効にしてください。</p>
+    <p class="set-note parent-log-help">保護者が直したぶんも、ここに残ります。${
+      config.allowLogDelete ? ''
+        : '<button type="button" class="linkish" id="logCareJump">1件ずつ消せるようにする</button>'}</p>
   </section>`;
 }
 
@@ -2217,7 +2235,7 @@ function inAppBrowserNoteHTML(){
 /* いま とどいている メッセージ。どの端末からでも 消せる */
 function messageListHTML(){
   const rows = messages();
-  if(!rows.length) return '<p class="msg-empty">送ったメッセージは、ここに表示されます。</p>';
+  if(!rows.length) return '<p class="msg-empty">送信後、ここに表示されます。</p>';
   return `
   <div class="msg-list">
     ${rows.map(m=>`
@@ -2248,9 +2266,7 @@ function parentMessageEditorHTML(){
         <span class="parent-message-from" aria-hidden="true">より</span>
         <label class="lab parent-message-text" for="parentMessageText">メッセージ
           <textarea id="parentMessageText" rows="1" maxlength="80" placeholder="例：きょうも おつかれさま！">${esc(msg.text)}</textarea></label>
-      </div>
-      <div class="parent-message-controls">
-        <button class="btn btn-sm btn-do btn-icon-text" id="parentMessageSave" type="button">${icon('send')}<span>送る</span></button>
+        <button class="btn btn-sm btn-do btn-icon-text parent-message-send" id="parentMessageSave" type="button">${icon('send')}<span>送る</span></button>
       </div>
       <p class="set-note parent-message-help">子ども画面には新しい順に最大${MESSAGES_MAX}件を表示します。同じ名前で送ると、その名前のメッセージを上書きします。</p>
       ${messageListHTML()}
@@ -2422,7 +2438,7 @@ function syncSectionHTML(opts){
   const S = window.NatsuSync;
   if(!S){
     return `
-  <section class="sec">
+  <section class="sec" id="syncSection">
     <div class="sec-head"><h2>ほかの端末と共有</h2></div>
     <div class="paper">
       <p class="set-note">同期の読み込みに失敗しました。記録はこの端末に保存されています。</p>
@@ -2432,7 +2448,7 @@ function syncSectionHTML(opts){
 
   if(!S.configured()){
     return `
-  <section class="sec">
+  <section class="sec" id="syncSection">
     <div class="sec-head"><h2>ほかの端末と共有</h2></div>
     <div class="paper">
       <p class="set-note">同期機能は未設定です。<code>assets/sync.js</code> の
@@ -2446,7 +2462,7 @@ function syncSectionHTML(opts){
   const [mark, text] = SYNC_LABEL[S.status()] || SYNC_LABEL.off;
 
   return `
-  <section class="sec">
+  <section class="sec" id="syncSection">
     <div class="sec-head"><h2>ほかの端末と共有</h2>
       <span class="sec-note" id="syncStatus">${mark} ${esc(S.statusText() || text)}</span></div>
     <div class="paper">
@@ -3206,6 +3222,44 @@ function render(opts){
   if(tab === 'config')   bindConfig();
   scrollBox().scrollTop = keepScroll ? y : 0;
   applyReadingDisplay();
+  jumpToSection();
+}
+
+/* 設定ページは 長い。「共有設定を開きますか？」から 来たのに
+   いちばん上に 出されると、目あての 欄を さがすことに なる。
+   飛び先を ここに 預けて、描き直した あとで 1回だけ そこへ 寄せる。
+
+   ページ全体では なく #scroll だけが 動くので、scrollIntoView では なく
+   scrollTop を 自分で 足す（「画面の作り」の 前提）。 */
+let pendingJump = '';
+function jumpTo(sel){ pendingJump = sel; }
+function jumpToSection(){
+  if(!pendingJump) return;
+  const sel = pendingJump;
+  pendingJump = '';
+  /* 1回 寄せて 終わりに できない。漢字の ふりわけ（kuromoji）は あとから
+     終わるので、寄せた あとに 上の 中身が のびて、目あての 欄が
+     画面の 下へ 押し出される（実際に 450px ほど ずれた）。
+     落ちつくまで 短いあいだ 追いかけ、2回 続けて 合っていれば やめる。 */
+  let tries = 0, stable = 0;
+  const settle = ()=>{
+    const el = $(sel);
+    if(!el) return;
+    const box = scrollBox();
+    /* 目あての 位置は「画面の 上」では なく「#scroll の 上」。
+       #scroll は 上帯の 下（57px あたり）から 始まるので、画面の 上を
+       ねらうと 見出しが 上帯の 裏に かくれる */
+    const top = box.getBoundingClientRect ? box.getBoundingClientRect().top : 0;
+    const gap = el.getBoundingClientRect().top - top - 12;
+    if(Math.abs(gap) <= 1){
+      if(++stable >= 2) return;
+    }else{
+      stable = 0;
+      box.scrollTop = Math.max(0, box.scrollTop + gap);
+    }
+    if(++tries < 10) setTimeout(settle, 60);
+  };
+  settle();
 }
 
 /* 折りたたみの 開け閉めは、描き直すと 元に もどってしまう。
@@ -3420,8 +3474,8 @@ function viewConfig(){
     </div>
   </section>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>記録の手入れ</h2></div>
-    <div class="paper">
+  <section class="sec config-sec" id="logCareSection"><div class="sec-head"><h2>記録の手入れ</h2></div>
+    <div class="paper log-care-paper">
       <label class="opt-toggle">
         <input type="checkbox" id="allowLogDelete"${config.allowLogDelete ? ' checked' : ''}>
         <span class="opt-toggle-text">
@@ -3519,6 +3573,7 @@ function bindWelcomeStart(){
     const code = codeEl ? cleanCode(codeEl.value) : '';
     if(!name){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
     if(sharing && !TEST_MODE && S && S.configured() && code.length < 8){ toast('あいことばを 8文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
+    if(sharing && !TEST_MODE && S && S.configured() && !confirmShareSafety()) return;
     const devLabel = String(($('#welcomeDeviceLabel') && $('#welcomeDeviceLabel').value) || '')
       .trim().slice(0, 12);
     if(devLabel) setLocal(K_DEVICE_LABEL, devLabel);
@@ -3587,6 +3642,7 @@ function bindParentShareBadge(){
   badge.onclick = ()=>{
     if(!confirm('共有設定の詳細を開きますか？\n接続中の端末の確認・追加・解除ができます。')) return;
     openSyncDetails = true;
+    jumpTo('#syncSection');
     location.hash = 'config';
   };
 }
@@ -3806,6 +3862,7 @@ function bindSync(){
   $('#syncSave').addEventListener('click', ()=>{
     const c = cleanCode(input.value);
     if(c.length < 8){ toast('合言葉を8文字以上入力してください'); return; }
+    if(!confirmShareSafety()) return;
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     forgetConfigStampForNewHousehold(c);
     S.reconnect(c);
@@ -4236,11 +4293,24 @@ document.addEventListener('change', e=>{
 
 document.addEventListener('click', e=>{
 
+  if(e.target.closest('[data-share-safety]')){
+    alert(shareSafetyText());
+    return;
+  }
+
   const tabBtn = e.target.closest('.tab');
   if(tabBtn){
     const t = tabBtn.dataset.tab;
     // hashchange で描画する。同じ hash なら発火しないので自分で描く
     if(routeFromHash() === t) render(); else location.hash = t;
+    return;
+  }
+
+  /* 長い説明を 書くかわりに、その場から 飛ばす。
+     設定ページは 長いので、着いた先まで 寄せないと 意味が ない */
+  if(e.target.closest('#logCareJump')){
+    jumpTo('#logCareSection');
+    location.hash = 'config';
     return;
   }
 

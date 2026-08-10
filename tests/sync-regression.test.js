@@ -260,11 +260,52 @@ test('新しい共有コードはFirestoreの文書IDに平文で置かず、旧
 });
 
 test('保護者画面の案内は実際の保存方式と操作先を明示する', ()=>{
-  assert.match(APP, /エンドツーエンド暗号化ではありません/);
-  assert.match(APP, /普段使うパスワードや秘密の言葉は使わず/);
+  assert.match(APP, /記録そのものはエンドツーエンド暗号化されません/);
+  assert.match(APP, /普段使っているパスワードや秘密の言葉を使わない/);
   assert.match(APP, /function parentTodayLogsHTML\(/);
-  assert.match(APP, /設定ページの「記録の手入れ」で「やったこと」の削除を有効にしてください/);
   assert.match(APP, /if\(confirm\('子ども画面へ移動します/);
+});
+
+test('メッセージと注意事項のUIは狭幅・横幅の役割を分ける', ()=>{
+  assert.match(APP, /class="paper parent-message-stack"/,
+    '子ども画面の複数メッセージを1つの枠にまとめること');
+  assert.match(APP, /parent-message-text[\s\S]{0,300}parent-message-send/,
+    '送信ボタンをテキスト欄と同じgrid行へ置くこと');
+  assert.match(APP, /送信後、ここに表示されます。/,
+    '未送信時の文を短くすること');
+  assert.match(APP, /data-share-safety/, '注意事項をクリックして確認できること');
+  assert.match(APP, /confirmShareSafety\(\)/, '接続前にも注意事項を確認すること');
+  assert.match(APP, /id="logCareSection"[\s\S]{0,160}class="paper log-care-paper"/,
+    '記録の手入れの内側だけに、ほかの設定枠と同じ余白を設けること');
+});
+
+/* 長い手順を書くかわりに、その場から飛ばす。飛び先が長いページなので、
+   着いた先までスクロールしないと意味がない。飛び先の id が消えたら気づけること。 */
+test('注記からの案内は、設定ページの該当箇所まで寄せる', ()=>{
+  const jumps = [
+    { name:'記録の注記',   anchor:"closest('#logCareJump')", target:'#logCareSection' },
+    { name:'共有バッジ',   anchor:'badge.onclick',           target:'#syncSection' }
+  ];
+  for(const { name, anchor, target } of jumps){
+    const at = APP.indexOf(anchor);
+    assert.notEqual(at, -1, name + ' の処理が見つからない（' + anchor + '）');
+    assert.match(APP.slice(at, at + 400), new RegExp('jumpTo\\(\'' + target + '\'\\)'),
+      name + ' は ' + target + ' へ jumpTo すること');
+    assert.match(APP, new RegExp('id="' + target.slice(1) + '"'),
+      target + ' の id が実在すること');
+  }
+
+  /* #scroll だけが動く作りなので、scrollIntoView に戻さないこと */
+  const jump = grab(APP, 'jumpToSection');
+  assert.match(jump, /scrollBox\(\)/, '#scroll を動かすこと');
+  assert.equal(/scrollIntoView/.test(jump), false, 'scrollIntoView を使わないこと');
+
+  /* 飛び先は1回きり。次の描き直しで勝手に戻らないこと */
+  assert.match(jump, /pendingJump = ''/, '飛んだら予約を消すこと');
+
+  /* すでに有効なら、その案内は出さない */
+  const note = APP.slice(APP.indexOf('parent-log-help'), APP.indexOf('parent-log-help') + 300);
+  assert.match(note, /config\.allowLogDelete \? ''/, '有効なときは案内を出さないこと');
 });
 
 test('QR招待の共有コードはホーム画面版へ渡し、ホーム画面版でだけURLから消す', ()=>{
@@ -403,6 +444,15 @@ test('おうちの中身を受け取るまで、手元の設定を送らない',
     '受け取る前は 手元にだけ 書き、時刻も押さず 送りもしない');
   assert.deepEqual(harness(false), { pushed:1, stamped:1, savedLocally:true },
     '受け取ったあとは これまで通り 保存して送る');
+});
+
+test('空のキャッシュは家庭設定を受信済みと数えない', ()=>{
+  const watch = grab(SYNC, 'watchHousehold');
+  const missing = watch.indexOf('if(!snap.exists())');
+  const cacheReturn = watch.indexOf('if(mayUseLegacy && snap.metadata.fromCache) return');
+  const received = watch.indexOf('gotSnapshot = true');
+  assert.ok(missing >= 0 && cacheReturn > missing && received > cacheReturn,
+    '空のキャッシュを抜けた後だけ受信済みにすること');
 });
 
 /* よそで保存した時刻は、これから入るおうちの時刻とくらべても意味がない。
