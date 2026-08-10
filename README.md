@@ -362,6 +362,7 @@ assets/kanji.js               小2までの配当漢字の判定と書き写し�
 assets/kanji-worker.js        形態素解析（メインスレッドを止めないため分離）
 assets/app.js                 進捗計算、描画、記録、設定
 assets/sync.js                端末間の共有（Firestore・未設定なら何もしない）
+assets/vendor/qrcode.js       QRコード生成（qrcode-generator・MIT・ローカル同梱）
 firestore.rules               Firestore のセキュリティルール
 .github/workflows/pages.yml   GitHub Pages へのデプロイ
 .nojekyll                     Jekyll 処理を無効化
