@@ -116,7 +116,20 @@ const DEFAULT_CONFIG = {
       memoLabel:'しらべること・わかったこと'
     },
 
-    /* ---------- まいにち（初期状態は非表示・名前は設定から変更可） ---------- */
+    /* ---------- まいにち（初期状態は非表示・名前は設定から変更可） ----------
+       showDaily は false なので、子ども画面には 出ない。
+       つかう 家庭が 「子ども画面に表示する」を 入れた ときに 出る。
+       学習アプリの 名前は 例として 置いてあるだけで、設定から 変えられる */
+    { id:'thinkthink', group:'daily', type:'daily',
+      name:'シンクシンク', target:1, targetUnit:'かい' },
+    { id:'todo-sansu', group:'daily', type:'daily',
+      name:'トドさんすう', target:1, targetUnit:'かい' },
+    /* 数ではなく 文章で のこす まいにち。書くことが 思いつかない 日のために、
+       呼びかけに 例を ならべておく */
+    { id:'nandemo', group:'daily', type:'daily', recordStyle:'free',
+      name:'なんでもきろく',
+      memoLabel:'きょうは なにを した？',
+      freeHint:'今日のはっけん、今おもっていること、わかったこと、おぼえたこと、あそび、かぞく、ゲーム…なんでも書いてみよう。' },
     { id:'otetsudai', group:'daily', type:'daily',
       name:'おてつだい', target:1, targetUnit:'かい' }
   ]

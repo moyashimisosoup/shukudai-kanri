@@ -82,6 +82,9 @@ function isAdultTab(t){ return t === 'settings' || t === 'tasks' || t === 'confi
 
 function isBook(t){ return t && t.type === 'count' && t.recordStyle === 'book'; }
 function isFree(t){ return t && t.type === 'daily' && t.recordStyle === 'free'; }
+/* 「文章で記録」の 既定の 呼びかけ。何も 決めていない 項目に つかう。
+   白い 欄だけ 出されると 子どもの 手が 止まるので、例を ならべておく */
+const FREE_HINT_DEFAULT = '今日のはっけん、今おもっていること、わかったこと、おぼえたこと、あそび、かぞく、ゲーム…なんでも書いてみよう。';
 function bookFields(t){
   return Object.assign({ author:false, publisher:false, rating:true }, (t && t.bookFields) || {});
 }
@@ -3266,7 +3269,7 @@ function openFreeSheet(t){
   $('#sheetBody').innerHTML = `
     <div class="field">
       <span class="lab">${esc(t.memoLabel || 'きょうは なにを した？')}</span>
-      <p class="hint">${esc(t.freeHint || 'なんでも いいよ。')}</p>
+      <p class="hint">${esc(t.freeHint || FREE_HINT_DEFAULT)}</p>
       <div class="mic-row">
         <textarea id="freeMemo" rows="6" placeholder="かいてみよう"></textarea>
         ${micBtn('freeMemo')}
@@ -3899,7 +3902,7 @@ function taskEditorRow(t, i){
         ${unitMode==='custom' ? `<label class="set-field"><span>単位を入力</span><input type="text" data-f="targetUnitCustom" maxlength="8" value="${esc(t.targetUnit||'')}"></label>` : ''}
       ` : `
         <label class="set-field set-field--wide"><span>子どもへの呼びかけ</span>
-          <input type="text" data-f="freeHint" value="${esc(t.freeHint||'')}" placeholder="今日のことを書いてみよう"></label>`}
+          <input type="text" data-f="freeHint" value="${esc(t.freeHint||'')}" placeholder="${esc(FREE_HINT_DEFAULT)}"></label>`}
       <label class="set-field set-field--wide"><span>${isFree(t)?'見出し':'メモ欄の見出し'}</span>
         <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを書く"></label>`;
   }else{

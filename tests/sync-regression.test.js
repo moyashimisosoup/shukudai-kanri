@@ -9,6 +9,7 @@ const ROOT = path.join(__dirname, '..');
 const APP = fs.readFileSync(path.join(ROOT, 'assets', 'app.js'), 'utf8');
 const STYLE = fs.readFileSync(path.join(ROOT, 'assets', 'style.css'), 'utf8');
 const SYNC = fs.readFileSync(path.join(ROOT, 'assets', 'sync.js'), 'utf8');
+const DATA = fs.readFileSync(path.join(ROOT, 'assets', 'data.js'), 'utf8');
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 
 function grab(src, name){
@@ -1325,4 +1326,25 @@ test('家庭の設定を受け取れていないうちは、初期設定を家�
   const guard = f.slice(guardIdx, consumeIdx);
   assert.match(guard, /return;/);
   assert.doesNotMatch(guard, /removeItem\(K_WELCOME_JOIN\)|saveCfg\(\)/);
+});
+
+/* 既定の「まいにち」は家庭用の旧内容にそろえる。
+   子ども画面には出さない（showDaily は false のまま）。 */
+test('既定のまいにちは4項目で、初期状態では子ども画面に出さない', ()=>{
+  const daily = DATA.match(/\{[^{}]*group:'daily'[\s\S]*?\}(?=,?\s*(\{|\]))/g) || [];
+  const names = (DATA.match(/group:'daily'[\s\S]*?name:'([^']+)'/g) || [])
+    .map(s=>s.match(/name:'([^']+)'/)[1]);
+  assert.deepEqual(names, ['シンクシンク','トドさんすう','なんでもきろく','おてつだい']);
+  assert.match(DATA, /showDaily: false/, '初期状態では子ども画面に出さないこと');
+  /* 文章で記録する項目には、書くことの例をそえる */
+  assert.match(DATA, /id:'nandemo'[\s\S]{0,240}recordStyle:'free'/);
+  assert.match(DATA, /今日のはっけん、今おもっていること/);
+});
+
+test('文章で記録の呼びかけは、決めていなければ例文を出す', ()=>{
+  assert.match(APP, /const FREE_HINT_DEFAULT = '今日のはっけん、/);
+  assert.match(APP, /t\.freeHint \|\| FREE_HINT_DEFAULT/,
+    '記録シートの既定に使うこと');
+  assert.match(APP, /placeholder="\$\{esc\(FREE_HINT_DEFAULT\)\}"/,
+    '設定欄の例示も同じ文にそろえること');
 });
