@@ -1160,6 +1160,8 @@ function viewHome(){
 
   ${parentMessageHTML()}
 
+  ${joinInstallTransferHTML()}
+
   ${dailyAllDone ? '' : dailySec}
   ${sectionHTML('must','かならず やる', nokori>0 ? 'のこり '+nokori+'しゅるい' : 'ぜんぶ できた！', must)}
   ${opt.length   ? sectionHTML('opt','つぎに やる','かならず やるが すんだら、ここから えらぼう', opt) : ''}
@@ -3470,6 +3472,7 @@ function bindWelcomeStart(){
     if(titleWasGenerated) config.title = defaultTitleFor(name);
     saveCfg();
     if(sharing && !TEST_MODE && S && S.configured()){
+      if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
       S.reconnect(code);
       /* 同じ家庭を複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */
       S.registerHousehold(code).catch(()=>{});
@@ -3739,6 +3742,7 @@ function bindSync(){
   $('#syncSave').addEventListener('click', ()=>{
     const c = cleanCode(input.value);
     if(c.length < 8){ toast('合言葉を8文字以上入力してください'); return; }
+    if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     S.reconnect(c);
     toast('接続しています…');
     render({ keepScroll:true });
@@ -4175,6 +4179,13 @@ document.addEventListener('click', e=>{
     return;
   }
 
+  if(e.target.closest('#joinRemove')){
+    clearJoinCodeFromURL();
+    render({ keepScroll:true });
+    toast('招待リンクの共有コードをURLから消しました');
+    return;
+  }
+
   const calMove = e.target.closest('[data-calmove]');
   if(calMove){
     calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + (+calMove.dataset.calmove), 1);
@@ -4481,18 +4492,44 @@ document.addEventListener('visibilitychange', ()=>{
    そのかわり、リンクを 開くだけで つながるようにして、
    打ち直す 手間を なくす。
 
-   あいことばが URL に のるので、開いたら すぐ URL から 消す。
-   のこすと 履歴や 共有から 見えてしまう。 */
+   iPhone / iPad のホーム画面追加は、追加時点のURLを起動URLとして使う。
+   そのため通常ブラウザでは、追加されるまで join を残す。ホーム画面版で
+   最初に開いたときだけ消せば、別の保存領域にも共有コードを渡しつつ、
+   以後のURL・履歴には残さない。 */
 const JOIN_PARAM = 'join';
-function takeJoinCode(){
+function joinCodeFromURL(){
   const q = new URLSearchParams(location.search);
-  const code = cleanCode(q.get(JOIN_PARAM) || '');
-  if(!code) return '';
+  return cleanCode(q.get(JOIN_PARAM) || '');
+}
+function clearJoinCodeFromURL(){
+  const q = new URLSearchParams(location.search);
+  if(!q.has(JOIN_PARAM)) return;
   q.delete(JOIN_PARAM);
   const rest = q.toString();
   try{
     history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
   }catch(e){}
+}
+function joinInstallTransferHTML(){
+  const code = joinCodeFromURL();
+  if(isStandalone() || !code) return '';
+  /* はずされた あいことばの ままでは つながらない。
+     「引き継げる準備が できています」は うそに なるので 出さない */
+  const S = window.NatsuSync;
+  if(S && typeof S.revokedCode === 'function' && S.revokedCode() === code) return '';
+  return `
+  <section class="sec join-install-transfer">
+    <div class="paper">
+      <p class="set-note"><b>ホーム画面に追加する場合</b><br>
+      このQR招待は、ホーム画面版にも共有を引き継げる準備ができています。<b>この画面のまま</b>共有ボタンから「ホーム画面に追加」を行い、追加したアイコンを一度開いてください。アイコン側で共有を受け取ると、共有コードはURLから自動で消えます。</p>
+      <div class="set-actions"><button class="btn btn-sm btn-ghost" id="joinRemove" type="button">ホーム画面に追加しない（共有コードをURLから消す）</button></div>
+    </div>
+  </section>`;
+}
+function takeJoinCode(){
+  const code = joinCodeFromURL();
+  if(!code) return '';
+  if(isStandalone()) clearJoinCodeFromURL();
   return code;
 }
 function applyJoinCode(){
@@ -4500,9 +4537,15 @@ function applyJoinCode(){
   const S = window.NatsuSync;
   if(!code || !S || !S.configured() || code.length < 8) return;
   if(S.getCode() === code) return;          // すでに 同じ あいことば
+  /* はずされた 端末が、リンクを 開き直す だけで 戻れては いけない。
+     ホーム画面版は 起動URL に あいことばが 焼きついている ので、
+     これが 無いと 起動する たびに 戻ってしまう。
+     入れ直しは 人が 設定画面で 打つ（そこで 忘れる） */
+  if(typeof S.revokedCode === 'function' && S.revokedCode() === code) return;
   setLocal(K_ONBOARD, 'done');              // 招かれた側は 初期設定を とばす
   S.reconnect(code);
   toast('おうちの 共有に つながりました');
+  if(routeFromHash() === 'welcome') location.hash = 'home';
   render({ keepScroll:true });
 }
 

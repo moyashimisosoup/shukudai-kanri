@@ -8,6 +8,7 @@ const { webcrypto } = require('node:crypto');
 const ROOT = path.join(__dirname, '..');
 const APP = fs.readFileSync(path.join(ROOT, 'assets', 'app.js'), 'utf8');
 const SYNC = fs.readFileSync(path.join(ROOT, 'assets', 'sync.js'), 'utf8');
+const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 
 function grab(src, name){
   const re = new RegExp('(?:async\\s+)?function\\s+' + name + '\\s*\\(');
@@ -264,4 +265,82 @@ test('保護者画面の案内は実際の保存方式と操作先を明示す�
   assert.match(APP, /function parentTodayLogsHTML\(/);
   assert.match(APP, /設定ページの「記録の手入れ」で「やったこと」の削除を有効にしてください/);
   assert.match(APP, /if\(confirm\('子ども画面へ移動します/);
+});
+
+test('QR招待の共有コードはホーム画面版へ渡し、ホーム画面版でだけURLから消す', ()=>{
+  function harness(standalone){
+    const location = { search:'?join=abcdefghjkmnpqrs&r=9', pathname:'/app/', hash:'#home' };
+    const history = { current:'', replaceState:(_,__,url)=>{ history.current = url; } };
+    const api = new Function('location', 'history', 'cleanCode', 'isStandalone', `
+      const JOIN_PARAM='join';
+      ${grab(APP, 'joinCodeFromURL')}
+      ${grab(APP, 'clearJoinCodeFromURL')}
+      ${grab(APP, 'takeJoinCode')}
+      return { takeJoinCode, replaced:()=>history.current };
+    `)(location, history, value=>String(value || ''), ()=>standalone);
+    return { code:api.takeJoinCode(), replaced:api.replaced() };
+  }
+  assert.deepEqual(harness(false), { code:'abcdefghjkmnpqrs', replaced:'' });
+  assert.deepEqual(harness(true), { code:'abcdefghjkmnpqrs', replaced:'/app/?r=9#home' });
+  assert.equal(Object.hasOwn(MANIFEST, 'start_url'), false);
+});
+
+/* URLに join を残すようにしたぶん、「はずした端末」がリロードだけで
+   勝手に戻れてしまわないかを固定する。
+   ホーム画面版では起動URLそのものに join が焼きつくため、
+   これが無いと はずしても 起動のたびに 復帰する。 */
+test('はずされた端末は、招待URLを開き直しても勝手に戻らない', ()=>{
+  const CODE = 'abcdefghjkmnpqrs';
+  function harness(revokedFrom){
+    let reconnected = '';
+    const applyJoinCode = new Function(
+      'location', 'history', 'cleanCode', 'isStandalone',
+      'setLocal', 'K_ONBOARD', 'window', 'toast', 'render', 'routeFromHash', `
+      const JOIN_PARAM='join';
+      ${grab(APP, 'joinCodeFromURL')}
+      ${grab(APP, 'clearJoinCodeFromURL')}
+      ${grab(APP, 'takeJoinCode')}
+      ${grab(APP, 'applyJoinCode')}
+      return applyJoinCode;
+    `)(
+      { search:'?join=' + CODE, pathname:'/app/', hash:'#home' },
+      { replaceState:()=>{} },
+      v => String(v || ''),
+      () => false,
+      ()=>{},
+      'natsu.onboarding.v1',
+      { NatsuSync:{ configured:()=>true, getCode:()=>'',
+                    revokedCode:()=>revokedFrom,
+                    reconnect:c => { reconnected = c; } } },
+      ()=>{}, ()=>{}, ()=>'home'
+    );
+    applyJoinCode();
+    return reconnected;
+  }
+  assert.equal(harness(''), CODE, 'ふつうの招待は これまで通り つながる');
+  assert.equal(harness(CODE), '', 'はずされた あいことばでは 自動で つなぎ直さない');
+  assert.equal(harness('betsunoaikotoba'), CODE, 'べつの家庭の はずし記録は じゃまをしない');
+
+  /* はずされた あいことばのままでは、ホーム画面追加の案内も出さない
+     （「引き継げる準備ができています」は この状態では うそになる） */
+  const banner = new Function('location', 'cleanCode', 'isStandalone', 'window', `
+    const JOIN_PARAM='join';
+    ${grab(APP, 'joinCodeFromURL')}
+    ${grab(APP, 'joinInstallTransferHTML')}
+    return joinInstallTransferHTML;
+  `)({ search:'?join=' + CODE }, v => String(v || ''), () => false,
+     { NatsuSync:{ revokedCode:()=>CODE } });
+  assert.equal(banner(), '', 'はずされた端末には 引き継ぎ案内を出さない');
+});
+
+/* 人が 手で 打ち直したら、はずし記録は 忘れること。
+   忘れないと「はずす」が 永久追放になり、入れ直しができない */
+test('あいことばを手で入れ直すと、はずし記録を忘れる', ()=>{
+  const src = APP;
+  const setup = src.slice(src.indexOf("$('#syncSave')"), src.indexOf("$('#syncSave')") + 400);
+  assert.match(setup, /forgetRevokedCode\(\)/,
+    '設定画面の「保存」で forgetRevokedCode() を呼ぶこと');
+  assert.match(SYNC, /forgetRevokedCode/, 'sync.js が forgetRevokedCode を出すこと');
+  assert.match(SYNC, /rememberRevokedCode\(getCode\(\)\)/,
+    'はずされた時点の あいことばを おぼえること');
 });

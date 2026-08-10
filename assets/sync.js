@@ -37,6 +37,14 @@ const K_CODE = new URLSearchParams(location.search).get('new') === '1'
 const K_DEVICE = new URLSearchParams(location.search).get('new') === '1'
   ? 'natsu.preview.sync.device.v1'
   : 'natsu.sync.device.v1';
+/* 「はずされた」ときの あいことば。
+   招待リンクは ホーム画面に 追加させるため URL に のこすように なった。
+   ホーム画面版では 起動URL そのものに 焼きつく。
+   これを おぼえて おかないと、はずした 端末が 開き直す だけで 戻ってきて
+   しまい、「はずす」が 効かない。人が 打ち直した ときだけ 忘れる */
+const K_JOIN_REVOKED = new URLSearchParams(location.search).get('new') === '1'
+  ? 'natsu.preview.sync.revoked.code.v1'
+  : 'natsu.sync.revoked.code.v1';
 
 /* 打ちまちがえない 文字だけ。0/O と 1/l/I は 入れない */
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -98,6 +106,21 @@ function setCode(code){
   }catch(e){}
   return c;
 }
+/* はずされた あいことば。招待リンクからの 自動つなぎだけを ことわる。
+   人が 手で 打ち直した ときは forgetRevokedCode() で 忘れるので、
+   「はずす → あいことばを 入れ直す」は これまで通り できる */
+function revokedCode(){
+  try{ return localStorage.getItem(K_JOIN_REVOKED) || ''; }catch(e){ return ''; }
+}
+function rememberRevokedCode(code){
+  try{
+    if(code) localStorage.setItem(K_JOIN_REVOKED, code);
+  }catch(e){}
+}
+function forgetRevokedCode(){
+  try{ localStorage.removeItem(K_JOIN_REVOKED); }catch(e){}
+}
+
 /* 名前・端末名・アクセス元を使わない、このブラウザだけのランダムな番号。
    「設定済み台数」は、いま接続中かどうかでなく、一度共有を設定した端末を数える。 */
 function getDeviceId(){
@@ -195,6 +218,7 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
 
       const d = snap.data() || {};
       if(revokedForMe(d.devices)){
+        rememberRevokedCode(getCode());
         setCode('');
         disconnect();
         setStatus('off', 'この端末は はずされました。あいことばを 入れ直してください');
@@ -495,6 +519,7 @@ const Sync = {
   _fs: null,
   configured,
   getCode, setCode, makeCode,
+  revokedCode, forgetRevokedCode,
   status:     () => status,
   statusText: () => statusText,
   onStatus(fn){ listeners.push(fn); fn(status, statusText); },

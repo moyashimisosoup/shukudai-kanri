@@ -5,7 +5,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#14375E">
-<link rel="manifest" href="manifest.webmanifest?v=20260810x">
+<!-- 招待リンクは ホーム画面に 追加させるため、しばらく URL に あいことばを のこす。
+     そのあいだ 外部（Google Fonts など）へ アドレスを 渡さない。
+     いまの ブラウザの 既定でも クエリは 出ないが、古い端末では 出る -->
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="manifest" href="manifest.webmanifest?v=20260810y">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -77,9 +81,9 @@
      外に つなぎに いかないので、圏外でも QR が 出る。
      読めなくても inviteHTML() が QR を 出さずに 進むだけ -->
 <script src="assets/vendor/qrcode.js?v=2.0.4"></script>
-<script src="assets/app.js?v=20260810ag"></script>
+<script src="assets/app.js?v=20260810ai"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
-<script type="module" src="assets/sync.js?v=20260810x"></script>
+<script type="module" src="assets/sync.js?v=20260810y"></script>
 </body>
 </html>
