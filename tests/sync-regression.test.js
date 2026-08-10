@@ -82,7 +82,7 @@ test('受信した設定は送信時刻で記録し、遅れて届く新しい�
   const storage = new Map([['natsu.savedAt.v1', JSON.stringify({config:100})]]);
   const harness = new Function('localStorage', `
     let config={ tasks:[], theme:'notebook' }, state={};
-    const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2', K_WELCOME_THEME='natsu.welcome.theme.v1';
+    const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2', K_WELCOME_THEME='natsu.welcome.theme.v1', K_WELCOME_JOIN='natsu.welcome.join.v1';
     const THEME_IDS=['notebook','sunny','soda','berry','block','cat'];
     function getLocal(k){ return localStorage.getItem(k) || ''; }
     function saveCfg(){}
@@ -560,8 +560,10 @@ test('共有する初期設定は、端末と家庭の状態に合わせて分�
     '新しく作った合言葉は初期設定中に書き換えさせない');
   assert.match(form, /data-creating="no"/,
     '今ある家庭へ参加する保護者を、合言葉の作成者と区別する');
-  assert.match(form, /aria-label="この合言葉で接続してこども画面を開く"/,
+  assert.match(form, /aria-label="確認した合言葉でこの家庭に参加する"/,
     '子どもの最終操作も読み上げで接続先を明示する');
+  assert.match(form, /id="welcomeStart"[\s\S]{0,180}hidden/,
+    '接続確認前は参加ボタンを隠す');
 });
 
 test('子ども端末は合言葉を受け取るだけで、作成者向け注意事項を表示しない', ()=>{
@@ -580,6 +582,7 @@ test('子ども端末は合言葉を受け取るだけで、作成者向け注�
     const navigator = { userAgent:'iPhone', maxTouchPoints:5 };
     ${grab(APP, 'deviceKindLabel')}
     ${grab(APP, 'alreadySetNoteHTML')}
+    ${grab(APP, 'welcomeJoinCheckHTML')}
     ${grab(APP, 'deviceLabelFieldHTML')}
     ${grab(APP, 'welcomeParentCreateChoiceHTML')}
     ${grab(APP, 'welcomeFormHTML')}
@@ -623,10 +626,12 @@ test('子どもが選んだデザインは、家庭設定の受信後に1度だ�
   let saved = 0;
   const harness = new Function('localStorage', 'onSave', `
     let config={ tasks:[], theme:'notebook' }, state={};
-    const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2', K_WELCOME_THEME='natsu.welcome.theme.v1';
+    const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2', K_WELCOME_THEME='natsu.welcome.theme.v1', K_WELCOME_JOIN='natsu.welcome.join.v1';
     const THEME_IDS=['notebook','sunny','soda','berry','block','cat'];
     function ms(v){ const n=Number(v); return Number.isFinite(n) && n>0 ? n : 0; }
     function normalizeConfig(v){ return v; }
+    function isGeneratedTitle(){ return true; }
+    function defaultTitleFor(name){ return name ? name + 'の夏休みの宿題' : 'しゅくだいノート'; }
     function applyTheme(){}
     function render(){}
     function getLocal(k){ return localStorage.getItem(k) || ''; }
@@ -647,6 +652,50 @@ test('子どもが選んだデザインは、家庭設定の受信後に1度だ�
   assert.equal(harness.config().theme, 'berry');
   assert.equal(saved, 1, '受信後にデザインだけを保存する');
   assert.equal(storage.has('natsu.welcome.theme.v1'), false, '反映後は一時値を消す');
+});
+
+test('参加画面で変えた名前と漢字設定は、家庭設定の受信後にだけ反映する', ()=>{
+  const storage = new Map([
+    ['natsu.savedAt.v1', JSON.stringify({config:100})],
+    ['natsu.welcome.join.v1', JSON.stringify({
+      hasName:true, childName:'はな', hasGrade:true, readingGrade:1
+    })]
+  ]);
+  let saved = 0;
+  const harness = new Function('localStorage', 'onSave', `
+    let config={ tasks:[], theme:'notebook', childName:'前の名前', readingGrade:2, title:'前の名前の夏休みの宿題' }, state={};
+    const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2', K_WELCOME_THEME='natsu.welcome.theme.v1', K_WELCOME_JOIN='natsu.welcome.join.v1';
+    const THEME_IDS=['notebook','sunny','soda','berry','block','cat'];
+    function ms(v){ const n=Number(v); return Number.isFinite(n) && n>0 ? n : 0; }
+    function normalizeConfig(v){ return v; }
+    function applyTheme(){}
+    function render(){}
+    function getLocal(k){ return localStorage.getItem(k) || ''; }
+    function saveCfg(){ onSave(); }
+    function traceConfig(){}
+    function markSaved(){}
+    function syncPush(){}
+    function isGeneratedTitle(){ return true; }
+    function defaultTitleFor(name){ return name ? name + 'の夏休みの宿題' : 'しゅくだいノート'; }
+    ${grab(APP, 'savedAt')}
+    ${grab(APP, 'markReceivedAt')}
+    ${grab(APP, 'applyRemote')}
+    return { applyRemote, config:()=>config };
+  `)({
+    getItem:key => storage.get(key) || null,
+    setItem:(key,value) => storage.set(key, String(value)),
+    removeItem:key => storage.delete(key)
+  }, ()=>{ saved++; });
+  harness.applyRemote({
+    config:{tasks:[],theme:'notebook',childName:'家庭の名前',readingGrade:2,title:'家庭の名前の夏休みの宿題'},
+    configAt:200,
+    first:true
+  });
+  assert.equal(harness.config().childName, 'はな');
+  assert.equal(harness.config().readingGrade, 1);
+  assert.equal(harness.config().title, 'はなの夏休みの宿題');
+  assert.equal(saved, 1, '家庭設定を採ったあとに変更を1回だけ保存する');
+  assert.equal(storage.has('natsu.welcome.join.v1'), false, '反映後は一時値を消す');
 });
 
 test('初期設定用の招待URLも、通常の招待URLと同じ引き継ぎ情報を持つ', ()=>{
@@ -826,17 +875,18 @@ test('既存の家庭に入るときは、名前と漢字の設定を任意に�
     function welcomeShareSetupHTML(){ return ''; }
     ${grab(APP, 'deviceKindLabel')}
     ${grab(APP, 'alreadySetNoteHTML')}
+    ${grab(APP, 'welcomeJoinCheckHTML')}
     ${grab(APP, 'deviceLabelFieldHTML')}
     ${grab(APP, 'welcomeParentCreateChoiceHTML')}
     ${grab(APP, 'welcomeFormHTML')}
     return (role,sharing,mode)=>welcomeFormHTML(role,sharing,4,mode);
   `)();
-  assert.match(make('parent', true, 'join'), /空のままでかまいません/,
-    '参加する保護者には、名前が任意だと示す');
-  assert.doesNotMatch(make('parent', true, 'create'), /空のままでかまいません/,
+  assert.match(make('parent', true, 'join'), /合言葉を確認すると、共有中のお子さんの名前と漢字設定を表示します/,
+    '参加する保護者には、接続先の設定を表示すると示す');
+  assert.doesNotMatch(make('parent', true, 'create'), /合言葉を確認すると/,
     '新しく作るときは名前が要る');
-  assert.match(make('child', true), /そのままで いいよ/, '共有へ入る子どもにも任意だと示す');
-  assert.doesNotMatch(make('child', false), /そのままで いいよ/,
+  assert.match(make('child', true), /あいことばを かくにんすると/, '共有へ入る子どもにも取得を示す');
+  assert.doesNotMatch(make('child', false), /あいことばを かくにんすると/,
     'この端末だけで使うときは名前が要る');
 
   /* 空のまま進めても家庭の設定を壊さないこと */
@@ -844,8 +894,40 @@ test('既存の家庭に入るときは、名前と漢字の設定を任意に�
   assert.match(start, /const joining = sharing && \(role === 'child' \|\| !creating\)/);
   assert.match(start, /if\(!name && !joining\)\{ toast\('なまえを 入れてください'\)/,
     '参加する経路では、名前が空でも進める');
-  assert.match(start, /if\(name\)\{\s*config\.childName = name;/,
-    '名前を入れたときだけ家庭の名前を書きかえる');
+  assert.match(start, /if\(name && !joining\)\{\s*config\.childName = name;/,
+    '参加時の変更は家庭設定の初回受信後まで保留する');
+});
+
+test('既存家庭への参加は読み取り確認後だけ許可し、接続先の設定を表示する', ()=>{
+  const bind = grab(APP, 'bindWelcomeStart');
+  const verify = grab(SYNC, 'verifyHousehold');
+  assert.match(bind, /S\.verifyHousehold\(code\)/, '参加前に合言葉の接続先を確認する');
+  assert.match(bind, /const result = TEST_MODE[\s\S]{0,120}found:true/,
+    'おためし画面は実際のFirebaseを読まずに表示確認できる');
+  assert.match(bind, /接続しています…/);
+  assert.match(bind, /接続しました ✓/);
+  assert.match(bind, /welcomeJoinVerified = \{ code, config:deepCopy\(remoteConfig\) \}/,
+    '確認済みの合言葉と家庭設定を保持する');
+  assert.match(bind, /nameInput\.value = remoteName/,
+    '接続先のお子さんの名前をフォームへ表示する');
+  assert.match(bind, /start\.hidden = false/,
+    '確認できた場合だけ参加ボタンを表示する');
+  assert.match(bind, /先に合言葉の接続を確認してください/,
+    '画面操作を迂回しても未確認では参加できない');
+  assert.match(verify, /getDocFromServer/, 'サーバー上の家庭を読み取り専用で確認する');
+  assert.doesNotMatch(verify, /pushAll|registerDevice|setDoc/,
+    '存在確認だけでは家庭を作成・変更しない');
+});
+
+test('曜日の月は「つき」ではなく曜日読みの「げつ」にする', ()=>{
+  const reading = grab(APP, 'applyReadingDisplay');
+  assert.match(APP, /const WD_READING = \{[^}]*月:'げつ'/);
+  assert.match(reading, /body\.replace\(\/（\(\[日月火水木金土\]\)）\/g/,
+    '括弧内の曜日だけを辞書変換前に確定する');
+});
+
+test('端末の呼び名には自明な変更範囲の説明を重ねない', ()=>{
+  assert.doesNotMatch(APP, /ほかの端末の一覧にも表示されますが、変更できるのはこの端末だけです/);
 });
 
 test('新しく作る合言葉は、押した人だけ手入力に切りかえられる', ()=>{

@@ -170,6 +170,33 @@ function configured(){
   return !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId);
 }
 
+/* 初期設定で「今ある家庭に参加」する前の読み取り専用確認。
+   connect() を使うと、存在しない合言葉でも新しい家庭を作ってしまうため、
+   ここでは文書を読むだけにして devices や設定を一切書き込まない。 */
+async function verifyHousehold(code){
+  const c = String(code || '').trim().normalize('NFKC').replace(/\s+/g,'').replace(/[\/\u0000-\u001f]/g, '');
+  if(c.length < 8) return { found:false };
+  if(!configured()) throw new Error('Firebase が設定されていません');
+  if(!db){
+    if(!initPromise) initPromise = initFirebase();
+    await initPromise;
+  }
+  const fs = Sync._fs;
+  const read = typeof fs.getDocFromServer === 'function' ? fs.getDocFromServer : fs.getDoc;
+  const secureId = await houseIdFor(c);
+  const secureRef = fs.doc(db, 'households', secureId);
+  const secureSnap = await read(secureRef);
+  if(secureSnap.exists()) return { found:true, config:(secureSnap.data() || {}).config || null };
+
+  const legacyId = legacyHouseIdFor(c);
+  if(legacyId !== secureId){
+    const legacyRef = fs.doc(db, 'households', legacyId);
+    const legacySnap = await read(legacyRef);
+    if(legacySnap.exists()) return { found:true, config:(legacySnap.data() || {}).config || null };
+  }
+  return { found:false };
+}
+
 /* ---------------------------------------------------------
    4. つなぐ
    --------------------------------------------------------- */
@@ -552,6 +579,7 @@ const Sync = {
   pushAll,
   connect,
   disconnect,
+  verifyHousehold,
   registerHousehold,
   getRegistrationCount,
   /* あいことばを 入れ替えて つなぎ直す */

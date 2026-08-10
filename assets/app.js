@@ -47,6 +47,9 @@ const K_THEME = TEST_MODE ? 'natsu.preview.theme.v1' : 'natsu.device.theme.v1';
 /* 共有へ入る子どもが初期設定で選んだデザイン。家庭の設定を受け取ったあとに
    1度だけ反映し、受信前の初期値を先に送る事故を避ける。 */
 const K_WELCOME_THEME = TEST_MODE ? 'natsu.preview.welcome.theme.v1' : 'natsu.welcome.theme.v1';
+/* 既存家庭への参加画面で変更した名前・漢字設定。家庭の設定を最初に
+   受け取ったあとで1度だけ重ね、参加端末の初期値による上書きを防ぐ。 */
+const K_WELCOME_JOIN = TEST_MODE ? 'natsu.preview.welcome.join.v1' : 'natsu.welcome.join.v1';
 /* sync.js が この端末に ふった ランダム番号。一覧で「この端末」を 見わけるのに つかう */
 /* この端末の 呼び名（父・母 など）。共有した ときに 端末を 見わけるため。
    端末ごとの ものなので 同期しない（同期すると 全部 同じ名前に なる） */
@@ -62,7 +65,7 @@ const STATS_VALUE = 'family-count';
    消すのは preview 専用キーだけで、普段の家庭データ・あいことばには触れない。 */
 if(TEST_MODE){
   try{
-    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME, K_WELCOME_THEME].forEach(k=>localStorage.removeItem(k));
+    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME, K_WELCOME_THEME, K_WELCOME_JOIN].forEach(k=>localStorage.removeItem(k));
     if(DEBUG_PARENT){
       localStorage.setItem(K_ONBOARD, 'done');
       localStorage.setItem(K_ROLE, 'parent');
@@ -118,6 +121,7 @@ let calMonth = null;
 let calDay = null;
 let openConfigTaskId = null;
 let welcomeThemeChoice = '';
+let welcomeJoinVerified = null;
 /* 「かいたもの いちらん」が いま見せている 課題。#writes:<taskId> から 入る。
    ハッシュには 課題の id が のこるので、画面を 描き直しても 見失わない */
 let writesTaskId = null;
@@ -811,15 +815,37 @@ function applyRemote(remote){
   /* 初期設定で子どもが選んだデザインは、家庭の設定を受け取ってから反映する。
      受信前に送ると、端末内の初期設定一式で家庭の設定を上書きしてしまうため、
      デザイン1項目だけをここで確定し、すぐ通常の保存手順へ戻す。 */
+  let welcomeChanged = false;
   const welcomeTheme = getLocal(K_WELCOME_THEME);
   if(THEME_IDS.includes(welcomeTheme)){
     try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
     if(config.theme !== welcomeTheme){
       config.theme = welcomeTheme;
-      saveCfg();
-      changed = true;
+      welcomeChanged = true;
     }
   }
+
+  let joinPrefs = null;
+  try{ joinPrefs = JSON.parse(getLocal(K_WELCOME_JOIN) || 'null'); }catch(e){}
+  if(joinPrefs && typeof joinPrefs === 'object'){
+    try{ localStorage.removeItem(K_WELCOME_JOIN); }catch(e){}
+    if(joinPrefs.hasName){
+      const oldName = config.childName;
+      const nextName = String(joinPrefs.childName || '').trim().slice(0, 30);
+      const titleWasGenerated = isGeneratedTitle(config.title, oldName);
+      if(nextName !== String(oldName || '')){
+        config.childName = nextName;
+        if(titleWasGenerated) config.title = defaultTitleFor(nextName);
+        welcomeChanged = true;
+      }
+    }
+    if(joinPrefs.hasGrade && [0,1,2,9].includes(Number(joinPrefs.readingGrade))
+       && Number(config.readingGrade) !== Number(joinPrefs.readingGrade)){
+      config.readingGrade = Number(joinPrefs.readingGrade);
+      welcomeChanged = true;
+    }
+  }
+  if(welcomeChanged){ saveCfg(); changed = true; }
 
   if(changed) render({ keepScroll:true });
 }
@@ -871,6 +897,7 @@ function dayOfYear(d){
   return Math.floor((d - new Date(d.getFullYear(),0,0)) / 86400000);
 }
 const WD = ['日','月','火','水','木','金','土'];
+const WD_READING = { 日:'にち', 月:'げつ', 火:'か', 水:'すい', 木:'もく', 金:'きん', 土:'ど' };
 function fmtDate(d){ return (d.getMonth()+1)+'月'+d.getDate()+'日（'+WD[d.getDay()]+'）'; }
 function fmtTime(d){ return pad2(d.getHours())+':'+pad2(d.getMinutes()); }
 function keyToDate(k){ const p = k.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
@@ -1157,8 +1184,16 @@ function welcomeParentSharePickerHTML(step){
    家庭の 設定が とどいて そちらが つかわれる。 */
 function alreadySetNoteHTML(side){
   return side === 'child'
-    ? `<p class="set-note">おうちの人の たんまつで もう 入れて あるなら、ここは そのままで いいよ。つながると おうちの せっていに なるよ。</p>`
-    : `<p class="set-note">子ども端末で先に入力済みなら、ここは空のままでかまいません。接続すると、共有中の家庭の設定がそのまま使われます。</p>`;
+    ? `<p class="set-note" id="welcomeExistingNote">あいことばを かくにんすると、おうちで きめた なまえと よめる かんじが ここに はいるよ。</p>`
+    : `<p class="set-note" id="welcomeExistingNote">合言葉を確認すると、共有中のお子さんの名前と漢字設定を表示します。</p>`;
+}
+
+function welcomeJoinCheckHTML(side){
+  const child = side === 'child';
+  return `<div class="set-actions welcome-join-check">
+      <button class="btn btn-sm" id="welcomeJoinCheck" type="button">${child ? 'あいことばを かくにん' : '合言葉を確認する'}</button>
+      <span class="set-note" id="welcomeJoinStatus" role="status" aria-live="polite"></span>
+    </div>`;
 }
 
 /* 共有する ときだけ 出す、この端末の 呼び名。
@@ -1170,7 +1205,7 @@ function deviceLabelFieldHTML(role){
              value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="${child ? '例：子ども用iPad' : '例：父、母'}"></label>
     <p class="set-note">共有中の端末一覧で見分けるための呼び名です（${child ? '子ども用iPadなど' : '父、母など'}）。
     入れないときは「${esc(deviceKindLabel(navigator.userAgent, navigator.maxTouchPoints))}」のように端末の種類で表示されます。
-    ほかの端末の一覧にも表示されますが、変更できるのはこの端末だけです。</p>`;
+    </p>`;
 }
 
 /* 初期設定の中で、設定ページへ移動する前に共有方法まで確認できるようにする。
@@ -1263,10 +1298,11 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
         <label class="lab">共有中の合言葉
           <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="合言葉を入力"></label>
         <p class="set-note">合言葉を作った保護者から受け取り、同じ家庭の宿題・設定・記録を読み込みます。</p>
+        ${welcomeJoinCheckHTML('parent')}
         ${inAppBrowserNoteHTML()}`);
-      const settings = welcomeStepHTML(start + 1, '保護者の設定', `${settingsBody}
+      const settings = `<div id="welcomeJoinSettings" hidden>${welcomeStepHTML(start + 1, '保護者の設定', `${settingsBody}
         <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes"
-          data-creating="no" data-next-step="${start + 2}" type="button">この家庭に参加する</button>`);
+          data-creating="no" data-next-step="${start + 2}" type="button" hidden>この家庭に参加する</button>`)}</div>`;
       return join + settings;
     }
     /* 合言葉は 自動作成の まま つかって もらうのが 安全。
@@ -1304,11 +1340,12 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
     ${syncReady ? `<label class="lab">おうちの人から もらった あいことば
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
       <p class="set-note">つながると、おうちの人が決めた宿題と記録を使えます。</p>
+      ${welcomeJoinCheckHTML('child')}
       ${inAppBrowserNoteHTML()}
       ${deviceLabelFieldHTML('child')}
       ${welcomeShareSetupHTML('child', '')}`
       : '<p class="set-note">同期の準備を読み込めませんでした。通信を確認して、もう一度開いてください。</p>'}
-    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="yes" type="button" aria-label="この合言葉で接続してこども画面を開く">接続して開く</button>`);
+    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="yes" type="button" hidden aria-label="確認した合言葉でこの家庭に参加する">この家庭に参加する</button>`);
   return theme + settings + share;
 }
 
@@ -2722,7 +2759,7 @@ function syncSectionHTML(opts){
              <div class="set-row"><span class="lab">この端末の呼び名</span>
                <input type="text" id="deviceLabel" maxlength="12"
                       value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></div>
-             <p class="set-note">共有中の端末一覧で見分けるための名前です（父、母など）。ほかの端末の一覧にも表示されますが、変更できるのはこの端末だけです。未設定のときは「${esc(deviceKindLabel(navigator.userAgent, navigator.maxTouchPoints))}」のように端末の種類で表示されます。ブラウザは機種名（iPhone SE など）までは通知しないため、細かく分けたいときは呼び名を入れてください。</p>
+             <p class="set-note">共有中の端末一覧で見分けるための名前です（父、母など）。未設定のときは「${esc(deviceKindLabel(navigator.userAgent, navigator.maxTouchPoints))}」のように端末の種類で表示されます。ブラウザは機種名（iPhone SE など）までは通知しないため、細かく分けたいときは呼び名を入れてください。</p>
              <div class="set-row"><span class="lab">この端末は</span>
                <select id="deviceRole">
                  <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>未選択</option>
@@ -3818,10 +3855,14 @@ function applyReadingDisplay(){
     const original = node.nodeValue || '';
     const match = original.match(/^(\s*)([\s\S]*?)(\s*)$/);
     const lead = match ? match[1] : '', body = match ? match[2] : original, tail = match ? match[3] : '';
-    const key = grade + '\u0000' + body;
+    /* 「月」だけでは辞書が「つき」と読むため、曜日の括弧内だけ先に
+       曜日読みへ確定する。月日の「月（がつ）」には触れない。 */
+    const readingBody = body.replace(/（([日月火水木金土])）/g,
+      (all, day)=>'（' + WD_READING[day] + '）');
+    const key = grade + '\u0000' + readingBody;
     const work = readingCache.has(key) ? Promise.resolve(readingCache.get(key))
-      : convertForTranscription(body).then(result=>{
-          const text = result && result.ok ? result.text : body;
+      : convertForTranscription(readingBody).then(result=>{
+          const text = result && result.ok ? result.text : readingBody;
           readingCache.set(key, text);
           return text;
         });
@@ -3952,6 +3993,75 @@ function bindWelcomeStart(){
   if(!start || start.dataset.welcomeBound) return;
   start.dataset.welcomeBound = '1';
   const codeInput = $('#welcomeCode');
+  const joinCheck = $('#welcomeJoinCheck');
+  if(joinCheck && codeInput && !joinCheck.dataset.welcomeBound){
+    joinCheck.dataset.welcomeBound = '1';
+    const status = $('#welcomeJoinStatus');
+    const resetVerified = ()=>{
+      welcomeJoinVerified = null;
+      start.hidden = true;
+      const settings = $('#welcomeJoinSettings');
+      if(settings) settings.hidden = true;
+      if(status) status.textContent = '';
+    };
+    codeInput.addEventListener('input', resetVerified);
+    joinCheck.addEventListener('click', async ()=>{
+      const S = window.NatsuSync;
+      const code = cleanCode(codeInput.value);
+      resetVerified();
+      if(code.length < 8){
+        if(status) status.textContent = 'あいことばを 8文字以上 入れてください';
+        codeInput.focus();
+        return;
+      }
+      if(!S || typeof S.verifyHousehold !== 'function'){
+        if(status) status.textContent = '接続の準備を読み込めませんでした。もう一度開いてください。';
+        return;
+      }
+      joinCheck.disabled = true;
+      if(status) status.textContent = '接続しています…';
+      try{
+        /* おためし画面は普段のFirebaseへ触れない。見た目と操作だけを
+           確認できるよう、現在のpreview設定を接続先として扱う。 */
+        const result = TEST_MODE
+          ? { found:true, config:deepCopy(config) }
+          : await S.verifyHousehold(code);
+        if(cleanCode(codeInput.value) !== code) return;
+        if(!result || !result.found){
+          if(status) status.textContent = '接続できませんでした。合言葉を確認してください。';
+          return;
+        }
+        const remoteConfig = result.config && typeof result.config === 'object' ? result.config : {};
+        welcomeJoinVerified = { code, config:deepCopy(remoteConfig) };
+        const remoteName = String(remoteConfig.childName || '').trim();
+        const remoteGrade = Number(remoteConfig.readingGrade);
+        const nameInput = $('#welcomeName');
+        const readingInput = $('#welcomeReading');
+        if(nameInput) nameInput.value = remoteName;
+        if(readingInput && [0,1,2,9].includes(remoteGrade)) readingInput.value = String(remoteGrade);
+        const note = $('#welcomeExistingNote');
+        if(note){
+          if(start.dataset.role === 'child'){
+            note.textContent = remoteName
+              ? 'なまえや よめる かんじを かえなくて よければ、そのまま「この家庭に参加する」を おしてね。'
+              : 'なまえは まだ きまっていないよ（入れなくても いいよ）。下から 入れられるよ。';
+          }else{
+            note.textContent = remoteName
+              ? 'お子さんの名前・漢字の扱いに変更がなければ、そのまま「この家庭に参加する」を押してください。'
+              : 'お子さんの名前は未設定です（任意入力）。以下から設定できます。';
+          }
+        }
+        const settings = $('#welcomeJoinSettings');
+        if(settings) settings.hidden = false;
+        start.hidden = false;
+        if(status) status.textContent = '接続しました ✓';
+      }catch(e){
+        if(status) status.textContent = '接続できませんでした。通信と合言葉を確認してください。';
+      }finally{
+        joinCheck.disabled = false;
+      }
+    });
+  }
   if(codeInput && start.dataset.role === 'parent' && start.dataset.creating === 'yes' && !codeInput.readOnly) codeInput.addEventListener('change', ()=>{
     const setup = $('#welcomeShareSetup');
     if(setup){
@@ -3976,7 +4086,16 @@ function bindWelcomeStart(){
     const joining = sharing && (role === 'child' || !creating);
     if(!name && !joining){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
     if(sharing && !TEST_MODE && S && S.configured() && code.length < 8){ toast('あいことばを 8文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
+    if(joining && !TEST_MODE && (!welcomeJoinVerified || welcomeJoinVerified.code !== code)){
+      toast('先に合言葉の接続を確認してください');
+      if(codeEl) codeEl.focus();
+      return;
+    }
     if(creating && !TEST_MODE && S && S.configured() && !confirmShareSafety()) return;
+    const verifiedConfig = joining && welcomeJoinVerified ? welcomeJoinVerified.config || {} : {};
+    if(joining && welcomeJoinVerified && welcomeJoinVerified.config){
+      config = normalizeConfig(deepCopy(welcomeJoinVerified.config));
+    }
     const devLabel = String(($('#welcomeDeviceLabel') && $('#welcomeDeviceLabel').value) || '')
       .trim().slice(0, 12);
     if(devLabel) setLocal(K_DEVICE_LABEL, devLabel);
@@ -3986,21 +4105,34 @@ function bindWelcomeStart(){
     setLocal(K_READING, grade);
     if(typeof setReadingGrade === 'function') setReadingGrade(grade);
     setLocal(K_ONBOARD, 'done');
-    if(name || !joining) config.readingGrade = grade;   // おうちの設定として 共有する
+    if(!joining) config.readingGrade = grade;   // おうちの設定として 共有する
     if(role === 'child' && THEME_IDS.includes(chosenTheme)){
-      config.theme = chosenTheme;
       setLocal(K_THEME, chosenTheme);
       applyTheme(chosenTheme);
       if(sharing) setLocal(K_WELCOME_THEME, chosenTheme);
-      else try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
+      else{
+        config.theme = chosenTheme;
+        try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
+      }
     }
     const oldName = config.childName;
     const titleWasGenerated = isGeneratedTitle(config.title, oldName);
-    if(name){
+    if(name && !joining){
       config.childName = name;
       if(titleWasGenerated) config.title = defaultTitleFor(name);
     }
-    saveCfg();
+    if(joining){
+      const baseName = String(verifiedConfig.childName || '').trim();
+      const baseGrade = Number(verifiedConfig.readingGrade);
+      const prefs = {
+        hasName: name !== baseName,
+        childName: name,
+        hasGrade: [0,1,2,9].includes(grade) && grade !== baseGrade,
+        readingGrade: grade
+      };
+      if(prefs.hasName || prefs.hasGrade) setLocal(K_WELCOME_JOIN, JSON.stringify(prefs));
+      else try{ localStorage.removeItem(K_WELCOME_JOIN); }catch(e){}
+    }else saveCfg();
     if(sharing && !TEST_MODE && S && S.configured()){
       if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
       forgetConfigStampForNewHousehold(code);
