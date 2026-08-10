@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-08-10",
+    "scope": "onboarding-flow",
+    "macrostructure": "Workbench",
+    "theme": "existing child-friendly selectable themes",
+    "enrichment": "none",
+    "brief": "Numbered setup flow with child-first theme choice and safe shared-theme handoff"
+  },
+  {
     "date": "2026-08-08",
     "scope": "app",
     "macrostructure": "Workbench",

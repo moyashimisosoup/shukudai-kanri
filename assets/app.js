@@ -29,6 +29,9 @@ function appVersionHTML(version){
 const TEST_MODE = new URLSearchParams(location.search).get('new') === '1';
 /* 保護者画面の確認用。preview専用キーだけを作るため、普段の家庭データには触れない。 */
 const DEBUG_PARENT = TEST_MODE && new URLSearchParams(location.search).get('debug') === 'parent';
+/* 初期設定の確認用。合言葉欄と注意事項まで表示するが、preview専用キー以外には触れない。 */
+const DEBUG_WELCOME_ROLE = TEST_MODE ? new URLSearchParams(location.search).get('debug') : '';
+const DEBUG_WELCOME = DEBUG_WELCOME_ROLE === 'welcome-parent' || DEBUG_WELCOME_ROLE === 'welcome-child';
 /* ミニコンテンツを確認するときだけ、全項目を一覧で出す隠し入口。
    既存の trivia URL もそのまま使えるようにする。 */
 const DEBUG_CONTENT = ['trivia','content'].includes(new URLSearchParams(location.search).get('debug'));
@@ -41,6 +44,9 @@ const K_ROLE = TEST_MODE ? 'natsu.preview.role.v1' : 'natsu.device.role.v1';
 const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
 const K_READING = TEST_MODE ? 'natsu.preview.reading.v1' : 'natsu.device.reading.v1';
 const K_THEME = TEST_MODE ? 'natsu.preview.theme.v1' : 'natsu.device.theme.v1';
+/* 共有へ入る子どもが初期設定で選んだデザイン。家庭の設定を受け取ったあとに
+   1度だけ反映し、受信前の初期値を先に送る事故を避ける。 */
+const K_WELCOME_THEME = TEST_MODE ? 'natsu.preview.welcome.theme.v1' : 'natsu.welcome.theme.v1';
 /* sync.js が この端末に ふった ランダム番号。一覧で「この端末」を 見わけるのに つかう */
 /* この端末の 呼び名（父・母 など）。共有した ときに 端末を 見わけるため。
    端末ごとの ものなので 同期しない（同期すると 全部 同じ名前に なる） */
@@ -56,7 +62,7 @@ const STATS_VALUE = 'family-count';
    消すのは preview 専用キーだけで、普段の家庭データ・あいことばには触れない。 */
 if(TEST_MODE){
   try{
-    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME].forEach(k=>localStorage.removeItem(k));
+    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME, K_WELCOME_THEME].forEach(k=>localStorage.removeItem(k));
     if(DEBUG_PARENT){
       localStorage.setItem(K_ONBOARD, 'done');
       localStorage.setItem(K_ROLE, 'parent');
@@ -111,6 +117,7 @@ let funIdx = 0, funOpen = false;
 let calMonth = null;
 let calDay = null;
 let openConfigTaskId = null;
+let welcomeThemeChoice = '';
 /* 「かいたもの いちらん」が いま見せている 課題。#writes:<taskId> から 入る。
    ハッシュには 課題の id が のこるので、画面を 描き直しても 見失わない */
 let writesTaskId = null;
@@ -752,6 +759,19 @@ function applyRemote(remote){
     if(remoteNeedsUpdate) syncPush('state');
   }
 
+  /* 初期設定で子どもが選んだデザインは、家庭の設定を受け取ってから反映する。
+     受信前に送ると、端末内の初期設定一式で家庭の設定を上書きしてしまうため、
+     デザイン1項目だけをここで確定し、すぐ通常の保存手順へ戻す。 */
+  const welcomeTheme = getLocal(K_WELCOME_THEME);
+  if(THEME_IDS.includes(welcomeTheme)){
+    try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
+    if(config.theme !== welcomeTheme){
+      config.theme = welcomeTheme;
+      saveCfg();
+      changed = true;
+    }
+  }
+
   if(changed) render({ keepScroll:true });
 }
 
@@ -950,8 +970,9 @@ function overall(group){
    先に分かりやすく案内し、あとから追加した場合の同期方法も明記する。 */
 function viewWelcome(){
   const S = window.NatsuSync;
-  const hasSync = !TEST_MODE && !!(S && S.configured());
+  const hasSync = DEBUG_WELCOME || (!TEST_MODE && !!(S && S.configured()));
   const installed = isStandalone();
+  const previewRole = DEBUG_WELCOME_ROLE === 'welcome-parent' ? 'parent' : 'child';
   return `
   <section class="welcome" aria-labelledby="welcomeTitle">
     <p class="welcome-kicker">${TEST_MODE ? 'おためし モード' : 'はじめの じゅんび'}</p>
@@ -966,12 +987,12 @@ function viewWelcome(){
       <span class="welcome-num">2</span>
       <div><h3>どうやって つかう？</h3>
       <div class="welcome-roles">
-        <button class="btn btn-go welcome-role" data-welcome-mode="solo" type="button">こどもだけで つかう<br><small>すぐに つかえます</small></button>
-        <button class="btn welcome-role welcome-role--share" data-welcome-mode="share" type="button">${icon('users')}<span>保護者も 共有する<br><small>あとからでも 設定できます</small></span></button>
+        <button class="btn welcome-role" data-welcome-mode="solo" type="button" aria-pressed="false">こどもだけで つかう<br><small>すぐに つかえます</small></button>
+        <button class="btn welcome-role welcome-role--share${DEBUG_WELCOME ? ' is-selected' : ''}" data-welcome-mode="share" type="button" aria-pressed="${DEBUG_WELCOME ? 'true' : 'false'}">${icon('users')}<span>保護者も 共有する<br><small>あとからでも 設定できます</small></span></button>
       </div>
       ${TEST_MODE ? '<p class="set-note">おためしモードでは、いま使っている家庭のデータ・あいことば・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>')}</div>
     </div>
-    <div class="paper welcome-form" id="welcomeForm" hidden></div>
+    <div class="welcome-form" id="welcomeForm"${DEBUG_WELCOME ? '' : ' hidden'}>${DEBUG_WELCOME ? welcomeFormHTML(previewRole, true, 3) : ''}</div>
   </section>`;
 }
 function icon(name){
@@ -1048,13 +1069,21 @@ function bindParentSender(selectId, customWrapId){
   update();
 }
 
+function welcomeStepHTML(number, title, body, className){
+  return `<div class="paper welcome-step welcome-flow-step${className ? ' ' + className : ''}">
+    <span class="welcome-num">${number}</span>
+    <div><h3>${title}</h3>${body}</div>
+  </div>`;
+}
+
 function welcomeRolePickerHTML(){
-  return `<h3>この端末は だれが つかう？</h3>
-    <div class="welcome-roles">
-      <button class="btn btn-go welcome-role" data-welcome-role="parent" type="button">おうちの人の端末<br><small>合言葉を 作る</small></button>
-      <button class="btn welcome-role" data-welcome-role="child" type="button">こどもの端末<br><small>合言葉を 入れる</small></button>
-    </div>
-    <p class="set-note">同じ合言葉を入れると、同じ家庭の複数の端末で使えます。</p>`;
+  return welcomeStepHTML(3, 'この端末は だれが つかう？', `
+      <div class="welcome-roles">
+        <button class="btn welcome-role" data-welcome-role="parent" type="button" aria-pressed="false">おうちの人の端末<br><small>合言葉を 作る</small></button>
+        <button class="btn welcome-role" data-welcome-role="child" type="button" aria-pressed="false">こどもの端末<br><small>合言葉を 入れる</small></button>
+      </div>
+      <p class="set-note">同じ合言葉を入れると、同じ家庭の複数の端末で使えます。</p>`)
+    + '<div id="welcomeRoleForm"></div>';
 }
 
 /* 共有する ときだけ 出す、この端末の 呼び名。
@@ -1067,38 +1096,94 @@ function deviceLabelFieldHTML(){
     この端末だけに保存されます。入れなくてもかまいません。</p>`;
 }
 
-function welcomeFormHTML(role, sharing){
+/* 初期設定の中で、設定ページへ移動する前に共有方法まで確認できるようにする。
+   保護者側はここで作った合言葉をQRとリンクにし、子ども側は受け取った
+   合言葉を使う順番を明示する。 */
+function welcomeShareSetupHTML(role, code){
+  if(role === 'child') return `
+    <div class="welcome-share-setup" id="welcomeShareSetup" aria-label="共有へ接続する手順">
+      <ol>
+        <li>保護者から受け取った合言葉を、上の欄に入力します。</li>
+        <li>下のボタンを押すと、同じ家庭の宿題・設定・記録を読み込みます。</li>
+      </ol>
+      <p class="set-note">保護者からQRコードや招待リンクを受け取った場合は、それを開くと合言葉を入力せずに接続できます。</p>
+    </div>`;
+  const url = inviteURLForCode(code);
+  return `
+    <div class="welcome-share-setup" id="welcomeShareSetup" aria-label="ほかの端末をつなぐ手順">
+      <ol>
+        <li>子ども端末などで、下のQRをカメラで読み取ります。</li>
+        <li>離れた端末には、招待リンクを家族だけに送ります。</li>
+        <li>この端末は、下のボタンを押すと同じ共有へ接続します。</li>
+      </ol>
+      ${url ? `<div class="welcome-invite">
+        <label class="lab" for="welcomeInviteUrl">ほかの端末へ渡す招待リンク
+          <input type="text" id="welcomeInviteUrl" value="${esc(url)}" readonly onfocus="this.select()"></label>
+        <button class="btn btn-sm" id="welcomeInviteCopy" type="button">リンクをコピー</button>
+        ${inviteQrHTML(url)}
+      </div>` : '<p class="set-note">合言葉を8文字以上にすると、QRコードと招待リンクを表示できます。</p>'}
+      <p class="set-note"><b>QRと招待リンクは合言葉そのものです。</b>信頼できる家族だけに渡してください。</p>
+    </div>`;
+}
+
+function welcomeThemeHTML(step){
+  const current = THEME_IDS.includes(welcomeThemeChoice) ? welcomeThemeChoice
+    : (THEME_IDS.includes(config.theme) ? config.theme : 'notebook');
+  return welcomeStepHTML(step, 'どの色が すき？', `
+    <p>すきな色を えらんでね。画面が その色に かわります。</p>
+    <fieldset class="theme-picker welcome-theme-picker">
+      <legend>色と デザイン</legend>
+      <div class="theme-grid">${themeChoicesHTML('welcomeTheme', current)}</div>
+    </fieldset>`);
+}
+
+function welcomeFormHTML(role, sharing, firstStep){
   const S = window.NatsuSync;
-  const syncReady = !!sharing && !TEST_MODE && !!(S && S.configured());
+  const syncReady = !!sharing && (DEBUG_WELCOME || (!TEST_MODE && !!(S && S.configured())));
   const name = getLocal(K_NAME);
-  const code = role === 'parent' && syncReady ? S.makeCode() : '';
-  return role === 'parent' ? `
-    <h3>おうちの人の 設定</h3>
-    <label class="lab">こどもの なまえ
+  const code = role === 'parent' && syncReady ? (DEBUG_WELCOME ? 'おためし共有コード' : S.makeCode()) : '';
+  const start = Number(firstStep) || (sharing ? 4 : 3);
+  if(role === 'parent'){
+    const settings = welcomeStepHTML(start, '保護者の設定', `
+      <label class="lab">子どもの名前
+        <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
+      <label class="lab">漢字は何年生の字まで読めますか？
+        <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>`);
+    const share = welcomeStepHTML(start + 1, 'ほかの端末をつなごう', `
+      ${syncReady ? `<label class="lab">この家庭の合言葉（16文字・自動作成）
+        <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+        <p class="set-note">複数の端末で同じ合言葉を使うと、同じ宿題・設定・記録を共有できます。</p>
+        ${privacyNoteHTML()}
+        ${inAppBrowserNoteHTML()}
+        ${deviceLabelFieldHTML()}
+        ${welcomeShareSetupHTML('parent', code)}`
+        : '<p class="set-note">同期の準備を読み込めませんでした。通信を確認して、もう一度開いてください。</p>'}
+      <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes" type="button" aria-label="共有へ接続して保護者ページを開く">接続して開く</button>`);
+    return settings + share;
+  }
+
+  const theme = welcomeThemeHTML(start);
+  const settings = welcomeStepHTML(start + 1, 'なまえを 入れよう', `
+    <label class="lab">なまえ
       <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
-    <label class="lab">漢字は何年生の字まで読めますか？
-      <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
-    ${syncReady ? `<label class="lab">このおうちの あいことば（16文字・自動作成）
-      <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-      <p class="set-note">こどもの端末など、複数の端末で同じ合言葉を入れると、同じ記録と設定を使えます。</p>`
-      : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
-    ${inAppBrowserNoteHTML()}
-    ${syncReady ? deviceLabelFieldHTML() : ''}
-    ${privacyNoteHTML()}
-    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes" type="button">保護者ページを 開く</button>` : `
-    <h3>こどもの 設定</h3>
-    <label class="lab">なまえを 確認しよう
-      <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
-    <label class="lab">漢字は何年生の字まで読めますか？
-      <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
+    <label class="lab">よめる かんじを えらぼう
+      <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>`);
+  if(!sharing){
+    return theme + settings + welcomeStepHTML(start + 2, 'じゅんび できたよ', `
+      <p>この端末だけで しゅくだいノートを はじめます。</p>
+      <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="no" type="button" aria-label="こども画面を開く">はじめる</button>`);
+  }
+  const share = welcomeStepHTML(start + 2, 'おうちの きろくに つなごう', `
     ${syncReady ? `<label class="lab">おうちの人から もらった あいことば
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
-      <p class="set-note">読みこむと、おうちの人が決めた宿題と記録を、複数の端末で使えます。</p>`
-      : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
-    ${inAppBrowserNoteHTML()}
-    ${syncReady ? deviceLabelFieldHTML() : ''}
-    ${privacyNoteHTML()}
-    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="${sharing?'yes':'no'}" type="button">こども画面を 開く</button>`;
+      <p class="set-note">つながると、おうちの人が決めた宿題と記録を使えます。</p>
+      ${privacyNoteHTML()}
+      ${inAppBrowserNoteHTML()}
+      ${deviceLabelFieldHTML()}
+      ${welcomeShareSetupHTML('child', '')}`
+      : '<p class="set-note">同期の準備を読み込めませんでした。通信を確認して、もう一度開いてください。</p>'}
+    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="yes" type="button" aria-label="この合言葉で接続してこども画面を開く">接続して開く</button>`);
+  return theme + settings + share;
 }
 
 /* 作者の表示。CC BY 4.0 は「利用する形に応じた合理的な方法」での
@@ -1151,9 +1236,7 @@ function confirmShareSafety(){
 
 function welcomeMessageChoiceHTML(){
   const msg = config.parentMessage;
-  return `
-    <p class="welcome-kicker">さいごの かくにん</p>
-    <h3>おうちの人からの メッセージを 使いますか？</h3>
+  return welcomeStepHTML(6, 'こどもへの メッセージ', `
     <p>保護者ページから、こどもの画面へ短いメッセージを出せます。</p>
     <label class="lab" for="welcomeMessageSender">だれからの メッセージ？
       <select id="welcomeMessageSender">${parentSenderOptions(msg.sender)}</select></label>
@@ -1163,7 +1246,7 @@ function welcomeMessageChoiceHTML(){
       <button class="btn btn-go welcome-role" data-message-choice="yes" type="button">使う</button>
       <button class="btn welcome-role" data-message-choice="no" type="button">今は 使わない</button>
     </div>
-    <p class="set-note">あとから保護者ページで変更できます。</p>`;
+    <p class="set-note">あとから保護者ページで変更できます。</p>`);
 }
 
 /* ---------------------------------------------------------
@@ -2170,14 +2253,17 @@ function viewParent(){
    ふだんの ブラウザで 開かせる。ほかの アプリでは ただ 無視される。
    これが ないと、LINE の中で 設定して しまい、あとで Safari で 開いたときに
    また 設定が 必要に なる。 */
-function inviteURL(){
-  const S = window.NatsuSync;
-  const code = (S && S.getCode()) || '';
+function inviteURLForCode(code){
+  code = cleanCode(code || '');
   if(!code) return '';
   return location.origin + location.pathname +
          '?' + JOIN_PARAM + '=' + encodeURIComponent(code) +
          '&r=' + Date.now() +          // ためこんだ古い画面を 配らないための 印
          '&openExternalBrowser=1';
+}
+function inviteURL(){
+  const S = window.NatsuSync;
+  return inviteURLForCode((S && S.getCode()) || '');
 }
 /* まねきリンクを そのまま QR にする。
    となりに いる 人に わたすときは、リンクを 送るより カメラで 読む ほうが 早い。
@@ -2659,8 +2745,10 @@ function openSheet(id, editBookId){
         ${Array.from({length:max+1},(_,i)=>
           `<button class="tally-btn${i===sheetSel?' sel':''}" data-n="${i}" type="button">${i}</button>`).join('')}
       </div>
-      <label class="daily-more" for="dailyMore">もっとやった：
-        <input id="dailyMore" type="number" inputmode="numeric" min="6" max="99" value="${more}" placeholder="6以上">${esc(t.targetUnit||'かい')}
+      <label class="daily-more" for="dailyMore">
+        <span class="daily-more-label">もっとやった：</span>
+        <input id="dailyMore" type="number" inputmode="numeric" min="6" max="99" value="${more}" placeholder="6" aria-label="もっとやった回数（6${readingGrade() === 9 ? '回以上' : 'かいいじょう'}）">
+        <span class="daily-more-unit">${esc(t.targetUnit||'かい')}${readingGrade() === 9 ? '以上' : 'いじょう'}</span>
       </label>
     </div>`;
   }
@@ -3300,11 +3388,13 @@ function restoreFormDraft(draft){
 
 /* 設定は「この端末」「おうちの宿題」「まいにち」に分ける。
    内部の type / recordStyle は旧データ互換のため変えない。 */
-function themeChoicesHTML(){
-  const current = THEME_IDS.includes(config.theme) ? config.theme : 'notebook';
+function themeChoicesHTML(fieldName, selected){
+  const name = fieldName || 'theme';
+  const current = THEME_IDS.includes(selected) ? selected
+    : (THEME_IDS.includes(config.theme) ? config.theme : 'notebook');
   return THEMES.map(t=>`
     <label class="theme-choice theme-choice--${t.id}">
-      <input type="radio" name="theme" value="${t.id}"${t.id===current?' checked':''}>
+      <input type="radio" name="${esc(name)}" value="${t.id}"${t.id===current?' checked':''}>
       <span class="theme-swatch" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="theme-name">${esc(t.name)}</span>
       <small>${esc(t.note)}</small>
@@ -3553,16 +3643,56 @@ function bindWelcome(){
     /* module の sync.js が読み込み途中なら、あいことば無しで始めて
        しまわないよう一度だけ待ってもらう。読み込み完了時に画面は自動更新する。 */
     if(!window.NatsuSync && !TEST_MODE){ toast('同期の準備を 読みこんでいます…'); return; }
+    $$('[data-welcome-mode]').forEach(option=>{
+      const selected = option === btn;
+      option.classList.toggle('is-selected', selected);
+      option.setAttribute('aria-pressed', String(selected));
+    });
     if(btn.dataset.welcomeMode === 'solo') return openForm('child', false);
     form.innerHTML = welcomeRolePickerHTML();
     form.hidden = false;
     form.scrollIntoView({ behavior:'smooth', block:'nearest' });
-    $$('[data-welcome-role]', form).forEach(roleBtn => roleBtn.addEventListener('click', ()=>openForm(roleBtn.dataset.welcomeRole, true)));
+    $$('[data-welcome-role]', form).forEach(roleBtn => roleBtn.addEventListener('click', ()=>{
+      $$('[data-welcome-role]', form).forEach(option=>{
+        const selected = option === roleBtn;
+        option.classList.toggle('is-selected', selected);
+        option.setAttribute('aria-pressed', String(selected));
+      });
+      const roleForm = $('#welcomeRoleForm');
+      roleForm.innerHTML = welcomeFormHTML(roleBtn.dataset.welcomeRole, true);
+      bindWelcomeStart();
+      roleForm.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    }));
   }));
+  if(DEBUG_WELCOME) bindWelcomeStart();
 }
 
 function bindWelcomeStart(){
   const start = $('#welcomeStart');
+  if(!start) return;
+  $$('input[name="welcomeTheme"]', $('#welcomeForm')).forEach(input=>{
+    input.addEventListener('change', ()=>{
+      if(!THEME_IDS.includes(input.value)) return;
+      welcomeThemeChoice = input.value;
+      applyTheme(input.value);
+    });
+  });
+  const bindInviteCopy = ()=>{
+    const copy = $('#welcomeInviteCopy');
+    if(copy) copy.addEventListener('click', ()=>{
+      const input = $('#welcomeInviteUrl');
+      if(input && input.value) copyPlainText(input.value);
+    });
+  };
+  bindInviteCopy();
+  const codeInput = $('#welcomeCode');
+  if(codeInput && start.dataset.role === 'parent') codeInput.addEventListener('change', ()=>{
+    const setup = $('#welcomeShareSetup');
+    if(setup){
+      setup.outerHTML = welcomeShareSetupHTML('parent', cleanCode(codeInput.value));
+      bindInviteCopy();
+    }
+  });
   start.addEventListener('click', ()=>{
     const role = start.dataset.role;
     const sharing = start.dataset.sharing === 'yes';
@@ -3571,6 +3701,8 @@ function bindWelcomeStart(){
     const S = window.NatsuSync;
     const codeEl = $('#welcomeCode');
     const code = codeEl ? cleanCode(codeEl.value) : '';
+    const themeEl = $('input[name="welcomeTheme"]:checked', $('#welcomeForm'));
+    const chosenTheme = themeEl && THEME_IDS.includes(themeEl.value) ? themeEl.value : config.theme;
     if(!name){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
     if(sharing && !TEST_MODE && S && S.configured() && code.length < 8){ toast('あいことばを 8文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
     if(sharing && !TEST_MODE && S && S.configured() && !confirmShareSafety()) return;
@@ -3584,6 +3716,13 @@ function bindWelcomeStart(){
     if(typeof setReadingGrade === 'function') setReadingGrade(grade);
     setLocal(K_ONBOARD, 'done');
     config.readingGrade = grade;      // おうちの設定として 共有する
+    if(role === 'child' && THEME_IDS.includes(chosenTheme)){
+      config.theme = chosenTheme;
+      setLocal(K_THEME, chosenTheme);
+      applyTheme(chosenTheme);
+      if(sharing) setLocal(K_WELCOME_THEME, chosenTheme);
+      else try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
+    }
     const oldName = config.childName;
     const titleWasGenerated = isGeneratedTitle(config.title, oldName);
     config.childName = name;

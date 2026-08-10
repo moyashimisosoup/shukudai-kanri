@@ -7,6 +7,7 @@ const { webcrypto } = require('node:crypto');
 
 const ROOT = path.join(__dirname, '..');
 const APP = fs.readFileSync(path.join(ROOT, 'assets', 'app.js'), 'utf8');
+const STYLE = fs.readFileSync(path.join(ROOT, 'assets', 'style.css'), 'utf8');
 const SYNC = fs.readFileSync(path.join(ROOT, 'assets', 'sync.js'), 'utf8');
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 
@@ -81,7 +82,10 @@ test('受信した設定は送信時刻で記録し、遅れて届く新しい�
   const storage = new Map([['natsu.savedAt.v1', JSON.stringify({config:100})]]);
   const harness = new Function('localStorage', `
     let config={ tasks:[], theme:'notebook' }, state={};
-    const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2';
+    const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2', K_WELCOME_THEME='natsu.welcome.theme.v1';
+    const THEME_IDS=['notebook','sunny','soda','berry','block','cat'];
+    function getLocal(k){ return localStorage.getItem(k) || ''; }
+    function saveCfg(){}
     function ms(v){ const n=Number(v); return Number.isFinite(n) && n>0 ? n : 0; }
     function normalizeConfig(v){ return v; }
     function applyTheme(){}
@@ -159,6 +163,14 @@ test('毎日の項目は6回以上を任意入力でき、0〜5の選択もそ�
   assert.equal(appFns.dailyCountSelection(4, ''), 4);
   assert.equal(appFns.dailyCountSelection(4, '5'), 4);
   assert.equal(appFns.dailyCountSelection(4, '150'), 99);
+  assert.match(STYLE, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/,
+    '0〜5の回数を同じ幅の6列に並べること');
+  assert.match(STYLE, /daily-more-unit\{ grid-column:span 2/,
+    '「以上」を含む単位は2列を使い、狭幅でも切らないこと');
+  assert.match(APP, /readingGrade\(\) === 9 \? '以上' : 'いじょう'/,
+    '小学2年生までの「以上」はひらがなで表示すること');
+  assert.match(APP, /DEBUG_WELCOME_ROLE === 'welcome-parent'/,
+    '初期設定の確認用URLを保護者用・子ども用に分けること');
 });
 
 test('初期タイトルは子どもの名前に合わせ、未入力ならしゅくだいノートにする', ()=>{
@@ -275,6 +287,8 @@ test('メッセージと注意事項のUIは狭幅・横幅の役割を分ける
     '未送信時の文を短くすること');
   assert.match(APP, /data-share-safety/, '注意事項をクリックして確認できること');
   assert.match(APP, /confirmShareSafety\(\)/, '接続前にも注意事項を確認すること');
+  assert.match(APP, /id="welcomeCode"[\s\S]{0,500}privacyNoteHTML\(\)/,
+    '初期設定では合言葉欄の直後に注意事項を置くこと');
   assert.match(APP, /id="logCareSection"[\s\S]{0,160}class="paper log-care-paper"/,
     '記録の手入れの内側だけに、ほかの設定枠と同じ余白を設けること');
 });
@@ -499,4 +513,99 @@ test('つなぎ直しの入口すべてで、設定の保存時刻を戻して�
   }
   assert.match(SYNC, /awaitingFirstSnapshot/, 'sync.js が受信済みかを出すこと');
   assert.match(SYNC, /gotSnapshot = true/, '最初のsnapshotで受信済みにすること');
+});
+
+test('初期設定の選択肢は、選んだものだけ色とチェックが残る', ()=>{
+  const view = grab(APP, 'viewWelcome');
+  const picker = grab(APP, 'welcomeRolePickerHTML');
+  const bind = grab(APP, 'bindWelcome');
+  assert.doesNotMatch(view, /btn btn-go welcome-role[^-]/,
+    '使い方を選ぶ前から片方だけ緑にしない');
+  assert.doesNotMatch(picker, /btn btn-go welcome-role/,
+    '端末の役割を選ぶ前から片方だけ緑にしない');
+  assert.match(view, /aria-pressed="false"/, '未選択状態を読み上げにも伝える');
+  assert.match(picker, /aria-pressed="false"/, '役割の未選択状態も伝える');
+  assert.match(bind, /classList\.toggle\('is-selected', selected\)/,
+    '押した選択肢に選択中クラスを付ける');
+  assert.match(bind, /setAttribute\('aria-pressed', String\(selected\)\)/,
+    '押した選択肢を読み上げにも選択中と伝える');
+  assert.match(STYLE, /\.welcome-role\[aria-pressed="true"\][\s\S]*background:var\(--wakaba\)/,
+    '選択中は既存の緑で塗る');
+  assert.match(STYLE, /content:"✓"/, '色だけでなくチェックでも選択を示す');
+});
+
+test('共有する初期設定は、画面を開く前にQRと接続手順を示す', ()=>{
+  const form = grab(APP, 'welcomeFormHTML');
+  const setup = grab(APP, 'welcomeShareSetupHTML');
+  assert.match(setup, /inviteQrHTML\(url\)/, '保護者側にQRを表示する');
+  assert.match(setup, /welcomeInviteUrl/, '離れた端末向けの招待リンクも表示する');
+  assert.match(setup, /QRコードや招待リンクを受け取った場合/,
+    '子ども側にもQR・招待リンクで参加できることを説明する');
+  assert.ok(form.indexOf("welcomeShareSetupHTML('parent', code)") < form.indexOf('id="welcomeStart"'),
+    '共有手順は保護者ページを開くボタンより前に置く');
+  assert.match(form, /aria-label="共有へ接続して保護者ページを開く">接続して開く/,
+    '保護者の最終操作が接続を含むことを短い表示と読み上げで明示する');
+  assert.match(form, /aria-label="この合言葉で接続してこども画面を開く"/,
+    '子どもの最終操作も読み上げで接続先を明示する');
+});
+
+test('初期設定は選択したルートに応じて③以降を連番で示す', ()=>{
+  const view = grab(APP, 'viewWelcome');
+  const role = grab(APP, 'welcomeRolePickerHTML');
+  const form = grab(APP, 'welcomeFormHTML');
+  assert.match(view, /welcome-num">1/);
+  assert.match(view, /welcome-num">2/);
+  assert.match(role, /welcomeStepHTML\(3/,
+    '共有ルートは③で端末の役割を選ぶ');
+  assert.match(form, /const start = Number\(firstStep\) \|\| \(sharing \? 4 : 3\)/,
+    '共有時は④、単独利用時は③から続きを始める');
+  assert.match(form, /welcomeThemeHTML\(start\)/,
+    '子どもルートでは最初の追加手順をデザイン選択にする');
+  assert.match(form, /welcomeStepHTML\(start \+ 2, 'じゅんび できたよ'/,
+    '単独利用も開始ボタンまで番号付きで案内する');
+  assert.match(form, /welcomeStepHTML\(start \+ 2, 'おうちの きろくに つなごう'/,
+    '共有する子ども端末も接続まで番号付きで案内する');
+});
+
+test('子どもが選んだデザインは、家庭設定の受信後に1度だけ反映する', ()=>{
+  const storage = new Map([
+    ['natsu.savedAt.v1', JSON.stringify({config:100})],
+    ['natsu.welcome.theme.v1', 'berry']
+  ]);
+  let saved = 0;
+  const harness = new Function('localStorage', 'onSave', `
+    let config={ tasks:[], theme:'notebook' }, state={};
+    const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2', K_WELCOME_THEME='natsu.welcome.theme.v1';
+    const THEME_IDS=['notebook','sunny','soda','berry','block','cat'];
+    function ms(v){ const n=Number(v); return Number.isFinite(n) && n>0 ? n : 0; }
+    function normalizeConfig(v){ return v; }
+    function applyTheme(){}
+    function render(){}
+    function getLocal(k){ return localStorage.getItem(k) || ''; }
+    function saveCfg(){ onSave(); }
+    ${grab(APP, 'savedAt')}
+    ${grab(APP, 'markReceivedAt')}
+    ${grab(APP, 'applyRemote')}
+    return { applyRemote, config:()=>config };
+  `)({
+    getItem:key => storage.get(key) || null,
+    setItem:(key,value) => storage.set(key, String(value)),
+    removeItem:key => storage.delete(key)
+  }, ()=>{ saved++; });
+  harness.applyRemote({ config:{tasks:[],theme:'notebook'}, configAt:200 });
+  assert.equal(harness.config().theme, 'berry');
+  assert.equal(saved, 1, '受信後にデザインだけを保存する');
+  assert.equal(storage.has('natsu.welcome.theme.v1'), false, '反映後は一時値を消す');
+});
+
+test('初期設定用の招待URLも、通常の招待URLと同じ引き継ぎ情報を持つ', ()=>{
+  const make = new Function('location', 'cleanCode', `
+    const JOIN_PARAM='join';
+    ${grab(APP, 'inviteURLForCode')}
+    return inviteURLForCode;
+  `)({ origin:'https://example.test', pathname:'/app/' }, v=>String(v || '').trim());
+  const url = new URL(make('abcdefghjkmnpqrs'));
+  assert.equal(url.searchParams.get('join'), 'abcdefghjkmnpqrs');
+  assert.equal(url.searchParams.get('openExternalBrowser'), '1');
+  assert.ok(Number(url.searchParams.get('r')) > 0, '古い画面を避ける更新印を付ける');
 });
