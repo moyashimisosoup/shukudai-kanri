@@ -295,7 +295,8 @@ test('はずされた端末は、招待URLを開き直しても勝手に戻ら�
     let reconnected = '';
     const applyJoinCode = new Function(
       'location', 'history', 'cleanCode', 'isStandalone',
-      'setLocal', 'K_ONBOARD', 'window', 'toast', 'render', 'routeFromHash', `
+      'setLocal', 'K_ONBOARD', 'window', 'toast', 'render', 'routeFromHash',
+      'forgetConfigStampForNewHousehold', `
       const JOIN_PARAM='join';
       ${grab(APP, 'joinCodeFromURL')}
       ${grab(APP, 'clearJoinCodeFromURL')}
@@ -312,7 +313,7 @@ test('はずされた端末は、招待URLを開き直しても勝手に戻ら�
       { NatsuSync:{ configured:()=>true, getCode:()=>'',
                     revokedCode:()=>revokedFrom,
                     reconnect:c => { reconnected = c; } } },
-      ()=>{}, ()=>{}, ()=>'home'
+      ()=>{}, ()=>{}, ()=>'home', ()=>{}
     );
     applyJoinCode();
     return reconnected;
@@ -371,4 +372,81 @@ test('版の新旧は、zをこえてaaに回ったあとも正しくならぶ',
   const list = grab(APP, 'deviceListHTML');
   assert.match(list, /newest && r\.ver !== newest/,
     'newest が空のときは（古い）を付けないこと');
+});
+
+/* 初期設定は 名前を入れて saveCfg() を呼び、そのあとで つなぎにいく。
+   受け取る前の初期値に「いま」の時刻が付くので、それが家庭全体に配られ、
+   デザインも題名も消えていた。受け取るまでは時刻を押さないこと。 */
+test('おうちの中身を受け取るまで、手元の設定を送らない', ()=>{
+  const store = {};
+  function harness(awaiting){
+    let pushed = 0, stamped = 0;
+    const api = new Function(
+      'window', 'normalizeConfig', 'applyTheme', 'localStorage', 'K_CFG',
+      'markSaved', 'syncPush', `
+      let config = { theme:'notebook' };
+      ${grab(APP, 'configHeldBack')}
+      ${grab(APP, 'saveCfg')}
+      return { saveCfg, saved:()=>localStorage.getItem(K_CFG) };
+    `)(
+      { NatsuSync:{ awaitingFirstSnapshot:()=>awaiting } },
+      c => c, ()=>{},
+      { getItem:k=>store[k], setItem:(k,v)=>{ store[k]=v; } },
+      'natsu.config.v2',
+      ()=>{ stamped++; }, ()=>{ pushed++; }
+    );
+    api.saveCfg();
+    return { pushed, stamped, savedLocally: !!api.saved() };
+  }
+
+  assert.deepEqual(harness(true),  { pushed:0, stamped:0, savedLocally:true },
+    '受け取る前は 手元にだけ 書き、時刻も押さず 送りもしない');
+  assert.deepEqual(harness(false), { pushed:1, stamped:1, savedLocally:true },
+    '受け取ったあとは これまで通り 保存して送る');
+});
+
+/* よそで保存した時刻は、これから入るおうちの時刻とくらべても意味がない。
+   0 に戻さないと、古い設定が「新しい」と判定されて家庭全体に配られる。 */
+test('ちがうあいことばにつなぐとき、設定の保存時刻を0に戻す', ()=>{
+  function harness(rememberedHouse, joining){
+    const store = { 'natsu.savedAt.v1': JSON.stringify({ config:9999, state:8888 }) };
+    if(rememberedHouse) store['natsu.config.house.v1'] = rememberedHouse;
+    const api = new Function('getLocal', 'setLocal', 'savedAt', 'localStorage',
+                             'K_AT', 'K_CFG_HOUSE', `
+      ${grab(APP, 'forgetConfigStampForNewHousehold')}
+      return forgetConfigStampForNewHousehold;
+    `)(
+      k => store[k] || '', (k, v) => { store[k] = v; },
+      () => JSON.parse(store['natsu.savedAt.v1'] || '{}'),
+      { setItem:(k,v)=>{ store[k]=v; } },
+      'natsu.savedAt.v1', 'natsu.config.house.v1'
+    );
+    api(joining);
+    return JSON.parse(store['natsu.savedAt.v1']);
+  }
+
+  assert.deepEqual(harness('', 'aaaaaaaaaaaaaaaa'), { state:8888 },
+    'はじめて つなぐ ときは 設定の時刻を 落とす');
+  assert.deepEqual(harness('bbbbbbbbbbbbbbbb', 'aaaaaaaaaaaaaaaa'), { state:8888 },
+    'べつの おうちに 移る ときも 落とす');
+  assert.deepEqual(harness('aaaaaaaaaaaaaaaa', 'aaaaaaaaaaaaaaaa'),
+    { config:9999, state:8888 }, '同じ おうちなら そのまま');
+
+  /* 記録（state）の時刻は落とさない。値ごとに時刻を持って合流するので、
+     落とすと せっかくの 進みぐあいが 安全側に 倒れてしまう */
+  const src = grab(APP, 'forgetConfigStampForNewHousehold');
+  assert.equal(/delete a\.state/.test(src), false, 'state の時刻は落とさないこと');
+});
+
+/* つなぎ直しの入口すべてで、時刻を戻してから reconnect すること */
+test('つなぎ直しの入口すべてで、設定の保存時刻を戻してから接続する', ()=>{
+  const calls = [...APP.matchAll(/S\.reconnect\(/g)];
+  assert.equal(calls.length, 3, 'reconnect の呼び出しは3か所');
+  for(const m of calls){
+    const before = APP.slice(Math.max(0, m.index - 400), m.index);
+    assert.match(before, /forgetConfigStampForNewHousehold\(/,
+      'reconnect の直前で forgetConfigStampForNewHousehold を呼ぶこと');
+  }
+  assert.match(SYNC, /awaitingFirstSnapshot/, 'sync.js が受信済みかを出すこと');
+  assert.match(SYNC, /gotSnapshot = true/, '最初のsnapshotで受信済みにすること');
 });

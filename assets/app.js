@@ -397,12 +397,46 @@ function loadAll(){
   /* 旧しきの 1件だけの メッセージを、新しい ならびへ 移す（1度だけ） */
   migrateMessages();
 }
+/* 設定は 中身を 混ぜられないので「あとに 保存した方が まるごと 勝つ」。
+   だから「いつ 保存したか」を 押す タイミングが そのまま 事故に なる。
+
+   おうちに つないだ ばかりで、まだ おうちの 設定を 受け取っていない 端末は、
+   手元の 設定が 新しいのか 古いのか わからない。そこで 保存すると
+   「いま」の 時刻が つき、まだ 何も 受け取っていない 初期値が
+   おうち全体に 配られて、みんなの デザインや 題名が 消える。
+
+   初期設定の 画面が まさに この形だった。名前を 入れて saveCfg() を 呼び、
+   そのあとで つなぎに いくので、初期値が かならず 勝っていた。
+
+   受け取る 前は、手元にだけ 書いて 時刻を 押さない。こうすると
+   おうちの 設定が とどいた とき かならず そちらが 勝つ。
+   1回 受け取った あとは ふつうに 保存する。 */
+function configHeldBack(){
+  const S = window.NatsuSync;
+  return !!(S && typeof S.awaitingFirstSnapshot === 'function' && S.awaitingFirstSnapshot());
+}
 function saveCfg(){
   config = normalizeConfig(config);
   applyTheme(config.theme);
   localStorage.setItem(K_CFG, JSON.stringify(config));
+  if(configHeldBack()) return;
   markSaved('config');
   syncPush('config');
+}
+
+/* よその おうち（または はずされる 前の 自分）で 保存した 時刻は、
+   これから 入る おうちの 時刻と くらべても 意味が ない。
+   ちがう あいことばに つなぐ ときは 0 に もどし、おうちの 設定が
+   かならず 勝つようにする。もどさないと、よそで 保存した 古い 設定が
+   「新しい」と 判定され、おうち全体に 配られる。 */
+const K_CFG_HOUSE = TEST_MODE ? 'natsu.preview.config.house.v1' : 'natsu.config.house.v1';
+function forgetConfigStampForNewHousehold(code){
+  const c = String(code || '');
+  if(!c || getLocal(K_CFG_HOUSE) === c) return;
+  const a = savedAt();
+  delete a.config;
+  try{ localStorage.setItem(K_AT, JSON.stringify(a)); }catch(e){}
+  setLocal(K_CFG_HOUSE, c);
 }
 function saveSt(){
   localStorage.setItem(K_ST, JSON.stringify(state));
@@ -3502,6 +3536,7 @@ function bindWelcomeStart(){
     saveCfg();
     if(sharing && !TEST_MODE && S && S.configured()){
       if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
+      forgetConfigStampForNewHousehold(code);
       S.reconnect(code);
       /* 同じ家庭を複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */
       S.registerHousehold(code).catch(()=>{});
@@ -3772,6 +3807,7 @@ function bindSync(){
     const c = cleanCode(input.value);
     if(c.length < 8){ toast('合言葉を8文字以上入力してください'); return; }
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
+    forgetConfigStampForNewHousehold(c);
     S.reconnect(c);
     toast('接続しています…');
     render({ keepScroll:true });
@@ -4572,6 +4608,7 @@ function applyJoinCode(){
      入れ直しは 人が 設定画面で 打つ（そこで 忘れる） */
   if(typeof S.revokedCode === 'function' && S.revokedCode() === code) return;
   setLocal(K_ONBOARD, 'done');              // 招かれた側は 初期設定を とばす
+  forgetConfigStampForNewHousehold(code);
   S.reconnect(code);
   toast('おうちの 共有に つながりました');
   if(routeFromHash() === 'welcome') location.hash = 'home';

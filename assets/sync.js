@@ -57,6 +57,11 @@ let db = null;
 let docRef = null;
 let activeHouseId = '';
 let unsub = null;
+/* つなぎ直してから、おうちの中身を 1回でも 受け取ったか。
+   受け取る 前の 端末は、手元の 設定が おうちの 設定より 新しいのか
+   古いのか わからない。その あいだに 設定を 送ると、まだ 何も
+   受け取っていない 初期値が おうち全体に 配られる（実際に 起きた） */
+let gotSnapshot = false;
 let status = 'off';          // off | connecting | online | offline | error
 let statusText = '';
 let pushTimer = null;
@@ -185,6 +190,9 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
   unsub = fs.onSnapshot(ref,
     async snap => {
       if(docRef !== ref || snap.metadata.hasPendingWrites) return;
+      /* 中身が 空でも「受け取った」。ここを こえたら、手元の 設定を
+         ふつうに 送ってよい（新しい おうちを 作る 場合も 通る） */
+      gotSnapshot = true;
 
       setStatus(snap.metadata.fromCache ? 'offline' : 'online',
                 snap.metadata.fromCache ? 'オフライン（この端末に ためています）' : 'つながっています');
@@ -252,6 +260,7 @@ async function connect(){
   if(code.length < 8){ setStatus('off', 'あいことばが設定されていません'); return; }
 
   setStatus('connecting', 'つないでいます…');
+  gotSnapshot = false;
 
   try{
     /* initializeApp と initializeFirestore は アプリの中で 1回しか 呼べない。
@@ -390,6 +399,7 @@ function revokedForMe(devices){
 
 function disconnect(){
   if(unsub){ unsub(); unsub = null; }
+  gotSnapshot = false;
   docRef = null;
   activeHouseId = '';
   lastDeviceWrite = '';
@@ -520,6 +530,9 @@ const Sync = {
   configured,
   getCode, setCode, makeCode,
   revokedCode, forgetRevokedCode,
+  /* おうちの中身を まだ 1回も 受け取っていない あいだは true。
+     この あいだ、app.js は 設定を 送らない */
+  awaitingFirstSnapshot: () => getCode().length >= 8 && !gotSnapshot,
   status:     () => status,
   statusText: () => statusText,
   onStatus(fn){ listeners.push(fn); fn(status, statusText); },
