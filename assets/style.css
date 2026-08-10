@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
-/* Hallmark · macrostructure: Workbench · genre: playful · tone: Japanese study notebook · anchor: indigo · designed-as-app */
-/* Hallmark · pre-emit critique: P5 H4 E4 S5 R5 V4 */
+/* Hallmark · macrostructure: Branching Workbench · genre: playful · tone: Japanese study notebook · anchor: indigo · designed-as-app */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 · contrast: pass (40–41) · responsive: pass (34,49–57) */
 /* =========================================================
    はじめ夏休みの宿題一覧
    ジャポニカ学習帳 × ラジオ体操カード
@@ -160,6 +160,9 @@ button{ font:inherit; color:inherit; }
 .welcome-roles{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; margin-top:12px; }
 .btn.welcome-role{ width:100%; min-width:0; min-height:74px; padding-inline:12px; line-height:1.25; white-space:normal; }
 .welcome-role small{ font-size:13px; font-weight:700; }
+.welcome-role-copy{ display:flex; min-width:0; flex-direction:column; align-items:center; gap:3px; }
+.welcome-role-copy b,.welcome-role-copy small{ white-space:nowrap; }
+.welcome-role-copy b{ font-size:17px; line-height:1.2; }
 .welcome-role.is-selected,
 .welcome-role[aria-pressed="true"]{
   position:relative; padding-right:42px;
@@ -197,6 +200,9 @@ button{ font:inherit; color:inherit; }
 .welcome-theme-picker{ margin:8px 0 0; padding:0; border:0; }
 .welcome-theme-picker legend{ padding:0; font-size:15px; }
 .welcome-theme-picker .theme-grid{ grid-template-columns:minmax(0,1fr); }
+.welcome-connect-plan{ margin-top:14px; padding-top:14px; border-top:2px dashed var(--hougan); }
+.welcome-connect-plan ol{ margin:8px 0 12px; padding-left:1.5em; font-size:15px; font-weight:700; line-height:1.7; }
+.welcome-recommend{ color:var(--ai) !important; }
 @media (min-width:400px){
   .welcome-theme-picker .theme-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
@@ -913,6 +919,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .mic.rec{ background:var(--suika); animation:pulse 1s infinite; }
 @keyframes pulse{ 50%{ transform:scale(1.08) } }
 .mic-note{ font-size:15px; font-weight:700; color:var(--ai-usu); margin-top:8px; }
+.mic-permission-help{ display:block; margin-top:6px; font-size:13px; line-height:1.55; }
 
 /* まいにちアプリの入力 */
 .tally{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
@@ -1131,6 +1138,9 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   background:var(--kami); color:var(--ai); font-size:11px;
 }
 .parent-share-short{ display:none; min-width:0; }
+.parent-child-guide{ margin-top:14px; padding:12px 16px; }
+.parent-child-guide h2{ margin:0 0 4px; font-size:17px; font-weight:900; }
+.parent-child-guide p{ max-width:70ch; font-size:15px; font-weight:700; line-height:1.65; color:var(--ai-usu); }
 .app-version-suffix{ text-decoration:underline; text-underline-offset:2px; }
 
 /* スマホの幅では、見出しと ボタンを おなじ行に おさめて たて幅を 節約する。
@@ -1304,7 +1314,9 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .btn-icon-text{ display:inline-flex; align-items:center; justify-content:center; gap:6px; }
 .welcome-role--share{ display:flex; align-items:center; justify-content:center; gap:8px; }
 .welcome-role--share > span{ min-width:0; }
-.welcome-role--share .codex-icon{ width:24px; height:24px; }
+.welcome-role--share .codex-icon{ width:20px; height:20px; }
+.welcome-role--share .welcome-role-copy b{ font-size:16px; }
+.welcome-role--share .welcome-role-copy small{ font-size:12px; }
 
 @media (max-width:560px){
   /* 名前欄を少し縮めて「［名前］より」を1行に置き、本文だけ次の行へ。 */

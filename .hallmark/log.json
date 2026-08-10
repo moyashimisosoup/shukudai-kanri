@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-08-10",
+    "scope": "onboarding-and-voice",
+    "macrostructure": "Branching Workbench",
+    "theme": "existing child-friendly selectable themes",
+    "enrichment": "none",
+    "brief": "Parent create-or-join onboarding, child-safe sharing copy, and recoverable speech input"
+  },
+  {
+    "date": "2026-08-10",
     "scope": "onboarding-flow",
     "macrostructure": "Workbench",
     "theme": "existing child-friendly selectable themes",

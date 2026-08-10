@@ -534,19 +534,61 @@ test('初期設定の選択肢は、選んだものだけ色とチェックが�
   assert.match(STYLE, /content:"✓"/, '色だけでなくチェックでも選択を示す');
 });
 
-test('共有する初期設定は、画面を開く前にQRと接続手順を示す', ()=>{
+test('共有する初期設定は、端末と家庭の状態に合わせて分岐する', ()=>{
   const form = grab(APP, 'welcomeFormHTML');
   const setup = grab(APP, 'welcomeShareSetupHTML');
+  const picker = grab(APP, 'welcomeParentSharePickerHTML');
+  const plan = grab(APP, 'welcomeParentConnectionPlanHTML');
+  assert.match(picker, /data-parent-share="create"/, '保護者は新しい家庭を作れる');
+  assert.match(picker, /data-parent-share="join"/, '保護者は今ある家庭にも参加できる');
   assert.match(setup, /inviteQrHTML\(url\)/, '保護者側にQRを表示する');
   assert.match(setup, /welcomeInviteUrl/, '離れた端末向けの招待リンクも表示する');
   assert.match(setup, /QRコードや招待リンクを受け取った場合/,
     '子ども側にもQR・招待リンクで参加できることを説明する');
-  assert.ok(form.indexOf("welcomeShareSetupHTML('parent', code)") < form.indexOf('id="welcomeStart"'),
-    '共有手順は保護者ページを開くボタンより前に置く');
-  assert.match(form, /aria-label="共有へ接続して保護者ページを開く">接続して開く/,
-    '保護者の最終操作が接続を含むことを短い表示と読み上げで明示する');
+  assert.match(plan, /welcomeShareSetupHTML\('parent', code\)/,
+    '「今つなぐ」を選んだ場合だけQR付きの接続手順を組み立てる');
+  assert.equal((setup.match(/<ol>/g) || []).length, 2,
+    '子ども用と保護者用に、それぞれ1つの接続手順を持つ');
+  assert.doesNotMatch(plan, /<ol>/,
+    '「今つなぐ」の外枠で同じ接続手順を重ねない');
+  assert.match(setup, /タイトルを5回タップ/,
+    'すでに使っている子ども端末から保護者ページへ戻る方法を示す');
+  assert.match(form, /readonly autocapitalize=/,
+    '新しく作った合言葉は初期設定中に書き換えさせない');
+  assert.match(form, /data-creating="no"/,
+    '今ある家庭へ参加する保護者を、合言葉の作成者と区別する');
   assert.match(form, /aria-label="この合言葉で接続してこども画面を開く"/,
     '子どもの最終操作も読み上げで接続先を明示する');
+});
+
+test('子ども端末は合言葉を受け取るだけで、作成者向け注意事項を表示しない', ()=>{
+  const make = new Function(`
+    const window={NatsuSync:{configured:()=>true,makeCode:()=> 'abcdefghjkmnpqrs'}};
+    const DEBUG_WELCOME=false, TEST_MODE=false, K_NAME='name', K_DEVICE_LABEL='label';
+    function getLocal(){ return ''; }
+    function esc(v){ return String(v == null ? '' : v); }
+    function readingGrade(){ return 9; }
+    function readingOptions(){ return '<option value="9">すべてひらがな</option>'; }
+    function welcomeStepHTML(n,t,b){ return '<section data-step="'+n+'"><h3>'+t+'</h3>'+b+'</section>'; }
+    function welcomeThemeHTML(n){ return welcomeStepHTML(n,'どの色が すき？',''); }
+    function privacyNoteHTML(){ return '<aside data-share-safety>注意事項</aside>'; }
+    function inAppBrowserNoteHTML(){ return ''; }
+    function welcomeShareSetupHTML(role){ return '<div data-share-role="'+role+'"></div>'; }
+    ${grab(APP, 'deviceLabelFieldHTML')}
+    ${grab(APP, 'welcomeParentCreateChoiceHTML')}
+    ${grab(APP, 'welcomeFormHTML')}
+    return (role,mode)=>welcomeFormHTML(role,true,4,mode);
+  `)();
+  const child = make('child', '');
+  const create = make('parent', 'create');
+  const join = make('parent', 'join');
+  assert.doesNotMatch(child, /data-share-safety/, '子ども側に作成者向け注意事項を出さない');
+  assert.doesNotMatch(child, /新しく合言葉を作る|自動作成/, '子ども側から合言葉を作らせない');
+  assert.match(child, /例：子ども用iPad/, '子ども端末に父・母の例を出さない');
+  assert.match(create, /data-share-safety/, '新しく作る保護者には注意事項を出す');
+  assert.match(create, /readonly/, '新しく作る合言葉は自動作成する');
+  assert.doesNotMatch(join, /data-share-safety/, '既存家庭へ参加する保護者にも作成者向け注意を重ねない');
+  assert.match(join, /placeholder="合言葉を入力"/, '既存家庭へ参加するときは合言葉を入力する');
 });
 
 test('初期設定は選択したルートに応じて③以降を連番で示す', ()=>{
@@ -608,4 +650,60 @@ test('初期設定用の招待URLも、通常の招待URLと同じ引き継ぎ�
   assert.equal(url.searchParams.get('join'), 'abcdefghjkmnpqrs');
   assert.equal(url.searchParams.get('openExternalBrowser'), '1');
   assert.ok(Number(url.searchParams.get('r')) > 0, '古い画面を避ける更新印を付ける');
+});
+
+test('音声入力は古い終了イベントに新しい認識を消されず、エラー後も再開できる', ()=>{
+  const sessions = [];
+  class MockRecognition{
+    constructor(){ sessions.push(this); }
+    start(){ if(this.onstart) this.onstart(); }
+    abort(){ this.aborted = true; }
+  }
+  const messages = [];
+  const makeButton = ()=>{
+    const names = new Set();
+    return {
+      classList:{ add:n=>names.add(n), remove:n=>names.delete(n), contains:n=>names.has(n) },
+      attrs:{}, setAttribute(k,v){ this.attrs[k]=v; }
+    };
+  };
+  const harness = new Function('MockRecognition', 'messages', `
+    const window={SpeechRecognition:MockRecognition};
+    function $$(s){ return []; }
+    function toast(s){ messages.push(s); }
+    let sr=null;
+    ${grab(APP, 'finishSR')}
+    ${grab(APP, 'srErrorMessage')}
+    ${grab(APP, 'stopSR')}
+    ${grab(APP, 'startSR')}
+    return { startSR, stopSR, current:()=>sr };
+  `)(MockRecognition, messages);
+  const target={ value:'', dispatchEvent(){} };
+  const firstBtn=makeButton(), secondBtn=makeButton(), thirdBtn=makeButton();
+  harness.startSR(firstBtn, target);
+  const first=sessions[0];
+  harness.startSR(secondBtn, target);
+  const second=sessions[1];
+  first.onend();
+  assert.equal(harness.current(), second, '古いonendが新しいセッションを消さない');
+  second.onerror({error:'not-allowed'});
+  assert.equal(harness.current(), null, '権限エラー時も認識中の参照を解放する');
+  assert.match(messages.at(-1), /マイク.*許可/, '権限エラーには設定方法を示す');
+  harness.startSR(thirdBtn, target);
+  assert.equal(harness.current(), sessions[2], 'エラー直後でも新しい認識を開始できる');
+  sessions[2].onresult({results:[[{transcript:'できた'}]]});
+  sessions[2].onend();
+  assert.equal(target.value, 'できた');
+  assert.equal(harness.current(), null);
+});
+
+test('保護者ページは未共有の入口と子ども画面の修正方法を示す', ()=>{
+  const badge = new Function('window', `
+    ${grab(APP, 'parentShareBadgeHTML')}
+    return parentShareBadgeHTML;
+  `)({NatsuSync:{configured:()=>true,getCode:()=>''}})();
+  assert.match(badge, /共有なし/);
+  assert.match(badge, /接続設定はこちら/);
+  assert.match(APP, /<h2>保護者の方へ<\/h2>[\s\S]*子ども画面から該当する項目を開いて変更/);
+  assert.match(APP, /このページで変更すると、共有中の子ども端末のデザインも変更/);
 });

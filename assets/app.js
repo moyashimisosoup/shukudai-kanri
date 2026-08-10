@@ -987,12 +987,13 @@ function viewWelcome(){
       <span class="welcome-num">2</span>
       <div><h3>どうやって つかう？</h3>
       <div class="welcome-roles">
-        <button class="btn welcome-role" data-welcome-mode="solo" type="button" aria-pressed="false">こどもだけで つかう<br><small>すぐに つかえます</small></button>
-        <button class="btn welcome-role welcome-role--share${DEBUG_WELCOME ? ' is-selected' : ''}" data-welcome-mode="share" type="button" aria-pressed="${DEBUG_WELCOME ? 'true' : 'false'}">${icon('users')}<span>保護者も 共有する<br><small>あとからでも 設定できます</small></span></button>
+        <button class="btn welcome-role" data-welcome-mode="solo" type="button" aria-pressed="false"><span class="welcome-role-copy"><b>こどもだけでつかう</b><small>すぐにつかえます</small></span></button>
+        <button class="btn welcome-role welcome-role--share${DEBUG_WELCOME ? ' is-selected' : ''}" data-welcome-mode="share" type="button" aria-pressed="${DEBUG_WELCOME ? 'true' : 'false'}">${icon('users')}<span class="welcome-role-copy"><b>保護者も共有する</b><small>あとからでも設定できます</small></span></button>
       </div>
       ${TEST_MODE ? '<p class="set-note">おためしモードでは、いま使っている家庭のデータ・あいことば・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>')}</div>
     </div>
-    <div class="welcome-form" id="welcomeForm"${DEBUG_WELCOME ? '' : ' hidden'}>${DEBUG_WELCOME ? welcomeFormHTML(previewRole, true, 3) : ''}</div>
+    <div class="welcome-form" id="welcomeForm"${DEBUG_WELCOME ? '' : ' hidden'}>${DEBUG_WELCOME
+      ? (previewRole === 'parent' ? welcomeParentSharePickerHTML(3) : welcomeFormHTML('child', true, 3)) : ''}</div>
   </section>`;
 }
 function icon(name){
@@ -1079,21 +1080,34 @@ function welcomeStepHTML(number, title, body, className){
 function welcomeRolePickerHTML(){
   return welcomeStepHTML(3, 'この端末は だれが つかう？', `
       <div class="welcome-roles">
-        <button class="btn welcome-role" data-welcome-role="parent" type="button" aria-pressed="false">おうちの人の端末<br><small>合言葉を 作る</small></button>
+        <button class="btn welcome-role" data-welcome-role="parent" type="button" aria-pressed="false">おうちの人の端末<br><small>合言葉を作る・入力する</small></button>
         <button class="btn welcome-role" data-welcome-role="child" type="button" aria-pressed="false">こどもの端末<br><small>合言葉を 入れる</small></button>
       </div>
       <p class="set-note">同じ合言葉を入れると、同じ家庭の複数の端末で使えます。</p>`)
     + '<div id="welcomeRoleForm"></div>';
 }
 
+function welcomeParentSharePickerHTML(step){
+  return welcomeStepHTML(step, '合言葉は ありますか？', `
+    <div class="welcome-roles welcome-parent-share-choices">
+      <button class="btn welcome-role" data-parent-share="create" type="button" aria-pressed="false">
+        <span class="welcome-role-copy"><b>まだない</b><small>新しく合言葉を作る</small></span></button>
+      <button class="btn welcome-role" data-parent-share="join" type="button" aria-pressed="false">
+        <span class="welcome-role-copy"><b>すでにある</b><small>今ある家庭に参加する</small></span></button>
+    </div>
+    <p class="set-note">最初の保護者は「まだない」を、ほかの保護者が作った共有へ参加するときは「すでにある」を選びます。</p>`)
+    + '<div id="welcomeParentShareForm"></div>';
+}
+
 /* 共有する ときだけ 出す、この端末の 呼び名。
    入れなくても 進める。端末の一覧で「父」「母」と見分けるための名前。 */
-function deviceLabelFieldHTML(){
-  return `<label class="lab">この端末を つかう人（任意）
+function deviceLabelFieldHTML(role){
+  const child = role === 'child';
+  return `<label class="lab">この端末の呼び名（任意）
       <input id="welcomeDeviceLabel" type="text" maxlength="12"
-             value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></label>
-    <p class="set-note">共有中の端末一覧で見分けるための名前です（父、母など）。
-    この端末だけに保存されます。入れなくてもかまいません。</p>`;
+             value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="${child ? '例：子ども用iPad' : '例：父、母'}"></label>
+    <p class="set-note">共有中の端末一覧で見分けるための呼び名です（${child ? '子ども用iPadなど' : '父、母など'}）。
+    ほかの端末の一覧にも表示されますが、変更できるのはこの端末だけです。入れなくてもかまいません。</p>`;
 }
 
 /* 初期設定の中で、設定ページへ移動する前に共有方法まで確認できるようにする。
@@ -1112,9 +1126,9 @@ function welcomeShareSetupHTML(role, code){
   return `
     <div class="welcome-share-setup" id="welcomeShareSetup" aria-label="ほかの端末をつなぐ手順">
       <ol>
-        <li>子ども端末などで、下のQRをカメラで読み取ります。</li>
+        <li>まだ使い始めていない子ども端末では、下のQRコードを読み取ります。</li>
+        <li>すでに使っている子ども端末では、画面のタイトルを5回タップして保護者ページを開き、共有設定で合言葉を入力します。</li>
         <li>離れた端末には、招待リンクを家族だけに送ります。</li>
-        <li>この端末は、下のボタンを押すと同じ共有へ接続します。</li>
       </ol>
       ${url ? `<div class="welcome-invite">
         <label class="lab" for="welcomeInviteUrl">ほかの端末へ渡す招待リンク
@@ -1124,6 +1138,33 @@ function welcomeShareSetupHTML(role, code){
       </div>` : '<p class="set-note">合言葉を8文字以上にすると、QRコードと招待リンクを表示できます。</p>'}
       <p class="set-note"><b>QRと招待リンクは合言葉そのものです。</b>信頼できる家族だけに渡してください。</p>
     </div>`;
+}
+
+function welcomeParentConnectionPlanHTML(mode, code, nextStep){
+  if(mode === 'now') return `
+    <div class="welcome-connect-plan" id="welcomeConnectPlan">
+      ${welcomeShareSetupHTML('parent', code)}
+      <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes"
+        data-creating="yes" data-next-step="${Number(nextStep) || 8}" type="button">保護者ページを開く</button>
+    </div>`;
+  return `
+    <div class="welcome-connect-plan" id="welcomeConnectPlan">
+      <p class="set-note welcome-recommend"><b>できれば、先に子ども端末も接続しておくことをおすすめします。</b></p>
+      <p class="set-note">あとから接続するときは、子ども画面のタイトルを5回タップして保護者ページを開き、冒頭の「共有なし：接続設定はこちら」から合言葉を入力できます。</p>
+      <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes"
+        data-creating="yes" data-next-step="${Number(nextStep) || 8}" type="button">先に保護者ページを開く</button>
+    </div>`;
+}
+
+function welcomeParentCreateChoiceHTML(step, code){
+  return welcomeStepHTML(step, '子ども端末を いつつなぐ？', `
+    <div class="welcome-roles welcome-connect-choices">
+      <button class="btn welcome-role" data-child-connect="now" type="button" aria-pressed="false">
+        <span class="welcome-role-copy"><b>今つなぐ</b><small>QRと手順を表示する</small></span></button>
+      <button class="btn welcome-role" data-child-connect="later" type="button" aria-pressed="false">
+        <span class="welcome-role-copy"><b>あとでつなぐ</b><small>先に保護者設定へ進む</small></span></button>
+    </div>
+    <div id="welcomeConnectChoiceForm"></div>`, 'welcome-connect-step');
 }
 
 function welcomeThemeHTML(step){
@@ -1137,29 +1178,41 @@ function welcomeThemeHTML(step){
     </fieldset>`);
 }
 
-function welcomeFormHTML(role, sharing, firstStep){
+function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
   const S = window.NatsuSync;
   const syncReady = !!sharing && (DEBUG_WELCOME || (!TEST_MODE && !!(S && S.configured())));
   const name = getLocal(K_NAME);
-  const code = role === 'parent' && syncReady ? (DEBUG_WELCOME ? 'おためし共有コード' : S.makeCode()) : '';
+  const creating = role === 'parent' && parentShareMode !== 'join';
+  const code = role === 'parent' && syncReady && creating ? (DEBUG_WELCOME ? 'おためし共有コード' : S.makeCode()) : '';
   const start = Number(firstStep) || (sharing ? 4 : 3);
   if(role === 'parent'){
-    const settings = welcomeStepHTML(start, '保護者の設定', `
+    const settingsBody = `
       <label class="lab">子どもの名前
         <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
       <label class="lab">漢字は何年生の字まで読めますか？
-        <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>`);
-    const share = welcomeStepHTML(start + 1, 'ほかの端末をつなごう', `
-      ${syncReady ? `<label class="lab">この家庭の合言葉（16文字・自動作成）
-        <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-        <p class="set-note">複数の端末で同じ合言葉を使うと、同じ宿題・設定・記録を共有できます。</p>
-        ${privacyNoteHTML()}
-        ${inAppBrowserNoteHTML()}
-        ${deviceLabelFieldHTML()}
-        ${welcomeShareSetupHTML('parent', code)}`
-        : '<p class="set-note">同期の準備を読み込めませんでした。通信を確認して、もう一度開いてください。</p>'}
-      <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes" type="button" aria-label="共有へ接続して保護者ページを開く">接続して開く</button>`);
-    return settings + share;
+        <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
+      ${deviceLabelFieldHTML('parent')}`;
+    if(!syncReady) return welcomeStepHTML(start, '共有の準備',
+      '<p class="set-note">同期の準備を読み込めませんでした。通信を確認して、もう一度開いてください。</p>');
+    if(!creating){
+      const join = welcomeStepHTML(start, '今ある家庭に参加', `
+        <label class="lab">共有中の合言葉
+          <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="合言葉を入力"></label>
+        <p class="set-note">合言葉を作った保護者から受け取り、同じ家庭の宿題・設定・記録を読み込みます。</p>
+        ${inAppBrowserNoteHTML()}`);
+      const settings = welcomeStepHTML(start + 1, '保護者の設定', `${settingsBody}
+        <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes"
+          data-creating="no" data-next-step="${start + 2}" type="button">この家庭に参加する</button>`);
+      return join + settings;
+    }
+    const create = welcomeStepHTML(start, '合言葉を作ろう', `
+      <label class="lab">この家庭の合言葉（16文字・自動作成）
+        <input id="welcomeCode" type="text" value="${esc(code)}" readonly autocapitalize="off" autocorrect="off" spellcheck="false"></label>
+      <p class="set-note">この合言葉で、新しい家庭の共有を始めます。</p>
+      ${privacyNoteHTML()}
+      ${inAppBrowserNoteHTML()}`);
+    const settings = welcomeStepHTML(start + 1, '保護者の設定', settingsBody);
+    return create + settings + welcomeParentCreateChoiceHTML(start + 2, code);
   }
 
   const theme = welcomeThemeHTML(start);
@@ -1177,9 +1230,8 @@ function welcomeFormHTML(role, sharing, firstStep){
     ${syncReady ? `<label class="lab">おうちの人から もらった あいことば
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
       <p class="set-note">つながると、おうちの人が決めた宿題と記録を使えます。</p>
-      ${privacyNoteHTML()}
       ${inAppBrowserNoteHTML()}
-      ${deviceLabelFieldHTML()}
+      ${deviceLabelFieldHTML('child')}
       ${welcomeShareSetupHTML('child', '')}`
       : '<p class="set-note">同期の準備を読み込めませんでした。通信を確認して、もう一度開いてください。</p>'}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="yes" type="button" aria-label="この合言葉で接続してこども画面を開く">接続して開く</button>`);
@@ -1234,9 +1286,9 @@ function confirmShareSafety(){
   return confirm(shareSafetyText() + '\n\n内容を確認して接続しますか？');
 }
 
-function welcomeMessageChoiceHTML(){
+function welcomeMessageChoiceHTML(step){
   const msg = config.parentMessage;
-  return welcomeStepHTML(6, 'こどもへの メッセージ', `
+  return welcomeStepHTML(Number(step) || 6, 'こどもへの メッセージ', `
     <p>保護者ページから、こどもの画面へ短いメッセージを出せます。</p>
     <label class="lab" for="welcomeMessageSender">だれからの メッセージ？
       <select id="welcomeMessageSender">${parentSenderOptions(msg.sender)}</select></label>
@@ -2184,6 +2236,11 @@ function viewParent(){
 
   ${syncPromptHTML()}
 
+  <aside class="paper parent-child-guide">
+    <h2>保護者の方へ</h2>
+    <p>「子ども画面へ」から、子どもが見ている画面を確認できます。課題の進捗を修正するときも、子ども画面から該当する項目を開いて変更してください。</p>
+  </aside>
+
   ${homeInstallGuideHTML()}
 
   ${parentMessageEditorHTML()}
@@ -2485,7 +2542,13 @@ function parentShareSummary(rows, mine, fallbackName){
 
 function parentShareBadgeHTML(){
   const S = window.NatsuSync;
-  if(!S || !S.getCode()) return '';
+  if(!S || !S.configured()) return '';
+  if(!S.getCode()) return `<button class="parent-share-badge is-none" id="parentShareBadge" type="button"
+    title="共有なし・接続設定を開く">
+    <span class="parent-share-mark" aria-hidden="true">共有なし</span>
+    <span class="parent-share-full">：接続設定はこちら</span>
+    <span class="parent-share-short">：接続設定はこちら</span>
+  </button>`;
   const summary = parentShareSummary(
     deviceRows(typeof S.devices === 'function' ? S.devices() : {}),
     getLocal(K_DEVICE_ID), config.childName || getLocal(K_NAME)
@@ -2787,9 +2850,7 @@ function openSheet(id, editBookId){
       <textarea id="memo" rows="3" placeholder="れい：きょうは しずかに できた"></textarea>
       ${micBtn('memo')}
     </div>
-    <p class="mic-note">${hasSR()
-      ? '🎤 を おすと こえで かけるよ。'
-      : 'キーボードの 🎤 マークを おすと、こえで かけるよ。'}</p>
+    <p class="mic-note">${micNoteHTML()}</p>
   </div>`;
 
   $('#sheetTitle').textContent = t.name;
@@ -2909,9 +2970,7 @@ function openFreeSheet(t){
         <textarea id="freeMemo" rows="6" placeholder="かいてみよう"></textarea>
         ${micBtn('freeMemo')}
       </div>
-      <p class="mic-note">${hasSR()
-        ? '🎤 を おすと こえで かけるよ。'
-        : 'キーボードの 🎤 マークを おすと、こえで かけるよ。'}</p>
+      <p class="mic-note">${micNoteHTML()}</p>
     </div>
     ${freeTodayHTML(t)}`;
   $('#sheetSave').textContent = 'かけた！';
@@ -3230,29 +3289,85 @@ function saveSheet(){
 }
 
 /* --- こえ入力 --- */
-let sr = null, srTargetId = null;
+let sr = null;
 function hasSR(){ return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+function micNoteHTML(){
+  if(!hasSR()) return 'キーボードの 🎤 マークを おすと、こえで かけるよ。';
+  return '🎤 を おすと こえで かけるよ。'
+    + '<span class="mic-permission-help">確認が毎回出るときは、SafariのWebサイト設定で「マイク」を「許可」にしてください。</span>';
+}
 function micBtn(id){
   if(!hasSR()) return '';
-  return `<button class="mic" data-mic="${id}" type="button" aria-label="こえで 入れる">🎤</button>`;
+  return `<button class="mic" data-mic="${id}" type="button" aria-label="こえで 入れる" aria-pressed="false">🎤</button>`;
+}
+function finishSR(session, btn){
+  if(sr === session) sr = null;
+  if(btn){ btn.classList.remove('rec'); btn.setAttribute('aria-pressed', 'false'); }
+}
+function srErrorMessage(code){
+  if(code === 'not-allowed' || code === 'service-not-allowed'){
+    return 'マイクを使えません。SafariのWebサイト設定で、マイクを「許可」にしてください。';
+  }
+  if(code === 'audio-capture') return 'マイクが見つかりません。端末のマイク設定を確認してください。';
+  if(code === 'network') return '音声入力に接続できません。通信を確認して、もう一度おしてください。';
+  if(code === 'no-speech') return 'こえが きこえなかったよ。マイクに近づいて、もう一度おしてね。';
+  if(code === 'aborted') return '音声入力が中断されました。もう一度おすと再開できます。';
+  return '音声入力を終えました。もう一度おすと再開できます。';
 }
 function startSR(btn, targetEl){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   stopSR();
   try{
-    sr = new SR();
-    sr.lang = 'ja-JP'; sr.interimResults = false; sr.continuous = false;
-    sr.onresult = e=>{
-      const txt = Array.from(e.results).map(r=>r[0].transcript).join('');
-      targetEl.value = (targetEl.value ? targetEl.value + ' ' : '') + txt;
+    const session = new SR();
+    let gotResult = false, hadError = false;
+    session._manualStop = false;
+    sr = session;
+    session.lang = 'ja-JP'; session.interimResults = false; session.continuous = false;
+    session.onstart = ()=>{
+      if(sr !== session) return;
+      btn.classList.add('rec');
+      btn.setAttribute('aria-pressed', 'true');
     };
-    sr.onend = ()=>{ btn.classList.remove('rec'); sr = null; };
-    sr.onerror = ()=>{ btn.classList.remove('rec'); toast('こえが きこえなかったよ'); };
-    sr.start();
+    session.onresult = e=>{
+      if(sr !== session) return;
+      const txt = Array.from(e.results).map(r=>r[0].transcript).join('');
+      gotResult = !!txt;
+      targetEl.value = (targetEl.value ? targetEl.value + ' ' : '') + txt;
+      targetEl.dispatchEvent(new Event('input', { bubbles:true }));
+    };
+    session.onerror = e=>{
+      if(sr !== session) return;
+      hadError = true;
+      const manual = !!session._manualStop;
+      const code = String(e && e.error || '');
+      finishSR(session, btn);
+      if(!manual) toast(srErrorMessage(code));
+    };
+    session.onend = ()=>{
+      if(sr !== session) return;
+      const manual = !!session._manualStop;
+      finishSR(session, btn);
+      if(!manual && !gotResult && !hadError) toast(srErrorMessage('no-speech'));
+    };
+    session.start();
     btn.classList.add('rec');
-  }catch(e){ toast('こえ入力が つかえません'); }
+    btn.setAttribute('aria-pressed', 'true');
+  }catch(e){
+    sr = null;
+    btn.classList.remove('rec');
+    btn.setAttribute('aria-pressed', 'false');
+    toast('音声入力を始められません。少し待って、もう一度おしてください。');
+  }
 }
-function stopSR(){ if(sr){ try{ sr.stop(); }catch(e){} sr = null; } $$('.mic.rec').forEach(b=>b.classList.remove('rec')); }
+function stopSR(){
+  const active = sr;
+  sr = null;
+  if(active){
+    active._manualStop = true;
+    try{ typeof active.abort === 'function' ? active.abort() : active.stop(); }catch(e){}
+  }
+  $$('.mic.rec').forEach(b=>{ b.classList.remove('rec'); b.setAttribute('aria-pressed', 'false'); });
+}
 
 /* ---------------------------------------------------------
    えがく
@@ -3519,6 +3634,7 @@ function viewConfig(){
     <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
     <p class="set-note">名前と読める漢字は、家庭の設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
     <fieldset class="theme-picker"><legend>色とデザイン（家庭で共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
+    <p class="set-note">このページで変更すると、共有中の子ども端末のデザインも変更されます。</p>
   </div></section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
@@ -3658,19 +3774,48 @@ function bindWelcome(){
         option.classList.toggle('is-selected', selected);
         option.setAttribute('aria-pressed', String(selected));
       });
+      const role = roleBtn.dataset.welcomeRole;
       const roleForm = $('#welcomeRoleForm');
-      roleForm.innerHTML = welcomeFormHTML(roleBtn.dataset.welcomeRole, true);
-      bindWelcomeStart();
+      if(role === 'parent'){
+        roleForm.innerHTML = welcomeParentSharePickerHTML(4);
+        bindWelcomeParentShare(roleForm, 4);
+      }else{
+        roleForm.innerHTML = welcomeFormHTML('child', true, 4);
+        bindWelcomeStart();
+      }
       roleForm.scrollIntoView({ behavior:'smooth', block:'nearest' });
     }));
   }));
-  if(DEBUG_WELCOME) bindWelcomeStart();
+  if(DEBUG_WELCOME){
+    if(DEBUG_WELCOME_ROLE === 'welcome-parent') bindWelcomeParentShare(form, 3);
+    else bindWelcomeStart();
+  }
+}
+
+function selectWelcomeChoice(buttons, active){
+  buttons.forEach(option=>{
+    const selected = option === active;
+    option.classList.toggle('is-selected', selected);
+    option.setAttribute('aria-pressed', String(selected));
+  });
+}
+
+function bindWelcomeParentShare(root, step){
+  const buttons = $$('[data-parent-share]', root);
+  buttons.forEach(btn=>btn.addEventListener('click', ()=>{
+    selectWelcomeChoice(buttons, btn);
+    const out = $('#welcomeParentShareForm', root);
+    out.innerHTML = welcomeFormHTML('parent', true, Number(step) + 1, btn.dataset.parentShare);
+    bindWelcomeStart();
+    out.scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }));
 }
 
 function bindWelcomeStart(){
-  const start = $('#welcomeStart');
-  if(!start) return;
-  $$('input[name="welcomeTheme"]', $('#welcomeForm')).forEach(input=>{
+  const form = $('#welcomeForm');
+  $$('input[name="welcomeTheme"]', form).forEach(input=>{
+    if(input.dataset.welcomeBound) return;
+    input.dataset.welcomeBound = '1';
     input.addEventListener('change', ()=>{
       if(!THEME_IDS.includes(input.value)) return;
       welcomeThemeChoice = input.value;
@@ -3685,8 +3830,25 @@ function bindWelcomeStart(){
     });
   };
   bindInviteCopy();
+  const plans = $$('[data-child-connect]', form);
+  plans.forEach(btn=>{
+    if(btn.dataset.welcomeBound) return;
+    btn.dataset.welcomeBound = '1';
+    btn.addEventListener('click', ()=>{
+      selectWelcomeChoice(plans, btn);
+      const code = cleanCode(($('#welcomeCode') && $('#welcomeCode').value) || '');
+      const out = $('#welcomeConnectChoiceForm');
+      const planStep = Number(btn.closest('.welcome-step').querySelector('.welcome-num').textContent) || 7;
+      out.innerHTML = welcomeParentConnectionPlanHTML(btn.dataset.childConnect, code, planStep + 1);
+      bindWelcomeStart();
+      out.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    });
+  });
+  const start = $('#welcomeStart');
+  if(!start || start.dataset.welcomeBound) return;
+  start.dataset.welcomeBound = '1';
   const codeInput = $('#welcomeCode');
-  if(codeInput && start.dataset.role === 'parent') codeInput.addEventListener('change', ()=>{
+  if(codeInput && start.dataset.role === 'parent' && start.dataset.creating === 'yes' && !codeInput.readOnly) codeInput.addEventListener('change', ()=>{
     const setup = $('#welcomeShareSetup');
     if(setup){
       setup.outerHTML = welcomeShareSetupHTML('parent', cleanCode(codeInput.value));
@@ -3701,11 +3863,12 @@ function bindWelcomeStart(){
     const S = window.NatsuSync;
     const codeEl = $('#welcomeCode');
     const code = codeEl ? cleanCode(codeEl.value) : '';
+    const creating = start.dataset.creating === 'yes';
     const themeEl = $('input[name="welcomeTheme"]:checked', $('#welcomeForm'));
     const chosenTheme = themeEl && THEME_IDS.includes(themeEl.value) ? themeEl.value : config.theme;
     if(!name){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
     if(sharing && !TEST_MODE && S && S.configured() && code.length < 8){ toast('あいことばを 8文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
-    if(sharing && !TEST_MODE && S && S.configured() && !confirmShareSafety()) return;
+    if(creating && !TEST_MODE && S && S.configured() && !confirmShareSafety()) return;
     const devLabel = String(($('#welcomeDeviceLabel') && $('#welcomeDeviceLabel').value) || '')
       .trim().slice(0, 12);
     if(devLabel) setLocal(K_DEVICE_LABEL, devLabel);
@@ -3737,7 +3900,7 @@ function bindWelcomeStart(){
     }
     if(role === 'parent' && sharing){
       const form = $('#welcomeForm');
-      form.innerHTML = welcomeMessageChoiceHTML();
+      form.innerHTML = welcomeMessageChoiceHTML(start.dataset.nextStep);
       bindParentSender('welcomeMessageSender', 'welcomeMessageCustomWrap');
       $$('[data-message-choice]', form).forEach(btn=>btn.addEventListener('click', ()=>{
         config.parentMessage.enabled = btn.dataset.messageChoice === 'yes';
@@ -3779,7 +3942,12 @@ function bindParentShareBadge(){
   const badge = $('#parentShareBadge');
   if(!badge) return;
   badge.onclick = ()=>{
-    if(!confirm('共有設定の詳細を開きますか？\n接続中の端末の確認・追加・解除ができます。')) return;
+    const S = window.NatsuSync;
+    const hasCode = !!(S && S.getCode());
+    const message = hasCode
+      ? '共有設定を開きますか？\n接続中の端末の確認・追加・解除ができます。'
+      : '共有の接続設定を開きますか？\n合言葉を作るか、受け取った合言葉を入力できます。';
+    if(!confirm(message)) return;
     openSyncDetails = true;
     jumpTo('#syncSection');
     location.hash = 'config';
