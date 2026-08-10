@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { webcrypto } = require('node:crypto');
 
 const ROOT = path.join(__dirname, '..');
 const APP = fs.readFileSync(path.join(ROOT, 'assets', 'app.js'), 'utf8');
@@ -37,8 +38,8 @@ function grab(src, name){
 const APP_NAMES = [
   'emptyState', 'normalizeState', 'ms', 'deepCopy', 'mergeById',
   'pickStamped', 'mergeProgress', 'mergeState', 'resetState',
-  'canon', 'sameState', 'stripLocal', 'cacheBustURL', 'homeInstallPlatform',
-  'parentShareSummary'
+  'canon', 'sameState', 'stripLocal', 'cacheBustURL', 'homeInstallPlatform', 'clamp', 'dailyCountSelection',
+  'parentShareSummary', 'defaultTitleFor', 'isGeneratedTitle'
 ];
 const appFns = new Function('location', `
   const SCHEMA=6, TRASH_MAX=50, GONE_MAX=300, MESSAGES_MAX=3, READS_MAX=400;
@@ -73,6 +74,29 @@ test('時刻なし同士は進んだ値を残し、done・days・wrapにも適�
   assert.equal(p.done, 2);
   assert.equal(p.days['2026-08-10'], 1);
   assert.deepEqual(p.wrap, [true]);
+});
+
+test('受信した設定は送信時刻で記録し、遅れて届く新しい毎日の項目を取りこぼさない', ()=>{
+  const storage = new Map([['natsu.savedAt.v1', JSON.stringify({config:100})]]);
+  const harness = new Function('localStorage', `
+    let config={ tasks:[], theme:'notebook' }, state={};
+    const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2';
+    function ms(v){ const n=Number(v); return Number.isFinite(n) && n>0 ? n : 0; }
+    function normalizeConfig(v){ return v; }
+    function applyTheme(){}
+    function render(){}
+    ${grab(APP, 'savedAt')}
+    ${grab(APP, 'markReceivedAt')}
+    ${grab(APP, 'applyRemote')}
+    return { applyRemote, config:()=>config, stamp:()=>savedAt().config };
+  `)({
+    getItem:key => storage.get(key) || null,
+    setItem:(key,value) => storage.set(key, String(value))
+  });
+  harness.applyRemote({ config:{tasks:[],theme:'notebook'}, configAt:200 });
+  assert.equal(harness.stamp(), 200);
+  harness.applyRemote({ config:{tasks:[{id:'daily-1',group:'daily'}],theme:'notebook'}, configAt:250 });
+  assert.equal(harness.config().tasks[0].id, 'daily-1');
 });
 
 test('1件削除の墓標はどちら向きの合流でも古い履歴を復活させない', ()=>{
@@ -128,13 +152,28 @@ test('ホーム画面への追加案内はOSごとに安全な手順へ切り替
   assert.equal(appFns.homeInstallPlatform('Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 0), 'desktop');
 });
 
+test('毎日の項目は6回以上を任意入力でき、0〜5の選択もそのまま使える', ()=>{
+  assert.equal(appFns.dailyCountSelection(5, '6'), 6);
+  assert.equal(appFns.dailyCountSelection(5, '12'), 12);
+  assert.equal(appFns.dailyCountSelection(4, ''), 4);
+  assert.equal(appFns.dailyCountSelection(4, '5'), 4);
+  assert.equal(appFns.dailyCountSelection(4, '150'), 99);
+});
+
+test('初期タイトルは子どもの名前に合わせ、未入力ならしゅくだいノートにする', ()=>{
+  assert.equal(appFns.defaultTitleFor('はな'), 'はなの夏休みの宿題');
+  assert.equal(appFns.defaultTitleFor(''), 'しゅくだいノート');
+  assert.equal(appFns.isGeneratedTitle('はな の なつやすみの しゅくだい'.replace('はな ', 'はな'), 'はな'), true);
+  assert.equal(appFns.isGeneratedTitle('わが家の予定', 'はな'), false);
+});
+
 test('保護者ページの共有表示は子ども端末を最優先し、総台数を出さない', ()=>{
   const rows = [
     {id:'parent-1', role:'parent'},
     {id:'child-1', role:'child', name:'はな'}
   ];
   assert.deepEqual(appFns.parentShareSummary(rows, 'parent-1', ''), {
-    state:'child', full:'子ども（はな）端末と共有中', short:'子（はな）と共有中'
+    state:'child', full:'はなと共有中', short:'はなと共有中'
   });
   assert.equal(appFns.parentShareSummary([{id:'parent-1', role:'parent'}], 'parent-1', '').state, 'waiting');
 });
@@ -200,4 +239,29 @@ test('合言葉を入れ直した端末の再登録は「はずす」印を解�
     return deviceInfo;
   `)();
   assert.equal(harness().revoked, false);
+});
+
+test('新しい共有コードはFirestoreの文書IDに平文で置かず、旧方式の家庭も判別できる', async ()=>{
+  const house = new Function('crypto', 'TextEncoder', `
+    ${grab(SYNC, 'hashPart')}
+    ${grab(SYNC, 'legacyHouseIdFor')}
+    ${grab(SYNC, 'houseIdFor')}
+    return { legacyHouseIdFor, houseIdFor };
+  `)(webcrypto, TextEncoder);
+  const code = 'abcdefghjkmnpqrs';
+  const secure = await house.houseIdFor(code);
+  assert.match(secure, /^[0-9a-f]{64}$/);
+  assert.notEqual(secure, code);
+  assert.equal(await house.houseIdFor(code.toUpperCase()), secure);
+  assert.equal(house.legacyHouseIdFor(code), code);
+  assert.match(house.legacyHouseIdFor('なつやすみ'), /^phrase-[0-9a-f]{16}$/);
+  assert.match(SYNC, /if\(mayUseLegacy && snap\.metadata\.fromCache\) return/);
+});
+
+test('保護者画面の案内は実際の保存方式と操作先を明示する', ()=>{
+  assert.match(APP, /エンドツーエンド暗号化ではありません/);
+  assert.match(APP, /普段使うパスワードや秘密の言葉は使わず/);
+  assert.match(APP, /function parentTodayLogsHTML\(/);
+  assert.match(APP, /設定ページの「記録の手入れ」で「やったこと」の削除を有効にしてください/);
+  assert.match(APP, /if\(confirm\('子ども画面へ移動します/);
 });

@@ -16,6 +16,11 @@ const APP_VER = (function(){
   const m = s && String(s.src || '').match(/[?&]v=([^&]*)/);
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
+function appVersionHTML(version){
+  const text = String(version || '');
+  const match = text.match(/^(.*?)([A-Za-z]+)$/);
+  return match ? `${esc(match[1])}<span class="app-version-suffix">${esc(match[2])}</span>` : esc(text);
+}
 
 /* ---------------------------------------------------------
    ほぞん
@@ -96,6 +101,7 @@ function applyTheme(theme){
 let config, state;
 let tab = 'home';
 let timer = null;
+let openSyncDetails = false;
 /* Chromium 系が出す「インストール」確認は、利用者が押すまでここで預かる。
    iOS Safari はこのイベントを出さないため、同じボタンで手順案内へ切り替える。 */
 let deferredInstallPrompt = null;
@@ -139,10 +145,22 @@ const TRASH_MAX = 50;
 function freshConfig(){
   return normalizeConfig(deepCopy(DEFAULT_CONFIG));
 }
+function defaultTitleFor(childName){
+  const name = String(childName || '').trim();
+  return name ? name + 'の夏休みの宿題' : 'しゅくだいノート';
+}
+function isGeneratedTitle(title, childName){
+  const value = String(title || '').trim();
+  const name = String(childName || '').trim();
+  return !value || value === 'はじめ夏休みの宿題' || value === 'なつやすみの しゅくだい'
+    || value === 'しゅくだいノート'
+    || (name && (value === name + 'の なつやすみの しゅくだい' || value === defaultTitleFor(name)));
+}
 
 function normalizeConfig(c){
   if(!c || typeof c !== 'object') return deepCopy(DEFAULT_CONFIG);
   if(!Array.isArray(c.tasks)) c.tasks = [];
+  if(isGeneratedTitle(c.title, c.childName)) c.title = defaultTitleFor(c.childName);
   /* これまで端末内だけだったデザインは、おうちの設定として同期する。
      既存家庭は、最初の保存時にその端末で選んでいたデザインを引き継ぐ。 */
   if(!THEME_IDS.includes(c.theme)){
@@ -404,6 +422,7 @@ function homeInstallPlatform(ua, touchPoints){
   return 'other';
 }
 function homeInstallGuideHTML(){
+  if(isStandalone()) return '';
   const platform = homeInstallPlatform(navigator.userAgent, navigator.maxTouchPoints);
   const text = platform === 'ios'
     ? 'Safariでこのページを開き、画面下（iPadは上）の共有ボタン □↑ を押して、「ホーム画面に追加」→「追加」を選びます。LINEなどのアプリ内ブラウザでは、先に「Safariで開く」を選んでください。'
@@ -416,11 +435,9 @@ function homeInstallGuideHTML(){
   <section class="sec home-install">
     <div class="sec-head"><h2>ホーム画面に追加</h2></div>
     <div class="paper home-install-paper">
-      <p class="set-note">${isStandalone()
-        ? 'この端末は、すでにホーム画面から開いています。'
-        : 'いつも使う端末では、ホーム画面に追加しておくと見つけやすくなります。'}</p>
-      ${isStandalone() ? '' : `<div class="set-actions"><button class="btn btn-sm" id="homeInstallBtn" type="button">ホーム画面に追加する</button></div>
-      <p class="set-note home-install-guide" id="homeInstallGuide" hidden>${esc(text)}</p>`}
+      <p class="set-note">いつも使う端末では、ホーム画面に追加しておくと見つけやすくなります。</p>
+      <div class="set-actions"><button class="btn btn-sm" id="homeInstallBtn" type="button">ホーム画面に追加する</button></div>
+      <p class="set-note home-install-guide" id="homeInstallGuide" hidden>${esc(text)}</p>
     </div>
   </section>`;
 }
@@ -653,6 +670,15 @@ function markSaved(kind){
   const a = savedAt(); a[kind] = Date.now();
   try{ localStorage.setItem(K_AT, JSON.stringify(a)); }catch(e){}
 }
+/* 受信したデータには、送信側が保存した時刻を残す。
+   受信した「今」を入れると、通信の遅れであとから届く新しい設定まで
+   古いものと誤判定し、毎日の項目などが古い設定で見え続けてしまう。 */
+function markReceivedAt(kind, at){
+  const stamp = ms(at);
+  if(!stamp) return;
+  const a = savedAt(); a[kind] = stamp;
+  try{ localStorage.setItem(K_AT, JSON.stringify(a)); }catch(e){}
+}
 
 /* sync.js から 呼ばれる入口。相手の端末の中身が とどいたとき */
 function applyRemote(remote){
@@ -665,7 +691,7 @@ function applyRemote(remote){
     config = normalizeConfig(remote.config);
     applyTheme(config.theme);
     localStorage.setItem(K_CFG, JSON.stringify(config));
-    markSaved('config');
+    markReceivedAt('config', remote.configAt);
     changed = true;
   }
 
@@ -719,6 +745,11 @@ function esc(s){
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
+function dailyCountSelection(selected, raw){
+  const text = String(raw == null ? '' : raw).trim();
+  const more = /^\d+$/.test(text) ? Number(text) : 0;
+  return more >= 6 ? clamp(more, 6, 99) : clamp(selected|0, 0, 99);
+}
 function maru(n){ return (n>=1 && n<=20) ? String.fromCharCode(0x245F + n) : String(n); }
 function pad2(n){ return String(n).padStart(2,'0'); }
 
@@ -1013,7 +1044,7 @@ function welcomeFormHTML(role, sharing){
       <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
     <label class="lab">漢字は何年生の字まで読めますか？
       <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
-    ${syncReady ? `<label class="lab">このおうちの あいことば（8文字以上）
+    ${syncReady ? `<label class="lab">このおうちの あいことば（16文字・自動作成）
       <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
       <p class="set-note">こどもの端末など、複数の端末で同じ合言葉を入れると、同じ記録と設定を使えます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
@@ -1065,7 +1096,9 @@ function creditHTML(){
 }
 
 function privacyNoteHTML(){
-  return `<p class="privacy-note">管理者に届くのは登録家庭数だけです。名前・宿題名・記録内容・アクセス元は届きません。共有設定済み端末数は、このおうち用のランダムな番号だけで数えます。</p>`;
+  return `<aside class="privacy-note"><b>共有コードと記録の取り扱い</b><br>
+    新しく作る共有コードは16文字のランダムな文字列で、Firestoreではそのままではなくハッシュ値をIDとして扱います。<br>
+    ただし、このアプリの家庭共有は<strong>エンドツーエンド暗号化ではありません</strong>。Firebaseプロジェクトの管理者は、保存された名前・宿題・記録を確認できる可能性があります。普段使うパスワードや秘密の言葉は使わず、このアプリ専用の、知られても困らない共有コードにしてください。招待リンクにも共有コードが含まれるため、信頼できる相手にだけ送ってください。</aside>`;
 }
 
 function welcomeMessageChoiceHTML(){
@@ -1365,6 +1398,22 @@ function todayHTML(){
   const rows = state.logs.filter(l => dayKey(new Date(l.at)) === k);
   if(!rows.length) return `<p class="empty">まだ ないよ。<br>「きろくする」から 入れてね。</p>`;
   return rows.slice().reverse().map(logRowHTML).join('');
+}
+
+/* 保護者ページでは、今日の入力をそのまま確認できるようにする。
+   シートでの「追加／なおす」も必ず logs に1件残るため、子ども・保護者の
+   どちらが操作したかを含め、ここが当日の確認用の正本になる。 */
+function parentTodayLogsHTML(){
+  const k = dayKey(new Date());
+  const rows = (state.logs || []).filter(l => dayKey(new Date(l.at)) === k);
+  return `
+  <section class="sec parent-today-logs">
+    <div class="sec-head"><h2>今日の記録</h2><span class="sec-note">${fmtDate(new Date())}</span></div>
+    <div class="paper today-list">${rows.length
+      ? rows.slice().reverse().map(logRowHTML).join('')
+      : '<p class="empty">本日の記録はまだありません。</p>'}</div>
+    <p class="set-note parent-log-help">保護者が追加・修正した内容も、ここに記録されます。記録を整理・削除するには、設定ページの「記録の手入れ」で「やったこと」の削除を有効にしてください。</p>
+  </section>`;
 }
 
 /* だれが 記録したか。
@@ -2019,6 +2068,8 @@ function viewParent(){
     </div>
   </section>
 
+  ${parentTodayLogsHTML()}
+
   ${group('must','必ずやる')}
   ${group('option','つぎに やる')}
   ${bookSectionHTML()}
@@ -2130,7 +2181,7 @@ function inAppBrowserNoteHTML(){
 /* いま とどいている メッセージ。どの端末からでも 消せる */
 function messageListHTML(){
   const rows = messages();
-  if(!rows.length) return '<p class="set-note msg-empty">まだメッセージはありません。</p>';
+  if(!rows.length) return '<p class="msg-empty">送ったメッセージは、ここに表示されます。</p>';
   return `
   <div class="msg-list">
     ${rows.map(m=>`
@@ -2149,7 +2200,7 @@ function parentMessageEditorHTML(){
   const msg = config.parentMessage;
   return `
   <section class="sec parent-message-editor">
-    <div class="sec-head"><h2>こどもへの メッセージ</h2><span class="sec-note">80文字まで</span></div>
+    <div class="sec-head"><h2>子どもへのメッセージ</h2><span class="sec-note">80文字まで</span></div>
     <div class="paper parent-message-form">
       <div class="parent-message-fields">
         <div class="parent-sender-fields">
@@ -2163,9 +2214,9 @@ function parentMessageEditorHTML(){
           <textarea id="parentMessageText" rows="1" maxlength="80" placeholder="例：きょうも おつかれさま！">${esc(msg.text)}</textarea></label>
       </div>
       <div class="parent-message-controls">
-        <button class="btn btn-sm btn-do btn-icon-text" id="parentMessageSave" type="button">${icon('save')}<span>おくる</span></button>
+        <button class="btn btn-sm btn-do btn-icon-text" id="parentMessageSave" type="button">${icon('send')}<span>送る</span></button>
       </div>
-      <p class="set-note">こども画面には、新しいものから最大${MESSAGES_MAX}件まで並びます。同じ名前で送ると、その名前のメッセージを差しかえます。</p>
+      <p class="set-note parent-message-help">子ども画面には新しい順に最大${MESSAGES_MAX}件を表示します。同じ名前で送ると、その名前のメッセージを上書きします。</p>
       ${messageListHTML()}
     </div>
   </section>`;
@@ -2257,8 +2308,8 @@ function parentShareSummary(rows, mine, fallbackName){
     const name = String(children[0].name || fallbackName || '').trim();
     return {
       state: 'child',
-      full: name ? '子ども（' + name + '）端末と共有中' : '子ども端末と共有中',
-      short: name ? '子（' + name + '）と共有中' : '子どもと共有中'
+      full: name ? name + 'と共有中' : '子ども端末と共有中',
+      short: name ? name + 'と共有中' : '子どもと共有中'
     };
   }
   if(other.length) return { state:'other', full:'ほかの端末と共有中', short:'ほかの端末と共有中' };
@@ -2272,11 +2323,11 @@ function parentShareBadgeHTML(){
     deviceRows(typeof S.devices === 'function' ? S.devices() : {}),
     getLocal(K_DEVICE_ID), config.childName || getLocal(K_NAME)
   );
-  return `<span class="parent-share-badge is-${summary.state}" id="parentShareBadge" title="${esc(summary.full)}">
+  return `<button class="parent-share-badge is-${summary.state}" id="parentShareBadge" type="button" title="${esc(summary.full)}">
     <span class="parent-share-mark" aria-hidden="true">共有</span>
     <span class="parent-share-full">${esc(summary.full)}</span>
     <span class="parent-share-short">${esc(summary.short)}</span>
-  </span>`;
+  </button>`;
 }
 
 function deviceListHTML(){
@@ -2344,7 +2395,7 @@ function syncSectionHTML(opts){
         <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
         ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作成</button>'}
       </div>
-      ${code ? `<details class="set-advanced sync-detail">
+      ${code ? `<details class="set-advanced sync-detail"${opts && opts.openDetails ? ' open' : ''}>
         <summary><span class="sync-device-count" id="syncDeviceCount">共有リンク・端末ごとの設定（設定済み：${S.deviceCount()}台）</span></summary>
         <div class="set-advanced-body">
           <h3 class="sync-subhead">ほかの端末を接続する</h3>
@@ -2517,7 +2568,8 @@ function openSheet(id, editBookId){
   }
   else {
     sheetSel = p.done;
-    const max = Math.max(p.total, 5);
+    const max = 5;
+    const more = p.done > max ? p.done : '';
     body += `
     <div class="field">
       <span class="lab">きょうは どのくらい できた？</span>
@@ -2526,6 +2578,9 @@ function openSheet(id, editBookId){
         ${Array.from({length:max+1},(_,i)=>
           `<button class="tally-btn${i===sheetSel?' sel':''}" data-n="${i}" type="button">${i}</button>`).join('')}
       </div>
+      <label class="daily-more" for="dailyMore">もっとやった：
+        <input id="dailyMore" type="number" inputmode="numeric" min="6" max="99" value="${more}" placeholder="6以上">${esc(t.targetUnit||'かい')}
+      </label>
     </div>`;
   }
 
@@ -2927,10 +2982,12 @@ function saveSheet(){
   if(isFree(t)){ saveFreeSheet(); return; }
   const p = prog(t);
   const memo = ($('#memo') && $('#memo').value.trim()) || '';
+  const moreInput = $('#dailyMore');
+  const dailySelection = dailyCountSelection(sheetSel, moreInput && moreInput.value);
   const hasAnswer = $$('#sheetBody [data-q]').some(el=>el.value.trim());
   const hasSelection = t.type === 'count' ? (sheetSel|0) > 0
     : t.type === 'step' ? !!(sheetSteps && sheetSteps.some(Boolean))
-    : (sheetSel|0) > 0;
+    : dailySelection > 0;
   const hasWrapSelection = !!(sheetWrap && sheetWrap.some(Boolean));
   /* 何も選ばずに保存しても 0/6 の訂正ログを作らない。
      そのような空ログが「できた！」の回数を増やすことも防ぐ。 */
@@ -2965,7 +3022,7 @@ function saveSheet(){
     ok = true;
   }
   else {
-    const n = clamp(sheetSel|0, 0, 99);
+    const n = clamp(dailySelection, 0, 99);
     const days = Object.assign({}, (state.progress[t.id]||{}).days || {});
     days[dayKey(now)] = n;
     progPatch(t.id, { days });
@@ -3241,12 +3298,15 @@ function viewConfig(){
   const normal = rows.filter(({t})=>taskKind(t)==='normal');
   const books = rows.filter(({t})=>taskKind(t)==='book');
   const daily = rows.filter(({t})=>taskKind(t)==='daily');
+  const openShareSettings = openSyncDetails;
+  openSyncDetails = false;
   return `
   <div class="paper parent-head config-head"><div><h2>設定</h2><p>変更はすぐに保存されます。</p></div>
     <span class="autosave" aria-live="polite">自動保存</span><a class="btn btn-sm" href="#settings">保護者ページに戻る</a></div>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>この端末の表示</h2></div><div class="paper">
-    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
+  <section class="sec config-sec"><div class="sec-head"><h2>子どもの名前とこの端末の表示</h2></div><div class="paper">
+    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（家庭で共有）</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
+    <p class="set-note">子どもの名前はここで入力・変更できます。共有中は、保護者・子どもの端末で同じ名前を表示します。</p>
     <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
     <p class="set-note">名前と読める漢字は、家庭の設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
     <fieldset class="theme-picker"><legend>色とデザイン（家庭で共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
@@ -3260,14 +3320,12 @@ function viewConfig(){
   </div></section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>宿題</h2><span class="sec-note">${normal.length}件</span></div>
-    <p class="config-lead">上へ・下へで、この欄の順番を変更できます。</p>
-    <div class="paper task-editor" id="normalTaskEditor">${taskGroupHTML(normal,'まだ項目はありません。')}</div>
+    <div class="paper task-editor" id="normalTaskEditor"><p class="config-section-note">上へ・下へで、この欄の順番を変更できます。</p>${taskGroupHTML(normal,'まだ項目はありません。')}</div>
     <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addNormalTask" type="button">${icon('plus')}<span>宿題を追加</span></button></div>
   </section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>読書の記録</h2><span class="sec-note">${books.length}件</span></div>
-    <p class="config-lead">本の名前・読んだ日・一言を1冊ずつ残す、読書専用の項目です。上へ・下へで順番を変更できます。</p>
-    <div class="paper task-editor" id="bookTaskEditor">${taskGroupHTML(books,'読書の記録を使わないときは、空のままで構いません。')}</div>
+    <div class="paper task-editor" id="bookTaskEditor"><p class="config-section-note">本の名前・読んだ日・一言を1冊ずつ残す読書専用の項目です。上へ・下へで順番を変更できます。</p>${taskGroupHTML(books,'読書の記録を使わないときは、空のままで構いません。')}</div>
     <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addBookTask" type="button">${icon('plus')}<span>読書を追加</span></button></div>
   </section>
 
@@ -3281,10 +3339,10 @@ function viewConfig(){
     </div>
   </section>
 
-  ${syncSectionHTML()}
+  ${syncSectionHTML({ openDetails:openShareSettings })}
 
   <section class="sec config-sec"><div class="sec-head"><h2>アプリ情報</h2>
-    <span class="sec-note">${esc(APP_VER)}</span></div>
+    <span class="sec-note">${appVersionHTML(APP_VER)}</span></div>
     <div class="paper">
       <p class="set-note">この端末は <b>ver ${esc(APP_VER)}</b> を動かしています。
       同期の仕組みはバージョンによって変わるため、<b>共有しているすべての端末を同じバージョンに揃えてください</b>。
@@ -3406,8 +3464,10 @@ function bindWelcomeStart(){
     if(typeof setReadingGrade === 'function') setReadingGrade(grade);
     setLocal(K_ONBOARD, 'done');
     config.readingGrade = grade;      // おうちの設定として 共有する
+    const oldName = config.childName;
+    const titleWasGenerated = isGeneratedTitle(config.title, oldName);
     config.childName = name;
-    if(config.title === DEFAULT_CONFIG.title) config.title = name + 'の なつやすみの しゅくだい';
+    if(titleWasGenerated) config.title = defaultTitleFor(name);
     saveCfg();
     if(sharing && !TEST_MODE && S && S.configured()){
       S.reconnect(code);
@@ -3454,6 +3514,15 @@ function bindStats(){
    せっていの そうさ
    --------------------------------------------------------- */
 /* 保護者ページ（進捗一覧）— サマリーの生成と書き出し */
+function bindParentShareBadge(){
+  const badge = $('#parentShareBadge');
+  if(!badge) return;
+  badge.onclick = ()=>{
+    if(!confirm('共有設定の詳細を開きますか？\n接続中の端末の確認・追加・解除ができます。')) return;
+    openSyncDetails = true;
+    location.hash = 'config';
+  };
+}
 function bindParent(){
   const S = window.NatsuSync;
   if(S && !bindParent._devicesWatching && typeof S.onDevices === 'function'){
@@ -3461,9 +3530,13 @@ function bindParent(){
     S.onDevices(()=>{
       if(tab !== 'settings') return;
       const badge = $('#parentShareBadge');
-      if(badge) badge.outerHTML = parentShareBadgeHTML();
+      if(badge){
+        badge.outerHTML = parentShareBadgeHTML();
+        bindParentShareBadge();
+      }
     });
   }
+  bindParentShareBadge();
   const homeInstall = $('#homeInstallBtn');
   if(homeInstall) homeInstall.addEventListener('click', async ()=>{
     /* Android Chrome / Edge などが利用可能なときだけ、OSの確認を直接出せる。
@@ -3487,8 +3560,9 @@ function bindParent(){
     }
   });
   const openChild = $('#openChildPage');
-  if(openChild) openChild.addEventListener('click', ()=>{
-    alert('保護者ページに戻るには、画面上部のタイトルを5回タップするか、2秒長押ししてください。');
+  if(openChild) openChild.addEventListener('click', e=>{
+    e.preventDefault();
+    if(confirm('子ども画面へ移動します。\n保護者ページに戻るには、画面上部のタイトルを5回タップするか、2秒長押ししてください。')) location.hash = 'home';
   });
   bindParentSender('parentMessageSender', 'parentMessageCustomWrap');
   const messageText = $('#parentMessageText');
@@ -3695,12 +3769,15 @@ function bindSync(){
 function bindConfig(){
   $('#cfgChildName').addEventListener('change', e=>{
     const name = e.target.value.trim();
+    const oldName = config.childName;
+    const titleWasGenerated = isGeneratedTitle(config.title, oldName);
     config.childName = name;
+    if(titleWasGenerated) config.title = defaultTitleFor(name);
     setLocal(K_NAME, name);
     saveCfg();
   });
   $('#cfgTitle').addEventListener('change', e=>{
-    config.title = e.target.value || 'なつやすみの しゅくだい';
+    config.title = e.target.value.trim() || defaultTitleFor(config.childName);
     saveCfg(); render({ keepScroll:true });
   });
   $('#cfgReadingGrade').addEventListener('change', e=>{
@@ -4232,6 +4309,8 @@ document.addEventListener('click', e=>{
   const ta = e.target.closest('#tally .tally-btn');
   if(ta){
     sheetSel = +ta.dataset.n;
+    const more = $('#dailyMore');
+    if(more) more.value = '';
     $$('#tally .tally-btn').forEach(b=> b.classList.toggle('sel', +b.dataset.n === sheetSel));
     return;
   }
@@ -4370,6 +4449,23 @@ window.addEventListener('hashchange', ()=>{
   /* writes は 同じタブのまま 課題だけ かわることが あるので、
      タブが 同じでも 描き直す */
   if(t !== tab || t === 'writes'){ tab = t; render(); }
+});
+
+/* iOS / iPadOS のホーム画面アプリは、すでに開いている画面を前面へ戻すときに
+   表示倍率と左端の位置を誤って保持することがある。実際に拡大を検出したときだけ
+   viewport の上限を一瞬 1 にして標準倍率へ戻し、すぐ解除して通常の拡大操作は残す。 */
+function repairStandaloneViewport(){
+  const view = window.visualViewport;
+  if(!isStandalone() || !view || Number(view.scale) <= 1.01) return;
+  const meta = document.querySelector('meta[name="viewport"]');
+  if(!meta) return;
+  const normal = 'width=device-width, initial-scale=1, viewport-fit=cover';
+  meta.setAttribute('content', normal + ', maximum-scale=1');
+  setTimeout(()=> meta.setAttribute('content', normal), 120);
+}
+window.addEventListener('pageshow', ()=> setTimeout(repairStandaloneViewport, 120));
+document.addEventListener('visibilitychange', ()=>{
+  if(!document.hidden) setTimeout(repairStandaloneViewport, 120);
 });
 
 /* sync.js は module なので、ページを 開いて 最初の render() の時点では

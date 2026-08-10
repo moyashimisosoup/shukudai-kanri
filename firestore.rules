@@ -18,8 +18,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /* あいことばから作る家庭のID。
-       phrase-<16桁の16進> か、以前の20文字英数字のどちらか。 */
+    /* 家庭のID。新規の共有コードはSHA-256（64桁の16進）に変換し、
+       phrase-<16桁の16進> と英数字IDは旧版の家庭を引き継ぐために残す。 */
     function validHouseId(id) {
       return id.matches('phrase-[0-9a-f]{16}')
           || id.matches('[a-z0-9]{16,64}');

@@ -34,7 +34,7 @@ const WRAP_UP_IDS = [
 
 const DEFAULT_CONFIG = {
   schema: SCHEMA,
-  title: 'はじめ夏休みの宿題',
+  title: 'しゅくだいノート',
   theme: 'notebook',
   showDaily: false,
   parentMessage: {

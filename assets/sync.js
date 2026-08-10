@@ -28,7 +28,8 @@ const FIREBASE_CONFIG = {
 const SDK = 'https://www.gstatic.com/firebasejs/12.17.1/';
 
 /* あいことばは この端末の localStorage に のこす。
-   Firestore の 1件の書類（households/<あいことば>）を 端末どうしで 見に行く */
+   Firestore では SHA-256 で変換したIDの1件を端末どうしで見に行く。
+   旧版が作った書類も、読み取り時だけ従来IDを試して引き継ぐ。 */
 /* ?new=1 のおためしモードは、普段使っている家庭のあいことばを読まない。 */
 const K_CODE = new URLSearchParams(location.search).get('new') === '1'
   ? 'natsu.preview.sync.code.v1'
@@ -39,13 +40,14 @@ const K_DEVICE = new URLSearchParams(location.search).get('new') === '1'
 
 /* 打ちまちがえない 文字だけ。0/O と 1/l/I は 入れない */
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
-const CODE_LEN = 8;
+const CODE_LEN = 16;
 
 /* ---------------------------------------------------------
    2. 状態
    --------------------------------------------------------- */
 let db = null;
 let docRef = null;
+let activeHouseId = '';
 let unsub = null;
 let status = 'off';          // off | connecting | online | offline | error
 let statusText = '';
@@ -112,17 +114,24 @@ function getDeviceId(){
     return 'memory-' + Math.random().toString(16).slice(2, 26).padEnd(24, '0');
   }
 }
-/* 短い・日本語の合言葉も使えるよう、Firestore用のIDだけを十分な長さへ変換する。
-   以前の20文字英数字の合言葉は、既存データに接続できるようそのまま使う。 */
+/* 旧版のFirestore用ID。既存の家庭に接続し続けるため、読み取り時だけ使う。 */
 function hashPart(text, seed){
   let n = seed >>> 0;
   for(let i=0; i<text.length; i++) n = Math.imul(n ^ text.charCodeAt(i), 0x01000193) >>> 0;
   return n.toString(16).padStart(8, '0');
 }
-function houseIdFor(code){
+function legacyHouseIdFor(code){
   const c = String(code || '');
   if(/^[a-z0-9]+$/i.test(c) && c.length >= 16) return c.toLowerCase();
   return 'phrase-' + hashPart(c, 0x811c9dc5) + hashPart(c, 0x9e3779b9);
+}
+/* 新しい家庭では、共有コードをFirestoreの文書IDへそのまま置かない。
+   これはIDの推測を難しくするためで、記録内容を暗号化するものではない。 */
+async function houseIdFor(code){
+  const normalized = String(code || '').trim().normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+  const data = new TextEncoder().encode(normalized);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest), n=>n.toString(16).padStart(2, '0')).join('');
 }
 function makeCode(){
   const buf = new Uint32Array(CODE_LEN);
@@ -142,6 +151,76 @@ function configured(){
    同時に 2回 初期化しないよう ここで ひとまとめにする */
 let initPromise = null;
 
+/* snapshot を先に張る。接続前に getDoc を待つと、オフライン時に
+   ブラウザ内へためておく仕組みまで始められなくなるため。
+   新方式の書類がオンラインで「ない」と確認できた時だけ、旧方式の
+   書類を一度試す。これで既存家庭を引き継ぎつつ、通信待ちで記録を失わない。 */
+function watchHousehold(fs, ref, code, mayUseLegacy){
+  if(unsub){ unsub(); unsub = null; }
+  docRef = ref;
+  activeHouseId = ref.id;
+  unsub = fs.onSnapshot(ref,
+    async snap => {
+      if(docRef !== ref || snap.metadata.hasPendingWrites) return;
+
+      setStatus(snap.metadata.fromCache ? 'offline' : 'online',
+                snap.metadata.fromCache ? 'オフライン（この端末に ためています）' : 'つながっています');
+
+      if(!snap.exists()){
+        /* キャッシュだけでは新旧を決めない。ここで新規文書を作ると、
+           オフラインの既存端末が別の家庭を作ってしまうため、オンラインの
+           確認が来るまで保留する。保存操作の pending はそのまま残る。 */
+        if(mayUseLegacy && snap.metadata.fromCache) return;
+        if(mayUseLegacy){
+          const legacyId = legacyHouseIdFor(code);
+          if(legacyId !== ref.id){
+            try{
+              const legacyRef = fs.doc(db, 'households', legacyId);
+              const legacySnap = await fs.getDoc(legacyRef);
+              if(docRef !== ref) return;
+              if(legacySnap.exists()){
+                watchHousehold(fs, legacyRef, code, false);
+                return;
+              }
+            }catch(e){
+              /* 次のsnapshotで再試行する。安全確認なしに新規作成はしない。 */
+              return;
+            }
+          }
+        }
+        registerDevice();
+        pushAll();
+        return;
+      }
+
+      const d = snap.data() || {};
+      if(revokedForMe(d.devices)){
+        setCode('');
+        disconnect();
+        setStatus('off', 'この端末は はずされました。あいことばを 入れ直してください');
+        return;
+      }
+
+      const devs = d.devices || {};
+      setDeviceCount(Object.keys(devs).filter(k => !(devs[k] && devs[k].revoked)).length);
+      setDeviceMap(devs);
+      registerDevice();
+      const app_ = window.NatsuApp;
+      if(app_ && typeof app_.onRemote === 'function'){
+        app_.onRemote({
+          config:   d.config   || null,
+          state:    d.state    || null,
+          configAt: d.configAt || 0,
+          stateAt:  d.stateAt  || 0
+        });
+      }
+      /* 接続前に端末内へ保存されていた変更を、まず相手と合流してから送る。 */
+      flushPendingSoon();
+    },
+    err => setStatus('error', 'つながりません：' + (err && err.code || err))
+  );
+}
+
 async function connect(){
   const code = getCode();
 
@@ -160,55 +239,11 @@ async function connect(){
     }
 
     const fs = Sync._fs;
-    docRef = fs.doc(db, 'households', houseIdFor(code));
-
-    if(unsub){ unsub(); unsub = null; }
-
-    unsub = fs.onSnapshot(docRef,
-      snap => {
-        /* 自分が いま書いたぶんが 返ってきただけなら 何もしない。
-           これを 見ないと 自分の保存で 自分の画面が 描き直される */
-        if(snap.metadata.hasPendingWrites) return;
-
-        setStatus(snap.metadata.fromCache ? 'offline' : 'online',
-                  snap.metadata.fromCache ? 'オフライン（この端末に ためています）' : 'つながっています');
-
-        if(!snap.exists()){
-          registerDevice();
-          pushAll();
-          return;
-        }
-
-        const d = snap.data() || {};
-
-        /* はずされた ときは、ここで あいことばを 消して 切る。
-           registerDevice() より 先に 見ないと、すぐ 登録し直して しまう */
-        if(revokedForMe(d.devices)){
-          setCode('');
-          disconnect();
-          setStatus('off', 'この端末は はずされました。あいことばを 入れ直してください');
-          return;
-        }
-
-        const devs = d.devices || {};
-        setDeviceCount(Object.keys(devs).filter(k => !(devs[k] && devs[k].revoked)).length);
-        setDeviceMap(devs);
-        registerDevice();
-        const app_ = window.NatsuApp;
-        if(app_ && typeof app_.onRemote === 'function'){
-          app_.onRemote({
-            config:   d.config   || null,
-            state:    d.state    || null,
-            configAt: d.configAt || 0,
-            stateAt:  d.stateAt  || 0
-          });
-        }
-        /* 接続前に端末内へ保存されていた変更を、まず相手と合流してから送る。
-           読む前に送ると初期値で上書きするため、この位置でだけ再開する。 */
-        flushPendingSoon();
-      },
-      err => setStatus('error', 'つながりません：' + (err && err.code || err))
-    );
+    /* 新しい方式を先に読む。旧版で作った家庭かどうかは、snapshot が
+       オンラインで空だった時だけ watchHousehold() が確認する。 */
+    const secureId = await houseIdFor(code);
+    const secureRef = fs.doc(db, 'households', secureId);
+    watchHousehold(fs, secureRef, code, true);
 
   }catch(err){
     setStatus('error', 'つながりません：' + (err && err.message || err));
@@ -263,7 +298,7 @@ let lastDeviceWrite = '';
 async function registerDevice(){
   if(!docRef || !Sync._fs) return;
   const info = deviceInfo();
-  const key = [houseIdFor(getCode()), info.role, info.name, info.label, info.ver].join('|');
+  const key = [activeHouseId || legacyHouseIdFor(getCode()), info.role, info.name, info.label, info.ver].join('|');
   if(lastDeviceWrite === key) return;
   lastDeviceWrite = key;
   try{
@@ -332,6 +367,7 @@ function revokedForMe(devices){
 function disconnect(){
   if(unsub){ unsub(); unsub = null; }
   docRef = null;
+  activeHouseId = '';
   lastDeviceWrite = '';
   setDeviceMap({});
   setDeviceCount(0);
@@ -404,7 +440,7 @@ async function flush(){
    { households: { <あいことばのSHA-256>: 登録日時 } } を持っていた。
    数を数えるには その一覧を 読む必要が あるため、規則で 読みを 止められず、
    誰でも 全家庭ぶんの ハッシュを 取り出せる状態に なっていた。
-   あいことばは 8文字なので、一覧が 出ると 総当たりで 割られ、
+   旧版の短いあいことばでは、一覧が出ると総当たりで割られ、
    その家庭の 記録まで 読まれてしまう。
 
    そこで 2つに 分けた。
@@ -415,7 +451,8 @@ async function flush(){
    一覧を 禁止する 規則に できる。詳しくは firestore.rules を 見てください。
    競合時は Firestore の transaction が再試行する。 */
 async function codeHash(code){
-  const bytes = new TextEncoder().encode(String(code || '').trim().toLowerCase());
+  const normalized = String(code || '').trim().normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+  const bytes = new TextEncoder().encode(normalized);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return Array.from(new Uint8Array(digest), b=>b.toString(16).padStart(2,'0')).join('');
 }
