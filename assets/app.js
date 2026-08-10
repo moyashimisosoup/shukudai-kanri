@@ -1395,11 +1395,15 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
        そこで 既定は 読み取り専用に して、どうしても 自分で 決めたい人だけ
        ボタンを 押して 手入力に 切りかえる（ひと手間 かける）。 */
     const create = welcomeStepHTML(start, '合言葉を作ろう', `
-      <label class="lab">この家庭の合言葉（16文字・自動作成）
+      <label class="lab">この家庭の合言葉（16文字・おまかせで作成）
         <input id="welcomeCode" type="text" value="${esc(code)}" readonly autocapitalize="off" autocorrect="off" spellcheck="false"></label>
       <p class="set-note">この合言葉で、新しい家庭の共有を始めます。覚える必要はありません。QRコードか招待リンクで、ほかの端末へ渡します。</p>
       <div class="set-actions welcome-code-actions">
         <button class="btn btn-sm btn-ghost" id="welcomeCodeCustom" type="button">自分で決めた合言葉を使う</button>
+        ${/* 手入力に した あと、戻り道が 無かった。自分で 考えて みて
+              「やっぱり おまかせで いい」と 思った 人が、初期設定を
+              やり直す しか なくなる */''}
+        <button class="btn btn-sm btn-ghost" id="welcomeCodeAuto" type="button" hidden>おまかせに戻す</button>
       </div>
       <p class="set-note welcome-code-warn" id="welcomeCodeWarn" hidden>自分で決める場合は、8文字以上にしてください。ふだん使っているパスワードや、家族の名前・誕生日など推測できる言葉は使わないでください。</p>
       ${privacyNoteHTML()}
@@ -2892,21 +2896,21 @@ function syncSectionHTML(opts){
            そろえ、文言も そう書く -->
       <div class="sync-start">
         <h3 class="sync-subhead">はじめて共有する</h3>
-        <p class="set-note">合言葉を作成すると、この端末の宿題・設定・記録が家庭の内容になり、ほかの端末から読み取れるようになります。作成のあとに出るQRコード・招待リンクを、ほかの端末で読み取ってください。</p>
+        <p class="set-note">「おまかせ」を押すと、当てられにくい16文字の合言葉をこの端末が作ります。押した時点でこの端末の宿題・設定・記録が家庭の内容になり、ほかの端末から読み取れるようになります。そのあとに出るQRコード・招待リンクを、ほかの端末で読み取ってください。</p>
         <div class="set-actions">
-          <button class="btn btn-go" id="syncMake" type="button">合言葉を作成する</button>
+          <button class="btn btn-go" id="syncMake" type="button">合言葉をつくる（おまかせ）</button>
         </div>
         ${/* 最初の設定と同じく、ここでも 自分で 決められるように する。
               決め方が ちがっても、押した 時点で 共有が 始まるのは 同じ */''}
         <details class="set-advanced" data-details-key="syncOwnCode">
-          <summary>合言葉を自分で決める</summary>
+          <summary>合言葉を自分でつくる</summary>
           <div class="set-advanced-body">
             <p class="set-note">8文字以上にしてください。ふだん使っているパスワードや、家族の名前・誕生日など推測できる言葉は使わないでください。おまかせで作るほうが安全です。</p>
             <div class="set-row"><span class="lab">決めた合言葉</span>
               <input type="text" id="syncOwnCode" value="" spellcheck="false"
                      autocapitalize="off" autocorrect="off" placeholder="8文字以上"></div>
             <div class="set-actions">
-              <button class="btn btn-go" id="syncMakeOwn" type="button">この合言葉で作成する</button>
+              <button class="btn btn-go" id="syncMakeOwn" type="button">この合言葉でつくる</button>
             </div>
           </div>
         </details>
@@ -4245,21 +4249,38 @@ function bindWelcomeStart(){
      欄を はじめから 書きかえられる ようにすると、短い・覚えやすい
      ＝当てられやすい 合言葉に なりやすいため、ひと手間 はさむ */
   const customBtn = $('#welcomeCodeCustom', form);
-  if(customBtn && !customBtn.dataset.welcomeBound){
-    customBtn.dataset.welcomeBound = '1';
-    customBtn.addEventListener('click', ()=>{
-      const input = $('#welcomeCode', form);
-      if(!input) return;
-      input.readOnly = false;
+  const autoBtn = $('#welcomeCodeAuto', form);
+  /* 手入力と おまかせを 行き来する。おまかせに 戻す ときは
+     その場で 作り直す（前の 値を 覚えておいて 戻すと、
+     手入力の あいだに 見せた 合言葉と ずれる） */
+  const setCodeMode = custom=>{
+    const input = $('#welcomeCode', form);
+    if(!input) return;
+    const label = input.closest('.lab');
+    input.readOnly = !custom;
+    if(custom){
       input.value = '';
       input.placeholder = '8文字以上で入力';
-      const label = input.closest('.lab');
       if(label) label.firstChild.nodeValue = 'この家庭の合言葉（自分で決める）';
-      const warn = $('#welcomeCodeWarn', form);
-      if(warn) warn.hidden = false;
-      customBtn.hidden = true;
-      input.focus();
-    });
+    }else{
+      const S = window.NatsuSync;
+      input.value = (S && typeof S.makeCode === 'function') ? S.makeCode() : input.value;
+      input.placeholder = '';
+      if(label) label.firstChild.nodeValue = 'この家庭の合言葉（16文字・おまかせで作成）';
+    }
+    const warn = $('#welcomeCodeWarn', form);
+    if(warn) warn.hidden = !custom;
+    if(customBtn) customBtn.hidden = custom;
+    if(autoBtn) autoBtn.hidden = !custom;
+    if(custom) input.focus();
+  };
+  if(customBtn && !customBtn.dataset.welcomeBound){
+    customBtn.dataset.welcomeBound = '1';
+    customBtn.addEventListener('click', ()=> setCodeMode(true));
+  }
+  if(autoBtn && !autoBtn.dataset.welcomeBound){
+    autoBtn.dataset.welcomeBound = '1';
+    autoBtn.addEventListener('click', ()=> setCodeMode(false));
   }
   const start = $('#welcomeStart');
   if(!start || start.dataset.welcomeBound) return;

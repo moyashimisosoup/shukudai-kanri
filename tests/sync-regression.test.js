@@ -989,10 +989,20 @@ test('新しく作る合言葉は、押した人だけ手入力に切りかえ�
   assert.match(create, /id="welcomeCode"[^>]*readonly/, '既定は自動作成のまま読み取り専用');
   assert.match(create, /id="welcomeCodeCustom"[^>]*>自分で決めた合言葉を使う/);
   const bind = grab(APP, 'bindWelcomeStart');
-  assert.match(bind, /customBtn[\s\S]{0,400}input\.readOnly = false/,
+  assert.match(bind, /customBtn[\s\S]{0,200}setCodeMode\(true\)/,
     'ボタンを押したときだけ手入力にすること');
-  assert.match(bind, /welcomeCodeWarn[\s\S]{0,80}hidden = false/,
+  assert.match(bind, /input\.readOnly = !custom/);
+  assert.match(bind, /warn\.hidden = !custom/,
     '手入力に切りかえたら注意を出すこと');
+  /* 手入力にしたあと、おまかせへ戻れること。
+     戻り道が無いと、考え直した人は初期設定をやり直すしかない */
+  assert.match(create, /id="welcomeCodeAuto"[^>]*hidden[^>]*>おまかせに戻す/);
+  assert.match(bind, /autoBtn[\s\S]{0,200}setCodeMode\(false\)/);
+  assert.match(bind, /S\.makeCode\(\) : input\.value/,
+    'おまかせに戻すときは作り直すこと');
+  /* 自動で作られたと分かる言い方にそろえる */
+  assert.match(create, /16文字・おまかせで作成/);
+  assert.doesNotMatch(APP, /16文字・自動作成/);
 });
 
 test('保護者ページは未共有の入口と子ども画面の修正方法を示す', ()=>{
@@ -1111,13 +1121,13 @@ test('設定画面の共有は、作成でそのままつながり、参加は�
   assert.match(make, /if\(c\.length < 8\)/, '自分で決めた合言葉は8文字以上を求めること');
 
   const section = grab(APP, 'syncSectionHTML');
-  assert.match(section, /合言葉を作成する/);
-  assert.match(section, /ほかの端末から読み取れるようになります/,
+  assert.match(section, /合言葉をつくる（おまかせ）/);
+  assert.match(section, /当てられにくい16文字の合言葉をこの端末が作ります/,
     '作成で何が起きるかを書くこと');
   assert.match(section, /id="syncVerify"[^>]*>接続を確認/);
   /* 設定からも 自分で 決められる（最初の設定と そろえる） */
   assert.match(section, /id="syncOwnCode"/);
-  assert.match(section, /id="syncMakeOwn"[^>]*>この合言葉で作成する/);
+  assert.match(section, /id="syncMakeOwn"[^>]*>この合言葉でつくる/);
   assert.match(section, /id="syncSave"[^>]*hidden[^>]*>この家庭に参加する|id="syncSave" type="button" hidden/);
 
   /* 参加は確認ずみのあいことばだけ。未確認では reconnect まで進ませない */
