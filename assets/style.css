@@ -677,6 +677,8 @@ select{ appearance:auto; -webkit-appearance:menulist; }
   white-space:nowrap; min-width:78px; text-align:right;
 }
 .task-act{ grid-column:2; grid-row:1 / span 3; align-self:center; }
+/* 補助リンクのほうが長いカードでも、主ボタンは右端にそろえる。 */
+.task-act > button:first-child{ display:block; margin-inline-start:auto; }
 
 
 /* できあがったカード */
@@ -1144,6 +1146,12 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   gap:8px;
   align-items:end;
 }
+.sync-subhead{
+  margin:0; padding:14px 16px 8px;
+  font-size:17px; font-weight:900; color:var(--ai);
+  border-top:2px dashed var(--hougan);
+}
+.set-advanced-body > .sync-subhead:first-child{ border-top:0; }
 .parent-message-fields .lab{ display:grid; gap:6px; }
 .parent-sender-fields{ display:grid; gap:8px; }
 .parent-message-from{
@@ -1181,12 +1189,12 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .welcome-role--share .codex-icon{ width:24px; height:24px; }
 
 @media (max-width:560px){
-  /* iPhone幅では、名前・より・メッセージを縦に並べる。入力欄を細くせず、
-     「より」も2つの欄の間に残す。 */
-  .parent-message-fields{ grid-template-columns:1fr; gap:8px; }
+  /* 名前欄を少し縮めて「［名前］より」を1行に置き、本文だけ次の行へ。 */
+  .parent-message-fields{ grid-template-columns:minmax(0,1fr) auto; gap:8px; }
   .parent-message-from{
-    justify-self:center; align-self:auto; margin:-2px 0;
+    justify-self:start; align-self:end; margin:0 0 14px;
   }
+  .parent-message-text{ grid-column:1 / -1; }
   .parent-message-controls{ align-items:stretch; flex-direction:column; }
   .parent-message-controls .btn{ width:100%; }
   .home-parent-message{ width:calc(100% - 16px); margin-top:8px; }
@@ -1698,6 +1706,16 @@ input.is-need, textarea.is-need{
   border:2px solid var(--suika); background:var(--suika-usu);
   border-radius:var(--r-s); padding:10px 12px; color:var(--ai);
 }
+
+/* まねきリンクの QR。中身は 白地に 黒の SVG なので、
+   まわりに 白を すこし 足して、暗い 背景でも ふちが つぶれないように する。
+   はばは 240px まで。これ以上 大きくしても カメラの 読みやすさは 変わらない */
+.invite-qr{
+  margin:12px auto 4px; max-width:240px;
+  background:#fff; border:2px solid var(--hougan);
+  border-radius:var(--r-s); padding:8px;
+}
+.invite-qr svg{ display:block; width:100%; height:auto; }
 
 /* まねきリンクの 欄は、iPad の ように はばの ある 画面でも
    set-row の 決めうちで 細く なっていた。ここだけ 目いっぱい 使う */

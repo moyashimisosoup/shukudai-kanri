@@ -125,7 +125,7 @@ function migrate5to6(c){
    books が無いまま 保護者ページや 本の一覧を開くと 例外で止まり、
    画面が切りかわらない（リンクが効かないように見える）ので、
    入口を ひとつに まとめる */
-function emptyState(){ return { schema:SCHEMA, progress:{}, logs:[], books:[], trash:[], gone:[], reads:[], messages:[] }; }
+function emptyState(){ return { schema:SCHEMA, resetAt:0, progress:{}, logs:[], books:[], trash:[], gone:[], reads:[], messages:[] }; }
 
 /* 消した記録を のこす数。
    これは「思い出のため」だけでは なく、消したことを 相手の端末に つたえる
@@ -168,6 +168,9 @@ function normalizeConfig(c){
 function normalizeState(s){
   if(!s || typeof s !== 'object' || !s.progress) return emptyState();
   if(!s.schema) s.schema = SCHEMA;
+  /* 「記録をすべて削除」した時刻。同じ家庭の古い端末が、削除前の一式を
+     あとから送り返しても復活させないための世代番号として使う。 */
+  s.resetAt = ms(s.resetAt);
   if(!Array.isArray(s.logs))  s.logs  = [];
   if(!Array.isArray(s.books)) s.books = [];
   if(!Array.isArray(s.trash)) s.trash = [];
@@ -198,7 +201,10 @@ function normalizeState(s){
    たまたま 保たれるので、番号の 同期は 動いて 見えていた。 */
 function ms(v){
   const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
+  /* 旧版が `時刻 | 0` で保存した負の値は、元の13けたへ戻せない。
+     「時刻なし」として扱えば、安全側の合流規則で値を救い、次の保存時には
+     壊れた時刻自体も取り除ける。 */
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 function stampArray(before, after, at, t){
@@ -535,28 +541,35 @@ function sameState(a, b){
 }
 
 function mergeState(local, remote, localIsNewer){
-  const out = normalizeState(deepCopy(localIsNewer ? local : remote));
-  out.logs  = mergeById(local.logs,  remote.logs,  (a,b)=> String(a.at||'') >= String(b.at||''));
-  out.books = mergeById(local.books, remote.books, ()=> localIsNewer);
+  /* 全削除は配列を空にするだけだと、相手が持つ古い配列との合流で復活する。
+     resetAt が新しい側だけを同じ世代のデータとして採用し、その世代番号を
+     全端末へ返す。全端末が受け取ったあとの新しい記録は同じ世代で合流する。 */
+  const resetAt = Math.max(ms(local.resetAt), ms(remote.resetAt));
+  const left  = ms(local.resetAt)  === resetAt ? local  : emptyState();
+  const right = ms(remote.resetAt) === resetAt ? remote : emptyState();
+  const out = normalizeState(deepCopy(localIsNewer ? left : right));
+  out.resetAt = resetAt;
+  out.logs  = mergeById(left.logs,  right.logs,  (a,b)=> String(a.at||'') >= String(b.at||''));
+  out.books = mergeById(left.books, right.books, ()=> localIsNewer);
 
   /* 消したものの ひかえ。これが 墓標に なるので、合併したあとに
      消された ものを 取りのぞく。これが 無いと、相手の端末が まだ 持っている
      本の記録が そのまま よみがえる */
-  out.trash = mergeById(local.trash, remote.trash, (a,b)=> ms(a.at) >= ms(b.at))
+  out.trash = mergeById(left.trash, right.trash, (a,b)=> ms(a.at) >= ms(b.at))
     .sort((x,y)=> ms(y.at) - ms(x.at))
     .slice(0, TRASH_MAX);
   /* 印だけの ひかえ。1行けしなど、中身を のこさない 消しかたの 墓標 */
   /* メッセージは id で 合流。両方の 親が 同時に 送っても どちらも のこる。
      3件を こえたら 新しい ものから 3件（どの端末でも 同じ 結果に なる） */
-  out.messages = mergeById(local.messages, remote.messages, (a,b)=> String(a.at||'') >= String(b.at||''))
+  out.messages = mergeById(left.messages, right.messages, (a,b)=> String(a.at||'') >= String(b.at||''))
     .sort((x,y)=> String(x.at||'').localeCompare(String(y.at||'')))
     .slice(-MESSAGES_MAX);
 
-  out.reads = mergeById(local.reads, remote.reads, (a,b)=> String(a.at||'') >= String(b.at||''))
+  out.reads = mergeById(left.reads, right.reads, (a,b)=> String(a.at||'') >= String(b.at||''))
     .sort((x,y)=> String(x.at||'').localeCompare(String(y.at||'')))
     .slice(-READS_MAX);
 
-  out.gone = mergeById(local.gone, remote.gone, (a,b)=> ms(a.at) >= ms(b.at))
+  out.gone = mergeById(left.gone, right.gone, (a,b)=> ms(a.at) >= ms(b.at))
     .sort((x,y)=> ms(y.at) - ms(x.at))
     .slice(0, GONE_MAX);
 
@@ -566,7 +579,7 @@ function mergeState(local, remote, localIsNewer){
     out.logs  = out.logs.filter(l=> !gone.has(l.id));
   }
 
-  out.progress = mergeProgress(local.progress || {}, remote.progress || {}, localIsNewer);
+  out.progress = mergeProgress(left.progress || {}, right.progress || {}, localIsNewer);
   /* 並びは どの端末でも 同じに なるように そろえる。
      同じ時刻の 記録が あると 並びが 端末ごとに ちがい、
      それだけで「変わった」と 判定されて 送り合いが 止まらなくなる */
@@ -579,7 +592,13 @@ function mergeState(local, remote, localIsNewer){
   out.gone.sort((a,b)=> ms(b.at)-ms(a.at) || String(a.id||'').localeCompare(String(b.id||'')));
   if(out.logs.length > 3000) out.logs = out.logs.slice(-3000);
   /* ミニコンテンツは 基本1日3回。端末ごとに かぞえる（下の stripLocal を 見てください）*/
-  if(local.fun) out.fun = local.fun; else delete out.fun;
+  if(left.fun) out.fun = left.fun; else delete out.fun;
+  return out;
+}
+
+function resetState(when){
+  const out = emptyState();
+  out.resetAt = ms(when) || Date.now();
   return out;
 }
 
@@ -620,9 +639,15 @@ function applyRemote(remote){
 
   if(remote.state){
     const before = deepCopy(state.progress || {});
-    const merged = mergeState(normalizeState(state),
-                              normalizeState(remote.state),
+    const localState = normalizeState(state);
+    const remoteState = normalizeState(remote.state);
+    const merged = mergeState(localState,
+                              remoteState,
                               (at.state || 0) >= remote.stateAt);
+    /* 手元がすでに正しくても、相手が古ければ合流結果を返す必要がある。
+       特に同期の準備前に削除した場合、gone/resetAt は手元にだけあり、
+       ここで返さないと次の保存までほかの端末へ届かない。fun は端末専用なので比較しない。 */
+    const remoteNeedsUpdate = !sameState(stripLocal(merged), stripLocal(remoteState));
     if(!sameState(merged, state)){
       /* どちらの端末の どの値が 勝ったのかを のこす。調べもの用 */
       traceProgress(before, merged.progress, (remote.state || {}).progress, remote.stateAt);
@@ -630,10 +655,9 @@ function applyRemote(remote){
       localStorage.setItem(K_ST, JSON.stringify(state));
       markSaved('state');
       changed = true;
-      /* 合わせた結果は 相手にも 返す。
-         3台め（きょうだいの端末）が あっても そろう */
-      syncPush('state');
     }
+    /* 合わせた結果は相手にも返す。3台めがあっても同じ状態へ収束する。 */
+    if(remoteNeedsUpdate) syncPush('state');
   }
 
   if(changed) render({ keepScroll:true });
@@ -937,14 +961,13 @@ function welcomeRolePickerHTML(){
 }
 
 /* 共有する ときだけ 出す、この端末の 呼び名。
-   入れなくても 進める。入れて おくと、記録や 端末の一覧が
-   「父」「母」で 並ぶので、どの端末の ことか すぐ わかる。 */
+   入れなくても 進める。端末の一覧で「父」「母」と見分けるための名前。 */
 function deviceLabelFieldHTML(){
   return `<label class="lab">この端末を つかう人（任意）
       <input id="welcomeDeviceLabel" type="text" maxlength="12"
              value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></label>
-    <p class="set-note">どなたがお使いの端末か、わかりやすい名前を設定してください（父、母など）。
-    複数の端末で共有するとき、記録や端末の一覧にこの名前が出ます。入れなくてもかまいません。</p>`;
+    <p class="set-note">共有中の端末一覧で見分けるための名前です（父、母など）。
+    この端末だけに保存されます。入れなくてもかまいません。</p>`;
 }
 
 function welcomeFormHTML(role, sharing){
@@ -1937,7 +1960,7 @@ function viewParent(){
       <p>${esc(config.title)}</p>
     </div>
     <a class="btn btn-sm" href="#config">設定</a>
-    <a class="btn btn-sm" href="#home">子ども画面へ</a>
+    <a class="btn btn-sm" id="openChildPage" href="#home">子ども画面へ</a>
   </div>
 
   ${syncPromptHTML()}
@@ -2018,6 +2041,31 @@ function inviteURL(){
          '&r=' + Date.now() +          // ためこんだ古い画面を 配らないための 印
          '&openExternalBrowser=1';
 }
+/* まねきリンクを そのまま QR にする。
+   となりに いる 人に わたすときは、リンクを 送るより カメラで 読む ほうが 早い。
+
+   ライブラリが 読めなかった ときは 空文字を かえす。QR が 出ないだけで、
+   下の リンク欄と コピーは そのまま 使える。
+   色は わざと 白地に 黒。カメラは 明暗の 差で 読むので、
+   画面の 色づかい（--surface など）に 合わせては いけない。 */
+function inviteQrHTML(url){
+  if(typeof qrcode !== 'function') return '';
+  try{
+    const qr = qrcode(0, 'M');     // 0 = 中身の 長さに 合わせて 大きさを 決める
+    qr.addData(url);
+    qr.make();
+    /* scalable:true で width/height を つけさせず、はばは CSS に まかせる。
+       margin は QR の きまりで 4セル 以上 いる（これが ないと 読めない） */
+    const svg = qr.createSvgTag({ cellSize:4, margin:16, scalable:true,
+                                  title:'べつの端末に わたす まねきリンクの QRコード' });
+    return `
+    <div class="invite-qr">${svg}</div>
+    <p class="set-note">となりに ある端末なら、この QR を カメラで 読むだけでも つながります。</p>`;
+  }catch(e){
+    return '';
+  }
+}
+
 function inviteHTML(){
   const url = inviteURL();
   if(!url) return '';
@@ -2030,6 +2078,7 @@ function inviteHTML(){
     <div class="set-actions">
       <button class="btn btn-sm" id="inviteCopy" type="button">リンクをコピー</button>
     </div>
+    ${inviteQrHTML(url)}
     <p class="set-note">このリンクは<b>「あいことば」そのもの</b>です。見た人は誰でもつながれるので、SNSなどに貼らないでください。受け取る側は、開いたあと<b>ホーム画面に追加</b>しておくと、次からは一度で開けます。</p>
   </div>`;
 }
@@ -2231,21 +2280,25 @@ function syncSectionHTML(opts){
         ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作る</button>'}
       </div>
       ${code ? `<details class="set-advanced sync-detail">
-        <summary><span class="sync-device-count" id="syncDeviceCount">共有リンクと端末の管理（設定済み：${S.deviceCount()}台）</span></summary>
+        <summary><span class="sync-device-count" id="syncDeviceCount">共有リンク・端末ごとの設定（設定済み：${S.deviceCount()}台）</span></summary>
         <div class="set-advanced-body">
+          <h3 class="sync-subhead">ほかの端末をつなぐ</h3>
           ${inviteHTML()}
+          <h3 class="sync-subhead">つながっている端末</h3>
           <div id="syncDeviceList">${deviceListHTML()}</div>
+          <h3 class="sync-subhead">この端末だけの設定</h3>
+          <p class="set-note">端末を見分けるための設定です。ほかの端末へは同期されません。</p>
           <div class="set-row"><span class="lab">この端末の呼び名</span>
             <input type="text" id="deviceLabel" maxlength="12"
                    value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></div>
-          <p class="set-note">どなたが使う端末か分かる名前を設定すると、上の一覧や記録にこの名前が表示されます。未設定の場合は「親」「子（名前）」と表示されます。端末ごとの設定で、同期しません。</p>
+          <p class="set-note">上の端末一覧で見分けるための名前です。未設定の場合は「親」「子（名前）」と表示されます。</p>
           <div class="set-row"><span class="lab">この端末は</span>
             <select id="deviceRole">
               <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>未選択</option>
               <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>子どもの端末</option>
               <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>保護者の端末</option>
             </select></div>
-          <p class="set-note">設定しておくと、記録に「誰が入力したか」が小さく表示されます。共有している場合のみ表示されます。この設定は端末ごとで、同期しません。</p>
+          <p class="set-note">この端末を使う人を選ぶと、共有中は保護者ページの記録に「誰が入力したか」が小さく表示されます。「保護者の端末」を選ぶと、下の「記録の手入れ」で1件ずつ削除できるように設定できます。</p>
           <div class="set-actions">
             <button class="btn btn-sm btn-danger" id="syncOff" type="button">共有を解除する</button>
           </div>
@@ -3121,7 +3174,7 @@ function viewConfig(){
   const daily = rows.filter(({t})=>taskKind(t)==='daily');
   return `
   <div class="paper parent-head config-head"><div><h2>設定</h2><p>変更は すぐに 保存されます。</p></div>
-    <span class="autosave" aria-live="polite">自動保存</span><a class="btn btn-sm" href="#settings">もどる</a></div>
+    <span class="autosave" aria-live="polite">自動保存</span><a class="btn btn-sm" href="#settings">保護者ページに戻る</a></div>
 
   <section class="sec config-sec"><div class="sec-head"><h2>この端末の 表示</h2></div><div class="paper">
     <div class="set-row"><label class="lab" for="cfgChildName">こどもの 名前</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
@@ -3180,13 +3233,13 @@ function viewConfig(){
       <label class="opt-toggle">
         <input type="checkbox" id="allowLogDelete"${config.allowLogDelete ? ' checked' : ''}>
         <span class="opt-toggle-text">
-          <b>履歴削除機能を有効にする</b>
-          <small>誤操作や修正で記録が散らかってしまったときに履歴を消すことができます。残したい作業履歴や記録を消すと元に戻せないので気をつけてください。</small>
+          <b>「やったこと」の削除を有効にする</b>
+          <small>誤って付けた記録を「やったこと」の一覧から1件ずつ削除できます。削除しても宿題の進捗の数値は変わらず、元には戻せません。</small>
         </span>
       </label>
       <p class="set-note">削除できるのは「この端末は <b>保護者の端末</b>」を選んだ端末の「やったこと」の一覧からのみです。子どもの端末には削除ボタンを表示しません。進捗の数値は変わりません。</p>
       ${config.allowLogDelete && getLocal(K_ROLE) !== 'parent'
-        ? '<p class="set-note dev-warn"><b>この端末は「保護者の端末」に設定されていません。</b>「ほかの端末と共有」→「詳細」→「この端末は」で選択してください。</p>'
+        ? '<p class="set-note dev-warn"><b>この端末は「保護者の端末」に設定されていません。</b>「ほかの端末と共有」→「共有リンク・端末ごとの設定」→「この端末は」で選択してください。</p>'
         : ''}
     </div>
   </section>
@@ -3333,6 +3386,10 @@ function bindStats(){
    --------------------------------------------------------- */
 /* 保護者ページ（進捗一覧）— サマリーの生成と書き出し */
 function bindParent(){
+  const openChild = $('#openChildPage');
+  if(openChild) openChild.addEventListener('click', ()=>{
+    alert('保護者ページに戻るには、画面上部のタイトルを5回タップするか、2秒長押ししてください。');
+  });
   bindParentSender('parentMessageSender', 'parentMessageCustomWrap');
   const messageText = $('#parentMessageText');
   const fitMessageText = ()=>{
@@ -3487,7 +3544,7 @@ function bindSync(){
     bindSync._deviceWatching = true;
     S.onDeviceCount(count=>{
       const el = $('#syncDeviceCount');
-      if(el) el.textContent = '共有リンクと端末の管理（設定済み：' + count + '台）';
+      if(el) el.textContent = '共有リンク・端末ごとの設定（設定済み：' + count + '台）';
     });
   }
   /* 端末の 一覧は とどくのが 遅れる ことが ある。
@@ -3693,16 +3750,14 @@ function bindConfig(){
      アドレスに毎回ちがう印を付けると、iPad も 取り直さざるを得なくなる */
   const upd = $('#appUpdate');
   if(upd) upd.addEventListener('click', ()=>{
-    const q = location.search.replace(/[?&]r=\d+/g, '').replace(/^&/, '?');
-    const sep = q ? (q.startsWith('?') ? '&' : '?') : '?';
-    location.replace(location.pathname + q + sep + 'r=' + Date.now() + location.hash);
+    location.replace(cacheBustURL(location.href, Date.now()));
   });
 
   const ald = $('#allowLogDelete');
   if(ald) ald.addEventListener('change', ()=>{
     config.allowLogDelete = ald.checked;
     saveCfg(); render({ keepScroll:true });
-    toast(ald.checked ? '履歴削除を 有効にしました' : '履歴削除を 切りました');
+    toast(ald.checked ? '「やったこと」の削除を 有効にしました' : '「やったこと」の削除を 切りました');
   });
 
   const inv = $('#inviteCopy');
@@ -3734,8 +3789,8 @@ function bindConfig(){
     }
   });
   $('#resetAll').addEventListener('click', ()=>{
-    if(confirm('進捗と記録をすべて削除しますか？\nこの操作は取り消せません。')){
-      state = emptyState(); saveSt(); render(); toast('削除しました');
+    if(confirm('進捗と記録をすべての共有端末から削除しますか？\nこの操作は取り消せません。')){
+      state = resetState(Date.now()); saveSt(); render(); toast('すべての端末へ削除を送信しました');
     }
   });
 }
@@ -3877,6 +3932,14 @@ function copyText(ta){
     ta.setAttribute('readonly','');
     ok ? done() : toast('コピーできませんでした。長押しで選択してください');
   }
+}
+
+/* 「最新に更新する」用。文字列置換では ?r=... の位置や値の形によって
+   `?` / `&` が壊れるため、URL API で既存の引数を保ったまま r だけ更新する。 */
+function cacheBustURL(href, when){
+  const url = new URL(href, location.href);
+  url.searchParams.set('r', String(when || Date.now()));
+  return url.pathname + url.search + url.hash;
 }
 
 function exportData(){
@@ -4090,7 +4153,7 @@ document.addEventListener('keydown', e=>{
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==='home') render(); });
 
 /* ---------------------------------------------------------
-   おうちの人だけの 入口（タイトルを 3秒 長押し）
+   おうちの人だけの 入口（タイトルを 2秒 長押し）
 
    iOS で「ホーム画面に追加」した アイコンは、Safari とは 別の
    入れもの（localStorage）を 持つ。だから Safari で あいことばを
@@ -4101,7 +4164,7 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==
 
    画面には 何も出さず、長押しだけで 保護者ページへ 行けるようにする。
    子どもが たまたま 見つけても 困らないよう、ふつうに 触るより
-   長い 3秒に してある。
+   長い 2秒に してある。
    --------------------------------------------------------- */
 (function(){
   /* 帯ぜんたいを 受け口に する。タイトルの 文字は 短いことが あり、
@@ -4135,8 +4198,8 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==
   function open(){
     cancel();
     taps = 0;
-    if(routeFromHash() === 'config') return;
-    location.hash = 'config';
+    if(routeFromHash() === 'settings') return;
+    location.hash = 'settings';
   }
 
   function start(x, y){

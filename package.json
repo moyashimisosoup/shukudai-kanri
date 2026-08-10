@@ -4,6 +4,9 @@
   "private": true,
   "description": "家庭向けのしゅくだいノート",
   "license": "Apache-2.0",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
   "dependencies": {
     "@codexteam/icons": "0.3.3"
   }

@@ -226,12 +226,13 @@ body（縦フレックス・overflow:hidden・height:100%）
 - `assets/style.css`: レスポンシブUI、テーマ、iPhone/iPad向け調整
 - `assets/sync.js`: Firebase同期・端末一覧（役割・呼び名・ver）
 - `assets/kanji.js`: 漢字レベルに合わせた表示変換
-- `assets/vendor/qrcode.js`: QRコード生成（qrcode-generator 2.0.4・MIT）。同梱済みだが**まだ画面に組みこんでいない**
+- `assets/vendor/qrcode.js`: QRコード生成（qrcode-generator 2.0.4・MIT）。
+  `index.html` から読みこみ、`app.js` の `inviteQrHTML()` が使う。外部通信なし
 
 ## 次に行う場合の注意
 
-- iPhone/iPad の Safari ではキャッシュが強い。`app.js` / `data.js` / `style.css` / `kanji-origin.js` を
-  変更したら `index.html` の `?v=` を更新する（現在 `20260810k`）。
+- iPhone/iPad の Safari ではキャッシュが強い。`app.js` / `sync.js` / `data.js` / `style.css` / `kanji-origin.js` を
+  変更したら `index.html` の `?v=` を更新する（現在 `20260810w`）。
   設定画面の「アプリの ver」に、その端末が動かしている版が出る
 - `FUN` は配列の添字がそのまま localStorage の既読履歴・確認状態のキーになっている。
   項目を消す・並べ替えると既存端末の履歴が1つずつズレる（壊れはしないが出題順が乱れる）
@@ -239,19 +240,17 @@ body（縦フレックス・overflow:hidden・height:100%）
   保存形式は軽率に変更しない
 - 設定や記録は同期済み家庭にも影響する。削除ではなく非表示・互換処理を優先する
 - 上記「画面の作り」の前提（`#scroll` だけがスクロール）を崩さない
+- 「はずす」で付けた `devices.<id>.revoked` は、合言葉を明示的に入れ直した
+  再登録時に `false` へ戻すこと。見逃し1回だけでは次の同期通知で再び切断される
 
 ## 次にやること（2026-08-10 時点の残作業）
 
-1. **QRコード表示の組みこみ**
-   - `assets/vendor/qrcode.js` は同梱・検証ずみ（29モジュール／darkセル440で生成確認）。
-     まだ `index.html` から読みこんでおらず、画面にも出していない
-   - `app.js` の `inviteHTML()` に、招待リンクをそのままQRにして SVG で描く
-   - 招待リンクは `?join=<あいことば>&r=<時刻>&openExternalBrowser=1`
-2. **実機での確認まち**
-   - 読書ゆうびんの同期（時刻の直しが効いているか）。全端末を `20260810u` 以上にすること
+1. **実機での確認まち**
+   - まねきリンクのQR（下記のとおり組みこみずみ）を、別の端末のカメラで実際に読めるか
+   - 読書ゆうびんの同期（負の旧時刻の回復が効いているか）。全端末を `20260810w` 以上にすること
    - 招待リンクでの引きつぎ（LINE → 標準ブラウザ）
    - 端末の「はずす」→ あいことばの再入力が要ること
-3. **家庭用版URLを公開版URLへ統合**
+2. **家庭用版URLを公開版URLへ統合**
    - 同じ Firebase を見ているので、公開版URLで同じあいことばを入れれば記録も設定も出る。
      書き出し・読みこみは不要（保険として書き出しておくのはよい）
    - 移行中は両方のURLが生きているので、同時に開いたままにしない
@@ -262,6 +261,7 @@ body（縦フレックス・overflow:hidden・height:100%）
 node --check assets/app.js
 node --check assets/data.js
 node --check assets/kanji-origin.js
+npm test
 git status --short --branch
 ```
 

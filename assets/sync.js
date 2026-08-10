@@ -203,6 +203,9 @@ async function connect(){
             stateAt:  d.stateAt  || 0
           });
         }
+        /* 接続前に端末内へ保存されていた変更を、まず相手と合流してから送る。
+           読む前に送ると初期値で上書きするため、この位置でだけ再開する。 */
+        flushPendingSoon();
       },
       err => setStatus('error', 'つながりません：' + (err && err.code || err))
     );
@@ -248,6 +251,10 @@ function deviceInfo(){
     name:  String(i.name  || ''),
     label: String(i.label || ''),
     ver:   String(i.ver   || ''),
+    /* 「はずす」で付いた印は、合言葉を明示的に入れ直した再登録で解除する。
+       これが無いと最初のsnapshotだけ見逃したあと、メッセージ送信などで
+       次のsnapshotが来た時に再び「はずされました」と判定される。 */
+    revoked: false,
     at:    Date.now()
   };
 }
@@ -345,6 +352,11 @@ function push(kind){
   pushTimer = setTimeout(flush, 1200);
 }
 function pushAll(){ push('config'); push('state'); }
+function flushPendingSoon(){
+  if(!pending.config && !pending.state) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(flush, 0);
+}
 
 async function flush(){
   if(!docRef || !Sync._fs) return;
@@ -375,6 +387,9 @@ async function flush(){
        通信が 切れていても ここは 成功する（ブラウザに たまり、あとで 送られる） */
     await Sync._fs.setDoc(docRef, payload, { merge:true });
   }catch(err){
+    /* 一時的な失敗で送信予約まで失わない。次の再接続・保存で再送する。 */
+    if(payload.config) pending.config = true;
+    if(payload.state)  pending.state  = true;
     setStatus('error', '保存できません：' + (err && err.code || err));
   }
 }
