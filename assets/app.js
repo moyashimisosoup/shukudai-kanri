@@ -775,6 +775,7 @@ function applyRemote(remote){
      ここで かならず 家庭側に そろう。 */
   const remoteConfigAt = ms(remote.configAt);
   const localConfigAt  = ms(at.config);
+  const remoteThemeMissing = !!(remote.config && !THEME_IDS.includes(remote.config.theme));
   if(remote.config && (remote.first || remoteConfigAt > localConfigAt)){
     const beforeConfig = config;
     config = normalizeConfig(remote.config);
@@ -786,6 +787,13 @@ function applyRemote(remote){
        正しい 時刻で 送り返して 家庭の 時刻印を 直す。中身は 同じなので
        ほかの端末の 表示は 変わらず、次からは ふつうの 比較に 戻る */
     if(!remoteConfigAt){ markSaved('config'); syncPush('config'); }
+    /* デザイン共有前から使っている家庭では remote.config に theme が無い。
+       既存端末は自分が実際に使ってきた色を家庭設定へ移行する。一方、招待URLで
+       入ったばかりの端末は初期色しか知らないため、移行元にしてはいけない。 */
+    else if(remoteThemeMissing && !joinCodeFromURL()){
+      markSaved('config');
+      syncPush('config');
+    }
     changed = true;
   }
 
@@ -816,11 +824,16 @@ function applyRemote(remote){
      受信前に送ると、端末内の初期設定一式で家庭の設定を上書きしてしまうため、
      デザイン1項目だけをここで確定し、すぐ通常の保存手順へ戻す。 */
   let welcomeChanged = false;
-  const welcomeTheme = getLocal(K_WELCOME_THEME);
-  if(THEME_IDS.includes(welcomeTheme)){
-    try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
-    if(config.theme !== welcomeTheme){
-      config.theme = welcomeTheme;
+  let welcomeTheme = null;
+  try{ welcomeTheme = JSON.parse(getLocal(K_WELCOME_THEME) || 'null'); }catch(e){}
+  /* 一時デザインは、確認済みの同じ合言葉へ手動参加したときだけ使う。
+     旧版の文字列だけの値や、別の家庭・招待URLから入ったときの残りは捨てる。 */
+  try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
+  const syncApi = typeof window !== 'undefined' ? window.NatsuSync : null;
+  const activeCode = syncApi && typeof syncApi.getCode === 'function' ? syncApi.getCode() : '';
+  if(welcomeTheme && welcomeTheme.code === activeCode && THEME_IDS.includes(welcomeTheme.theme)){
+    if(config.theme !== welcomeTheme.theme){
+      config.theme = welcomeTheme.theme;
       welcomeChanged = true;
     }
   }
@@ -4035,10 +4048,19 @@ function bindWelcomeStart(){
         welcomeJoinVerified = { code, config:deepCopy(remoteConfig) };
         const remoteName = String(remoteConfig.childName || '').trim();
         const remoteGrade = Number(remoteConfig.readingGrade);
+        const remoteTheme = THEME_IDS.includes(remoteConfig.theme) ? remoteConfig.theme : '';
         const nameInput = $('#welcomeName');
         const readingInput = $('#welcomeReading');
         if(nameInput) nameInput.value = remoteName;
         if(readingInput && [0,1,2,9].includes(remoteGrade)) readingInput.value = String(remoteGrade);
+        if(remoteTheme && start.dataset.role === 'child'){
+          const themeInput = $('input[name="welcomeTheme"][value="' + remoteTheme + '"]', form);
+          if(themeInput){
+            themeInput.checked = true;
+            welcomeThemeChoice = remoteTheme;
+            applyTheme(remoteTheme);
+          }
+        }
         const note = $('#welcomeExistingNote');
         if(note){
           if(start.dataset.role === 'child'){
@@ -4109,9 +4131,11 @@ function bindWelcomeStart(){
     if(role === 'child' && THEME_IDS.includes(chosenTheme)){
       setLocal(K_THEME, chosenTheme);
       applyTheme(chosenTheme);
-      if(sharing) setLocal(K_WELCOME_THEME, chosenTheme);
+      if(sharing && joining && chosenTheme !== verifiedConfig.theme){
+        setLocal(K_WELCOME_THEME, JSON.stringify({ code, theme:chosenTheme }));
+      }
       else{
-        config.theme = chosenTheme;
+        if(!sharing) config.theme = chosenTheme;
         try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
       }
     }
@@ -5217,8 +5241,7 @@ function joinInstallTransferHTML(){
         <li>「ホーム画面に追加」→「追加」を押す</li>
         <li>追加されたアイコンを<b>一度開く</b></li>
       </ol>
-      <p class="set-note">アイコンから開いた時点で共有の設定が引き継がれ、URLの合言葉は自動で消えます。追加しないままでも、この画面では共有を使えます。</p>
-      <div class="set-actions"><button class="btn btn-sm btn-ghost" id="joinRemove" type="button">追加しない（URLから合言葉を消す）</button></div>
+      <div class="set-actions"><button class="btn btn-sm btn-ghost" id="joinRemove" type="button">追加しない</button></div>
     </div>
   </section>`;
 }
@@ -5238,6 +5261,9 @@ function applyJoinCode(){
      これが 無いと 起動する たびに 戻ってしまう。
      入れ直しは 人が 設定画面で 打つ（そこで 忘れる） */
   if(typeof S.revokedCode === 'function' && S.revokedCode() === code) return;
+  /* 手動参加で選んだ色が残っていても、招待URLの家庭へ持ち込まない。
+     招待では接続先の家庭デザインが常に正となる。 */
+  try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
   setLocal(K_ONBOARD, 'done');              // 招かれた側は 初期設定を とばす
   forgetConfigStampForNewHousehold(code);
   S.reconnect(code);

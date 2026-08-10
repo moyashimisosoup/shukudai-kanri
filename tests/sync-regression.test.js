@@ -621,10 +621,11 @@ test('初期設定は選択したルートに応じて③以降を連番で示�
 test('子どもが選んだデザインは、家庭設定の受信後に1度だけ反映する', ()=>{
   const storage = new Map([
     ['natsu.savedAt.v1', JSON.stringify({config:100})],
-    ['natsu.welcome.theme.v1', 'berry']
+    ['natsu.welcome.theme.v1', JSON.stringify({code:'abcdefgh',theme:'berry'})]
   ]);
   let saved = 0;
   const harness = new Function('localStorage', 'onSave', `
+    const window={NatsuSync:{getCode:()=> 'abcdefgh'}};
     let config={ tasks:[], theme:'notebook' }, state={};
     const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2', K_WELCOME_THEME='natsu.welcome.theme.v1', K_WELCOME_JOIN='natsu.welcome.join.v1';
     const THEME_IDS=['notebook','sunny','soda','berry','block','cat'];
@@ -652,6 +653,11 @@ test('子どもが選んだデザインは、家庭設定の受信後に1度だ�
   assert.equal(harness.config().theme, 'berry');
   assert.equal(saved, 1, '受信後にデザインだけを保存する');
   assert.equal(storage.has('natsu.welcome.theme.v1'), false, '反映後は一時値を消す');
+
+  storage.set('natsu.welcome.theme.v1', JSON.stringify({code:'other-house',theme:'cat'}));
+  harness.applyRemote({ config:{tasks:[],theme:'sunny'}, configAt:300 });
+  assert.equal(harness.config().theme, 'sunny', '別の家庭で残った一時デザインは採らない');
+  assert.equal(saved, 1, '別家庭の一時値を家庭設定として保存しない');
 });
 
 test('参加画面で変えた名前と漢字設定は、家庭設定の受信後にだけ反映する', ()=>{
@@ -852,11 +858,25 @@ test('QR招待の案内は大人向けのまま出し、ボタンを枠に収め
   assert.match(html, /data-no-reading/, '子ども画面でもかな変換の対象から外すこと');
   assert.match(html, /おうちの方に読んでもらってね/, '誰が読む文かを示すこと');
   assert.match(html, /<ol class="join-install-steps">/, '手順は番号付きで示すこと');
-  assert.match(html, /追加しない（URLから合言葉を消す）/, 'ボタンの文を短くすること');
-  assert.match(STYLE, /\.join-install-transfer \.set-actions \.btn\{[^}]*white-space:normal/,
-    '長いボタンは折り返して枠に収めること');
+  assert.match(html, />追加しない<\/button>/, 'ボタンは操作名だけにすること');
+  assert.doesNotMatch(html, /URLの合言葉|URLから合言葉|自動で消えます/,
+    '合言葉削除の内部動作を案内へ重ねないこと');
   assert.match(grab(APP, 'applyReadingDisplay'), /data-no-reading/,
     'かな変換に data-no-reading の除外があること');
+});
+
+test('招待URLでは端末に残ったデザインを持ち込まず、家庭のデザインを採る', ()=>{
+  const join = grab(APP, 'applyJoinCode');
+  const remote = grab(APP, 'applyRemote');
+  assert.match(join, /localStorage\.removeItem\(K_WELCOME_THEME\)/,
+    '招待接続前に手動参加の一時デザインを消す');
+  assert.match(remote, /welcomeTheme\.code === activeCode/,
+    '一時デザインは確認済みの同じ家庭だけに適用する');
+  assert.match(remote, /remoteThemeMissing[\s\S]{0,180}!joinCodeFromURL\(\)/,
+    '旧家庭のテーマ移行に招待直後の端末を使わない');
+  const bind = grab(APP, 'bindWelcomeStart');
+  assert.match(bind, /themeInput\.checked = true/,
+    '手動参加でも確認後に家庭のデザインを選択状態へ反映する');
 });
 
 test('既存の家庭に入るときは、名前と漢字の設定を任意にする', ()=>{
