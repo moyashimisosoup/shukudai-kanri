@@ -23,10 +23,22 @@
 - Git remote: `public-households` = 公開版、`origin` = 家庭用版
 - 作業ブランチ: `codex/multi-household-public`（`public-households/main` を追跡）
 - 最新コミット: `d7f00d5 Keep a revoked device from rejoining through the invite link`
-- 2026-08-10 時点の配信状況：家庭用版は `d7f00d5`（app `20260810ai` / sync `20260810y`）を配信中。
-  **公開版は同じコミットを push 済みだが、GitHub Pages のビルドが 13分以上 `building` のまま**。
-  エラーは出ていない（`gh api repos/.../pages/builds` で確認）。家庭用版は同じ内容が45秒で
-  配信されたので、公開版側のキューが詰まっている。下記「現在の公開方式」の事故の再発に注意
+- 2026-08-10 時点の配信状況：公開版・家庭用版とも
+  app `20260810ai` / sync `20260810y` / style `20260810ae` / manifest `20260810y` を配信中
+
+### 公開版の Pages ビルドが `building` のまま止まったとき
+
+`d7f00d5` の push で、家庭用版は45秒で配信されたのに公開版だけ13分以上
+`building` のままになった。エラーは出ていない。**次の push を重ねたら詰まりが解け、
+両方いっぺんに配信された。**（下記「現在の公開方式」にある、固まったデプロイが
+以降を全てブロックする事故と同じ筋）。
+
+```bash
+gh api repos/moyashimisosoup/shukudai-notebook/pages/builds --jq '.[0:3][] | {status, created_at, commit, error}'
+```
+
+`status` が `building` で `error` が空なら、待つよりもう1コミット push するほうが早い。
+`errored` なら中身の問題なので `error.message` を読むこと。
 
 公開版・家庭用版のコードは同一です。変更は原則として両remoteの `main` へ push してください。
 
