@@ -4056,11 +4056,6 @@ function viewConfig(){
     <p class="set-note">日付はカウントダウンとペースの計算に使います。</p>
   </div></section>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>宿題の項目</h2></div><div class="paper">
-    <p class="set-note">宿題・読書・毎日の項目は「宿題を決める」ページにまとめました。</p>
-    <div class="set-actions"><a class="btn btn-sm" href="#tasks">宿題を決めるページを開く</a></div>
-  </div></section>
-
   ${syncSectionHTML({ openDetails:openShareSettings })}
 
   <section class="sec config-sec"><div class="sec-head"><h2>アプリ情報</h2>

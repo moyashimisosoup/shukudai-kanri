@@ -355,13 +355,22 @@ function watchHousehold(fs, ref, code){
          読めない ときは 何も 受け取らなかった ことに して、画面に 出す */
       let plainConfig = null;
       let plainState = null;
+      /* 読めない 理由は 2つ あり、直し方が ちがう。取りちがえると
+         「合言葉を 確かめて」と 言われた 人が、正しい 合言葉を
+         何度も 入れ直す ことに なる。分けて 出す */
+      const sealed = v => v === undefined || v === null || isCiphertext(v);
+      if(!sealed(d.config) || !sealed(d.state)){
+        /* 鍵を かける 前の 版が 作った 家庭。鍵が 無いのでは なく、
+           そもそも かかっていない。合言葉を 入れ直しても 直らない */
+        setStatus('error', 'この家庭は 古い方式で 保存されています。'
+          + '保護者の端末を 最新に 更新し、合言葉を 作り直してください');
+        return;
+      }
       try{
         if(isCiphertext(d.config)) plainConfig = await decryptField('config', code, d.config);
-        else if(d.config !== undefined && d.config !== null) throw new Error('not-encrypted');
-        if(isCiphertext(d.state)) plainState = await decryptField('state', code, d.state);
-        else if(d.state !== undefined && d.state !== null) throw new Error('not-encrypted');
+        if(isCiphertext(d.state))  plainState  = await decryptField('state',  code, d.state);
       }catch(e){
-        setStatus('error', 'この端末では 中身を 読めません。合言葉を 確かめてください');
+        setStatus('error', '合言葉が ちがうため、中身を 読めません');
         return;
       }
       if(docRef !== ref) return;    // 読んでいる あいだに つなぎ直された

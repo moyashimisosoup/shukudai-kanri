@@ -1276,7 +1276,7 @@ test('鍵の塩は、保存される文書IDと別物にする', async ()=>{
    立てると configHeldBack() が false になり、同じ道すじが再びひらく。 */
 test('復号できないうちは、受信済みにも上書き可能にもしない', ()=>{
   const watch = grab(SYNC, 'watchHousehold');
-  const failIdx = watch.indexOf('この端末では 中身を 読めません');
+  const failIdx = watch.indexOf('この家庭は 古い方式で');
   const gotIdx  = watch.indexOf('gotSnapshot = true');
   assert.ok(failIdx > -1, '読めないことを画面に出すこと');
   assert.ok(gotIdx > failIdx,
@@ -1285,8 +1285,15 @@ test('復号できないうちは、受信済みにも上書き可能にもし�
   assert.match(fail, /return;/, '読めないときはそこで戻ること');
   assert.doesNotMatch(fail, /pushAll\(\)|flushPendingSoon\(\)|joiningExisting = false/,
     '読めないまま家庭へ送り出さないこと');
-  /* 平文のまま置かれた文書も「読めない」に倒す（黙って上書きしない） */
-  assert.match(watch, /throw new Error\('not-encrypted'\)/);
+  /* 平文のまま置かれた文書も「読めない」に倒す（黙って上書きしない）。
+     ただし理由は分ける。古い方式の家庭に「合言葉を確かめて」と言うと、
+     正しい合言葉を何度も入れ直すことになる */
+  assert.match(watch, /const sealed = v => v === undefined \|\| v === null \|\| isCiphertext\(v\)/);
+  assert.match(watch, /この家庭は 古い方式で 保存されています/);
+  assert.match(watch, /合言葉が ちがうため、中身を 読めません/);
+  const oldWayIdx = watch.indexOf('この家庭は 古い方式で');
+  assert.ok(oldWayIdx > -1 && oldWayIdx < gotIdx,
+    '古い方式の判定も gotSnapshot より前で止めること');
 });
 
 test('はずされた判定と台数は、鍵が合わなくても動く', ()=>{
