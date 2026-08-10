@@ -366,9 +366,16 @@ assets/kanji.js               小2までの配当漢字の判定と書き写し�
 assets/kanji-worker.js        形態素解析（メインスレッドを止めないため分離）
 assets/app.js                 進捗計算、描画、記録、設定
 assets/sync.js                端末間の共有（Firestore・未設定なら何もしない）
+assets/kuromoji.js            形態素解析ライブラリ（Apache-2.0・ローカル同梱）
+assets/dict/                  形態素解析の辞書（IPADIC 由来・ローカル同梱）
+assets/codex-icons.js         画面のアイコン（@codexteam/icons・MIT・使う分だけ同梱）
 assets/vendor/qrcode.js       QRコード生成（qrcode-generator・MIT・ローカル同梱）
-firestore.rules               Firestore のセキュリティルール
-.github/workflows/pages.yml   GitHub Pages へのデプロイ
+assets/icon.svg               ホーム画面アイコンの図案（不透明）
+assets/icon-*.png             同アイコンの PNG（180=apple-touch-icon、192/512、maskable）
+assets/paw.svg                「ねこ」テーマの飾り（CSS の mask で使う。アイコンではない）
+tools/make-icons.js           icon.svg と同じ図案から PNG を作り直す
+manifest.webmanifest          ホーム画面追加の設定（アイコン・表示方法）
+firestore.rules               Firestore のセキュリティルール（記録用の控え）
 .nojekyll                     Jekyll 処理を無効化
 LICENSE                       ソースコードのライセンス（Apache-2.0）
 NOTICE                        著作権・第三者ライセンスの通知
@@ -413,6 +420,12 @@ Copyright 2026 moyashimisosoup
 「しゅくだいノート」© 2026 moyashimisosoup ／ CC BY 4.0
 https://github.com/moyashimisosoup/shukudai-notebook
 ```
+
+### 第三者の著作物
+
+同梱しているもの（qrcode-generator、@codexteam/icons、kuromoji.js とその辞書）と、
+実行時に外部から読み込むもの（Firebase SDK、Google Fonts）の一覧と権利表示は
+[`NOTICE`](NOTICE) にまとめてあります。再配布するときは NOTICE ごと配布してください。
 
 ### お願い（義務ではありません）
 

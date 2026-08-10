@@ -1741,11 +1741,14 @@ function logBy(){
   const role = getLocal(K_ROLE);
   return (role === 'parent' || role === 'child') ? role : '';
 }
-/* 表示は その時の 名前を つかう。あとで 名前を 直しても 古い記録に ついてくる */
+/* 入れた人の 印。**おうちの人が 入れた ぶんだけ** 出す。
+   子どもが 入れた ぶんは、そちらが ふつうなので 何も 付けない
+   （以前は 子どもの 名前を 出していて、今日の記録の 全件に
+     名前が ならび、かえって 読みにくかった）。
+   `l.by` は 記録した ときの この端末の 役割で、記録と いっしょに
+   同期される。古い記録に `by` が 無くても、その場合は 印が 出ないだけ */
 function logByLabel(l){
-  if(l.by === 'child')  return String(config.childName || '').trim() || 'こども';
-  if(l.by === 'parent') return 'おうちの人';
-  return '';
+  return (l && l.by === 'parent') ? '親' : '';
 }
 
 function logRowHTML(l){
@@ -2825,7 +2828,7 @@ function trashSectionHTML(){
           <div class="trash-head">
             <span class="trash-kind">${esc(kindLabel[r.kind] || r.kind || '記録')}</span>
             <span class="trash-at">${esc(fmtDate(new Date(r.at)))} ${esc(fmtTime(new Date(r.at)))}</span>
-            ${r.by ? `<span class="trash-by">${esc(logByLabel(r))}</span>` : ''}
+            ${logByLabel(r) ? `<span class="trash-by">${esc(logByLabel(r))}</span>` : ''}
           </div>
           <div class="trash-title">${esc(r.title || '')}</div>
           ${r.text ? `<div class="trash-text">${esc(r.text)}</div>` : ''}

@@ -41,7 +41,7 @@ const APP_NAMES = [
   'emptyState', 'normalizeState', 'ms', 'deepCopy', 'mergeById',
   'pickStamped', 'mergeProgress', 'mergeState', 'resetState',
   'canon', 'sameState', 'stripLocal', 'cacheBustURL', 'homeInstallPlatform', 'clamp', 'dailyCountSelection',
-  'parentShareSummary', 'defaultTitleFor', 'isGeneratedTitle'
+  'parentShareSummary', 'defaultTitleFor', 'isGeneratedTitle', 'logByLabel'
 ];
 const appFns = new Function('location', `
   const SCHEMA=6, TRASH_MAX=50, GONE_MAX=300, MESSAGES_MAX=3, READS_MAX=400;
@@ -970,4 +970,44 @@ test('保護者ページは未共有の入口と子ども画面の修正方法�
   assert.match(badge, /接続設定はこちら/);
   assert.match(APP, /<h2>保護者の方へ<\/h2>[\s\S]*子ども画面から該当する項目を開いて変更/);
   assert.match(APP, /このページで変更すると、共有中の子ども端末のデザインも変更/);
+});
+
+test('今日の記録は保護者が入れたぶんだけ印を付け、子どもの記録には付けない', ()=>{
+  assert.equal(appFns.logByLabel({ by:'parent' }), '親');
+  assert.equal(appFns.logByLabel({ by:'child' }), '');
+  assert.equal(appFns.logByLabel({}), '');            // 古い記録（by なし）
+  assert.equal(appFns.logByLabel(null), '');
+  /* 子どもの名前を 記録の 行に 出さない（全件に 名前が ならんでいた） */
+  const label = grab(APP, 'logByLabel');
+  assert.doesNotMatch(label, /childName/);
+});
+
+test('消した記録の控えも、印が空なら欄ごと出さない', ()=>{
+  assert.match(APP, /\$\{logByLabel\(r\) \? `<span class="trash-by">/,
+    'by の有無ではなく、出す文字があるかで判定すること');
+});
+
+test('ホーム画面アイコンは不透明PNGを持ち、ねこテーマの肉球を流用しない', ()=>{
+  const srcs = MANIFEST.icons.map(i => i.src);
+  assert.equal(srcs.some(s => /paw\.svg/.test(s)), false,
+    'paw.svg は ねこテーマの飾り。アイコンには使わない');
+  assert.equal(srcs.some(s => /icon-192\.png/.test(s)), true);
+  assert.equal(MANIFEST.icons.some(i => i.purpose === 'maskable'), true);
+  for(const src of srcs){
+    const file = path.join(ROOT, src.split('?')[0]);
+    assert.equal(fs.existsSync(file), true, '実体があること: ' + src);
+  }
+  /* iOS は apple-touch-icon を 優先する。透過だと 黒で うめられる */
+  const index = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const link = /<link rel="apple-touch-icon" href="([^"?]+)/.exec(index);
+  assert.ok(link, 'apple-touch-icon を置くこと');
+  const png = fs.readFileSync(path.join(ROOT, link[1]));
+  assert.equal(png.readUInt32BE(16), 180, '180×180 であること');
+  assert.equal(png.readUInt32BE(20), 180);
+  assert.equal(png[25], 2, 'アルファ無し（不透明）の truecolor であること');
+});
+
+test('ねこテーマの飾りは paw.svg のまま残す', ()=>{
+  assert.match(STYLE, /\[data-theme="cat"\][\s\S]*mask:url\("paw\.svg"\)/);
+  assert.equal(fs.existsSync(path.join(ROOT, 'assets', 'paw.svg')), true);
 });

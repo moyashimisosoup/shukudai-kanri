@@ -1,6 +1,9 @@
-/* SPDX-License-Identifier: Apache-2.0 */
-/* @codexteam/icons 0.3.3 — MIT License
+/* SPDX-License-Identifier: Apache-2.0 AND MIT */
+/* このファイルは 2つの ライセンスが 混ざっている。
+ *  - 包んでいるコード（この即時関数・window への公開）… Apache-2.0 / このアプリの作者
+ *  - icons の中の SVG … @codexteam/icons 0.3.3 / CodeX / MIT License
  * 使用するアイコンだけをローカル配信し、実行時の外部通信を増やさない。
+ * MIT の全文は assets/vendor/codex-icons-LICENSE.txt にある。
  */
 (function(){
   'use strict';

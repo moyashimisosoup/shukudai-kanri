@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+<!-- しゅくだいノートの ホーム画面アイコン。
+     数字は tools/make-icons.js と そろえてある。図案を 直すときは 両方を 直し、
+     `node tools/make-icons.js` で PNG を 作り直すこと。
+     背景は 不透明。iOS は 透過を 黒で うめるため -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180"
+     role="img" aria-label="しゅくだいノート">
+  <rect width="180" height="180" fill="#14375e"/>
+  <rect x="34" y="26" width="112" height="128" rx="12" fill="#fff9ef"/>
+  <g stroke="#c6d6e4" stroke-width="7" stroke-linecap="round">
+    <line x1="52" y1="56" x2="128" y2="56"/>
+    <line x1="52" y1="78" x2="110" y2="78"/>
+  </g>
+  <polyline points="58,112 80,134 126,84" fill="none" stroke="#3ea05c"
+            stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
