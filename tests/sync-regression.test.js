@@ -1305,3 +1305,24 @@ test('参加前の確認は、鍵が合ったときだけ中身を見せる', ()
   assert.match(v, /if\(!isCiphertext\(raw\)\) return \{ found:true, config:null, unreadable:true \}/);
   assert.match(v, /catch\(e\)\{\s*return \{ found:true, config:null, unreadable:true \};/);
 });
+
+/* 実機で「QR参加すると、まいにちの項目が消える」「デザインが移らない」。
+   家庭を作った直後にQRを読むと、作成側の最初の送信が届く前に
+   「文書はあるが config が無い」snapshot が1回来る。そこで初期設定の
+   名前・デザインを saveCfg() すると、参加したばかりの端末の初期値
+   （既定の宿題・まいにち無し・初期デザイン）が家庭へ配られる。 */
+test('家庭の設定を受け取れていないうちは、初期設定を家庭へ送らない', ()=>{
+  const f = grab(APP, 'applyRemote');
+  const guardIdx = f.indexOf('if(!remote.config){');
+  const consumeIdx = f.indexOf('localStorage.removeItem(K_WELCOME_THEME)');
+  const saveIdx = f.indexOf('if(welcomeChanged){ saveCfg(); changed = true; }');
+  assert.ok(guardIdx > -1, '家庭の設定が無いときの分岐を置くこと');
+  assert.ok(consumeIdx > guardIdx,
+    '受け取れていないうちに、取っておいた初期設定を使い切らないこと');
+  assert.ok(saveIdx > guardIdx,
+    '受け取れていないうちに saveCfg() で家庭へ送らないこと');
+  /* 消さずに残す。次のsnapshotで家庭の設定が来たときに反映する */
+  const guard = f.slice(guardIdx, consumeIdx);
+  assert.match(guard, /return;/);
+  assert.doesNotMatch(guard, /removeItem\(K_WELCOME_JOIN\)|saveCfg\(\)/);
+});
