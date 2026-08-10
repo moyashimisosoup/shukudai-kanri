@@ -186,16 +186,31 @@ function normalizeState(s){
    時刻を くらべれば、「新しく そうした方」が 勝つので、
    進んだ ぶんは 消えず、訂正だけが とどく。
    --------------------------------------------------------- */
+/* 時刻（ミリ秒）は 13けたに なるので、32ビットに 入らない。
+   これまで `|0` で 数に していたが、それだと 負の数に 化ける。
+
+     1786312076482 | 0  →  -394318654
+
+   時刻の 無い側は 0 なので、0 のほうが 大きく なってしまい、
+   「何も 入っていない側」が「実際に 記録された側」に 勝っていた
+   （読書ゆうびんの ①が 親の端末に とどかなかった 原因）。
+   両方に 時刻が ある ときは、どちらも 同じように 化けて 大小が
+   たまたま 保たれるので、番号の 同期は 動いて 見えていた。 */
+function ms(v){
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function stampArray(before, after, at, t){
   const b = Array.isArray(before) ? before : [];
   const a = Array.isArray(after)  ? after  : [];
   const old = Array.isArray(at) ? at : [];
-  return a.map((v,i)=> (!!v === !!b[i]) ? (old[i] | 0) : t);
+  return a.map((v,i)=> (!!v === !!b[i]) ? ms(old[i]) : t);
 }
 function stampDays(before, after, at, t){
   const b = before || {}, a = after || {}, old = at || {};
   const out = {};
-  Object.keys(a).forEach(k=>{ out[k] = ((a[k]|0) === (b[k]|0)) ? (old[k] | 0) : t; });
+  Object.keys(a).forEach(k=>{ out[k] = ((a[k]|0) === (b[k]|0)) ? ms(old[k]) : t; });
   return out;
 }
 function progPatch(id, patch, when){
@@ -284,7 +299,7 @@ function senderIdOf(stateAt){
   const map = (S && typeof S.devices === 'function') ? S.devices() : {};
   const hit = Object.keys(map).find(id=>{
     const v = map[id];
-    return v && typeof v === 'object' && (v.lastAt | 0) === (stateAt | 0);
+    return v && typeof v === 'object' && ms(v.lastAt) === ms(stateAt);
   });
   return hit || '';
 }
@@ -308,15 +323,15 @@ function traceProgress(before, after, remote, remoteAt){
     const b = (before || {})[id] || {}, a = (after || {})[id] || {}, r = (remote || {})[id] || {};
     if((b.done|0) !== (a.done|0)){
       rows.push({ at, id, f:'done', meId, youId,
-                  mine:(b.done|0), mineAt:(b.doneAt|0),
-                  theirs:(r.done|0), theirsAt:(r.doneAt|0),
-                  won:(a.done|0), remoteAt: remoteAt|0 });
+                  mine:(b.done|0), mineAt:ms(b.doneAt),
+                  theirs:(r.done|0), theirsAt:ms(r.doneAt),
+                  won:(a.done|0), remoteAt: ms(remoteAt) });
     }
     ['wrap','steps'].forEach(k=>{
       const x = JSON.stringify(b[k] || []), y = JSON.stringify(a[k] || []);
       if(x !== y) rows.push({ at, id, f:k, meId, youId, mine:x, mineAt:JSON.stringify(b[k+'At'] || []),
                               theirs:JSON.stringify(r[k] || []), theirsAt:JSON.stringify(r[k+'At'] || []),
-                              won:y, remoteAt: remoteAt|0 });
+                              won:y, remoteAt: ms(remoteAt) });
     });
   });
   traceAdd(rows);
@@ -438,7 +453,7 @@ function mergeById(local, remote, newerWins){
    これで、更新していない 端末を 新しい版に 入れかえるまでの あいだも
    いまと同じ 動きの まま つかえる */
 function pickStamped(aVal, aAt, bVal, bAt, fallback){
-  const x = aAt|0, y = bAt|0;
+  const x = ms(aAt), y = ms(bAt);
   if(!x && !y) return { value: fallback, at: 0 };
   if(x === y)  return { value: fallback, at: x };
   return x > y ? { value: aVal, at: x } : { value: bVal, at: y };
@@ -487,7 +502,7 @@ function mergeProgress(lp, rp, localIsNewer){
       const val = [], at = [];
       for(let i=0; i<len; i++){
         const r = pickStamped(!!x[i], xa[i], !!y[i], ya[i], !!x[i] || !!y[i]);
-        val.push(r.value); at.push(r.at | 0);
+        val.push(r.value); at.push(ms(r.at));
       }
       p[key] = val;
       if(at.some(Boolean)) p[atKey] = at; else delete p[atKey];
@@ -527,8 +542,8 @@ function mergeState(local, remote, localIsNewer){
   /* 消したものの ひかえ。これが 墓標に なるので、合併したあとに
      消された ものを 取りのぞく。これが 無いと、相手の端末が まだ 持っている
      本の記録が そのまま よみがえる */
-  out.trash = mergeById(local.trash, remote.trash, (a,b)=> (a.at|0) >= (b.at|0))
-    .sort((x,y)=> (y.at|0) - (x.at|0))
+  out.trash = mergeById(local.trash, remote.trash, (a,b)=> ms(a.at) >= ms(b.at))
+    .sort((x,y)=> ms(y.at) - ms(x.at))
     .slice(0, TRASH_MAX);
   /* 印だけの ひかえ。1行けしなど、中身を のこさない 消しかたの 墓標 */
   /* メッセージは id で 合流。両方の 親が 同時に 送っても どちらも のこる。
@@ -541,8 +556,8 @@ function mergeState(local, remote, localIsNewer){
     .sort((x,y)=> String(x.at||'').localeCompare(String(y.at||'')))
     .slice(-READS_MAX);
 
-  out.gone = mergeById(local.gone, remote.gone, (a,b)=> (a.at|0) >= (b.at|0))
-    .sort((x,y)=> (y.at|0) - (x.at|0))
+  out.gone = mergeById(local.gone, remote.gone, (a,b)=> ms(a.at) >= ms(b.at))
+    .sort((x,y)=> ms(y.at) - ms(x.at))
     .slice(0, GONE_MAX);
 
   const gone = new Set([...out.trash.map(x=> x.id), ...out.gone.map(x=> x.id)]);
@@ -560,8 +575,8 @@ function mergeState(local, remote, localIsNewer){
     String(a.id||'').localeCompare(String(b.id||''));
   out.logs.sort(byIdThen('at'));
   out.books.sort(byIdThen('date'));
-  out.trash.sort((a,b)=> (b.at|0)-(a.at|0) || String(a.id||'').localeCompare(String(b.id||'')));
-  out.gone.sort((a,b)=> (b.at|0)-(a.at|0) || String(a.id||'').localeCompare(String(b.id||'')));
+  out.trash.sort((a,b)=> ms(b.at)-ms(a.at) || String(a.id||'').localeCompare(String(b.id||'')));
+  out.gone.sort((a,b)=> ms(b.at)-ms(a.at) || String(a.id||'').localeCompare(String(b.id||'')));
   if(out.logs.length > 3000) out.logs = out.logs.slice(-3000);
   /* ミニコンテンツは 基本1日3回。端末ごとに かぞえる（下の stripLocal を 見てください）*/
   if(local.fun) out.fun = local.fun; else delete out.fun;
@@ -2015,7 +2030,7 @@ function inviteHTML(){
     <div class="set-actions">
       <button class="btn btn-sm" id="inviteCopy" type="button">リンクをコピー</button>
     </div>
-    <p class="set-note">このリンクは<b>あいことばそのもの</b>です。見た人は誰でもつながれるので、SNSなどに貼らないでください。受け取る側は、開いたあと<b>ホーム画面に追加</b>しておくと、次からは一度で開けます。</p>
+    <p class="set-note">このリンクは<b>「あいことば」そのもの</b>です。見た人は誰でもつながれるので、SNSなどに貼らないでください。受け取る側は、開いたあと<b>ホーム画面に追加</b>しておくと、次からは一度で開けます。</p>
   </div>`;
 }
 
@@ -2122,7 +2137,7 @@ function deviceRows(map){
       name: String(o.name  || '').trim(),   // こどもの なまえ
       own:  String(o.label || '').trim(),   // この端末に つけた 呼び名（父・母 など）
       ver:  o.ver || '',
-      at:   o.at | 0
+      at:   ms(o.at)
     };
   });
   rows.sort((a,b)=> (a.at - b.at) || a.id.localeCompare(b.id));
@@ -2216,7 +2231,7 @@ function syncSectionHTML(opts){
         ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作る</button>'}
       </div>
       ${code ? `<details class="set-advanced sync-detail">
-        <summary><span class="sync-device-count" id="syncDeviceCount">共有設定済みの端末：${S.deviceCount()}台</span></summary>
+        <summary><span class="sync-device-count" id="syncDeviceCount">共有リンクと端末の管理（設定済み：${S.deviceCount()}台）</span></summary>
         <div class="set-advanced-body">
           ${inviteHTML()}
           <div id="syncDeviceList">${deviceListHTML()}</div>
@@ -3472,7 +3487,7 @@ function bindSync(){
     bindSync._deviceWatching = true;
     S.onDeviceCount(count=>{
       const el = $('#syncDeviceCount');
-      if(el) el.textContent = '共有設定済みの端末：' + count + '台';
+      if(el) el.textContent = '共有リンクと端末の管理（設定済み：' + count + '台）';
     });
   }
   /* 端末の 一覧は とどくのが 遅れる ことが ある。

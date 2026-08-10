@@ -1698,3 +1698,8 @@ input.is-need, textarea.is-need{
   border:2px solid var(--suika); background:var(--suika-usu);
   border-radius:var(--r-s); padding:10px 12px; color:var(--ai);
 }
+
+/* まねきリンクの 欄は、iPad の ように はばの ある 画面でも
+   set-row の 決めうちで 細く なっていた。ここだけ 目いっぱい 使う */
+.invite .set-row{ display:block; }
+.invite #inviteUrl{ width:100%; box-sizing:border-box; }
