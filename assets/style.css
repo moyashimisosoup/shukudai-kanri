@@ -1486,7 +1486,12 @@ body.no-tabbar{ padding-bottom:0; }
 .pgtable tr.is-done .pg-next{ color:var(--wakaba); font-weight:900; }
 
 @media (max-width:640px){
-  .pgtable, .pgtable tr, .pgtable th, .pgtable td{ display:block; }
+  /* tbody を 入れわすれると、そこだけ table-row-group の まま のこる。
+     すると 行ぜんたいが 中身の 幅まで 縮み、**バーの 右に 大きな
+     すき間**が できる（実際に 保護者ページで そう見えた）。
+     表を 積みなおす ときは、あいだの 箱も ぜんぶ block に する */
+  .pgtable, .pgtable thead, .pgtable tbody,
+  .pgtable tr, .pgtable th, .pgtable td{ display:block; }
   .pgtable tr{ padding:12px 4px; border-bottom:2px dashed var(--hougan); }
   .pgtable tr:last-child{ border-bottom:none; }
   .pgtable th, .pgtable td{ padding:2px 12px; border-bottom:none; }

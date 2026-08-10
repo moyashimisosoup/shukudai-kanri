@@ -40,6 +40,15 @@ const K_ST  = TEST_MODE ? 'natsu.preview.state.v1'  : 'natsu.state.v2';
 /* 初期設定は端末ごとに一度だけ表示する。家庭の設定そのものは従来どおり
    Firebase（あいことば）経由で共有し、端末の役割・表示名だけは端末内に残す。 */
 const K_ONBOARD = TEST_MODE ? 'natsu.preview.onboarding.v1' : 'natsu.onboarding.v1';
+/* 人が じぶんで えらんだ 合言葉。
+   ホーム画面に 追加した アプリは、**起動URLに 招待の 合言葉が 焼きついて
+   いる**。そのため 共有を 解除しても、作り直しても、次に ホーム画面から
+   開いた 瞬間に URL の 合言葉で つなぎ直され、前の 家庭に 戻ってしまう。
+   起動URLは あとから 書きかえられないので、「人が どれを えらんだか」を
+   この端末に おぼえておき、URL より そちらを 優先する。
+   解除した ときは 'none' を 入れて、どこにも つながらないことを おぼえる */
+const K_CODE_CHOSEN = TEST_MODE ? 'natsu.preview.sync.chosen.v1' : 'natsu.sync.chosen.v1';
+function rememberChosenCode(code){ setLocal(K_CODE_CHOSEN, String(code || 'none')); }
 const K_ROLE = TEST_MODE ? 'natsu.preview.role.v1' : 'natsu.device.role.v1';
 const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
 const K_READING = TEST_MODE ? 'natsu.preview.reading.v1' : 'natsu.device.reading.v1';
@@ -2880,23 +2889,44 @@ function syncSectionHTML(opts){
   }
 
   const code = S.getCode();
-  const [mark, text] = SYNC_LABEL[S.status()] || SYNC_LABEL.off;
+  let [mark, text] = SYNC_LABEL[S.status()] || SYNC_LABEL.off;
+  /* この端末だけの ときに「つながっています」と 出すと、もう 相手が
+     いるように 読める。実際は 相手を 待っている 状態なので そう書く */
+  const alone = S.status() === 'online' && S.deviceCount() <= 1;
+  if(alone) text = 'ほかの端末を待っています';
 
   return `
   <section class="sec" id="syncSection">
     <div class="sec-head"><h2>ほかの端末と共有</h2>
-      <span class="sec-note" id="syncStatus">${mark} ${esc(S.statusText() || text)}</span></div>
+      <span class="sec-note" id="syncStatus">${mark} ${esc(alone ? text : (S.statusText() || text))}</span></div>
     <div class="paper">
       ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
       <p class="set-note">同じ「合言葉」を入力した複数の端末で、同じ記録と設定を共有できます。</p>
       ${code ? `
-      <div class="set-row"><span class="lab">合言葉</span>
+      ${/* 共有ずみの 画面。ここに 出ているのは **すでに 使っている**
+            合言葉で、これから つなぐ ものでは ない。以前は
+            「この合言葉で接続」と 書いてあり、作った 本人には
+            「まだ つながっていないのか」と 読めた。
+            ふだんは 見せるだけに して、打ち直しは たたんで おく */''}
+      <div class="set-row"><span class="lab">この家庭の合言葉</span>
         <input type="text" id="syncCode" value="${esc(code)}" spellcheck="false"
-               autocapitalize="off" autocorrect="off" placeholder="未設定"></div>
+               autocapitalize="off" autocorrect="off" placeholder="未設定" readonly></div>
+      <p class="set-note">ほかの端末では、この合言葉を入力するか、下の「ほかの端末から読み取る」のQRコード・招待リンクを使ってください。</p>
       <div class="set-actions">
-        <button class="btn btn-sm" id="syncSave" type="button">この合言葉で接続</button>
         <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
-      </div>` : `
+      </div>
+      <details class="set-advanced" data-details-key="syncRejoin">
+        <summary>べつの合言葉につなぎ直す</summary>
+        <div class="set-advanced-body">
+          <p class="set-note">いま入っている家庭から離れ、入力した合言葉の家庭につなぎ直します。この端末の記録は残ります。</p>
+          <div class="set-row"><span class="lab">つなぎ直す合言葉</span>
+            <input type="text" id="syncRejoinCode" value="" spellcheck="false"
+                   autocapitalize="off" autocorrect="off" placeholder="受け取った合言葉"></div>
+          <div class="set-actions">
+            <button class="btn btn-sm" id="syncSave" type="button">入力した合言葉につなぎ直す</button>
+          </div>
+        </div>
+      </details>` : `
       <!-- まだ 共有していない ときは、「作る」と「入る」を 分ける。
            以前は 1つの 欄と「この合言葉で接続」だけで、作成しただけで
            共有が 始まるのか、接続を 押して はじめて 始まるのかが
@@ -4452,6 +4482,7 @@ function bindWelcomeStart(){
     if(sharing && !TEST_MODE && S && S.configured()){
       if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
       forgetConfigStampForNewHousehold(code);
+      rememberChosenCode(code);
       /* 参加は「ある家庭へ入る」。文書が無かったときに、この端末の
          初期値で家庭を作らせない（joining を渡す意味はそこだけ） */
       S.reconnect(code, { joining });
@@ -4731,9 +4762,11 @@ function bindSync(){
     });
   }
 
-  /* 保護者ページでは あいことばが 無いときだけ 欄が 出る。
-     出ていない ときは つなぐ そうさも いらない */
-  const input = $('#syncCode');
+  /* 打ちこむ 欄は 2つ ある。まだ 共有していない ときは #syncCode、
+     共有ずみで つなぎ直す ときは #syncRejoinCode。
+     共有ずみの #syncCode は「いま使っている 合言葉」を 見せるだけの
+     読み取り専用なので、そちらを 読んでは いけない */
+  const input = $('#syncRejoinCode') || $('#syncCode');
   if(!input) return;
 
   const verify = $('#syncVerify');
@@ -4760,6 +4793,7 @@ function bindSync(){
     if(!confirmShareSafety()) return;
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     forgetConfigStampForNewHousehold(c);
+    rememberChosenCode(c);
     S.reconnect(c, { joining: !!verify });
     toast('接続しています…');
     render({ keepScroll:true });
@@ -4804,8 +4838,10 @@ function bindSync(){
 
   const copy = $('#syncCopy');
   if(copy) copy.addEventListener('click', ()=>{
-    if(!input.value){ toast('先に合言葉を作成してください'); return; }
-    copyText(input);
+    /* コピーするのは いま 使っている 合言葉。つなぎ直す 欄では ない */
+    const shown = $('#syncCode');
+    if(!shown || !shown.value){ toast('先に合言葉を作成してください'); return; }
+    copyText(shown);
   });
 
   /* 「作成する」で 共有が 始まる。以前は 作成しても つながらず、
@@ -4816,6 +4852,7 @@ function bindSync(){
     if(!confirmShareSafety()) return;
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     forgetConfigStampForNewHousehold(code);
+    rememberChosenCode(code);
     S.reconnect(code);
     S.registerHousehold(code).catch(()=>{});
     openSyncDetails = true;          // QR・招待リンクをすぐ開いて見せる
@@ -4837,6 +4874,9 @@ function bindSync(){
   const off = $('#syncOff');
   if(off) off.addEventListener('click', ()=>{
     if(!confirm('この端末を切り離しますか？\nこの端末の記録は残りますが、他の端末とはそろわなくなります。')) return;
+    /* ホーム画面版は 起動URLに 合言葉が のこる。おぼえておかないと、
+       次に 開いた 瞬間に 同じ家庭へ つなぎ直されて 解除が 効かない */
+    rememberChosenCode('none');
     S.setCode('');
     S.disconnect();
     render({ keepScroll:true });
@@ -5673,6 +5713,10 @@ function applyJoinCode(){
      これが 無いと 起動する たびに 戻ってしまう。
      入れ直しは 人が 設定画面で 打つ（そこで 忘れる） */
   if(typeof S.revokedCode === 'function' && S.revokedCode() === code) return;
+  /* 人が 設定画面で えらんだ 合言葉が あるなら、そちらが 正しい。
+     ホーム画面版の 起動URLに のこった 古い 招待で 引き戻さない */
+  const chosen = getLocal(K_CODE_CHOSEN);
+  if(chosen && chosen !== code) return;
   /* 手動参加で選んだ色が残っていても、招待URLの家庭へ持ち込まない。
      招待では接続先の家庭デザインが常に正となる。 */
   try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
@@ -5680,6 +5724,7 @@ function applyJoinCode(){
   forgetConfigStampForNewHousehold(code);
   /* 招待リンクは かならず「ある家庭へ入る」。見つからないときに
      この端末の初期値で家庭を作ると、招いた側の設定が消える */
+  rememberChosenCode(code);
   S.reconnect(code, { joining:true });
   toast('おうちの 共有に つながりました');
   if(routeFromHash() === 'welcome') location.hash = 'home';

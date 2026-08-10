@@ -378,12 +378,13 @@ test('QR招待の共有コードはホーム画面版へ渡し、ホーム画面
    これが無いと はずしても 起動のたびに 復帰する。 */
 test('はずされた端末は、招待URLを開き直しても勝手に戻らない', ()=>{
   const CODE = 'abcdefghjkmnpqrs';
-  function harness(revokedFrom){
+  function harness(revokedFrom, chosen){
     let reconnected = '';
     const applyJoinCode = new Function(
       'location', 'history', 'cleanCode', 'isStandalone',
       'setLocal', 'K_ONBOARD', 'window', 'toast', 'render', 'routeFromHash',
-      'forgetConfigStampForNewHousehold', `
+      'forgetConfigStampForNewHousehold', 'getLocal', 'K_CODE_CHOSEN',
+      'rememberChosenCode', 'chosen', `
       const JOIN_PARAM='join';
       ${grab(APP, 'joinCodeFromURL')}
       ${grab(APP, 'clearJoinCodeFromURL')}
@@ -400,7 +401,9 @@ test('はずされた端末は、招待URLを開き直しても勝手に戻ら�
       { NatsuSync:{ configured:()=>true, getCode:()=>'',
                     revokedCode:()=>revokedFrom,
                     reconnect:c => { reconnected = c; } } },
-      ()=>{}, ()=>{}, ()=>'home', ()=>{}
+      ()=>{}, ()=>{}, ()=>'home', ()=>{},
+      k => (k === 'natsu.sync.chosen.v1' ? chosen : ''),
+      'natsu.sync.chosen.v1', ()=>{}, chosen
     );
     applyJoinCode();
     return reconnected;
@@ -1386,4 +1389,50 @@ test('あけられない家庭は、参加の確認で止めて理由を出す',
   assert.match(branch, /unreadableJoinText\(\)/);
   assert.match(branch, /return;/);
   assert.doesNotMatch(branch, /verified = c|save\.hidden = false/);
+});
+
+/* ホーム画面に追加したアプリは、起動URLに招待の合言葉が焼きついている。
+   共有を解除しても作り直しても、次に開いた瞬間にURLの合言葉でつなぎ直され、
+   前の家庭に戻ってしまう（実機で「解除しても同じ合言葉のまま」と出た）。
+   起動URLは書きかえられないので、人がえらんだほうを優先する。 */
+test('起動URLの古い招待より、人がえらんだ合言葉を優先する', ()=>{
+  const apply = grab(APP, 'applyJoinCode');
+  assert.match(apply, /const chosen = getLocal\(K_CODE_CHOSEN\);[\s\S]{0,80}if\(chosen && chosen !== code\) return;/,
+    'えらんだ合言葉と違う招待では、つなぎ直さないこと');
+  /* えらんだ場面すべてでおぼえること。1か所でも抜けると引き戻される */
+  assert.equal((APP.match(/rememberChosenCode\(/g) || []).length, 6,
+    '定義1つと、作成・参加・招待・初期設定・解除の5か所');
+  const bind = grab(APP, 'bindSync');
+  assert.match(bind, /rememberChosenCode\('none'\)[\s\S]{0,120}S\.setCode\(''\)/,
+    '解除したら「どこにもつながらない」をおぼえること');
+});
+
+/* 1台しかない状態で「つながっています」と出すと、もう相手がいるように読める */
+test('この端末だけのときは、待っていると書く', ()=>{
+  const f = grab(APP, 'syncSectionHTML');
+  assert.match(f, /S\.status\(\) === 'online' && S\.deviceCount\(\) <= 1/);
+  assert.match(f, /ほかの端末を待っています/);
+  assert.match(f, /alone \? text : \(S\.statusText\(\) \|\| text\)/,
+    '1台のときは通信状態の文言に上書きさせないこと');
+});
+
+/* 共有ずみの画面に出ている合言葉は「すでに使っているもの」。
+   「この合言葉で接続」だと、作った本人がまだ繋がっていないと読む。 */
+test('共有ずみの合言葉は見せるだけ。つなぎ直しはたたむ', ()=>{
+  const f = grab(APP, 'syncSectionHTML');
+  assert.match(f, /<span class="lab">この家庭の合言葉<\/span>/);
+  assert.match(f, /id="syncCode"[\s\S]{0,200}readonly/, '見せるだけの欄にすること');
+  /* 注釈の中でこの語に触れるのは構わない。ボタンとして出ないことを見る */
+  assert.doesNotMatch(f, /<button[^>]*>この合言葉で接続<\/button>/);
+  assert.match(f, /<summary>べつの合言葉につなぎ直す<\/summary>/);
+  assert.match(f, /id="syncRejoinCode"/, 'つなぎ直しは専用の欄から読むこと');
+  const bind = grab(APP, 'bindSync');
+  assert.match(bind, /\$\('#syncRejoinCode'\) \|\| \$\('#syncCode'\)/);
+  assert.match(bind, /const shown = \$\('#syncCode'\);/, 'コピーは表示中の合言葉から取ること');
+});
+
+/* 表を積みなおすとき tbody を入れわすれると、そこだけ table-row-group で
+   のこり、行が中身の幅に縮む。保護者ページのバーの右に大きなすき間が出た。 */
+test('狭い幅で表を積みなおすとき、tbody も block にする', ()=>{
+  assert.match(STYLE, /\.pgtable, \.pgtable thead, \.pgtable tbody,\s*\n\s*\.pgtable tr, \.pgtable th, \.pgtable td\{ display:block; \}/);
 });
