@@ -1065,6 +1065,19 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   font-size:19px; font-weight:700; color:var(--ai-usu);
 }
 
+/* 課題が 1つも 無いとき。子ども向けの1行と、おうちの人あての案内を
+   分けて出す。案内は data-no-reading なので かなに ならない */
+.empty-home{
+  display:flex; flex-direction:column; align-items:center; gap:14px;
+  padding:32px 20px; text-align:center;
+}
+.empty-home-lead{ font-size:22px; font-weight:900; color:var(--ai); }
+.empty-home-note{
+  font-size:15px; font-weight:700; color:var(--ai-usu);
+  line-height:1.6; max-width:32em;
+}
+.empty-home .btn{ max-width:22em; }
+
 /* =========================================================
    なぞなぞ / まめちしき
    ========================================================= */

@@ -62,6 +62,10 @@ let unsub = null;
    古いのか わからない。その あいだに 設定を 送ると、まだ 何も
    受け取っていない 初期値が おうち全体に 配られる（実際に 起きた） */
 let gotSnapshot = false;
+/* すでに ある 家庭へ 入る つもりで つないだか（招待リンク・確認ずみの参加）。
+   true の あいだは、家庭の文書が 無くても 新しく 作らない。
+   家庭を 1回 受け取れたら 用ずみなので おろす */
+let joiningExisting = false;
 let status = 'off';          // off | connecting | online | offline | error
 let statusText = '';
 let pushTimer = null;
@@ -223,8 +227,16 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
       if(!snap.exists()){
         /* キャッシュだけでは新旧を決めない。ここで新規文書を作ると、
            オフラインの既存端末が別の家庭を作ってしまうため、オンラインの
-           確認が来るまで保留する。保存操作の pending はそのまま残る。 */
-        if(mayUseLegacy && snap.metadata.fromCache) return;
+           確認が来るまで保留する。保存操作の pending はそのまま残る。
+
+           **この判定に mayUseLegacy を混ぜないこと。** 以前は
+           `mayUseLegacy && fromCache` になっていて、旧方式の家庭へ
+           切りかえた あとの watcher（mayUseLegacy = false）だけ
+           素通りしていた。招待リンクで 入ったばかりの 端末は その参照を
+           まだ ためていないので、「文書なし（キャッシュ）」が 1回 来る。
+           そこで pushAll() すると、**まだ 家庭の 設定を 受け取っていない
+           端末の 初期値が 家庭ぜんたいへ 配られる**。 */
+        if(snap.metadata.fromCache) return;
         if(mayUseLegacy){
           const legacyId = legacyHouseIdFor(code);
           if(legacyId !== ref.id){
@@ -242,6 +254,20 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
             }
           }
         }
+        /* 招待リンクなどで「ある家庭へ入る」つもりの端末は、ここで
+           家庭を作らない。この端末の初期値が家庭の中身になってしまう。
+           あいことばの取りちがえ・旧方式IDの取りこぼしを、静かに
+           上書きせず 画面に 出して 気づけるようにする */
+        if(joiningExisting){
+          setStatus('error', 'この合言葉の家庭が見つかりません。合言葉を確認してください');
+          return;
+        }
+        /* 家庭を 新しく 作る、ただ1つの 道。あとから 事故を 追えるように
+           「作った」ことを 記録に のこす（#config の 同期の記録） */
+        const app0 = window.NatsuApp;
+        if(app0 && typeof app0.onHouseholdCreate === 'function'){
+          try{ app0.onHouseholdCreate(ref.id); }catch(e){}
+        }
         registerDevice();
         pushAll();
         return;
@@ -252,6 +278,7 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
          QR参加直後の初期設定を家庭へ送れる状態になってしまう。 */
       const firstSnapshot = !gotSnapshot;
       gotSnapshot = true;
+      joiningExisting = false;      // 家庭を受け取れた。以後はふつうの端末
 
       const d = snap.data() || {};
       if(revokedForMe(d.devices)){
@@ -583,12 +610,17 @@ const Sync = {
   registerHousehold,
   getRegistrationCount,
   /* あいことばを 入れ替えて つなぎ直す */
-  async reconnect(code){
+  /* opts.joining … すでに ある 家庭へ 入るとき true。
+     招待リンク・確認ずみの 手入力参加が これ。**その端末は 家庭を
+     作ってはいけない。** 作れてしまうと、まだ 家庭の 設定を 受け取って
+     いない 端末の 初期値が 家庭の 中身に なる */
+  async reconnect(code, opts){
     /* 入れ直した 直後の 1回は「はずされた」印を 見のがす。
        でないと 入れたとたんに また 切られる */
     skipRevokeOnce = true;
     setCode(code);
     disconnect();
+    joiningExisting = !!(opts && opts.joining);
     await connect();
   }
 };

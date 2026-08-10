@@ -353,16 +353,35 @@ function deviceLabelOf(id){
 /* 設定を 家庭側で 置きかえた ときの ようす。
    設定は 合流できず「まるごと どちらか」なので、採否の 理由が 分からないと
    デザインや 題名が 戻る 事故を 追えない。目に 見える 欄だけ のこす。 */
-const TRACE_CONFIG_FIELDS = ['theme','title','childName','readingGrade'];
+const TRACE_CONFIG_FIELDS = ['theme','title','childName','readingGrade','showDaily'];
+/* 課題そのものは 長すぎて そのままでは のこせない。
+   「いくつ あったか」を 欄に して のこす。まいにちの 項目が
+   家庭ぜんたいから 消えた ときに、どちら側の 値が 勝ったのかを
+   これで 追える（数だけなので 個人情報は 出ない） */
+function taskCensus(c){
+  const tasks = Array.isArray((c || {}).tasks) ? c.tasks : [];
+  return {
+    'tasks（数）': String(tasks.length),
+    'まいにち（数）': String(tasks.filter(t => t && t.group === 'daily').length)
+  };
+}
 function traceConfig(before, after, mineAt, theirsAt, first){
   const at = Date.now();
   const meId = getLocal(K_DEVICE_ID);
+  const id = first ? 'config（つないだ直後）' : 'config';
+  const censusBefore = taskCensus(before), censusAfter = taskCensus(after);
   const rows = TRACE_CONFIG_FIELDS
     .filter(f => String((before || {})[f]) !== String((after || {})[f]))
-    .map(f => ({ at, id: first ? 'config（つないだ直後）' : 'config', f, meId, youId:'',
+    .map(f => ({ at, id, f, meId, youId:'',
                  mine: String((before || {})[f]), mineAt,
                  theirs: String((after || {})[f]), theirsAt,
                  won: String((after || {})[f]), remoteAt: theirsAt }));
+  Object.keys(censusBefore)
+    .filter(f => censusBefore[f] !== censusAfter[f])
+    .forEach(f => rows.push({ at, id, f, meId, youId:'',
+                 mine: censusBefore[f], mineAt,
+                 theirs: censusAfter[f], theirsAt,
+                 won: censusAfter[f], remoteAt: theirsAt }));
   traceAdd(rows);
 }
 
@@ -866,6 +885,19 @@ function applyRemote(remote){
 window.NatsuApp = {
   current: () => ({ config, state: stripLocal(state) }),
   onRemote: applyRemote,
+  /* sync.js が 家庭の文書を 新しく 作る ときだけ 呼ばれる。
+     これは「この端末の 設定が 家庭の 中身に なる」瞬間なので、
+     意図せず 起きたときに 気づけるよう 記録に のこす。
+     文書IDは 合言葉そのものでは ない（SHA-256）が、念のため 頭だけ */
+  onHouseholdCreate(houseId){
+    const census = taskCensus(config);
+    traceAdd([{ at:Date.now(), id:'家庭を新しく作った', f:'tasks（数）',
+                meId:getLocal(K_DEVICE_ID), youId:'',
+                mine:census['tasks（数）'], mineAt:0,
+                theirs:'（家庭の文書なし）', theirsAt:0,
+                won:census['tasks（数）'] + '／まいにち ' + census['まいにち（数）'],
+                remoteAt:0 }]);
+  },
   /* 端末の 見わけに つかう ぶんだけ。呼び名を 付けていない ときは
      「iPhone」「iPad」ほどの 大きな くくりを 既定に する。
      機種名や 個体を 特定できる 値は 送らない */
@@ -1443,8 +1475,24 @@ function viewStats(){
 /* ---------------------------------------------------------
    ビュー：ホーム
    --------------------------------------------------------- */
+/* 課題が 1つも 無いときの ホーム。
+   「かならず やる」を 空のまま 出すと「ぜんぶ できた！」に なり、
+   まだ 何も 登録していない のに 終わったように 見える。
+   ペースの 計算も 分母が 無く 意味を なさないので、丸ごと 差しかえる。 */
+function homeEmptyHTML(){
+  return `
+  <section class="sec">
+    <div class="paper empty-home">
+      <p class="empty-home-lead">まだ しゅくだいが ないよ。</p>
+      <p class="empty-home-note" data-no-reading>宿題を登録してください。保護者ページの「設定」→「宿題の項目」から追加できます。</p>
+      <a class="btn btn-go btn-wide" href="#config" data-no-reading>設定を開く</a>
+    </div>
+  </section>`;
+}
+
 function viewHome(){
   if(DEBUG_CONTENT) return contentDebugHTML();
+  if(!config.tasks.length) return homeEmptyHTML();
   const must  = config.tasks.filter(t=>t.group==='must');
   const opt   = config.tasks.filter(t=>t.group==='option');
   const daily = config.showDaily ? config.tasks.filter(t=>t.group==='daily') : [];
@@ -2754,14 +2802,39 @@ function syncSectionHTML(opts){
     <div class="paper">
       ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
       <p class="set-note">同じ「合言葉」を入力した複数の端末で、同じ記録と設定を共有できます。</p>
+      ${code ? `
       <div class="set-row"><span class="lab">合言葉</span>
         <input type="text" id="syncCode" value="${esc(code)}" spellcheck="false"
                autocapitalize="off" autocorrect="off" placeholder="未設定"></div>
       <div class="set-actions">
         <button class="btn btn-sm" id="syncSave" type="button">この合言葉で接続</button>
         <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
-        ${code ? '' : '<button class="btn btn-sm" id="syncMake" type="button">新しく作成</button>'}
+      </div>` : `
+      <!-- まだ 共有していない ときは、「作る」と「入る」を 分ける。
+           以前は 1つの 欄と「この合言葉で接続」だけで、作成しただけで
+           共有が 始まるのか、接続を 押して はじめて 始まるのかが
+           読み取れなかった。**作成した 時点で 共有が 始まる**ように 挙動を
+           そろえ、文言も そう書く -->
+      <div class="sync-start">
+        <h3 class="sync-subhead">はじめて共有する</h3>
+        <p class="set-note">合言葉を作成すると、この端末の宿題・設定・記録が家庭の内容になり、ほかの端末から読み取れるようになります。作成のあとに出るQRコード・招待リンクを、ほかの端末で読み取ってください。</p>
+        <div class="set-actions">
+          <button class="btn btn-go" id="syncMake" type="button">合言葉を作成する</button>
+        </div>
       </div>
+      <div class="sync-start">
+        <h3 class="sync-subhead">ほかの端末で作った合言葉に参加する</h3>
+        <div class="set-row"><span class="lab">合言葉</span>
+          <input type="text" id="syncCode" value="" spellcheck="false"
+                 autocapitalize="off" autocorrect="off" placeholder="受け取った合言葉"></div>
+        <div class="set-actions">
+          <button class="btn btn-sm" id="syncVerify" type="button">接続を確認</button>
+        </div>
+        <p class="set-note" id="syncJoinStatus" aria-live="polite"></p>
+        <div class="set-actions">
+          <button class="btn btn-go" id="syncSave" type="button" hidden>この家庭に参加する</button>
+        </div>
+      </div>`}
       ${code ? `<details class="set-advanced sync-detail"${opts && opts.openDetails ? ' open' : ''}>
         <summary><span class="sync-device-count" id="syncDeviceCount">共有リンク・端末ごとの設定（設定済み：${S.deviceCount()}台）</span></summary>
         <div class="set-advanced-body">
@@ -3836,7 +3909,8 @@ function viewConfig(){
   <section class="sec config-sec"><div class="sec-head"><h2>データ管理</h2></div><details class="paper set-advanced"><summary>バックアップと初期化</summary>
     <div class="set-advanced-body"><p class="set-note">記録はこの端末に保存されます。定期的にバックアップすると安心です。</p>
     <div class="set-actions"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
-    <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">項目を初期状態に戻す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録をすべて削除</button></div></div>
+    <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">宿題の項目をすべて消す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録をすべて削除</button></div>
+    <p class="set-note">「宿題の項目をすべて消す」は、宿題・読書・毎日の項目を空にします。記録と、名前・デザイン・期間の設定は残ります。</p></div>
   </details></section>
 
   ${syncTraceHTML()}
@@ -4163,7 +4237,9 @@ function bindWelcomeStart(){
     if(sharing && !TEST_MODE && S && S.configured()){
       if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
       forgetConfigStampForNewHousehold(code);
-      S.reconnect(code);
+      /* 参加は「ある家庭へ入る」。文書が無かったときに、この端末の
+         初期値で家庭を作らせない（joining を渡す意味はそこだけ） */
+      S.reconnect(code, { joining });
       /* 同じ家庭を複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */
       S.registerHousehold(code).catch(()=>{});
     }
@@ -4435,26 +4511,87 @@ function bindSync(){
   const input = $('#syncCode');
   if(!input) return;
 
-  $('#syncSave').addEventListener('click', ()=>{
+  const verify = $('#syncVerify');
+  const joinStatus = $('#syncJoinStatus');
+  const save = $('#syncSave');
+  /* 参加は 確認できた あいことばだけ。存在しない あいことばで
+     つなぐと、この端末の 設定で 新しい 家庭が できてしまう */
+  let verified = '';
+  const resetVerified = ()=>{
+    verified = '';
+    if(verify){
+      if(save) save.hidden = true;
+      if(joinStatus) joinStatus.textContent = '';
+    }
+  };
+  if(verify) input.addEventListener('input', resetVerified);
+
+  if(save) save.addEventListener('click', ()=>{
     const c = cleanCode(input.value);
     if(c.length < 8){ toast('合言葉を8文字以上入力してください'); return; }
+    /* 確認の 段を 出している ときは、確認ずみの あいことばだけ 通す。
+       すでに 共有ずみの 画面（確認の段が 無い）は これまで通り */
+    if(verify && verified !== c){ toast('先に「接続を確認」を押してください'); return; }
     if(!confirmShareSafety()) return;
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     forgetConfigStampForNewHousehold(c);
-    S.reconnect(c);
+    S.reconnect(c, { joining: !!verify });
     toast('接続しています…');
     render({ keepScroll:true });
   });
 
-  $('#syncCopy').addEventListener('click', ()=>{
+  if(verify) verify.addEventListener('click', async ()=>{
+    const c = cleanCode(input.value);
+    resetVerified();
+    if(c.length < 8){
+      if(joinStatus) joinStatus.textContent = '合言葉を8文字以上入力してください。';
+      input.focus();
+      return;
+    }
+    if(typeof S.verifyHousehold !== 'function'){
+      if(joinStatus) joinStatus.textContent = '接続の準備を読み込めませんでした。もう一度開いてください。';
+      return;
+    }
+    verify.disabled = true;
+    if(joinStatus) joinStatus.textContent = '接続しています…';
+    try{
+      const result = await S.verifyHousehold(c);
+      if(cleanCode(input.value) !== c) return;
+      if(!result || !result.found){
+        if(joinStatus) joinStatus.textContent = '接続できませんでした。合言葉を確認してください。';
+        return;
+      }
+      verified = c;
+      if(joinStatus) joinStatus.textContent = '接続しました ✓　この家庭に参加できます。';
+      if(save) save.hidden = false;
+    }catch(err){
+      if(joinStatus) joinStatus.textContent = '接続を確認できませんでした。通信を確認してください。';
+    }finally{
+      verify.disabled = false;
+    }
+  });
+
+  const copy = $('#syncCopy');
+  if(copy) copy.addEventListener('click', ()=>{
     if(!input.value){ toast('先に合言葉を作成してください'); return; }
     copyText(input);
   });
 
+  /* 「作成する」で 共有が 始まる。以前は 作成しても つながらず、
+     さらに「この合言葉で接続」を 押す 必要が あった。
+     どちらを 押した 時点で ほかの端末から 読めるのかが 分からない、
+     という 指摘に そって 1操作に まとめた */
   const make = $('#syncMake');
   if(make) make.addEventListener('click', ()=>{
-    input.value = S.makeCode();
-    toast('作成しました。「この合言葉で接続」を押してください');
+    if(!confirmShareSafety()) return;
+    const c = S.makeCode();
+    if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
+    forgetConfigStampForNewHousehold(c);
+    S.reconnect(c);
+    S.registerHousehold(c).catch(()=>{});
+    openSyncDetails = true;          // QR・招待リンクをすぐ開いて見せる
+    toast('作成しました。ほかの端末から この合言葉で 読み取れます');
+    render({ keepScroll:true });
   });
 
   const off = $('#syncOff');
@@ -4662,9 +4799,14 @@ function bindConfig(){
   $('#impBtn').addEventListener('click', ()=> $('#impFile').click());
   $('#impFile').addEventListener('change', importData);
 
+  /* 以前は freshConfig() でサンプルの宿題一式が復活していた。
+     「消したのに知らない宿題が並ぶ」ため、空にして登録をうながす。
+     名前・デザイン・期間などの設定は項目ではないので残す。 */
   $('#resetCfg').addEventListener('click', ()=>{
-    if(confirm('項目を初期状態に戻しますか？\nこれまでの記録は残ります。')){
-      config = freshConfig(); saveCfg(); render(); toast('初期状態に戻しました');
+    if(confirm('宿題の項目をすべて消しますか？\nこれまでの記録は残ります。')){
+      config.tasks = [];
+      config.showDaily = false;
+      saveCfg(); render(); toast('宿題の項目を消しました');
     }
   });
   $('#resetAll').addEventListener('click', ()=>{
@@ -5269,7 +5411,9 @@ function applyJoinCode(){
   try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
   setLocal(K_ONBOARD, 'done');              // 招かれた側は 初期設定を とばす
   forgetConfigStampForNewHousehold(code);
-  S.reconnect(code);
+  /* 招待リンクは かならず「ある家庭へ入る」。見つからないときに
+     この端末の初期値で家庭を作ると、招いた側の設定が消える */
+  S.reconnect(code, { joining:true });
   toast('おうちの 共有に つながりました');
   if(routeFromHash() === 'welcome') location.hash = 'home';
   render({ keepScroll:true });

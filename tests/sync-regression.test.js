@@ -271,7 +271,7 @@ test('新しい共有コードはFirestoreの文書IDに平文で置かず、旧
   assert.equal(await house.houseIdFor(code.toUpperCase()), secure);
   assert.equal(house.legacyHouseIdFor(code), code);
   assert.match(house.legacyHouseIdFor('なつやすみ'), /^phrase-[0-9a-f]{16}$/);
-  assert.match(SYNC, /if\(mayUseLegacy && snap\.metadata\.fromCache\) return/);
+  assert.match(SYNC, /if\(snap\.metadata\.fromCache\) return/);
 });
 
 test('保護者画面の案内は実際の保存方式と操作先を明示する', ()=>{
@@ -395,10 +395,14 @@ test('はずされた端末は、招待URLを開き直しても勝手に戻ら�
 /* 人が 手で 打ち直したら、はずし記録は 忘れること。
    忘れないと「はずす」が 永久追放になり、入れ直しができない */
 test('あいことばを手で入れ直すと、はずし記録を忘れる', ()=>{
-  const src = APP;
-  const setup = src.slice(src.indexOf("$('#syncSave')"), src.indexOf("$('#syncSave')") + 400);
-  assert.match(setup, /forgetRevokedCode\(\)/,
-    '設定画面の「保存」で forgetRevokedCode() を呼ぶこと');
+  const bind = grab(APP, 'bindSync');
+  /* 参加・作成のどちらの入口でも、人が操作した時点で忘れること */
+  const handlers = [...bind.matchAll(/S\.reconnect\(/g)];
+  assert.ok(handlers.length >= 2, '設定画面には作成と参加の2つの入口があること');
+  for(const m of handlers){
+    assert.match(bind.slice(Math.max(0, m.index - 400), m.index), /forgetRevokedCode\(\)/,
+      '設定画面から つなぐ ときは forgetRevokedCode() を呼ぶこと');
+  }
   assert.match(SYNC, /forgetRevokedCode/, 'sync.js が forgetRevokedCode を出すこと');
   assert.match(SYNC, /rememberRevokedCode\(getCode\(\)\)/,
     'はずされた時点の あいことばを おぼえること');
@@ -466,7 +470,7 @@ test('おうちの中身を受け取るまで、手元の設定を送らない',
 test('空のキャッシュは家庭設定を受信済みと数えない', ()=>{
   const watch = grab(SYNC, 'watchHousehold');
   const missing = watch.indexOf('if(!snap.exists())');
-  const cacheReturn = watch.indexOf('if(mayUseLegacy && snap.metadata.fromCache) return');
+  const cacheReturn = watch.indexOf('if(snap.metadata.fromCache) return');
   const received = watch.indexOf('gotSnapshot = true');
   assert.ok(missing >= 0 && cacheReturn > missing && received > cacheReturn,
     '空のキャッシュを抜けた後だけ受信済みにすること');
@@ -508,7 +512,7 @@ test('ちがうあいことばにつなぐとき、設定の保存時刻を0に�
 /* つなぎ直しの入口すべてで、時刻を戻してから reconnect すること */
 test('つなぎ直しの入口すべてで、設定の保存時刻を戻してから接続する', ()=>{
   const calls = [...APP.matchAll(/S\.reconnect\(/g)];
-  assert.equal(calls.length, 3, 'reconnect の呼び出しは3か所');
+  assert.equal(calls.length, 4, 'reconnect の呼び出しは4か所（初期設定・招待URL・参加・作成）');
   for(const m of calls){
     const before = APP.slice(Math.max(0, m.index - 400), m.index);
     assert.match(before, /forgetConfigStampForNewHousehold\(/,
@@ -810,6 +814,7 @@ test('つないだ直後の1回は、時刻を問わず家庭の設定を採る'
 test('設定が家庭側に置きかわったら、同期の記録に理由をのこす', ()=>{
   const trace = new Function('getLocal', 'traceAdd', 'K_DEVICE_ID', `
     ${/const TRACE_CONFIG_FIELDS = \[[^\]]*\];/.exec(APP)[0]}
+    ${grab(APP, 'taskCensus')}
     ${grab(APP, 'traceConfig')}
     return traceConfig;
   `);
@@ -1010,4 +1015,93 @@ test('ホーム画面アイコンは不透明PNGを持ち、ねこテーマの�
 test('ねこテーマの飾りは paw.svg のまま残す', ()=>{
   assert.match(STYLE, /\[data-theme="cat"\][\s\S]*mask:url\("paw\.svg"\)/);
   assert.equal(fs.existsSync(path.join(ROOT, 'assets', 'paw.svg')), true);
+});
+
+/* QR参加した端末の初期値が家庭ぜんたいへ配られ、まいにちの項目が
+   参加端末でも招いた端末でも消えた。空のキャッシュ対策が
+   `mayUseLegacy` のときだけ効いており、旧方式の家庭へ切りかえた
+   あとの watcher（mayUseLegacy = false）が素通りしていた。 */
+test('文書なしのキャッシュは、旧方式へ切りかえた後の watcher でも家庭を作らせない', ()=>{
+  const watch = grab(SYNC, 'watchHousehold');
+  assert.doesNotMatch(watch, /mayUseLegacy && snap\.metadata\.fromCache/,
+    'キャッシュ判定に mayUseLegacy を混ぜないこと');
+  const cacheReturn = watch.indexOf('if(snap.metadata.fromCache) return');
+  /* コメント中の pushAll() を拾わないよう、呼び出しの形で探す */
+  const push = watch.indexOf('pushAll();');
+  assert.ok(cacheReturn >= 0 && push > cacheReturn,
+    'オンラインで確認できるまで pushAll() へ進ませないこと');
+});
+
+test('ある家庭へ入る端末は、家庭が見つからなくても新しく作らない', ()=>{
+  const watch = grab(SYNC, 'watchHousehold');
+  const guard = watch.indexOf('if(joiningExisting)');
+  const push = watch.indexOf('pushAll();');
+  assert.ok(guard >= 0 && push > guard, 'pushAll() の手前で止めること');
+  assert.match(watch, /joiningExisting\)\{[\s\S]{0,200}setStatus\('error'/,
+    '静かに上書きせず、画面に出して気づけるようにすること');
+  /* 招待リンクと初期設定の参加は、かならず joining を渡す */
+  assert.match(grab(APP, 'applyJoinCode'), /reconnect\(code, \{ joining:true \}\)/);
+  assert.match(grab(APP, 'bindWelcomeStart'), /reconnect\(code, \{ joining \}\)/);
+  /* 家庭を1回でも受け取ったら、ふつうの端末に戻す */
+  assert.match(watch, /gotSnapshot = true;\s*\n\s*joiningExisting = false/);
+});
+
+test('同期の記録は、まいにちの項目が増減したことも残す', ()=>{
+  const trace = new Function('getLocal', 'traceAdd', 'K_DEVICE_ID', `
+    ${/const TRACE_CONFIG_FIELDS = \[[^\]]*\];/.exec(APP)[0]}
+    ${grab(APP, 'taskCensus')}
+    ${grab(APP, 'traceConfig')}
+    return traceConfig;
+  `);
+  const rows = [];
+  const mine   = { theme:'cat', showDaily:true,
+                   tasks:[{id:'a',group:'must'},{id:'d1',group:'daily'},{id:'d2',group:'daily'}] };
+  const theirs = { theme:'cat', showDaily:false, tasks:[{id:'a',group:'must'}] };
+  trace(()=> 'dev-1', r=> rows.push(...r), 'k')(mine, theirs, 111, 222, true);
+  const by = Object.fromEntries(rows.map(r=>[r.f, r]));
+  assert.equal(by['showDaily'].mine, 'true');
+  assert.equal(by['showDaily'].theirs, 'false');
+  assert.equal(by['まいにち（数）'].mine, '2');
+  assert.equal(by['まいにち（数）'].theirs, '0');
+  assert.equal(by['tasks（数）'].mine, '3');
+  /* 名前や課題名そのものは残さない（保護者ページに出るため） */
+  assert.equal(rows.some(r => String(r.mine).includes('d1')), false);
+});
+
+/* 「作成する」と「接続する」が別操作で、どちらを押した時点で
+   ほかの端末から読めるのかが読み取れなかった。作成＝共有開始にそろえる。 */
+test('設定画面の共有は、作成でそのままつながり、参加は確認後だけ進む', ()=>{
+  const bind = grab(APP, 'bindSync');
+  const make = bind.slice(bind.indexOf("$('#syncMake')"));
+  assert.match(make, /S\.reconnect\(c\)/, '作成した時点でつなぐこと');
+  assert.match(make, /openSyncDetails = true/, '作成後にQR・招待リンクを開くこと');
+  assert.doesNotMatch(make, /この合言葉で接続/, '作成後にもう1操作を求めないこと');
+
+  const section = grab(APP, 'syncSectionHTML');
+  assert.match(section, /合言葉を作成する/);
+  assert.match(section, /ほかの端末から読み取れるようになります/,
+    '作成で何が起きるかを書くこと');
+  assert.match(section, /id="syncVerify"[^>]*>接続を確認/);
+  assert.match(section, /id="syncSave"[^>]*hidden[^>]*>この家庭に参加する|id="syncSave" type="button" hidden/);
+
+  /* 参加は確認ずみのあいことばだけ。未確認では reconnect まで進ませない */
+  assert.match(bind, /if\(verify && verified !== c\)\{[\s\S]{0,120}return;/);
+  assert.match(bind, /S\.reconnect\(c, \{ joining: !!verify \}\)/);
+});
+
+test('宿題の項目を消したら、サンプルを復活させず登録をうながす', ()=>{
+  const bind = grab(APP, 'bindConfig');
+  const reset = bind.slice(bind.indexOf("$('#resetCfg')"));
+  assert.doesNotMatch(reset.slice(0, 400), /freshConfig\(\)/,
+    'サンプルの宿題一式を復活させないこと');
+  assert.match(reset, /config\.tasks = \[\]/);
+  assert.match(reset, /config\.showDaily = false/);
+
+  const home = grab(APP, 'viewHome');
+  assert.match(home, /if\(!config\.tasks\.length\) return homeEmptyHTML\(\)/,
+    '空のときは「ぜんぶ できた！」を出さないこと');
+  const empty = grab(APP, 'homeEmptyHTML');
+  assert.match(empty, /宿題を登録してください/);
+  assert.match(empty, /data-no-reading/, '大人あての案内はかな変換から外すこと');
+  assert.match(STYLE, /\.empty-home\{/);
 });
