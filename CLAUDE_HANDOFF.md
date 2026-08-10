@@ -22,7 +22,11 @@
 - 家庭用版: https://moyashimisosoup.github.io/shukudai-kanri/
 - Git remote: `public-households` = 公開版、`origin` = 家庭用版
 - 作業ブランチ: `codex/multi-household-public`（`public-households/main` を追跡）
-- 最新コミット: `fa7e712 Compare timestamps as numbers, not 32-bit integers`
+- 最新コミット: `d7f00d5 Keep a revoked device from rejoining through the invite link`
+- 2026-08-10 時点の配信状況：家庭用版は `d7f00d5`（app `20260810ai` / sync `20260810y`）を配信中。
+  **公開版は同じコミットを push 済みだが、GitHub Pages のビルドが 13分以上 `building` のまま**。
+  エラーは出ていない（`gh api repos/.../pages/builds` で確認）。家庭用版は同じ内容が45秒で
+  配信されたので、公開版側のキューが詰まっている。下記「現在の公開方式」の事故の再発に注意
 
 公開版・家庭用版のコードは同一です。変更は原則として両remoteの `main` へ push してください。
 
