@@ -211,6 +211,7 @@ button{ font:inherit; color:inherit; }
   background:var(--ai); border-radius:var(--r-pill); padding:1px 9px;
 }
 .dev-warn{ color:var(--suika); }
+.dev-off{ margin-inline-start:auto; padding:4px 12px; font-size:14px; }
 
 /* その日に よんだ ミニコンテンツ。宿題の きろくとは 見た目を 分ける */
 .reads{ margin-top:10px; padding:12px 14px; }

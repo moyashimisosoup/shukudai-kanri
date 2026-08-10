@@ -2107,8 +2107,11 @@ function deviceListHTML(){
       <span class="dev-name">${esc(r.label)}</span>
       ${r.ver ? `<span class="dev-ver${r.ver !== newest ? ' is-old' : ''}">ver ${esc(r.ver)}${
         r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver is-old">ver 不明（古い）</span>'}
-      ${r.id === mine ? '<span class="dev-me">この端末</span>' : ''}
+      ${r.id === mine
+        ? '<span class="dev-me">この端末</span>'
+        : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">はずす</button>`}
     </li>`).join('')}</ul>
+    <p class="set-note">使わなくなった端末は「はずす」で一覧から消せます。LINEなどの一時的なブラウザでつないでしまい、その端末から操作できなくなったときに使ってください。はずした端末がもう一度開いた場合は、また一覧に出ます（あいことばを入れ直す必要はありません）。</p>
     ${rows.some(r=> !r.ver || r.ver !== newest)
       ? '<p class="set-note dev-warn">古いバージョンの端末があります。その端末で「アプリの ver」の<b>最新に更新する</b>を実行してください。古いままだと、修正や削除がその端末から元に戻されることがあります。</p>'
       : ''}`;
@@ -3346,6 +3349,25 @@ function bindSync(){
 
   /* この端末が こども用か おうちの人用か。記録に そえる 名前に つかう。
      端末ごとの 設定なので 同期しない（同期すると 全部の端末が 同じに なる） */
+  /* ほかの端末を 一覧から はずす。どの端末からでも できる。
+     一時的な ブラウザで つないでしまい、その端末から 操作できなく
+     なった ときの ための 逃げ道 */
+  const devList = $('#syncDeviceList');
+  if(devList) devList.addEventListener('click', async e=>{
+    const b = e.target.closest('[data-devoff]');
+    if(!b) return;
+    const id = b.dataset.devoff;
+    const row = deviceRows(S.devices()).find(r => r.id === id);
+    const name = row ? row.label : 'この端末';
+    if(!confirm('「' + name + '」を 一覧から はずしますか？\n' +
+                'その端末の 記録は 消えません。もう一度 開いたときは、また 一覧に 出ます。')) return;
+    b.disabled = true;
+    const ok = await S.removeDevice(id);
+    const el = $('#syncDeviceList');
+    if(el) el.innerHTML = deviceListHTML();
+    toast(ok ? '「' + name + '」を はずしました' : 'はずせませんでした');
+  });
+
   /* 端末の 呼び名。打っている 途中で 送ると うるさいので、
      欄から はなれた ときに ためる */
   const devLabel = $('#deviceLabel');

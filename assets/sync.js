@@ -264,6 +264,30 @@ async function registerDevice(){
 /* 役割を えらび直した ときなど、書き直させる */
 function refreshDevice(){ lastDeviceWrite = ''; registerDevice(); }
 
+/* ほかの端末を 一覧から はずす。
+   LINE などの 一時的な ブラウザで つないでしまうと、閉じたあとは
+   その端末から 何も できず、一覧に のこりつづける。
+   どの端末からでも 消せるように しておく。
+
+   なお これは「一覧の 掃除」であって、締め出しでは ない。
+   はずした端末が また 開けば、自分で 登録し直す。
+   ほんとうに つながりを 断つには、あいことばを 変える（下の note を 見ること）。 */
+async function removeDevice(id){
+  if(!docRef || !Sync._fs) return false;
+  if(!/^[a-z0-9-]{1,64}$/i.test(String(id || ''))) return false;
+  try{
+    await Sync._fs.updateDoc(docRef, { ['devices.' + id]: Sync._fs.deleteField() });
+    const next = Object.assign({}, deviceMap);
+    delete next[id];
+    setDeviceMap(next);                    // 自分の書きこみは 読み飛ばされるので ここで 反映
+    setDeviceCount(Object.keys(next).length);
+    return true;
+  }catch(err){
+    setStatus('error', '端末をはずせません：' + (err && err.code || err));
+    return false;
+  }
+}
+
 function disconnect(){
   if(unsub){ unsub(); unsub = null; }
   docRef = null;
@@ -391,6 +415,7 @@ const Sync = {
   deviceCount: displayedDeviceCount,
   onDeviceCount(fn){ deviceListeners.push(fn); fn(displayedDeviceCount()); },
   devices: () => deviceMap,
+  removeDevice,
   onDevices(fn){ mapListeners.push(fn); fn(deviceMap); },
   refreshDevice,
   push,
