@@ -877,21 +877,25 @@ function messageHeading(m){
 }
 /* 旧しきの 1件だけの メッセージを、新しい ならびへ 移す。
    1度だけ 動けばよいので、移したことを config に のこす */
+/* 移すものが ある ときだけ 書きこむ。
+
+   起動のたびに saveCfg() を 呼んでは いけない。開いたばかりの端末は
+   まだ おうちの 設定を 受け取って おらず、手元は 初期値のまま。
+   それを 新しい 時刻で 送ると、設定は「あとに保存した方が勝つ」ので、
+   全部の端末の デザインなどが 初期値に 戻ってしまう（実際に 起きた）。 */
 function migrateMessages(){
   const old = config.parentMessage;
-  if(!old || config.parentMessageMoved) return;
+  if(!old || !old.enabled || !old.text) return;   // 移すものが ない
+  if(config.parentMessageMoved) return;
+  if(!Array.isArray(state.messages)) state.messages = [];
+  if(state.messages.length){ config.parentMessageMoved = true; return; }
+  state.messages.push({
+    id: 'm-legacy-' + Date.now(),
+    sender: old.sender, customSender: old.customSender,
+    text: old.text, at: new Date().toISOString(), by: logBy()
+  });
+  saveSt();
   config.parentMessageMoved = true;
-  if(old.enabled && old.text){
-    if(!Array.isArray(state.messages)) state.messages = [];
-    if(!state.messages.length){
-      state.messages.push({
-        id: 'm-legacy-' + Date.now(),
-        sender: old.sender, customSender: old.customSender,
-        text: old.text, at: new Date().toISOString(), by: logBy()
-      });
-      saveSt();
-    }
-  }
   saveCfg();
 }
 
@@ -1313,7 +1317,9 @@ function logByLabel(l){
 }
 
 function logRowHTML(l){
-  const by = logByLabel(l);
+  /* だれが 入れたかは、おうちの人が 見るための もの。
+     子ども画面では じゃまに なるので 出さない */
+  const by = (tab === 'settings' || tab === 'config') ? logByLabel(l) : '';
   return `
   <div class="today-item">
     <span class="ti-time">${fmtTime(new Date(l.at))}</span>
@@ -2155,14 +2161,14 @@ function deviceListHTML(){
     <li class="dev-row${r.id === mine ? ' is-me' : ''}">
       <span class="dev-name">${esc(r.label)}</span>
       ${r.ver ? `<span class="dev-ver${r.ver !== newest ? ' is-old' : ''}">ver ${esc(r.ver)}${
-        r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver is-old">ver 不明（古い）</span>'}
+        r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver">ver ―</span>'}
       ${r.id === mine
         ? '<span class="dev-me">この端末</span>'
         : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">はずす</button>`}
     </li>`).join('')}</ul>
     <p class="set-note">使わなくなった端末は「はずす」で共有から切りはなせます。はずした端末は、次に開いたときにあいことばが消え、つなぐには入れ直しが必要になります。LINEなどの一時的なブラウザでつないでしまい、その端末から操作できなくなったときに使ってください。記録そのものは消えません。</p>
-    ${rows.some(r=> !r.ver || r.ver !== newest)
-      ? '<p class="set-note dev-warn">古いバージョンの端末があります。その端末で「アプリの ver」の<b>最新に更新する</b>を実行してください。古いままだと、修正や削除がその端末から元に戻されることがあります。</p>'
+    ${[...new Set(rows.map(r=> r.ver).filter(Boolean))].length > 1
+      ? '<p class="set-note dev-warn">古いバージョンの端末があります。その端末で「アプリ情報」の<b>最新に更新する</b>を実行してください。古いままだと、修正や削除がその端末から元に戻されることがあります。</p>'
       : ''}`;
 }
 
@@ -3140,7 +3146,7 @@ function viewConfig(){
 
   ${syncSectionHTML()}
 
-  <section class="sec config-sec"><div class="sec-head"><h2>アプリの ver</h2>
+  <section class="sec config-sec"><div class="sec-head"><h2>アプリ情報</h2>
     <span class="sec-note">${esc(APP_VER)}</span></div>
     <div class="paper">
       <p class="set-note">この端末は <b>ver ${esc(APP_VER)}</b> を動かしています。
