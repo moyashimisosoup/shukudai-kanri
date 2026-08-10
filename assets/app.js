@@ -2300,6 +2300,35 @@ function deviceRows(map){
   });
   return rows;
 }
+/* 版は「日づけ＋アルファベットの通し」（20260810w → …z → aa → ab → …）。
+   ふつうに 文字として ならべると、'w' > 'a' なので **1文字の 版が
+   2文字の 版に 勝って しまう**。z を こえて aa に 回った あとは、
+   いちばん 古い 端末が「いちばん 新しい」と 判定され、実際に 新しい 端末に
+   （古い）が つき、更新の 案内も あべこべに 出る（実機で そうなっていた）。
+
+   通しの 長さを 先に くらべれば、a…z → aa…az の 順に ならぶ。 */
+function verKey(v){
+  const m = /^(\d+)([a-z]*)$/.exec(String(v || ''));
+  if(!m) return null;
+  return { date: Number(m[1]), len: m[2].length, tail: m[2] };
+}
+function newestVer(vers){
+  const list = (vers || []).filter(Boolean);
+  if(!list.length) return '';
+  /* 形の ちがう 版が 混ざったら、くらべずに あきらめる。
+     まちがった（古い）を つけるより、何も つけない ほうが よい */
+  const keys = list.map(verKey);
+  if(keys.some(k => !k)) return '';
+  let best = 0;
+  for(let i = 1; i < list.length; i++){
+    const a = keys[i], b = keys[best];
+    if(a.date !== b.date ? a.date > b.date
+       : a.len !== b.len ? a.len > b.len
+       : a.tail > b.tail) best = i;
+  }
+  return list[best];
+}
+
 /* 保護者ページの見出しでは、端末の総数よりも「子ども端末と共有できているか」を
    先に伝える。台数や個々の端末の管理は設定ページの一覧で行うため、ここでは
    最小限の状態だけを短いバッジで示す。 */
@@ -2338,12 +2367,12 @@ function deviceListHTML(){
   const rows = deviceRows(map);
   if(!rows.length) return '<p class="set-note">ほかの端末の情報がまだ届いていません。</p>';
   const mine = getLocal(K_DEVICE_ID);
-  const newest = rows.map(r=> r.ver).filter(Boolean).sort().pop() || '';
+  const newest = newestVer(rows.map(r=> r.ver));
   return `<ul class="dev-list">${rows.map(r=>`
     <li class="dev-row${r.id === mine ? ' is-me' : ''}">
       <span class="dev-name">${esc(r.label)}</span>
-      ${r.ver ? `<span class="dev-ver${r.ver !== newest ? ' is-old' : ''}">ver ${esc(r.ver)}${
-        r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver">ver ―</span>'}
+      ${r.ver ? `<span class="dev-ver${newest && r.ver !== newest ? ' is-old' : ''}">ver ${esc(r.ver)}${
+        newest && r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver">ver ―</span>'}
       ${r.id === mine
         ? '<span class="dev-me">この端末</span>'
         : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">解除</button>`}

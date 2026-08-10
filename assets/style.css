@@ -191,8 +191,11 @@ button{ font:inherit; color:inherit; }
 
 /* 共有している 端末の 一覧。
    ほかの 設定欄と 同じ 余白・同じ 囲みに そろえる */
+/* 左右の margin は .invite / .sync-local-settings と そろえる。
+   同じ折りたたみの中に ならぶ 3つの 枠なので、ここだけ 端まで のびていると
+   iPhone の ような 細い画面で 壁に くっついて 見える */
 .dev-list{
-  margin:2px 0 10px; padding:10px 14px; list-style:none;
+  margin:0 16px 4px; padding:10px 14px; list-style:none;
   background:var(--surface-soft); border:2px solid var(--hougan);
   border-radius:var(--r-s);
 }

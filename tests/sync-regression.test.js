@@ -344,3 +344,31 @@ test('あいことばを手で入れ直すと、はずし記録を忘れる', ()
   assert.match(SYNC, /rememberRevokedCode\(getCode\(\)\)/,
     'はずされた時点の あいことばを おぼえること');
 });
+
+/* 版は 20260810w → …z → aa → ab … と回る。文字としてならべると
+   'w' > 'a' なので、1文字の古い版が2文字の新しい版に勝ってしまう。
+   実機で「はじめiPad ver …w」が最新と判定され、実際に最新の
+   「父PC ver …ai」に（古い）が付いていた。 */
+test('版の新旧は、zをこえてaaに回ったあとも正しくならぶ', ()=>{
+  const api = new Function(`
+    ${grab(APP, 'verKey')}
+    ${grab(APP, 'newestVer')}
+    return newestVer;
+  `)();
+
+  assert.equal(api(['20260810w', '20260810ac', '20260810ai']), '20260810ai',
+    '2文字の通しは1文字より新しい');
+  assert.equal(api(['20260810z', '20260810aa']), '20260810aa', 'z の次は aa');
+  assert.equal(api(['20260810a', '20260810b']), '20260810b', '同じ長さなら文字順');
+  assert.equal(api(['20260809zz', '20260810a']), '20260810a', '日づけが先');
+  assert.equal(api(['20260810ai']), '20260810ai', '1台だけならそれが最新');
+  assert.equal(api([]), '', '版が無ければ空');
+
+  /* 形のちがう版が混ざったら、まちがった（古い）を付けるより黙る */
+  assert.equal(api(['20260810ai', '（不明）']), '', '形が合わなければ判定しない');
+
+  /* newest が空のときに全台へ（古い）が付かないこと */
+  const list = grab(APP, 'deviceListHTML');
+  assert.match(list, /newest && r\.ver !== newest/,
+    'newest が空のときは（古い）を付けないこと');
+});
