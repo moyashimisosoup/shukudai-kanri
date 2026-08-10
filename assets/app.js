@@ -1487,6 +1487,14 @@ function shareSafetyText(){
     '・住所、学校名、連絡先など、知られて困る情報は入力しないでください。'
   ].join('\n');
 }
+/* 家庭は 見つかったが、この端末では あけられない ときの 案内。
+   参加の 確認と、つないだ あとの 両方で 同じ 言い方に そろえる。
+   「合言葉を 確認してください」だけだと、正しい 合言葉を 持っている 人が
+   何度も 入れ直す ことに なる（実際に そうなった） */
+function unreadableJoinText(){
+  return 'この家庭は、暗号化に対応する前の方式で保存されています。'
+    + '保護者の端末を最新に更新したうえで、合言葉を作り直してください。';
+}
 function confirmShareSafety(){
   return confirm(shareSafetyText() + '\n\n内容を確認して接続しますか？');
 }
@@ -4324,6 +4332,10 @@ function bindWelcomeStart(){
           if(status) status.textContent = '接続できませんでした。合言葉を確認してください。';
           return;
         }
+        if(result.unreadable){
+          if(status) status.textContent = unreadableJoinText();
+          return;
+        }
         const remoteConfig = result.config && typeof result.config === 'object' ? result.config : {};
         welcomeJoinVerified = { code, config:deepCopy(remoteConfig) };
         const remoteName = String(remoteConfig.childName || '').trim();
@@ -4772,6 +4784,12 @@ function bindSync(){
       if(cleanCode(input.value) !== c) return;
       if(!result || !result.found){
         if(joinStatus) joinStatus.textContent = '接続できませんでした。合言葉を確認してください。';
+        return;
+      }
+      /* 家庭は あったが、中身を あけられない。ここで 通してしまうと
+         「接続しました ✓」の あとに 参加できない、という 行き止まりに なる */
+      if(result.unreadable){
+        if(joinStatus) joinStatus.textContent = unreadableJoinText();
         return;
       }
       verified = c;

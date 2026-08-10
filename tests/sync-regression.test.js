@@ -1365,3 +1365,25 @@ test('文章で記録の呼びかけは、決めていなければ例文を出�
   assert.match(APP, /placeholder="\$\{esc\(FREE_HINT_DEFAULT\)\}"/,
     '設定欄の例示も同じ文にそろえること');
 });
+
+/* verifyHousehold は「見つかったが中身をあけられない」を返すようになった。
+   呼び出し側がこれを見落とすと、「接続しました ✓」と出たあとで
+   参加できない行き止まりになる（実機でそうなった）。 */
+test('あけられない家庭は、参加の確認で止めて理由を出す', ()=>{
+  const text = grab(APP, 'unreadableJoinText');
+  assert.match(text, /暗号化に対応する前の方式/);
+  assert.match(text, /合言葉を作り直してください/);
+  /* 初期設定の確認と、設定ページの確認の両方で見ること */
+  const occurrences = (APP.match(/if\(result\.unreadable\)|if\(result\.unreadable\)\{/g) || []).length;
+  assert.ok(occurrences >= 2,
+    '初期設定と設定ページの両方で unreadable を見ること。実際は ' + occurrences + ' か所');
+  /* 通してはいけない。参加ボタンを出さず、確認済みにもしない */
+  const bind = grab(APP, 'bindSync');
+  const idx = bind.indexOf('if(result.unreadable)');
+  assert.ok(idx > -1);
+  /* 分岐の中だけを見る。ここを抜けた先に「確認済み」があるのは正しい */
+  const branch = bind.slice(idx, bind.indexOf('}', bind.indexOf('return;', idx)));
+  assert.match(branch, /unreadableJoinText\(\)/);
+  assert.match(branch, /return;/);
+  assert.doesNotMatch(branch, /verified = c|save\.hidden = false/);
+});
