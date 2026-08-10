@@ -1686,3 +1686,15 @@ input.is-need, textarea.is-need{
 @media (max-width:639px){
   .set-task-body .set-grid{ grid-template-columns:minmax(0,1fr); gap:13px; }
 }
+
+/* まねきリンク（べつの端末にわたす） */
+.invite{
+  margin:2px 0 12px; padding:12px 14px;
+  background:var(--surface-soft); border:2px solid var(--hougan);
+  border-radius:var(--r-s);
+}
+.invite #inviteUrl{ font-size:14px; }
+.inapp-note{
+  border:2px solid var(--suika); background:var(--suika-usu);
+  border-radius:var(--r-s); padding:10px 12px; color:var(--ai);
+}

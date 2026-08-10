@@ -943,6 +943,7 @@ function welcomeFormHTML(role, sharing){
       <input id="welcomeCode" type="text" value="${esc(code)}" autocapitalize="off" autocorrect="off" spellcheck="false"></label>
       <p class="set-note">こどもの端末など、複数の端末で同じ合言葉を入れると、同じ記録と設定を使えます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
+    ${inAppBrowserNoteHTML()}
     ${syncReady ? deviceLabelFieldHTML() : ''}
     ${privacyNoteHTML()}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes" type="button">保護者ページを 開く</button>` : `
@@ -955,6 +956,7 @@ function welcomeFormHTML(role, sharing){
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
       <p class="set-note">読みこむと、おうちの人が決めた宿題と記録を、複数の端末で使えます。</p>`
       : '<p class="set-note">いまは同期を使わず、この端末だけで始めます。</p>'}
+    ${inAppBrowserNoteHTML()}
     ${syncReady ? deviceLabelFieldHTML() : ''}
     ${privacyNoteHTML()}
     <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="${sharing?'yes':'no'}" type="button">こども画面を 開く</button>`;
@@ -1979,6 +1981,47 @@ function viewParent(){
   ${creditHTML()}`;
 }
 
+/* まねきリンク。これを LINE などで 送れば、受けとった側は
+   開くだけで つながる（あいことばの 打ち直しが いらない）。
+
+   openExternalBrowser=1 は LINE の 決まりで、LINE の中の ブラウザでは なく
+   ふだんの ブラウザで 開かせる。ほかの アプリでは ただ 無視される。
+   これが ないと、LINE の中で 設定して しまい、あとで Safari で 開いたときに
+   また 設定が 必要に なる。 */
+function inviteURL(){
+  const S = window.NatsuSync;
+  const code = (S && S.getCode()) || '';
+  if(!code) return '';
+  return location.origin + location.pathname +
+         '?' + JOIN_PARAM + '=' + encodeURIComponent(code) + '&openExternalBrowser=1';
+}
+function inviteHTML(){
+  const url = inviteURL();
+  if(!url) return '';
+  return `
+  <div class="invite">
+    <p class="set-note"><b>べつの端末に わたす</b>：このリンクを送ると、受け取った人は開くだけでつながります。あいことばの入力は要りません。</p>
+    <div class="set-row">
+      <input type="text" id="inviteUrl" value="${esc(url)}" readonly onfocus="this.select()">
+    </div>
+    <div class="set-actions">
+      <button class="btn btn-sm" id="inviteCopy" type="button">リンクをコピー</button>
+    </div>
+    <p class="set-note">このリンクは<b>あいことばそのもの</b>です。見た人は誰でもつながれるので、SNSなどに貼らないでください。受け取る側は、開いたあと<b>ホーム画面に追加</b>しておくと、次からは一度で開けます。</p>
+  </div>`;
+}
+
+/* LINE などの アプリの中の ブラウザで 開かれた ときの ことわり。
+   ここで 設定しても、あとで ふだんの ブラウザで 開くと 別あつかいに なる */
+function inAppBrowserNoteHTML(){
+  const ua = navigator.userAgent || '';
+  if(!/Line\/|FBAN|FBAV|Instagram|Twitter/i.test(ua)) return '';
+  return `
+  <p class="set-note inapp-note"><b>アプリの中のブラウザで開いています。</b>
+  このまま設定すると、あとで Safari などで開いたときに、もう一度設定が必要になります。
+  画面右上の「…」から<b>「ブラウザで開く」</b>を選んでから設定することをおすすめします。</p>`;
+}
+
 /* いま とどいている メッセージ。どの端末からでも 消せる */
 function messageListHTML(){
   const rows = messages();
@@ -2167,6 +2210,7 @@ function syncSectionHTML(opts){
       ${code ? `<details class="set-advanced sync-detail">
         <summary><span class="sync-device-count" id="syncDeviceCount">共有設定済みの端末：${S.deviceCount()}台</span></summary>
         <div class="set-advanced-body">
+          ${inviteHTML()}
           <div id="syncDeviceList">${deviceListHTML()}</div>
           <div class="set-row"><span class="lab">この端末の呼び名</span>
             <input type="text" id="deviceLabel" maxlength="12"
@@ -3638,6 +3682,12 @@ function bindConfig(){
     toast(ald.checked ? '履歴削除を 有効にしました' : '履歴削除を 切りました');
   });
 
+  const inv = $('#inviteCopy');
+  if(inv) inv.addEventListener('click', ()=>{
+    const el = $('#inviteUrl');
+    if(el && el.value) copyPlainText(el.value);
+  });
+
   const tc = $('#traceCopy');
   if(tc) tc.addEventListener('click', ()=>{
     const rows = traceRead();
@@ -4125,7 +4175,42 @@ window.addEventListener('hashchange', ()=>{
    まだ 動いていない。「せってい」タブを 見ている 最中に 追いついたら、
    ここで もう1回 描き直す（そうしないと「べつの端末と つなぐ」の欄が
    ずっと「読み込みに失敗しました」のまま 固まって見える） */
+/* ---------------------------------------------------------
+   まねきリンク（?join=あいことば）
+
+   ブラウザが ちがえば 保存する ところも 別なので、Safari と
+   LINE の中の ブラウザは 「べつの端末」に なる。これは ブラウザの
+   きまりで、こちらからは 一つに まとめられない。
+   そのかわり、リンクを 開くだけで つながるようにして、
+   打ち直す 手間を なくす。
+
+   あいことばが URL に のるので、開いたら すぐ URL から 消す。
+   のこすと 履歴や 共有から 見えてしまう。 */
+const JOIN_PARAM = 'join';
+function takeJoinCode(){
+  const q = new URLSearchParams(location.search);
+  const code = cleanCode(q.get(JOIN_PARAM) || '');
+  if(!code) return '';
+  q.delete(JOIN_PARAM);
+  const rest = q.toString();
+  try{
+    history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+  }catch(e){}
+  return code;
+}
+function applyJoinCode(){
+  const code = takeJoinCode();
+  const S = window.NatsuSync;
+  if(!code || !S || !S.configured() || code.length < 8) return;
+  if(S.getCode() === code) return;          // すでに 同じ あいことば
+  setLocal(K_ONBOARD, 'done');              // 招かれた側は 初期設定を とばす
+  S.reconnect(code);
+  toast('おうちの 共有に つながりました');
+  render({ keepScroll:true });
+}
+
 window.addEventListener('natsu:sync-ready', ()=>{
+  applyJoinCode();
   if(tab === 'welcome' || tab === 'stats' || tab === 'config' || tab === 'settings') render({ keepScroll:true });
 }, { once:true });
 
