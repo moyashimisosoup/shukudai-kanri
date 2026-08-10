@@ -86,6 +86,9 @@ test('受信した設定は送信時刻で記録し、遅れて届く新しい�
     const THEME_IDS=['notebook','sunny','soda','berry','block','cat'];
     function getLocal(k){ return localStorage.getItem(k) || ''; }
     function saveCfg(){}
+    function traceConfig(){}
+    function markSaved(){}
+    function syncPush(){}
     function ms(v){ const n=Number(v); return Number.isFinite(n) && n>0 ? n : 0; }
     function normalizeConfig(v){ return v; }
     function applyTheme(){}
@@ -287,7 +290,7 @@ test('メッセージと注意事項のUIは狭幅・横幅の役割を分ける
     '未送信時の文を短くすること');
   assert.match(APP, /data-share-safety/, '注意事項をクリックして確認できること');
   assert.match(APP, /confirmShareSafety\(\)/, '接続前にも注意事項を確認すること');
-  assert.match(APP, /id="welcomeCode"[\s\S]{0,500}privacyNoteHTML\(\)/,
+  assert.match(APP, /id="welcomeCode"[\s\S]{0,900}privacyNoteHTML\(\)/,
     '初期設定では合言葉欄の直後に注意事項を置くこと');
   assert.match(APP, /id="logCareSection"[\s\S]{0,160}class="paper log-care-paper"/,
     '記録の手入れの内側だけに、ほかの設定枠と同じ余白を設けること');
@@ -574,6 +577,9 @@ test('子ども端末は合言葉を受け取るだけで、作成者向け注�
     function privacyNoteHTML(){ return '<aside data-share-safety>注意事項</aside>'; }
     function inAppBrowserNoteHTML(){ return ''; }
     function welcomeShareSetupHTML(role){ return '<div data-share-role="'+role+'"></div>'; }
+    const navigator = { userAgent:'iPhone', maxTouchPoints:5 };
+    ${grab(APP, 'deviceKindLabel')}
+    ${grab(APP, 'alreadySetNoteHTML')}
     ${grab(APP, 'deviceLabelFieldHTML')}
     ${grab(APP, 'welcomeParentCreateChoiceHTML')}
     ${grab(APP, 'welcomeFormHTML')}
@@ -625,6 +631,9 @@ test('子どもが選んだデザインは、家庭設定の受信後に1度だ�
     function render(){}
     function getLocal(k){ return localStorage.getItem(k) || ''; }
     function saveCfg(){ onSave(); }
+    function traceConfig(){}
+    function markSaved(){}
+    function syncPush(){}
     ${grab(APP, 'savedAt')}
     ${grab(APP, 'markReceivedAt')}
     ${grab(APP, 'applyRemote')}
@@ -695,6 +704,159 @@ test('音声入力は古い終了イベントに新しい認識を消されず�
   sessions[2].onend();
   assert.equal(target.value, 'できた');
   assert.equal(harness.current(), null);
+});
+
+/* QRで入った端末だけ デザインが 初期値の まま だった。
+   設定は「あとに保存した方がまるごと勝つ」ので、まだ一度も家庭を
+   受け取っていない端末が 新しい（または壊れた）時刻印を持っていると、
+   家庭の設定が いつまでも 採られない。 */
+test('つないだ直後の1回は、時刻を問わず家庭の設定を採る', ()=>{
+  function harness(localAt, remoteAt, first){
+    const store = { 'natsu.savedAt.v1': JSON.stringify({ config:localAt }) };
+    let pushedConfig = 0;
+    const api = new Function(
+      'savedAt', 'ms', 'normalizeConfig', 'applyTheme', 'localStorage', 'K_CFG',
+      'markReceivedAt', 'markSaved', 'syncPush', 'traceConfig', 'render',
+      'getLocal', 'K_WELCOME_THEME', 'THEME_IDS', 'saveCfg', `
+      let config = { theme:'notebook' };
+      ${grab(APP, 'applyRemote')}
+      return { applyRemote, theme:()=>config.theme };
+    `)(
+      () => JSON.parse(store['natsu.savedAt.v1'] || '{}'),
+      appFns.ms, c => Object.assign({}, c), ()=>{},
+      { setItem:(k,v)=>{ store[k]=v; }, getItem:k=>store[k] }, 'natsu.config.v2',
+      (kind, at)=>{ const a = JSON.parse(store['natsu.savedAt.v1']); if(at) a[kind] = at;
+                    store['natsu.savedAt.v1'] = JSON.stringify(a); },
+      ()=>{}, kind=>{ if(kind === 'config') pushedConfig++; }, ()=>{}, ()=>{},
+      ()=>'', 'natsu.welcome.theme.v1', ['notebook','cat'], ()=>{}
+    );
+    api.applyRemote({ config:{ theme:'cat' }, configAt:remoteAt, first });
+    return { theme: api.theme(), pushedConfig };
+  }
+
+  const older = 1786312076482, newer = older + 5000;
+  assert.equal(harness(newer, older, true).theme, 'cat',
+    'つないだ直後は、手元の時刻が新しく見えても家庭の設定を採る');
+  assert.equal(harness(newer, older, false).theme, 'notebook',
+    '受け取ったあとは、これまで通り新しい方が勝つ');
+  assert.equal(harness(older, newer, false).theme, 'cat',
+    '家庭の方が新しければ採る');
+
+  /* 旧版が `時刻 | 0` で保存した負の値は、`負 > 0` が成り立たないため
+     家庭の設定が永久に採られなくなる。0（時刻なし）に倒して救う */
+  const broken = harness(older, older | 0, true);
+  assert.equal(broken.theme, 'cat', '壊れた時刻でも家庭の設定を採る');
+  assert.equal(broken.pushedConfig, 1, '壊れた時刻は、正しい時刻で送り返して直す');
+  assert.equal(harness(older, newer, false).theme, 'cat');
+  assert.match(grab(APP, 'applyRemote'), /ms\(at\.state\) >= ms\(remote\.stateAt\)/,
+    '記録側の時刻も ms() を通すこと');
+});
+
+test('設定が家庭側に置きかわったら、同期の記録に理由をのこす', ()=>{
+  const trace = new Function('getLocal', 'traceAdd', 'K_DEVICE_ID', `
+    ${/const TRACE_CONFIG_FIELDS = \[[^\]]*\];/.exec(APP)[0]}
+    ${grab(APP, 'traceConfig')}
+    return traceConfig;
+  `);
+  const rows = [];
+  trace(()=> 'dev-1', r=> rows.push(...r), 'k')(
+    { theme:'notebook', title:'A' }, { theme:'cat', title:'A' }, 111, 222, true);
+  assert.equal(rows.length, 1, '変わった欄だけ書きだす');
+  assert.equal(rows[0].f, 'theme');
+  assert.equal(rows[0].mine, 'notebook');
+  assert.equal(rows[0].theirs, 'cat');
+  assert.match(rows[0].id, /つないだ直後/);
+});
+
+test('端末一覧は呼び名とは別に親子の別を出し、呼び名なしは端末の種類で出す', ()=>{
+  const rows = new Function('ms', `${grab(APP, 'deviceRows')}; return deviceRows;`)(appFns.ms)({
+    a: { role:'parent', label:'父',      ver:'20260810at', at:1 },
+    b: { role:'child',  label:'iPad',    ver:'20260810at', at:2 },
+    c: { role:'',       label:'iPhone',  ver:'20260810at', at:3 },
+    d: { role:'parent', label:'親',      ver:'20260810at', at:4 },
+    e: { role:'child',  name:'はな',                       at:5 }
+  });
+  const by = id => rows.find(r=> r.id === id);
+  assert.equal(by('a').label, '父');
+  assert.equal(by('a').roleLabel, '親');
+  assert.equal(by('a').roleShown, true, '呼び名だけでは親か子か分からない');
+  assert.equal(by('b').roleLabel, '子');
+  assert.equal(by('c').roleLabel, '未設定', '役割を選んでいない端末はそれと分かること');
+  assert.equal(by('d').roleShown, false, '呼び名がすでに役割そのものなら重ねない');
+  assert.equal(by('e').label, '子(はな)');
+  assert.equal(by('e').roleShown, false, '呼び名なしの表示にはすでに役割が入っている');
+
+  /* ブラウザは機種名までは通知しない。分かる範囲の大きなくくりだけを既定にする */
+  const kind = new Function(`${grab(APP, 'deviceKindLabel')}; return deviceKindLabel;`)();
+  assert.equal(kind('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)', 1), 'iPhone');
+  assert.equal(kind('Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)', 5), 'iPad');
+  assert.equal(kind('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5), 'iPad',
+    'iPadOSがMacを名乗る場合はタッチの数で見分ける');
+  assert.equal(kind('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0), 'Mac');
+  assert.equal(kind('Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile', 5), 'Android');
+  assert.match(APP, /label: \(String\(getLocal\(K_DEVICE_LABEL\)[\s\S]{0,120}deviceKindLabel/,
+    '呼び名が空のときだけ端末の種類を送ること');
+});
+
+test('QR招待の案内は大人向けのまま出し、ボタンを枠に収める', ()=>{
+  const html = grab(APP, 'joinInstallTransferHTML');
+  assert.match(html, /data-no-reading/, '子ども画面でもかな変換の対象から外すこと');
+  assert.match(html, /おうちの方に読んでもらってね/, '誰が読む文かを示すこと');
+  assert.match(html, /<ol class="join-install-steps">/, '手順は番号付きで示すこと');
+  assert.match(html, /追加しない（URLから合言葉を消す）/, 'ボタンの文を短くすること');
+  assert.match(STYLE, /\.join-install-transfer \.set-actions \.btn\{[^}]*white-space:normal/,
+    '長いボタンは折り返して枠に収めること');
+  assert.match(grab(APP, 'applyReadingDisplay'), /data-no-reading/,
+    'かな変換に data-no-reading の除外があること');
+});
+
+test('既存の家庭に入るときは、名前と漢字の設定を任意にする', ()=>{
+  const make = new Function(`
+    const window={NatsuSync:{configured:()=>true,makeCode:()=> 'abcdefghjkmnpqrs'}};
+    const DEBUG_WELCOME=false, TEST_MODE=false, K_NAME='name', K_DEVICE_LABEL='label';
+    const navigator={ userAgent:'iPhone', maxTouchPoints:5 };
+    function getLocal(){ return ''; }
+    function esc(v){ return String(v == null ? '' : v); }
+    function readingGrade(){ return 9; }
+    function readingOptions(){ return '<option value="9">x</option>'; }
+    function welcomeStepHTML(n,t,b){ return '<section><h3>'+t+'</h3>'+b+'</section>'; }
+    function welcomeThemeHTML(n){ return ''; }
+    function privacyNoteHTML(){ return ''; }
+    function inAppBrowserNoteHTML(){ return ''; }
+    function welcomeShareSetupHTML(){ return ''; }
+    ${grab(APP, 'deviceKindLabel')}
+    ${grab(APP, 'alreadySetNoteHTML')}
+    ${grab(APP, 'deviceLabelFieldHTML')}
+    ${grab(APP, 'welcomeParentCreateChoiceHTML')}
+    ${grab(APP, 'welcomeFormHTML')}
+    return (role,sharing,mode)=>welcomeFormHTML(role,sharing,4,mode);
+  `)();
+  assert.match(make('parent', true, 'join'), /空のままでかまいません/,
+    '参加する保護者には、名前が任意だと示す');
+  assert.doesNotMatch(make('parent', true, 'create'), /空のままでかまいません/,
+    '新しく作るときは名前が要る');
+  assert.match(make('child', true), /そのままで いいよ/, '共有へ入る子どもにも任意だと示す');
+  assert.doesNotMatch(make('child', false), /そのままで いいよ/,
+    'この端末だけで使うときは名前が要る');
+
+  /* 空のまま進めても家庭の設定を壊さないこと */
+  const start = APP.slice(APP.indexOf('start.addEventListener'), APP.indexOf('function bindStats'));
+  assert.match(start, /const joining = sharing && \(role === 'child' \|\| !creating\)/);
+  assert.match(start, /if\(!name && !joining\)\{ toast\('なまえを 入れてください'\)/,
+    '参加する経路では、名前が空でも進める');
+  assert.match(start, /if\(name\)\{\s*config\.childName = name;/,
+    '名前を入れたときだけ家庭の名前を書きかえる');
+});
+
+test('新しく作る合言葉は、押した人だけ手入力に切りかえられる', ()=>{
+  const create = grab(APP, 'welcomeFormHTML');
+  assert.match(create, /id="welcomeCode"[^>]*readonly/, '既定は自動作成のまま読み取り専用');
+  assert.match(create, /id="welcomeCodeCustom"[^>]*>自分で決めた合言葉を使う/);
+  const bind = grab(APP, 'bindWelcomeStart');
+  assert.match(bind, /customBtn[\s\S]{0,400}input\.readOnly = false/,
+    'ボタンを押したときだけ手入力にすること');
+  assert.match(bind, /welcomeCodeWarn[\s\S]{0,80}hidden = false/,
+    '手入力に切りかえたら注意を出すこと');
 });
 
 test('保護者ページは未共有の入口と子ども画面の修正方法を示す', ()=>{

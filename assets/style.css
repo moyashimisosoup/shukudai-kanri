@@ -247,7 +247,21 @@ button{ font:inherit; color:inherit; }
 }
 .dev-row:first-child{ border-top:none; }
 .dev-row.is-me{ color:var(--ai); }
-.dev-name{ font-weight:900; }
+/* 呼び名・役割・版を ひとかたまりに して、「解除」だけを 右端へ 押しやる。
+   minmax(0,…) と min-width:0 が 無いと、長い 呼び名で 横に はみ出す */
+.dev-main{
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px;
+  flex:1 1 auto; min-width:0;
+}
+.dev-name{ font-weight:900; overflow-wrap:anywhere; }
+.dev-role{
+  font-size:12px; font-weight:900; line-height:1.6;
+  border-radius:var(--r-pill); padding:0 8px; white-space:nowrap;
+  color:var(--ai); background:var(--kami); border:2px solid var(--hougan);
+}
+.dev-role.is-parent{ color:var(--kami); background:var(--ai); border-color:var(--ai); }
+.dev-role.is-child{ color:var(--ai); background:var(--kami); border-color:var(--ai); }
+.dev-role.is-none{ color:var(--ai-usu); }
 .dev-ver{ font-size:13px; font-weight:700; color:var(--ai-usu); }
 .dev-ver.is-old{ color:var(--suika); }
 .dev-me{
@@ -1444,6 +1458,28 @@ body.no-tabbar{ padding-bottom:0; }
   padding:12px 16px; line-height:1.7;
 }
 .set-actions{ display:flex; gap:10px; flex-wrap:wrap; padding:14px 16px; }
+
+/* =========================================================
+   QR招待でひらいた端末に出す「ホーム画面に追加」の案内
+
+   読むのは大人なので、かな変換の対象から外してある（HTML側の
+   data-no-reading）。ボタンの文が長く、.btn の white-space:nowrap の
+   ままでは 320px 幅で枠からはみ出したので、ここだけ折り返しを許す。
+   ========================================================= */
+.join-install-for{
+  margin:0; padding:12px 16px 0;
+  font-size:13px; font-weight:800; color:var(--ai-usu);
+}
+.join-install-head{ margin:2px 0 0; padding:0 16px; font-size:17px; }
+.join-install-steps{
+  margin:8px 0 0; padding:0 16px 0 34px;
+  font-size:15px; font-weight:700; line-height:1.7; color:var(--ai);
+}
+.join-install-steps li{ margin:4px 0; }
+.join-install-steps .nowrap{ white-space:nowrap; }
+.join-install-transfer .set-actions .btn{
+  white-space:normal; max-width:100%; text-align:left; line-height:1.5;
+}
 
 /* =========================================================
    はんこ / トースト

@@ -223,6 +223,7 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
       /* 中身があるキャッシュ、またはオンラインで確認できた文書だけを
          「家庭の設定を受信済み」とする。空のキャッシュを受信済みにすると、
          QR参加直後の初期設定を家庭へ送れる状態になってしまう。 */
+      const firstSnapshot = !gotSnapshot;
       gotSnapshot = true;
 
       const d = snap.data() || {};
@@ -244,7 +245,11 @@ function watchHousehold(fs, ref, code, mayUseLegacy){
           config:   d.config   || null,
           state:    d.state    || null,
           configAt: d.configAt || 0,
-          stateAt:  d.stateAt  || 0
+          stateAt:  d.stateAt  || 0,
+          /* つなぎ直してから 最初に 受け取った 家庭の中身かどうか。
+             この 1回だけは、手元の 設定が どれだけ 新しく 見えても
+             家庭の 設定を 採る（下の app.js 側の 説明を 見ること） */
+          first:    firstSnapshot
         });
       }
       /* 接続前に端末内へ保存されていた変更を、まず相手と合流してから送る。 */

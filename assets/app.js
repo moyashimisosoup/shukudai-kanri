@@ -346,6 +346,22 @@ function deviceLabelOf(id){
   return row ? row.label : '';
 }
 
+/* 設定を 家庭側で 置きかえた ときの ようす。
+   設定は 合流できず「まるごと どちらか」なので、採否の 理由が 分からないと
+   デザインや 題名が 戻る 事故を 追えない。目に 見える 欄だけ のこす。 */
+const TRACE_CONFIG_FIELDS = ['theme','title','childName','readingGrade'];
+function traceConfig(before, after, mineAt, theirsAt, first){
+  const at = Date.now();
+  const meId = getLocal(K_DEVICE_ID);
+  const rows = TRACE_CONFIG_FIELDS
+    .filter(f => String((before || {})[f]) !== String((after || {})[f]))
+    .map(f => ({ at, id: first ? 'config（つないだ直後）' : 'config', f, meId, youId:'',
+                 mine: String((before || {})[f]), mineAt,
+                 theirs: String((after || {})[f]), theirsAt,
+                 won: String((after || {})[f]), remoteAt: theirsAt }));
+  traceAdd(rows);
+}
+
 /* 合わせる前と あとの progress を くらべ、変わった ところを 書きだす */
 function traceProgress(before, after, remote, remoteAt){
   const rows = [];
@@ -461,6 +477,20 @@ function homeInstallPlatform(ua, touchPoints){
   if(/Android/i.test(text)) return 'android';
   if(/Windows|Macintosh|Linux/i.test(text)) return 'desktop';
   return 'other';
+}
+/* 呼び名を 付けていない 端末の 既定の 表示。
+   ブラウザは 機種名（iPhone SE など）までは 教えてくれないので、
+   分かるのは この程度の 大きな くくりだけ。個体を 特定できる 値は
+   ふくめない（呼び名を 付ければ そちらが 優先される）。 */
+function deviceKindLabel(ua, touchPoints){
+  const text = String(ua || '');
+  if(/iPad/.test(text) || (/Macintosh/.test(text) && Number(touchPoints) > 1)) return 'iPad';
+  if(/iPhone/.test(text)) return 'iPhone';
+  if(/iPod/.test(text))   return 'iPod';
+  if(/Android/i.test(text)) return /Mobile/i.test(text) ? 'Android' : 'Androidタブレット';
+  if(/Windows/i.test(text)) return 'Windows';
+  if(/Macintosh/i.test(text)) return 'Mac';
+  return 'この端末';
 }
 function homeInstallGuideHTML(){
   if(isStandalone()) return '';
@@ -727,12 +757,31 @@ function applyRemote(remote){
   let changed = false;
 
   /* config（設定）は 中身を 混ぜても 意味が 通らないので、
-     あとに 保存された方を まるごと 採る */
-  if(remote.config && remote.configAt > (at.config || 0)){
+     あとに 保存された方を まるごと 採る。
+
+     時刻は かならず ms() を 通す。旧版が `時刻 | 0` で 保存した 負の値が
+     そのまま 入っていると、`負の数 > 0` が 成り立たず 家庭の 設定が
+     いつまでも 採られない（QR で 入った 端末だけ デザインが 初期値の まま
+     という 形で 出た）。
+
+     つないでから 最初の 1回は、時刻を くらべずに 家庭の 設定を 採る。
+     まだ 一度も 受け取っていない 端末には、手元の 設定が 家庭より
+     新しいと 言える 根拠が ない。よそで つけた 時刻・壊れた 時刻・
+     同じ あいことばに 入り直した ときの 古い 時刻印が のこっていても、
+     ここで かならず 家庭側に そろう。 */
+  const remoteConfigAt = ms(remote.configAt);
+  const localConfigAt  = ms(at.config);
+  if(remote.config && (remote.first || remoteConfigAt > localConfigAt)){
+    const beforeConfig = config;
     config = normalizeConfig(remote.config);
     applyTheme(config.theme);
     localStorage.setItem(K_CFG, JSON.stringify(config));
-    markReceivedAt('config', remote.configAt);
+    markReceivedAt('config', remoteConfigAt);
+    traceConfig(beforeConfig, config, localConfigAt, remoteConfigAt, remote.first);
+    /* 家庭側の 時刻が 壊れている（0 に なる）ときは、採ったあと
+       正しい 時刻で 送り返して 家庭の 時刻印を 直す。中身は 同じなので
+       ほかの端末の 表示は 変わらず、次からは ふつうの 比較に 戻る */
+    if(!remoteConfigAt){ markSaved('config'); syncPush('config'); }
     changed = true;
   }
 
@@ -742,7 +791,7 @@ function applyRemote(remote){
     const remoteState = normalizeState(remote.state);
     const merged = mergeState(localState,
                               remoteState,
-                              (at.state || 0) >= remote.stateAt);
+                              ms(at.state) >= ms(remote.stateAt));
     /* 手元がすでに正しくても、相手が古ければ合流結果を返す必要がある。
        特に同期の準備前に削除した場合、gone/resetAt は手元にだけあり、
        ここで返さないと次の保存までほかの端末へ届かない。fun は端末専用なので比較しない。 */
@@ -778,11 +827,14 @@ function applyRemote(remote){
 window.NatsuApp = {
   current: () => ({ config, state: stripLocal(state) }),
   onRemote: applyRemote,
-  /* 端末の 見わけに つかう ぶんだけ。端末名や 機種は 送らない */
+  /* 端末の 見わけに つかう ぶんだけ。呼び名を 付けていない ときは
+     「iPhone」「iPad」ほどの 大きな くくりを 既定に する。
+     機種名や 個体を 特定できる 値は 送らない */
   deviceInfo: () => ({
     role:  getLocal(K_ROLE),
     name:  String(config.childName || getLocal(K_NAME) || '').trim(),
-    label: String(getLocal(K_DEVICE_LABEL) || '').trim().slice(0, 12),
+    label: (String(getLocal(K_DEVICE_LABEL) || '').trim()
+            || deviceKindLabel(navigator.userAgent, navigator.maxTouchPoints)).slice(0, 12),
     ver:   APP_VER
   })
 };
@@ -1099,6 +1151,16 @@ function welcomeParentSharePickerHTML(step){
     + '<div id="welcomeParentShareForm"></div>';
 }
 
+/* 名前と 漢字の 設定は 家庭ぜんたいの 設定なので、保護者端末・子ども端末の
+   どちらで 入れても 同じ ところに 入る。先に もう一方で 入れて あるなら
+   もう一度 入れる 必要は ない。入れなかった ときは、つないだ あとに
+   家庭の 設定が とどいて そちらが つかわれる。 */
+function alreadySetNoteHTML(side){
+  return side === 'child'
+    ? `<p class="set-note">おうちの人の たんまつで もう 入れて あるなら、ここは そのままで いいよ。つながると おうちの せっていに なるよ。</p>`
+    : `<p class="set-note">子ども端末で先に入力済みなら、ここは空のままでかまいません。接続すると、共有中の家庭の設定がそのまま使われます。</p>`;
+}
+
 /* 共有する ときだけ 出す、この端末の 呼び名。
    入れなくても 進める。端末の一覧で「父」「母」と見分けるための名前。 */
 function deviceLabelFieldHTML(role){
@@ -1107,7 +1169,8 @@ function deviceLabelFieldHTML(role){
       <input id="welcomeDeviceLabel" type="text" maxlength="12"
              value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="${child ? '例：子ども用iPad' : '例：父、母'}"></label>
     <p class="set-note">共有中の端末一覧で見分けるための呼び名です（${child ? '子ども用iPadなど' : '父、母など'}）。
-    ほかの端末の一覧にも表示されますが、変更できるのはこの端末だけです。入れなくてもかまいません。</p>`;
+    入れないときは「${esc(deviceKindLabel(navigator.userAgent, navigator.maxTouchPoints))}」のように端末の種類で表示されます。
+    ほかの端末の一覧にも表示されますが、変更できるのはこの端末だけです。</p>`;
 }
 
 /* 初期設定の中で、設定ページへ移動する前に共有方法まで確認できるようにする。
@@ -1187,8 +1250,9 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
   const start = Number(firstStep) || (sharing ? 4 : 3);
   if(role === 'parent'){
     const settingsBody = `
-      <label class="lab">子どもの名前
-        <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
+      ${creating ? '' : alreadySetNoteHTML('parent')}
+      <label class="lab">子どもの名前${creating ? '' : '（任意）'}
+        <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="${creating ? '例：はな' : '入力しなくてかまいません'}"></label>
       <label class="lab">漢字は何年生の字まで読めますか？
         <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
       ${deviceLabelFieldHTML('parent')}`;
@@ -1205,10 +1269,19 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
           data-creating="no" data-next-step="${start + 2}" type="button">この家庭に参加する</button>`);
       return join + settings;
     }
+    /* 合言葉は 自動作成の まま つかって もらうのが 安全。
+       手で 決めると 短く・覚えやすい＝当てられやすい ものに なりがちで、
+       ふだんの パスワードを 使いまわす 人も 出る。
+       そこで 既定は 読み取り専用に して、どうしても 自分で 決めたい人だけ
+       ボタンを 押して 手入力に 切りかえる（ひと手間 かける）。 */
     const create = welcomeStepHTML(start, '合言葉を作ろう', `
       <label class="lab">この家庭の合言葉（16文字・自動作成）
         <input id="welcomeCode" type="text" value="${esc(code)}" readonly autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-      <p class="set-note">この合言葉で、新しい家庭の共有を始めます。</p>
+      <p class="set-note">この合言葉で、新しい家庭の共有を始めます。覚える必要はありません。QRコードか招待リンクで、ほかの端末へ渡します。</p>
+      <div class="set-actions welcome-code-actions">
+        <button class="btn btn-sm btn-ghost" id="welcomeCodeCustom" type="button">自分で決めた合言葉を使う</button>
+      </div>
+      <p class="set-note welcome-code-warn" id="welcomeCodeWarn" hidden>自分で決める場合は、8文字以上にしてください。ふだん使っているパスワードや、家族の名前・誕生日など推測できる言葉は使わないでください。</p>
       ${privacyNoteHTML()}
       ${inAppBrowserNoteHTML()}`);
     const settings = welcomeStepHTML(start + 1, '保護者の設定', settingsBody);
@@ -1217,8 +1290,9 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
 
   const theme = welcomeThemeHTML(start);
   const settings = welcomeStepHTML(start + 1, 'なまえを 入れよう', `
-    <label class="lab">なまえ
-      <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="例：はな"></label>
+    ${sharing ? alreadySetNoteHTML('child') : ''}
+    <label class="lab">なまえ${sharing ? '（入れなくても いいよ）' : ''}
+      <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="${sharing ? '入れなくても いいよ' : '例：はな'}"></label>
     <label class="lab">よめる かんじを えらぼう
       <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>`);
   if(!sharing){
@@ -2480,9 +2554,14 @@ function deviceRows(map){
   const usedOwn = {};
 
   rows.forEach(r=>{
+    /* 役割は 呼び名とは 別に 出す。呼び名（父・iPad など）だけでは
+       どちらが 保護者の端末か 分からず、解除する 相手を まちがえる */
+    r.roleLabel = r.role === 'parent' ? '親' : r.role === 'child' ? '子' : '未設定';
     if(r.own){
       usedOwn[r.own] = (usedOwn[r.own] | 0) + 1;
       r.label = r.own + (dup[r.own] > 1 ? '(' + usedOwn[r.own] + ')' : '');
+      /* 呼び名が すでに 役割そのものなら、同じ字を 2度 出さない */
+      r.roleShown = r.own !== r.roleLabel;
       return;
     }
     seen[r.role] = (seen[r.role] | 0) + 1;
@@ -2490,6 +2569,7 @@ function deviceRows(map){
     if(r.role === 'parent')     r.label = '親' + num;
     else if(r.role === 'child') r.label = r.name ? '子(' + r.name + ')' + num : '子' + num;
     else                        r.label = 'えらんでいない' + num;
+    r.roleShown = false;          // 呼び名の中に すでに 役割が 入っている
   });
   return rows;
 }
@@ -2569,13 +2649,17 @@ function deviceListHTML(){
   const newest = newestVer(rows.map(r=> r.ver));
   return `<ul class="dev-list">${rows.map(r=>`
     <li class="dev-row${r.id === mine ? ' is-me' : ''}">
-      <span class="dev-name">${esc(r.label)}</span>
-      ${r.ver ? `<span class="dev-ver${newest && r.ver !== newest ? ' is-old' : ''}">ver ${esc(r.ver)}${
-        newest && r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver">ver ―</span>'}
+      <span class="dev-main">
+        <span class="dev-name">${esc(r.label)}</span>
+        ${r.roleShown ? `<span class="dev-role is-${esc(r.role || 'none')}">${esc(r.roleLabel)}</span>` : ''}
+        ${r.ver ? `<span class="dev-ver${newest && r.ver !== newest ? ' is-old' : ''}">ver ${esc(r.ver)}${
+          newest && r.ver !== newest ? '（古い）' : ''}</span>` : '<span class="dev-ver">ver ―</span>'}
+      </span>
       ${r.id === mine
         ? '<span class="dev-me">この端末</span>'
         : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">解除</button>`}
     </li>`).join('')}</ul>
+    <p class="set-note">「親」「子」は、それぞれの端末の「この端末は」で選んだ役割です。「未設定」の端末では、その端末の共有設定から選んでください。</p>
     <p class="set-note">使わなくなった端末は「解除」で共有から切り離せます。解除した端末は、次に開いたときに合言葉が消え、再接続には入力し直しが必要になります。LINEなどの一時的なブラウザで接続してしまい、その端末から操作できなくなったときに使ってください。記録そのものは消えません。</p>
     ${[...new Set(rows.map(r=> r.ver).filter(Boolean))].length > 1
       ? '<p class="set-note dev-warn">古いバージョンの端末があります。その端末で「アプリ情報」の<b>最新に更新する</b>を実行してください。古いままだと、修正や削除がその端末から元に戻されることがあります。</p>'
@@ -2638,7 +2722,7 @@ function syncSectionHTML(opts){
              <div class="set-row"><span class="lab">この端末の呼び名</span>
                <input type="text" id="deviceLabel" maxlength="12"
                       value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></div>
-             <p class="set-note">共有中の端末一覧で見分けるための名前です。ほかの端末の一覧にも表示されますが、変更できるのはこの端末だけです。未設定の場合は「親」「子（名前）」と表示されます。</p>
+             <p class="set-note">共有中の端末一覧で見分けるための名前です（父、母など）。ほかの端末の一覧にも表示されますが、変更できるのはこの端末だけです。未設定のときは「${esc(deviceKindLabel(navigator.userAgent, navigator.maxTouchPoints))}」のように端末の種類で表示されます。ブラウザは機種名（iPhone SE など）までは通知しないため、細かく分けたいときは呼び名を入れてください。</p>
              <div class="set-row"><span class="lab">この端末は</span>
                <select id="deviceRole">
                  <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>未選択</option>
@@ -3844,6 +3928,26 @@ function bindWelcomeStart(){
       out.scrollIntoView({ behavior:'smooth', block:'nearest' });
     });
   });
+  /* 自動で作った合言葉を、押した人だけ 手入力に 切りかえる。
+     欄を はじめから 書きかえられる ようにすると、短い・覚えやすい
+     ＝当てられやすい 合言葉に なりやすいため、ひと手間 はさむ */
+  const customBtn = $('#welcomeCodeCustom', form);
+  if(customBtn && !customBtn.dataset.welcomeBound){
+    customBtn.dataset.welcomeBound = '1';
+    customBtn.addEventListener('click', ()=>{
+      const input = $('#welcomeCode', form);
+      if(!input) return;
+      input.readOnly = false;
+      input.value = '';
+      input.placeholder = '8文字以上で入力';
+      const label = input.closest('.lab');
+      if(label) label.firstChild.nodeValue = 'この家庭の合言葉（自分で決める）';
+      const warn = $('#welcomeCodeWarn', form);
+      if(warn) warn.hidden = false;
+      customBtn.hidden = true;
+      input.focus();
+    });
+  }
   const start = $('#welcomeStart');
   if(!start || start.dataset.welcomeBound) return;
   start.dataset.welcomeBound = '1';
@@ -3866,19 +3970,23 @@ function bindWelcomeStart(){
     const creating = start.dataset.creating === 'yes';
     const themeEl = $('input[name="welcomeTheme"]:checked', $('#welcomeForm'));
     const chosenTheme = themeEl && THEME_IDS.includes(themeEl.value) ? themeEl.value : config.theme;
-    if(!name){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
+    /* すでに ある 家庭に 入る ときは、名前も 漢字の 設定も 家庭側に ある。
+       ここで 空のまま 進めても、つないだ あとに 家庭の 設定が とどく。
+       名前を 入れた ときだけ 家庭の 設定として 書きかえる */
+    const joining = sharing && (role === 'child' || !creating);
+    if(!name && !joining){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
     if(sharing && !TEST_MODE && S && S.configured() && code.length < 8){ toast('あいことばを 8文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
     if(creating && !TEST_MODE && S && S.configured() && !confirmShareSafety()) return;
     const devLabel = String(($('#welcomeDeviceLabel') && $('#welcomeDeviceLabel').value) || '')
       .trim().slice(0, 12);
     if(devLabel) setLocal(K_DEVICE_LABEL, devLabel);
     else try{ localStorage.removeItem(K_DEVICE_LABEL); }catch(e){}
-    setLocal(K_NAME, name);
+    if(name) setLocal(K_NAME, name);
     setLocal(K_ROLE, role);
     setLocal(K_READING, grade);
     if(typeof setReadingGrade === 'function') setReadingGrade(grade);
     setLocal(K_ONBOARD, 'done');
-    config.readingGrade = grade;      // おうちの設定として 共有する
+    if(name || !joining) config.readingGrade = grade;   // おうちの設定として 共有する
     if(role === 'child' && THEME_IDS.includes(chosenTheme)){
       config.theme = chosenTheme;
       setLocal(K_THEME, chosenTheme);
@@ -3888,8 +3996,10 @@ function bindWelcomeStart(){
     }
     const oldName = config.childName;
     const titleWasGenerated = isGeneratedTitle(config.title, oldName);
-    config.childName = name;
-    if(titleWasGenerated) config.title = defaultTitleFor(name);
+    if(name){
+      config.childName = name;
+      if(titleWasGenerated) config.title = defaultTitleFor(name);
+    }
     saveCfg();
     if(sharing && !TEST_MODE && S && S.configured()){
       if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
@@ -4959,12 +5069,24 @@ function joinInstallTransferHTML(){
      「引き継げる準備が できています」は うそに なるので 出さない */
   const S = window.NatsuSync;
   if(S && typeof S.revokedCode === 'function' && S.revokedCode() === code) return '';
+  /* 子ども画面に 出るが、読むのは 大人。data-no-reading を 付けて
+     かな変換の 対象から 外す（変換すると「きょうゆうコード」などに なり、
+     大人が 読めない 案内に なってしまう）。 */
+  const step = homeInstallPlatform(navigator.userAgent, navigator.maxTouchPoints) === 'ios'
+    ? '画面下（iPadは上）の共有ボタン <span class="nowrap">□↑</span> を押す'
+    : 'ブラウザのメニューから「ホーム画面に追加」／「アプリをインストール」を選ぶ';
   return `
-  <section class="sec join-install-transfer">
+  <section class="sec join-install-transfer" data-no-reading>
     <div class="paper">
-      <p class="set-note"><b>ホーム画面に追加する場合</b><br>
-      このQR招待は、ホーム画面版にも共有を引き継げる準備ができています。<b>この画面のまま</b>共有ボタンから「ホーム画面に追加」を行い、追加したアイコンを一度開いてください。アイコン側で共有を受け取ると、共有コードはURLから自動で消えます。</p>
-      <div class="set-actions"><button class="btn btn-sm btn-ghost" id="joinRemove" type="button">ホーム画面に追加しない（共有コードをURLから消す）</button></div>
+      <p class="join-install-for">おうちの方に読んでもらってね</p>
+      <h3 class="join-install-head">ホーム画面に追加する手順</h3>
+      <ol class="join-install-steps">
+        <li><b>このページを開いたまま</b>、${step}</li>
+        <li>「ホーム画面に追加」→「追加」を押す</li>
+        <li>追加されたアイコンを<b>一度開く</b></li>
+      </ol>
+      <p class="set-note">アイコンから開いた時点で共有の設定が引き継がれ、URLの合言葉は自動で消えます。追加しないままでも、この画面では共有を使えます。</p>
+      <div class="set-actions"><button class="btn btn-sm btn-ghost" id="joinRemove" type="button">追加しない（URLから合言葉を消す）</button></div>
     </div>
   </section>`;
 }
