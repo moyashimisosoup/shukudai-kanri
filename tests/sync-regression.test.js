@@ -2105,6 +2105,14 @@ test('native dialogの閉じ方が変わっても状態を同期し、背景だ�
     'dialog内の余白でなく矩形外の背景クリックだけを閉じること');
 });
 
+test('記念日の本文も子どもの漢字設定に合わせて既存のかな表示を使う', ()=>{
+  const open = grab(APP, 'openKinenbi');
+  assert.match(open, /applyReadingDisplay\(dialog\)/,
+    '後から差し込む題名・本文・日付にも、画面本体と同じ変換を適用すること');
+  assert.doesNotMatch(open, /ruby|furigana|readingOverride/,
+    '固有名詞・年号に未確認の個別読みを埋め込まないこと');
+});
+
 test('必須・任意・読書の完了カードは「ぜんぶできた！」と表示する', ()=>{
   const card = grab(APP, 'taskHTML');
   assert.match(card, /t\.group === 'must' \|\| t\.group === 'option' \? ' task-whole' : ''/,
@@ -2116,6 +2124,6 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260811ad'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260811ae'));
   }
 });

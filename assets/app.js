@@ -1074,6 +1074,10 @@ function openKinenbi(now){
   $('#kinenbiDate').textContent = fmtDate(now);
   $('#kinenbiTitle').textContent = item.title;
   $('#kinenbiText').textContent = item.text;
+  /* 記念日ダイアログは本文を後から入れるため、通常の画面描画時の
+     かな表示だけでは対象にならない。子どもの漢字設定と同じ辞書・
+     文脈補正をここにも使い、固有名詞や年号を個別の推測で補わない。 */
+  applyReadingDisplay(dialog);
   markKinenbiViewed(dayKey(now));
   $('#todayLabel').classList.remove('has-unread', 'is-nudging');
   $('#todayLabel').setAttribute('aria-expanded', 'true');
