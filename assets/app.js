@@ -2626,7 +2626,6 @@ function viewParent(){
   <div class="paper parent-head">
     <div>
       <div class="parent-head-title"><h2>保護者用ページ</h2>${parentShareBadgeHTML()}</div>
-      <p>${esc(config.title)}</p>
     </div>
   </div>
 
@@ -2805,7 +2804,7 @@ function parentMessageEditorHTML(){
           <textarea id="parentMessageText" rows="1" maxlength="80" placeholder="例：きょうも おつかれさま！">${esc(msg.text)}</textarea></label>
         <button class="btn btn-sm btn-do btn-icon-text parent-message-send" id="parentMessageSave" type="button">${icon('send')}<span>送る</span></button>
       </div>
-      <p class="set-note parent-message-help">子ども画面には新しい順に最大${MESSAGES_MAX}件を表示します。同じ名前で送ると、その名前のメッセージを上書きします。</p>
+      <p class="set-note parent-message-help">子ども画面には新しい順に最大${MESSAGES_MAX}件を表示します。同じ名前で送ると、メッセージを上書きします。</p>
       ${messageListHTML()}
     </div>
   </section>`;

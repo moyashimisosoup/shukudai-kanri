@@ -885,13 +885,27 @@ select{ appearance:auto; -webkit-appearance:menulist; }
 /* 補助リンクのほうが長いカードでも、主ボタンは右端にそろえる。 */
 .task-act > button:first-child{ display:block; margin-inline-start:auto; }
 
+/* iPad・横長画面では、文言の長さに左右されない操作列を確保する。 */
+@media (min-width:561px){
+  .task-list:not(.task-list--2up) > .task{
+    grid-template-columns:minmax(0,1fr) 184px;
+  }
+  .task-list:not(.task-list--2up) > .task .task-act{
+    width:184px;
+  }
+  .task-list:not(.task-list--2up) > .task .task-act > .btn{
+    width:100%;
+    padding-inline:12px;
+  }
+}
+
 
 /* できあがったカード */
 .task.is-done{ background:var(--wakaba-usu); }
 .task.is-done .task-name::after{
   content:"できた！"; margin-left:10px;
   font-size:16px; font-weight:900; color:var(--kami);
-  background:var(--wakaba); border-radius:999px;
+  background:var(--ai); border-radius:999px;
   padding:3px 12px; vertical-align:middle; white-space:nowrap;
 }
 

@@ -1986,10 +1986,16 @@ test('完了予測は全体進捗から求め、実績が少ないときは行�
 
 test('保護者ページは縦の余白を節約する表示になっている', ()=>{
   const settings = grab(APP, 'viewParent');
+  const messageEditor = grab(APP, 'parentMessageEditorHTML');
   const credit = grab(APP, 'creditHTML');
 
   assert.match(settings, /parent-head-title"><h2>保護者用ページ<\/h2>\$\{parentShareBadgeHTML\(\)\}/,
     '共有中バッジは保護者用ページと同じ行に置く');
+  assert.doesNotMatch(settings, /\$\{esc\(config\.title\)\}/,
+    '上部帯と同じタイトルを保護者見出しの下へ重ねて表示しない');
+  assert.doesNotMatch(messageEditor, /その名前のメッセージ/,
+    'メッセージ欄の説明を簡潔にする');
+  assert.match(messageEditor, /同じ名前で送ると、メッセージを上書きします。/);
   assert.ok(settings.indexOf('<section class="paper pstat">') < settings.indexOf('${parentMessageEditorHTML()}'),
     '夏休みの残りを子どもへのメッセージより先に置く');
   assert.match(credit, /<br><span class="credit-part"><a /,
@@ -2026,4 +2032,12 @@ test('保護者ページは縦の余白を節約する表示になっている',
     '次の番号は案内・大きい数字・単位を同じ構造で組む');
   assert.match(STYLE, /\.task-next\{[\s\S]{0,120}align-items:baseline/,
     '大きい数字と単位は文字の下端が自然にそろうベースライン配置にする');
+  assert.match(STYLE, /\.task\.is-done \.task-name::after\{[\s\S]{0,180}background:var\(--ai\)/,
+    '完了状態の印は丸つけ・なおしの緑と区別してテーマ色にする');
+  assert.match(STYLE, /\.wrapmark\.is-on\{[\s\S]{0,160}background:var\(--wakaba\)/,
+    '丸つけ・なおしの完了色はこれまでどおり緑を保つ');
+  assert.match(STYLE, /@media \(min-width:561px\)\{[\s\S]{0,180}\.task-list:not\(\.task-list--2up\) > \.task\{[\s\S]{0,100}184px/,
+    'iPadでは操作文言に左右されない固定幅の列を確保する');
+  assert.match(STYLE, /\.task-list:not\(\.task-list--2up\) > \.task \.task-act > \.btn\{[\s\S]{0,80}width:100%/,
+    'iPadの操作ボタンは固定列いっぱいにそろえる');
 });
