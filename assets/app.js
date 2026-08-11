@@ -2932,8 +2932,12 @@ function syncSectionHTML(opts){
             「この合言葉で接続」と 書いてあり、作った 本人には
             「まだ つながっていないのか」と 読めた。
             ふだんは 見せるだけに して、打ち直しは たたんで おく */''}
+      ${/* **id を 参加の 欄と 分けること。** 同じ id だと、
+            captureFormDraft が 拾った 古い 値が 描き直しの あとで
+            書きもどされ、解除しても 前の 合言葉が のこる／
+            おまかせを 押しても 新しい 合言葉が 出ない、が 起きる */''}
       <div class="set-row"><span class="lab">この家庭の合言葉</span>
-        <input type="text" id="syncCode" value="${esc(code)}" spellcheck="false"
+        <input type="text" id="syncCodeShown" value="${esc(code)}" spellcheck="false"
                autocapitalize="off" autocorrect="off" placeholder="未設定" readonly></div>
       <p class="set-note">ほかの端末では、この合言葉を入力するか、下の「ほかの端末から読み取る」のQRコード・招待リンクを使ってください。</p>
       <div class="set-actions">
@@ -3876,10 +3880,15 @@ function restoreOpenDetails(map){
   $$('#view details').forEach((d,i)=>{ if(map[detailsKey(d, i)]) d.open = true; });
 }
 
+/* 描き直しを またいで、入力とちゅうの 内容を 消さない しくみ。
+
+   読み取り専用の 欄は のぞく。そこに 出ているのは 人が 打った ものでは
+   なく、アプリが 入れた 値。もどすと **アプリが たった今 入れ直した 値を、
+   ひとつ 前の 値で 上書きして しまう**。 */
 function captureFormDraft(){
   const out = {};
   $$('#view input[id], #view textarea[id], #view select[id]').forEach(el=>{
-    if(el.type === 'file') return;
+    if(el.type === 'file' || el.readOnly || el.disabled) return;
     out[el.id] = (el.type === 'checkbox' || el.type === 'radio')
       ? { checked:el.checked, type:el.type }
       : { value:el.value, type:el.type };
@@ -3889,7 +3898,7 @@ function captureFormDraft(){
 function restoreFormDraft(draft){
   Object.entries(draft || {}).forEach(([id, saved])=>{
     const el = document.getElementById(id);
-    if(!el || el.type === 'file') return;
+    if(!el || el.type === 'file' || el.readOnly || el.disabled) return;
     if(saved.type === 'checkbox' || saved.type === 'radio') el.checked = !!saved.checked;
     else el.value = saved.value;
   });
@@ -4039,7 +4048,7 @@ function parentChildGuideHTML(){
    矢印キー・roving tabindex が 要るのに、得られるものが 無い。
    <a> なら フォーカスも「戻る」も ブラウザ任せで 正しく 動く。 */
 const ADULT_PAGES = [
-  { tab:'settings', href:'#settings', short:'ようす', title:'保護者用ページ' },
+  { tab:'settings', href:'#settings', short:'進捗',   title:'保護者用ページ' },
   { tab:'tasks',    href:'#tasks',    short:'宿題',   title:'宿題を決める' },
   { tab:'config',   href:'#config',   short:'設定',   title:'アプリの設定' }
 ];
@@ -4868,7 +4877,7 @@ function bindSync(){
   const copy = $('#syncCopy');
   if(copy) copy.addEventListener('click', ()=>{
     /* コピーするのは いま 使っている 合言葉。つなぎ直す 欄では ない */
-    const shown = $('#syncCode');
+    const shown = $('#syncCodeShown');
     if(!shown || !shown.value){ toast('先に合言葉を作成してください'); return; }
     copyText(shown);
   });

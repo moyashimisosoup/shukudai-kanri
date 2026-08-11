@@ -1442,14 +1442,19 @@ test('この端末だけのときは、待っていると書く', ()=>{
 test('共有ずみの合言葉は見せるだけ。つなぎ直しはたたむ', ()=>{
   const f = grab(APP, 'syncSectionHTML');
   assert.match(f, /<span class="lab">この家庭の合言葉<\/span>/);
-  assert.match(f, /id="syncCode"[\s\S]{0,200}readonly/, '見せるだけの欄にすること');
+  assert.match(f, /id="syncCodeShown"[\s\S]{0,200}readonly/, '見せるだけの欄にすること');
+  /* 参加の欄と id を分けること。同じ id だと captureFormDraft が拾った
+     古い値が描き直しのあとで書きもどされ、解除しても前の合言葉がのこり、
+     おまかせを押しても新しい合言葉が出ない（実機でそうなった） */
+  assert.equal((f.match(/id="syncCode"/g) || []).length, 1,
+    'syncCode は参加の欄だけにすること');
   /* 注釈の中でこの語に触れるのは構わない。ボタンとして出ないことを見る */
   assert.doesNotMatch(f, /<button[^>]*>この合言葉で接続<\/button>/);
   assert.match(f, /<summary>べつの合言葉につなぎ直す<\/summary>/);
   assert.match(f, /id="syncRejoinCode"/, 'つなぎ直しは専用の欄から読むこと');
   const bind = grab(APP, 'bindSync');
   assert.match(bind, /\$\('#syncRejoinCode'\) \|\| \$\('#syncCode'\)/);
-  assert.match(bind, /const shown = \$\('#syncCode'\);/, 'コピーは表示中の合言葉から取ること');
+  assert.match(bind, /const shown = \$\('#syncCodeShown'\);/, 'コピーは表示中の合言葉から取ること');
 });
 
 /* 表を積みなおすとき tbody を入れわすれると、そこだけ table-row-group で
@@ -1468,4 +1473,27 @@ test('おまかせで作るときは、確認のアラートを出さない', ()
   assert.match(bind, /if\(creating && !autoCode &&[\s\S]{0,60}!confirmShareSafety\(\)\) return;/);
   /* 注意事項そのものは画面に出したままにする */
   assert.match(APP, /privacyNoteHTML\(\)/);
+});
+
+/* 読み取り専用の欄に出ているのは、人が打ったものではなくアプリが入れた値。
+   描き直しでもどすと、たった今入れ直した値をひとつ前の値で上書きする。
+   実機では「解除しても古い合言葉が残る」「おまかせを押しても
+   新しい合言葉が出ない」として現れた。 */
+test('入力とちゅうの保護は、読み取り専用の欄には及ばない', ()=>{
+  const cap = grab(APP, 'captureFormDraft');
+  const res = grab(APP, 'restoreFormDraft');
+  assert.match(cap, /el\.type === 'file' \|\| el\.readOnly \|\| el\.disabled/);
+  assert.match(res, /el\.type === 'file' \|\| el\.readOnly \|\| el\.disabled/);
+});
+
+test('保護者ページのタブは「進捗」と呼ぶ', ()=>{
+  assert.match(APP, /tab:'settings'[^}]*short:'進捗'/);
+  assert.doesNotMatch(APP, /short:'ようす'/);
+});
+
+/* iPhone の幅では日づけが場所をとりすぎ、子どもの名前が3文字入るだけで
+   タイトルが「〇〇〇の夏…」と切れた。帯の中をつめて場所をまわす。 */
+test('せまい画面では、帯をつめてタイトルの場所を作る', ()=>{
+  assert.match(STYLE, /@media \(max-width:430px\)\{[\s\S]{0,200}\.topband-title\{ font-size:18px; \}/);
+  assert.match(STYLE, /@media \(max-width:430px\)\{[\s\S]{0,200}\.topband-date\{ font-size:13px; \}/);
 });

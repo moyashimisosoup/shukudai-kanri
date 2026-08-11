@@ -123,6 +123,19 @@ button{ font:inherit; color:inherit; }
   flex:none; font-size:15px; font-weight:700;
   color:var(--on-band-muted); font-variant-numeric:tabular-nums;
 }
+/* iPhone の 幅では、日づけが 場所を とりすぎて タイトルが
+   「〇〇〇の夏…」と 切れる。名前が 3文字 入るだけで そうなった。
+   帯を 2行に すると 画面が せまく なるので、帯の 中を つめて
+   タイトルに 場所を まわす */
+@media (max-width:430px){
+  .topband-inner{ gap:8px; padding:10px 12px; }
+  .topband-title{ font-size:18px; }
+  .topband-date{ font-size:13px; }
+}
+@media (max-width:360px){
+  .topband-title{ font-size:17px; }
+  .topband-date{ font-size:12px; }
+}
 
 /* =========================================================
    ページ
