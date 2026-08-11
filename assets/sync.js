@@ -57,6 +57,8 @@ let db = null;
 let docRef = null;
 let activeHouseId = '';
 let unsub = null;
+let tombstoneUnsub = null;
+let retiredCode = '';
 /* つなぎ直してから、おうちの中身を 1回でも 受け取ったか。
    受け取る 前の 端末は、手元の 設定が おうちの 設定より 新しいのか
    古いのか わからない。その あいだに 設定を 送ると、まだ 何も
@@ -269,6 +271,8 @@ async function verifyHousehold(code){
   const fs = Sync._fs;
   const read = typeof fs.getDocFromServer === 'function' ? fs.getDocFromServer : fs.getDoc;
   const secureId = await houseIdFor(c);
+  const tombstone = await readTombstone(fs, secureId, read);
+  if(tombstone) return { found:false, retired:true };
   const secureRef = fs.doc(db, 'households', secureId);
   const secureSnap = await read(secureRef);
   if(!secureSnap.exists()) return { found:false };
@@ -281,6 +285,51 @@ async function verifyHousehold(code){
   }catch(e){
     return { found:true, config:null, unreadable:true };
   }
+}
+
+/* 墓標は削除対象の共有IDだけを知る端末が1件ずつ読む。内容は持たず、
+   古いオフライン端末が消したグループを作り直すのを止める印である。 */
+async function readTombstone(fs, houseId, read){
+  const ref = fs.doc(db, 'household_tombstones', houseId);
+  try{
+    const snap = await (read || fs.getDoc)(ref);
+    return snap.exists() ? (snap.data() || {}) : null;
+  }catch(e){
+    /* 旧ルールがまだ公開中・オフラインなどでは、墓標確認の失敗だけで
+       既存の同期を止めない。ルール公開後は watchTombstone() でも検知する。 */
+    return null;
+  }
+}
+
+const RETIRED_TEXT = 'この共有データは削除処理中のため、もう使えません。新しい合言葉で始めてください。';
+function retireHousehold(code){
+  if(retiredCode === code) return;
+  retiredCode = code;
+  if(unsub){ unsub(); unsub = null; }
+  if(tombstoneUnsub){ tombstoneUnsub(); tombstoneUnsub = null; }
+  clearTimeout(pushTimer);
+  pending = { config:false, state:false };
+  docRef = null;
+  activeHouseId = '';
+  gotSnapshot = false;
+  setDeviceMap({});
+  setDeviceCount(0);
+  if(getCode() === code) setCode('');
+  setStatus('retired', RETIRED_TEXT);
+  const app = window.NatsuApp;
+  if(app && typeof app.onHouseholdRetired === 'function'){
+    try{ app.onHouseholdRetired(); }catch(e){}
+  }
+}
+
+function watchTombstone(fs, houseId, code){
+  if(tombstoneUnsub){ tombstoneUnsub(); tombstoneUnsub = null; }
+  const ref = fs.doc(db, 'household_tombstones', houseId);
+  tombstoneUnsub = fs.onSnapshot(ref, snap=>{
+    if(snap.exists()) retireHousehold(code);
+  }, ()=>{
+    /* 旧ルールの permission-denied は通常同期の失敗ではない。 */
+  });
 }
 
 /* ---------------------------------------------------------
@@ -300,6 +349,7 @@ function watchHousehold(fs, ref, code){
   if(unsub){ unsub(); unsub = null; }
   docRef = ref;
   activeHouseId = ref.id;
+  watchTombstone(fs, ref.id, code);
   unsub = fs.onSnapshot(ref,
     async snap => {
       if(docRef !== ref || snap.metadata.hasPendingWrites) return;
@@ -429,6 +479,10 @@ async function connect(){
        オンラインで空だった時だけ watchHousehold() が確認する。 */
     const secureId = await houseIdFor(code);
     const secureRef = fs.doc(db, 'households', secureId);
+    if(await readTombstone(fs, secureId)){
+      retireHousehold(code);
+      return;
+    }
     watchHousehold(fs, secureRef, code);
 
   }catch(err){
@@ -560,6 +614,8 @@ function revokedForMe(devices){
 
 function disconnect(){
   if(unsub){ unsub(); unsub = null; }
+  if(tombstoneUnsub){ tombstoneUnsub(); tombstoneUnsub = null; }
+  retiredCode = '';
   gotSnapshot = false;
   docRef = null;
   activeHouseId = '';

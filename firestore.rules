@@ -46,6 +46,12 @@ service cloud.firestore {
       ]);
     }
 
+    /* 管理者が削除処理に入れた共有IDは、古いオフライン端末が再接続しても
+       文書を作り直せない。墓標の書き込みは管理用の Admin SDK だけが行う。 */
+    function notRetired(houseId) {
+      return !exists(/databases/$(database)/documents/household_tombstones/$(houseId));
+    }
+
     /* config と state は、端末で鍵をかけた文字列でしか置かせない。
        ここを通ると、あいことばを知らない者はもちろん、
        このプロジェクトの管理者も中身を読めない。 */
@@ -63,11 +69,19 @@ service cloud.firestore {
       allow get:            if request.auth != null && validHouseId(houseId);
       allow list:           if false;
       allow create:         if request.auth != null && validHouseId(houseId)
-                            && onlyClientCreateFields() && sealedContent();
+                            && notRetired(houseId) && onlyClientCreateFields() && sealedContent();
       allow update:         if request.auth != null && validHouseId(houseId)
-                            && onlyKnownStoredFields() && sealedContent()
+                            && notRetired(houseId) && onlyKnownStoredFields() && sealedContent()
                             && retentionMetadataUntouched();
       allow delete:         if false;
+    }
+
+    /* 削除処理中・削除済みの印。共有コードから作ったIDを知る端末だけが
+       1件を確認できる。内容は理由と時刻だけで、記録内容は入れない。 */
+    match /household_tombstones/{houseId} {
+      allow get:    if request.auth != null && validHouseId(houseId);
+      allow list:   if false;
+      allow create, update, delete: if false;
     }
 
     /* ---------- 登録グループ数（数だけ） ----------

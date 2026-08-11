@@ -1100,3 +1100,21 @@ devices更新・snapshot・Function自身の書き戻しは活動に数えない
 `firebase deploy --only functions:recordHouseholdActivity`。無指定の `firebase deploy` は使わない。
 詳細は `functions/README.md`。npm auditのmoderate 7件は現行SDKの推移依存 `uuid` 由来で、
 現時点では非破壊の自動修正なし。
+
+## 2026-08-11 Codex追記（手動の共有データ削除）
+
+配信前のキャッシュ版は app / style / tokens / kanji / sync ともに `20260811v`。UI回帰
+102件、保持期限・管理ツールの専用テスト7件が通過。
+
+- `household_tombstones/<共有IDのSHA-256>` を削除処理中の印にする。クライアントは接続・
+  参加確認・常時監視でこの印を先に見る。見つけた端末は古い保留送信を捨て、端末内の
+  旧データと合言葉を消して、`この共有データは削除処理中のため、もう使えません。`
+  `新しい合言葉で始めてください。` と初期登録画面で案内する。
+- `firestore.rules` の `notRetired()` は墓標がある共有IDの create / update を拒否する。
+  これがないと、古いオフライン端末が本体を復活させる。**管理ツールを使う前に、必ず
+  Firestore Consoleへ今回の rules を反映すること。** ルール未反映でも新アプリは通常同期を
+  続けるが、手動削除の復活防止はまだ効かない。
+- 管理者PCだけで使う簡易UIは `tools/retention-admin.js`。ブラウザ権限や秘密鍵を公開サイトへ
+  置かず、`127.0.0.1` で開く。共有IDを貼って削除候補を確認し、`削除 N 件` の入力と確認後に
+  「墓標作成＋本体削除」を同じFirestoreバッチで行う。手順・鍵の扱いは
+  `tools/RETENTION_ADMIN.md` を参照。Cloud Functions / Schedulerは使わない。

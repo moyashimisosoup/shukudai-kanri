@@ -59,6 +59,9 @@ const K_WELCOME_THEME = TEST_MODE ? 'natsu.preview.welcome.theme.v1' : 'natsu.we
 /* 既存グループへの参加画面で変更した名前・漢字設定。グループの設定を最初に
    受け取ったあとで1度だけ重ね、参加端末の初期値による上書きを防ぐ。 */
 const K_WELCOME_JOIN = TEST_MODE ? 'natsu.preview.welcome.join.v1' : 'natsu.welcome.join.v1';
+/* 管理者が共有データを削除処理に入れた端末だけ、古い内容を新しい合言葉へ
+   送り直さず、最初の登録画面で理由を表示する。 */
+const K_RETIRED_NOTICE = TEST_MODE ? 'natsu.preview.retired.notice.v1' : 'natsu.retired.notice.v1';
 /* sync.js が この端末に ふった ランダム番号。一覧で「この端末」を 見わけるのに つかう */
 /* この端末の 呼び名（父・母 など）。共有した ときに 端末を 見わけるため。
    端末ごとの ものなので 同期しない（同期すると 全部 同じ名前に なる） */
@@ -939,6 +942,20 @@ function applyRemote(remote){
 window.NatsuApp = {
   current: () => ({ config, state: stripLocal(state) }),
   onRemote: applyRemote,
+  /* 墓標を受け取ったときは、端末に残った古い内容を消す。これを残すと
+     新しい合言葉を作ったときに、削除済みの記録を別グループへ送ってしまう。 */
+  onHouseholdRetired(){
+    config = freshConfig();
+    state = emptyState();
+    try{
+      [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME,
+       K_WELCOME_THEME, K_WELCOME_JOIN, K_CFG_HOUSE, K_AT].forEach(k=>localStorage.removeItem(k));
+    }catch(e){}
+    rememberChosenCode('none');
+    setLocal(K_RETIRED_NOTICE, '1');
+    if(location.hash !== '#welcome') location.hash = 'welcome';
+    else { tab = 'welcome'; render(); }
+  },
   /* sync.js が グループの文書を 新しく 作る ときだけ 呼ばれる。
      これは「この端末の 設定が グループの 中身に なる」瞬間なので、
      意図せず 起きたときに 気づけるよう 記録に のこす。
@@ -1182,6 +1199,7 @@ function viewWelcome(){
   <section class="welcome" aria-labelledby="welcomeTitle">
     <p class="welcome-kicker">${TEST_MODE ? 'おためし モード' : 'はじめの じゅんび'}</p>
     <h2 id="welcomeTitle">しゅくだいノート</h2>
+    ${getLocal(K_RETIRED_NOTICE) ? `<div class="welcome-retired" role="status"><b>共有データを削除しています</b><p>この共有データは削除処理中のため、もう使えません。新しい合言葉で始めてください。</p></div>` : ''}
     <div class="paper welcome-step">
       <span class="welcome-num">1</span>
       <div><h3>ホーム画面に 追加しよう</h3>
@@ -4577,6 +4595,7 @@ function bindWelcomeStart(){
        自分で 決めた ときだけ 出す */
     const autoCode = !!(codeEl && codeEl.readOnly);
     if(creating && !autoCode && !TEST_MODE && S && S.configured() && !confirmShareSafety()) return;
+    try{ localStorage.removeItem(K_RETIRED_NOTICE); }catch(e){}
     const verifiedConfig = joining && welcomeJoinVerified ? welcomeJoinVerified.config || {} : {};
     if(joining && welcomeJoinVerified && welcomeJoinVerified.config){
       config = normalizeConfig(deepCopy(welcomeJoinVerified.config));

@@ -193,6 +193,12 @@ button{ font:inherit; color:inherit; }
 .welcome{ width:100%; min-width:0; max-width:600px; box-sizing:border-box; margin:10px auto 30px; }
 .welcome-kicker{ font-size:16px; font-weight:900; color:var(--ai-usu); letter-spacing:.12em; }
 .welcome > h2{ font-size:34px; font-weight:900; line-height:1.25; margin:4px 0 20px; }
+.welcome-retired{
+  margin:-8px 0 16px; padding:12px 14px;
+  color:var(--beni); background:var(--beni-usu); border:2px solid var(--beni); border-radius:var(--r-s);
+}
+.welcome-retired b{ font-size:16px; font-weight:900; }
+.welcome-retired p{ margin:4px 0 0; font-size:15px; font-weight:700; line-height:1.55; }
 .welcome-step{
   width:100%; min-width:0; box-sizing:border-box;
   display:flex; gap:14px; padding:18px; margin-top:14px;

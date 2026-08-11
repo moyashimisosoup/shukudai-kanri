@@ -9,6 +9,7 @@ const ROOT = path.join(__dirname, '..');
 const APP = fs.readFileSync(path.join(ROOT, 'assets', 'app.js'), 'utf8');
 const STYLE = fs.readFileSync(path.join(ROOT, 'assets', 'style.css'), 'utf8');
 const SYNC = fs.readFileSync(path.join(ROOT, 'assets', 'sync.js'), 'utf8');
+const RULES = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
 const DATA = fs.readFileSync(path.join(ROOT, 'assets', 'data.js'), 'utf8');
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 
@@ -1428,11 +1429,24 @@ test('起動URLの古い招待より、人がえらんだ合言葉を優先す�
   assert.match(apply, /const chosen = getLocal\(K_CODE_CHOSEN\);[\s\S]{0,80}if\(chosen && chosen !== code\) return;/,
     'えらんだ合言葉と違う招待では、つなぎ直さないこと');
   /* えらんだ場面すべてでおぼえること。1か所でも抜けると引き戻される */
-  assert.equal((APP.match(/rememberChosenCode\(/g) || []).length, 6,
-    '定義1つと、作成・参加・招待・初期設定・解除の5か所');
+  assert.equal((APP.match(/rememberChosenCode\(/g) || []).length, 7,
+    '定義1つと、作成・参加・招待・初期設定・解除・削除処理中の6か所');
   const bind = grab(APP, 'bindSync');
   assert.match(bind, /rememberChosenCode\('none'\)[\s\S]{0,120}S\.setCode\(''\)/,
     '解除したら「どこにもつながらない」をおぼえること');
+});
+
+test('削除処理中の共有は墓標で止め、新しい合言葉の登録を案内する', ()=>{
+  const verify = grab(SYNC, 'verifyHousehold');
+  assert.match(verify, /readTombstone\(fs, secureId, read\)/);
+  assert.match(verify, /retired:true/);
+  assert.match(grab(SYNC, 'connect'), /readTombstone\(fs, secureId\)/);
+  assert.match(grab(SYNC, 'retireHousehold'), /pending = \{ config:false, state:false \}/,
+    '削除済みの端末内容を再送しないこと');
+  assert.match(APP, /共有データは削除処理中のため、もう使えません。新しい合言葉で始めてください。/);
+  assert.match(APP, /onHouseholdRetired\(\)/);
+  assert.match(RULES, /match \/household_tombstones\/\{houseId\}/);
+  assert.match(RULES, /function notRetired\(houseId\)/);
 });
 
 /* 1台しかない状態で「つながっています」と出すと、もう相手がいるように読める */
