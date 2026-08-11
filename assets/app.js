@@ -1489,10 +1489,9 @@ const CREDIT = {
 function creditHTML(){
   return `
   <p class="credit">
-    <span class="credit-name">${esc(CREDIT.title)}</span>
-    &copy; ${esc(CREDIT.year)} ${esc(CREDIT.author)}
-    ・<a href="${CREDIT.url}" target="_blank" rel="noopener">ライセンス</a>
-    ・ver ${esc(APP_VER)}
+    <span class="credit-part"><span class="credit-name">${esc(CREDIT.title)}</span> &copy; ${esc(CREDIT.year)} ${esc(CREDIT.author)}</span>
+    <span class="credit-part"><a href="${CREDIT.url}" target="_blank" rel="noopener">ライセンス</a></span>
+    <span class="credit-part">ver ${esc(APP_VER)}</span>
   </p>`;
 }
 

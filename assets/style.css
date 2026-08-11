@@ -123,32 +123,32 @@ button{ font:inherit; color:inherit; }
 [data-theme="cat"] .topband-mark{
   width:28px; height:28px; border-radius:0;
   background:var(--cat-band-mark);
-  -webkit-mask:url("paw.svg") center / contain no-repeat;
-  mask:url("paw.svg") center / contain no-repeat;
+  -webkit-mask:url("paw.svg?v=20260811q") center / contain no-repeat;
+  mask:url("paw.svg?v=20260811q") center / contain no-repeat;
 }
 [data-theme="sunny"] .topband-mark{
   width:28px; height:28px; border-radius:0;
   background:var(--himawari);
-  -webkit-mask:url("sun.svg") center / contain no-repeat;
-  mask:url("sun.svg") center / contain no-repeat;
+  -webkit-mask:url("sun.svg?v=20260811q") center / contain no-repeat;
+  mask:url("sun.svg?v=20260811q") center / contain no-repeat;
 }
 [data-theme="soda"] .topband-mark{
   width:26px; height:28px; border-radius:0;
   background:var(--sora);
-  -webkit-mask:url("soda.svg") center / contain no-repeat;
-  mask:url("soda.svg") center / contain no-repeat;
+  -webkit-mask:url("soda.svg?v=20260811q") center / contain no-repeat;
+  mask:url("soda.svg?v=20260811q") center / contain no-repeat;
 }
 [data-theme="berry"] .topband-mark{
   width:28px; height:28px; border-radius:0;
   background:var(--suika-usu);
-  -webkit-mask:url("berry.svg") center / contain no-repeat;
-  mask:url("berry.svg") center / contain no-repeat;
+  -webkit-mask:url("berry.svg?v=20260811q") center / contain no-repeat;
+  mask:url("berry.svg?v=20260811q") center / contain no-repeat;
 }
 [data-theme="block"] .topband-mark{
   width:26px; height:26px; border-radius:0;
   background:var(--himawari);
-  -webkit-mask:url("block.svg") center / contain no-repeat;
-  mask:url("block.svg") center / contain no-repeat;
+  -webkit-mask:url("block.svg?v=20260811q") center / contain no-repeat;
+  mask:url("block.svg?v=20260811q") center / contain no-repeat;
 }
 .topband-title{
   font-size:21px; font-weight:900; color:var(--kami);
@@ -399,6 +399,11 @@ button{ font:inherit; color:inherit; }
 }
 .credit a{ color:inherit; }
 .credit-name{ font-weight:900; }
+/* 1本の 長い 文だと、せまい 画面で「© 2026」と 名前の あいだなど、
+   意味の 切れない ところで 折り返す。かたまりごとに 分け、
+   かたまりの 中では 折り返さない。行が 変わるのは 区切りの ところだけ */
+.credit-part{ display:inline-block; white-space:nowrap; }
+.credit-part + .credit-part::before{ content:"・"; }
 
 .stats-count{
   margin:12px 0 6px; padding:16px; text-align:center;
@@ -652,8 +657,8 @@ button{ font:inherit; color:inherit; }
 [data-theme="cat"] .set-task-summary strong::before{
   content:""; display:inline-block; width:20px; height:20px;
   margin-inline-end:8px; vertical-align:-4px; background:var(--suika);
-  -webkit-mask:url("paw.svg") center / contain no-repeat;
-  mask:url("paw.svg") center / contain no-repeat;
+  -webkit-mask:url("paw.svg?v=20260811q") center / contain no-repeat;
+  mask:url("paw.svg?v=20260811q") center / contain no-repeat;
 }
 .set-task-meta{ grid-column:2; grid-row:2; font-size:14px; font-weight:900; color:var(--ai-usu); line-height:1.4; }
 .set-task-move{ display:flex; gap:4px; grid-column:3; grid-row:1 / span 2; align-self:center; }
@@ -754,6 +759,12 @@ button{ font:inherit; color:inherit; }
 select{ appearance:auto; -webkit-appearance:menulist; }
 :focus-visible{ outline-color:var(--focus); }
 .task-meter--daily .streak{ margin-inline-start:auto; }
+/* 「きのう できたね」は 8文字あり、丸みと 余白で 150px ちかく なる。
+   .task-meter は 折り返す ので、バーに 下限を 決めておけば、
+   入りきらない ときだけ そえ書きが 下の行へ 落ちる。
+   決めておかないと iPad の 2つ並びカードで バーが つぶれた */
+.task-meter--daily .bar{ flex:1 1 200px; min-width:150px; }
+.task-meter--daily .streak{ flex:0 0 auto; }
 
 @media (hover:hover) and (pointer:fine){
   .set-task-summary:hover,.theme-choice:hover{ background:var(--surface-soft); }
@@ -792,8 +803,8 @@ select{ appearance:auto; -webkit-appearance:menulist; }
 [data-theme="cat"] .task-name::before{
   content:""; display:inline-block; width:24px; height:24px;
   margin-inline-end:8px; vertical-align:-4px; background:var(--suika);
-  -webkit-mask:url("paw.svg") center / contain no-repeat;
-  mask:url("paw.svg") center / contain no-repeat;
+  -webkit-mask:url("paw.svg?v=20260811q") center / contain no-repeat;
+  mask:url("paw.svg?v=20260811q") center / contain no-repeat;
 }
 .task-next{
   grid-column:1; display:flex; align-items:center; gap:8px;
@@ -1634,8 +1645,8 @@ body.no-tabbar{ padding-bottom:0; }
 }
 [data-theme="cat"] .stamp-mark::before{
   content:""; flex:none; width:56px; height:56px; background:currentColor;
-  -webkit-mask:url("paw.svg") center / contain no-repeat;
-  mask:url("paw.svg") center / contain no-repeat;
+  -webkit-mask:url("paw.svg?v=20260811q") center / contain no-repeat;
+  mask:url("paw.svg?v=20260811q") center / contain no-repeat;
 }
 @media (max-width:420px){
   [data-theme="cat"] .stamp-mark{

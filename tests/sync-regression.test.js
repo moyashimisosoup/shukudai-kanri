@@ -1064,7 +1064,7 @@ test('ホーム画面アイコンは不透明PNGを持ち、ねこテーマの�
 });
 
 test('ねこテーマの飾りは paw.svg のまま残す', ()=>{
-  assert.match(STYLE, /\[data-theme="cat"\][\s\S]*mask:url\("paw\.svg"\)/);
+  assert.match(STYLE, /\[data-theme="cat"\][\s\S]*mask:url\("paw\.svg\?v=[0-9a-z]+"\)/);
   assert.equal(fs.existsSync(path.join(ROOT, 'assets', 'paw.svg')), true);
 });
 
@@ -1603,7 +1603,10 @@ test('全体の行は、子ども画面と同じ2枚がさねで見分ける', (
 test('名前のあるテーマには、そのテーマのしるしをあてる', ()=>{
   for(const [theme, file] of [['cat','paw.svg'], ['sunny','sun.svg'], ['soda','soda.svg'],
                               ['berry','berry.svg'], ['block','block.svg']]){
-    const re = new RegExp('\\[data-theme="' + theme + '"\\] \\.topband-mark\\{[\\s\\S]{0,220}mask:url\\("' + file + '"\\)');
+    /* 抜き型の URL には版をつけること。つけないと、図案を直しても
+       端末が前のものを取り出しつづける（実機でベリーが出なかった） */
+    const re = new RegExp('\\[data-theme="' + theme + '"\\] \\.topband-mark\\{[\\s\\S]{0,240}mask:url\\("'
+      + file.replace('.', '\\.') + '\\?v=[0-9a-z]+"\\)');
     assert.match(STYLE, re, theme + ' に ' + file + ' をあてること');
     assert.ok(fs.existsSync(path.join(ROOT, 'assets', file)), file + ' が無い');
   }
@@ -1623,4 +1626,27 @@ test('ネコは見出しの色みもテーマに合わせる', ()=>{
   ['--suika','--himawari','--asagao','--wakaba'].forEach(n=>{
     assert.ok(cat.includes(n + ':'), n + ' を残すこと');
   });
+});
+
+/* iPad の2つ並びカードで「きのう できたね」がバーを押しつぶした。
+   そえ書きは8文字あり、丸みと余白で150pxちかくになる。 */
+test('まいにちのそえ書きは、バーをつぶさず下の行へ落ちる', ()=>{
+  assert.match(STYLE, /\.task-meter--daily \.bar\{ flex:1 1 200px; min-width:150px; \}/);
+  assert.match(STYLE, /\.task-meter--daily \.streak\{ flex:0 0 auto; \}/);
+  assert.match(STYLE, /\.task-meter\{ flex-wrap:wrap;/, '折り返せること');
+});
+
+/* 1本の長い文だと、せまい画面で「© 2026」と名前のあいだなど、
+   意味の切れないところで折り返す。 */
+test('最下部のクレジットは、意味のかたまりで折り返す', ()=>{
+  const f = grab(APP, 'creditHTML');
+  assert.equal((f.match(/class="credit-part"/g) || []).length, 3,
+    '作品名と著作権表示・ライセンス・版の3つに分けること');
+  assert.match(STYLE, /\.credit-part\{ display:inline-block; white-space:nowrap; \}/);
+  assert.match(STYLE, /\.credit-part \+ \.credit-part::before\{ content:"・"; \}/);
+  /* 表示義務のある中身は落とさないこと */
+  assert.match(f, /CREDIT\.title/);
+  assert.match(f, /CREDIT\.year/);
+  assert.match(f, /CREDIT\.author/);
+  assert.match(f, /CREDIT\.url/);
 });
