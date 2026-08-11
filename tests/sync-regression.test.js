@@ -1128,7 +1128,10 @@ test('設定画面の共有は、作成でそのままつながり、参加は�
   assert.match(make, /openSyncDetails = true/, '作成後にQR・招待リンクを開くこと');
   assert.doesNotMatch(make, /この合言葉で接続/, '作成後にもう1操作を求めないこと');
   /* おまかせでも 自分で決めても、押した時点で共有が始まるのは同じ */
-  assert.match(make, /on\('#syncMake', 'click', \(\)=> startSharing\(S\.makeCode\(\)\)\)/);
+  assert.match(make, /on\('#syncMake', 'click', \(\)=> startSharing\(S\.makeCode\(\), true\)\)/);
+  /* おまかせの合言葉に「短い合言葉を使わないで」の注意はあてはまらない。
+     押すたびに出すだけ邪魔なので、自分で決めたときだけ出す */
+  assert.match(make, /if\(!auto && !confirmShareSafety\(\)\) return;/);
   assert.match(make, /on\('#syncMakeOwn', 'click'/);
   assert.match(make, /if\(c\.length < 8\)/, '自分で決めた合言葉は8文字以上を求めること');
 
@@ -1453,4 +1456,16 @@ test('共有ずみの合言葉は見せるだけ。つなぎ直しはたたむ',
    のこり、行が中身の幅に縮む。保護者ページのバーの右に大きなすき間が出た。 */
 test('狭い幅で表を積みなおすとき、tbody も block にする', ()=>{
   assert.match(STYLE, /\.pgtable, \.pgtable thead, \.pgtable tbody,\s*\n\s*\.pgtable tr, \.pgtable th, \.pgtable td\{ display:block; \}/);
+});
+
+/* おまかせの合言葉は、この端末が当てられにくい16文字を作る。
+   「短い合言葉を使わないで」の注意はあてはまらないので出さない。
+   自分で決めたときだけ出す（そこが弱くなるところ）。 */
+test('おまかせで作るときは、確認のアラートを出さない', ()=>{
+  const bind = grab(APP, 'bindWelcomeStart');
+  assert.match(bind, /const autoCode = !!\(codeEl && codeEl\.readOnly\);/,
+    '読み取り専用のままなら、おまかせと見なすこと');
+  assert.match(bind, /if\(creating && !autoCode &&[\s\S]{0,60}!confirmShareSafety\(\)\) return;/);
+  /* 注意事項そのものは画面に出したままにする */
+  assert.match(APP, /privacyNoteHTML\(\)/);
 });

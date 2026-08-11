@@ -4459,7 +4459,10 @@ function bindWelcomeStart(){
       if(codeEl) codeEl.focus();
       return;
     }
-    if(creating && !TEST_MODE && S && S.configured() && !confirmShareSafety()) return;
+    /* おまかせの 合言葉（欄が 読み取り専用の まま）は 確認を 出さない。
+       自分で 決めた ときだけ 出す */
+    const autoCode = !!(codeEl && codeEl.readOnly);
+    if(creating && !autoCode && !TEST_MODE && S && S.configured() && !confirmShareSafety()) return;
     const verifiedConfig = joining && welcomeJoinVerified ? welcomeJoinVerified.config || {} : {};
     if(joining && welcomeJoinVerified && welcomeJoinVerified.config){
       config = normalizeConfig(deepCopy(welcomeJoinVerified.config));
@@ -4874,8 +4877,14 @@ function bindSync(){
      さらに「この合言葉で接続」を 押す 必要が あった。
      どちらを 押した 時点で ほかの端末から 読めるのかが 分からない、
      という 指摘に そって 1操作に まとめた */
-  const startSharing = code=>{
-    if(!confirmShareSafety()) return;
+  /* auto … おまかせで 作った 合言葉。
+     おまかせの 合言葉は この端末が 当てられにくい 16文字を 作るので、
+     「短い 合言葉を つかわないで」という 注意は あてはまらない。
+     押すたびに 出す ぶんだけ じゃまなので 出さない。
+     自分で 決める ときだけ 出す（そこが 弱くなる ところ）。
+     どちらの 場合も、注意事項は 画面に 出したままに してある */
+  const startSharing = (code, auto)=>{
+    if(!auto && !confirmShareSafety()) return;
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     forgetConfigStampForNewHousehold(code);
     rememberChosenCode(code);
@@ -4885,7 +4894,7 @@ function bindSync(){
     toast('作成しました。ほかの端末から この合言葉で 読み取れます');
     render({ keepScroll:true });
   };
-  on('#syncMake', 'click', ()=> startSharing(S.makeCode()));
+  on('#syncMake', 'click', ()=> startSharing(S.makeCode(), true));
   on('#syncMakeOwn', 'click', ()=>{
     const input = $('#syncOwnCode');
     const c = cleanCode(input ? input.value : '');
