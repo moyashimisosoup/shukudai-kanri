@@ -380,6 +380,7 @@ firestore.rules               Firestore のセキュリティルール（記録�
 LICENSE                       ソースコードのライセンス（Apache-2.0）
 NOTICE                        著作権・第三者ライセンスの通知
 LICENSE-CONTENT.md            収録コンテンツのライセンス（CC BY 4.0）
+licenses/                     第三者の配布条件の原文（辞書の IPADIC など）
 ```
 
 ビルド不要。ファイルを置くだけで動きます。外部への通信は次の2つだけで、
@@ -426,6 +427,11 @@ https://github.com/moyashimisosoup/shukudai-notebook
 同梱しているもの（qrcode-generator、@codexteam/icons、kuromoji.js とその辞書）と、
 実行時に外部から読み込むもの（Firebase SDK、Google Fonts）の一覧と権利表示は
 [`NOTICE`](NOTICE) にまとめてあります。再配布するときは NOTICE ごと配布してください。
+
+条文がファイル自身の中に入っていないものは、[`licenses/`](licenses/) に原文を同梱しています。
+現在あるのは辞書（IPADIC）の配布条件 [`licenses/mecab-ipadic-COPYING`](licenses/mecab-ipadic-COPYING) で、
+上流の配布物から1バイトも変えずに置いてあります（出どころと sha256 は
+[`licenses/README.md`](licenses/README.md)）。
 
 ### お願い（義務ではありません）
 

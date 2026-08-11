@@ -27,9 +27,12 @@ https://github.com/moyashimisosoup/shukudai-notebook
        ライブラリのコードが含まれます。各ライセンス表記は同ファイル内にあります。
        Atilika Inc. and contributors の著作権表示も同ファイル内にあります。
   - 形態素解析用の辞書 assets/dict/*.dat.gz
-    ※ kuromoji.js 付属の辞書データで、IPADIC（mecab-ipadic）に由来します。
-       IPADIC の権利は奈良先端科学技術大学院大学ほか、原典の権利者に帰属します。
-       配布条件の原文は上流（kuromoji / mecab-ipadic）の配布物を参照してください。
+    ※ kuromoji.js 付属の辞書データで、mecab-ipadic-2.7.0-20070801（IPADIC）に
+       由来します。権利は奈良先端科学技術大学院大学（NAIST）ほか、原典の権利者に
+       帰属します。項目の多くは ICOT Free Software に由来します。
+       配布条件の原文を licenses/mecab-ipadic-COPYING に、上流の配布物から
+       1バイトも変えずに同梱しています。出どころと確かめかたは
+       licenses/README.md を参照してください。
 
 ## 実行時に外部から読み込むもの（このリポジトリでは再配布していない）
 
