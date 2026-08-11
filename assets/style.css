@@ -603,9 +603,11 @@ button{ font:inherit; color:inherit; }
 }
 .pace-forecast{
   max-width:100%; margin:7px auto 0;
+  display:flex; justify-content:center; flex-wrap:wrap; column-gap:.25em;
   color:var(--ai-usu);
   font-size:12px; font-weight:900; line-height:1.45; text-align:center;
 }
+.pace-forecast span{ white-space:nowrap; }
 .v-good{ background:var(--wakaba-usu); color:var(--wakaba); }
 .v-ok{   background:var(--himawari-usu); }
 .v-hmm{  background:var(--suika-usu); color:var(--suika); }
@@ -850,13 +852,17 @@ select{ appearance:auto; -webkit-appearance:menulist; }
   mask:url("paw.svg?v=20260811q") center / contain no-repeat;
 }
 .task-next{
-  grid-column:1; display:flex; align-items:center; gap:8px;
-  font-size:18px; font-weight:700; color:var(--ai-usu);
+  grid-column:1; display:flex; align-items:baseline; gap:7px;
+  font-size:18px; font-weight:700; line-height:1.2; color:var(--ai-usu);
 }
 .task-next .next-num{
   font-size:30px; font-weight:900; color:var(--suika);
   line-height:1;
 }
+.task-next .next-lead,.task-next .next-tail{
+  min-width:0; line-height:1.2;
+}
+.task-next .next-tail{ font-weight:800; }
 .sec-opt   .task-next .next-num{ color:#B98305; }
 .sec-daily .task-next .next-num{ color:var(--asagao); }
 .task-meter{ grid-column:1; display:flex; align-items:center; gap:12px; margin-top:4px; }

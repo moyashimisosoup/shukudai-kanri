@@ -1025,11 +1025,18 @@ test('既存グループへの参加は読み取り確認後だけ許可し、�
     '存在確認だけではグループを作成・変更しない');
 });
 
-test('曜日の月は「つき」ではなく曜日読みの「げつ」にする', ()=>{
+test('曜日と日付の月を文脈に合う読みへ直す', ()=>{
   const reading = grab(APP, 'applyReadingDisplay');
+  const context = new Function('WD_READING', `
+    ${grab(APP, 'readingContextText')}
+    return readingContextText;
+  `)({ 日:'にち', 月:'げつ', 火:'か', 水:'すい', 木:'もく', 金:'きん', 土:'ど' });
   assert.match(APP, /const WD_READING = \{[^}]*月:'げつ'/);
-  assert.match(reading, /body\.replace\(\/（\(\[日月火水木金土\]\)）\/g/,
-    '括弧内の曜日だけを辞書変換前に確定する');
+  assert.match(reading, /readingContextText\(body, grade\)/);
+  assert.equal(context('8月11日（火）', 0), '8がつ11日（か）');
+  assert.equal(context('8月11日（月）', 0), '8がつ11日（げつ）');
+  assert.equal(context('8月11日（月）', 1), '8月11日（げつ）',
+    '小学1年生以上では既習の月日を漢字のまま残す');
 });
 
 test('端末の呼び名には自明な変更範囲の説明を重ねない', ()=>{
@@ -1929,7 +1936,13 @@ test('完了予測は全体進捗から求め、実績が少ないときは行�
   assert.equal(dated.kind, 'date');
   assert.equal(dated.label, '8月10日');
   assert.equal(forecast.forecastText(dated, false), '完了予測 8月10日');
-  assert.equal(forecast.forecastText(dated, true), 'このペースなら8月10日におわりそう。');
+  assert.equal(forecast.forecastText(dated, true), 'かんりょうよそく：いまのペースだと8月10日');
+
+  /* 夏休み終了日を越えても、利用者が日付を見て判断できるよう隠さない。 */
+  const afterVacation = forecast.completionForecast(50, 100, start, new Date(2026, 7, 10));
+  assert.equal(afterVacation.kind, 'date');
+  assert.equal(afterVacation.label, '9月19日');
+  assert.equal(forecast.forecastText(afterVacation, true), 'かんりょうよそく：いまのペースだと9月19日');
 
   const little = forecast.completionForecast(1, 100, start, now);
   assert.equal(little.kind, 'more');
@@ -1962,7 +1975,15 @@ test('保護者ページは縦の余白を節約する表示になっている',
   assert.match(APP, /<span class="parent-share-short">：設定<\/span>/,
     '狭い画面では共有設定の案内を短くする');
   assert.match(STYLE, /\.pace-forecast\{[\s\S]*font-size:12px/);
+  assert.match(APP, /<span>かんりょうよそく：<\/span><span>いまのペースだと\$\{esc\(forecast\.label\)\}<\/span>/,
+    '狭幅では日付の途中でなくコロンの後を折り返し位置にする');
+  assert.match(STYLE, /\.pace-forecast span\{ white-space:nowrap; \}/,
+    '「9がつ7にち」の途中では折り返さない');
   assert.doesNotMatch(STYLE, /\.pace-forecast\{[^}]*border:/,
     '子どもの完了予測は吹き出し風にしない');
   assert.match(STYLE, /\.pstat-forecast\{[\s\S]*font-size:12px/);
+  assert.match(APP, /class="next-lead"[\s\S]{0,180}class="next-num"[\s\S]{0,180}class="next-tail"/,
+    '次の番号は案内・大きい数字・単位を同じ構造で組む');
+  assert.match(STYLE, /\.task-next\{[\s\S]{0,120}align-items:baseline/,
+    '大きい数字と単位は文字の下端が自然にそろうベースライン配置にする');
 });

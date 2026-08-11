@@ -1806,7 +1806,7 @@ function completionForecast(done, total, startAt, now){
 }
 function forecastText(forecast, child){
   if(forecast.kind === 'date') return child
-    ? 'このペースなら' + forecast.label + 'におわりそう。'
+    ? 'かんりょうよそく：いまのペースだと' + forecast.label
     : '完了予測 ' + forecast.label;
   if(forecast.kind === 'done') return child ? 'しゅくだい ぜんぶ できた！' : '完了予測　完了';
   if(forecast.kind === 'empty') return child ? '' : '宿題を登録すると予測できます';
@@ -1839,6 +1839,9 @@ function paceHTML(o){
   const allGap = todo - natsu;
   const forecast = completionForecast(allDone, allTotal, config.startAt, new Date());
   const forecastCopy = forecastText(forecast, true);
+  const forecastHTML = forecast.kind === 'date'
+    ? `<span>かんりょうよそく：</span><span>いまのペースだと${esc(forecast.label)}</span>`
+    : esc(forecastCopy);
   const v = verdictOf(allGap, mustGap);
   let cls = v.cls, msg = v.msg;
 
@@ -1878,7 +1881,7 @@ function paceHTML(o){
       <span class="pace-key pace-key--must"></span>かならず やる
       <span class="pace-key pace-key--opt"></span>つぎに やる</p>` : ''}
     <p class="pace-verdict ${cls}">${msg}</p>
-    ${forecastCopy ? `<p class="pace-forecast">${esc(forecastCopy)}</p>` : ''}
+    ${forecastCopy ? `<p class="pace-forecast">${forecastHTML}</p>` : ''}
     ${warn}
   </div>`;
 }
@@ -1940,8 +1943,8 @@ function taskHTML(t){
   <article class="task${p.isDone?' is-done':''}${
     (!p.isDone && p.numDone && hasWrap(t))?' is-almost':''}${isFree(t)?' task-free':''}">
     <h3 class="task-name">${esc(t.name)}</h3>
-    ${nx && !isFree(t) ? `<p class="task-next">${nx.lead}
-        ${nx.num ? `<span class="next-num">${esc(nx.num)}</span>` : ''}${esc(nx.tail)}</p>` : ''}
+    ${nx && !isFree(t) ? `<p class="task-next"><span class="next-lead">${esc(nx.lead)}</span>
+        ${nx.num ? `<span class="next-num">${esc(nx.num)}</span>` : ''}<span class="next-tail">${esc(nx.tail)}</span></p>` : ''}
     ${meter}
     <div class="task-act">
       <button class="btn ${p.isDone?'btn-ghost':'btn-do'}" data-open="${esc(t.id)}" type="button">
@@ -4336,10 +4339,7 @@ function applyReadingDisplay(targetRoot){
     const original = node.nodeValue || '';
     const match = original.match(/^(\s*)([\s\S]*?)(\s*)$/);
     const lead = match ? match[1] : '', body = match ? match[2] : original, tail = match ? match[3] : '';
-    /* 「月」だけでは辞書が「つき」と読むため、曜日の括弧内だけ先に
-       曜日読みへ確定する。月日の「月（がつ）」には触れない。 */
-    const readingBody = body.replace(/（([日月火水木金土])）/g,
-      (all, day)=>'（' + WD_READING[day] + '）');
+    const readingBody = readingContextText(body, grade);
     const key = grade + '\u0000' + readingBody;
     const work = readingCache.has(key) ? Promise.resolve(readingCache.get(key))
       : convertForTranscription(readingBody).then(result=>{
@@ -4351,6 +4351,16 @@ function applyReadingDisplay(targetRoot){
       if(pass === readingPass && root.contains(node)) node.nodeValue = lead + text + tail;
     }).catch(()=>{});
   });
+}
+
+/* 辞書だけでは文脈のない「月」を「つき」と読む。
+   曜日の括弧は「げつ」、全ひらがな設定の日付は「がつ」を先に確定する。
+   小学1年生以上では「月」「日」が既習なので、日付の漢字をそのまま残す。 */
+function readingContextText(body, grade){
+  let text = String(body || '').replace(/（([日月火水木金土])）/g,
+    (all, day)=>'（' + WD_READING[day] + '）');
+  if(Number(grade) === 0) text = text.replace(/(\d{1,2})月(?=\d{1,2}日)/g, '$1がつ');
+  return text;
 }
 
 function bindWelcome(){
