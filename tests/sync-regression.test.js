@@ -2113,6 +2113,20 @@ test('記念日の本文も子どもの漢字設定に合わせて既存のか�
     '固有名詞・年号に未確認の個別読みを埋め込まないこと');
 });
 
+test('記念日ダイアログは本文とずれる背景罫線を使わない', ()=>{
+  const dialog = STYLE.slice(STYLE.indexOf('.kinenbi-dialog{'), STYLE.indexOf('.kinenbi-dialog::backdrop'));
+  assert.doesNotMatch(dialog, /background-image|background-size/,
+    'iPhone・iPadで文字の行送りとずれる罫線を引かないこと');
+  assert.match(STYLE, /\.kinenbi-head\{[^}]*border-bottom:2px dashed var\(--hougan\)/,
+    '無地でも見出しと本文の区切りは残すこと');
+});
+
+test('子どもの「きょう やったこと」は保護者の記録見出しと同じ白抜き帯にする', ()=>{
+  assert.match(APP, /<section class="sec sec-today">\s*<div class="sec-head"><h2>きょう やったこと<\/h2>/);
+  assert.match(STYLE, /\.sec-today \.sec-head\{ background:var\(--ai\); color:var\(--kami\); \}/);
+  assert.match(STYLE, /\.sec-today \.sec-head \.sec-note\{ color:var\(--on-band-muted\); \}/);
+});
+
 test('必須・任意・読書の完了カードは「ぜんぶできた！」と表示する', ()=>{
   const card = grab(APP, 'taskHTML');
   assert.match(card, /t\.group === 'must' \|\| t\.group === 'option' \? ' task-whole' : ''/,
@@ -2124,6 +2138,6 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260811ae'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260811af'));
   }
 });

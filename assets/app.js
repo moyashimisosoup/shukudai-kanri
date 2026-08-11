@@ -1738,7 +1738,7 @@ function viewHome(){
   ${sectionHTML('must','かならず やる', nokori>0 ? 'のこり '+nokori+'しゅるい' : 'ぜんぶ できた！', must)}
   ${opt.length   ? sectionHTML('opt','つぎに やる','かならず やるが すんだら、ここから えらぼう', opt) : ''}
 
-  <section class="sec">
+  <section class="sec sec-today">
     <div class="sec-head"><h2>きょう やったこと</h2><span class="sec-note">${fmtDate(new Date())}</span></div>
     <div class="paper today-list">${todayHTML()}</div>
   </section>

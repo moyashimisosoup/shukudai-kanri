@@ -219,13 +219,13 @@ button{ font:inherit; color:inherit; }
   .topband-date{ font-size:12px; }
 }
 
-/* 今日はなんの日？：新しい画面を増やさず、罫線の紙を小さな読みものにする。 */
+/* 今日はなんの日？：新しい画面を増やさず、小さな紙の読みものにする。
+   本文の行送りと背景の罫線は端末幅・文字設定によってずれて見えるため、
+   紙色は無地にし、見出し下の破線だけを内容の区切りとして残す。 */
 .kinenbi-dialog{
   position:fixed; inset:0; width:min(calc(100% - 32px), 520px); height:fit-content;
   max-height:min(80dvh, 560px); margin:auto; padding:0;
   color:var(--ai); background:var(--kami);
-  background-image:linear-gradient(var(--hougan) 1px, transparent 1px);
-  background-size:100% var(--masu);
   border:var(--line) solid var(--ai); border-radius:var(--r);
   box-shadow:var(--shadow-lift); overflow:auto;
   animation:kinenbi-open var(--dur-med) var(--ease-out);
@@ -529,6 +529,11 @@ button{ font:inherit; color:inherit; }
 .sec-opt   .sec-head .sec-note{ color:var(--on-option); }
 .sec-daily .sec-head{ background:var(--asagao);   color:var(--kami); }
 .sec-daily .sec-head .sec-note{ color:var(--on-daily-muted); }
+
+/* 「きょう やったこと」は記録のまとまりなので、保護者ページの
+   「今日の記録」と同じ濃色の紙帯に白抜きでそろえる。 */
+.sec-today .sec-head{ background:var(--ai); color:var(--kami); }
+.sec-today .sec-head .sec-note{ color:var(--on-band-muted); }
 
 /* 保護者ページと設定は、見出しが白のままだと 中身の紙と 見分けが つかない。
    子ども画面のように 色で 分けると、大人の画面では かえって うるさいので、
