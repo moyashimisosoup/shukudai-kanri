@@ -110,11 +110,45 @@ button{ font:inherit; color:inherit; }
     180deg, var(--suika) 0 25%, var(--himawari) 25% 50%,
     var(--wakaba) 50% 75%, var(--asagao) 75% 100%);
 }
+/* テーマの しるし。既定は 4色の 帯（ノートの 見出しシール）。
+   名前の ある テーマには、その テーマの かたちを あてる。
+   形は 1色の 抜き型（mask）なので、色は background で 決まる。
+   帯は 濃い色 なので、しるしは あかるい 色を えらぶこと */
+.topband-mark--icon{
+  width:28px; height:28px; border-radius:0;
+  -webkit-mask-position:center; mask-position:center;
+  -webkit-mask-size:contain;    mask-size:contain;
+  -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+}
 [data-theme="cat"] .topband-mark{
   width:28px; height:28px; border-radius:0;
   background:var(--cat-band-mark);
   -webkit-mask:url("paw.svg") center / contain no-repeat;
   mask:url("paw.svg") center / contain no-repeat;
+}
+[data-theme="sunny"] .topband-mark{
+  width:28px; height:28px; border-radius:0;
+  background:var(--himawari);
+  -webkit-mask:url("sun.svg") center / contain no-repeat;
+  mask:url("sun.svg") center / contain no-repeat;
+}
+[data-theme="soda"] .topband-mark{
+  width:26px; height:28px; border-radius:0;
+  background:var(--sora);
+  -webkit-mask:url("soda.svg") center / contain no-repeat;
+  mask:url("soda.svg") center / contain no-repeat;
+}
+[data-theme="berry"] .topband-mark{
+  width:28px; height:28px; border-radius:0;
+  background:var(--suika-usu);
+  -webkit-mask:url("berry.svg") center / contain no-repeat;
+  mask:url("berry.svg") center / contain no-repeat;
+}
+[data-theme="block"] .topband-mark{
+  width:26px; height:26px; border-radius:0;
+  background:var(--himawari);
+  -webkit-mask:url("block.svg") center / contain no-repeat;
+  mask:url("block.svg") center / contain no-repeat;
 }
 .topband-title{
   font-size:21px; font-weight:900; color:var(--kami);
@@ -1469,6 +1503,9 @@ body.no-tabbar{ padding-bottom:0; }
 .pstat-fill--must{ background:var(--wakaba); }
 .pstat-fill--all{ background:var(--wakaba); opacity:.42; }
 .pstat-fill--opt{ background:var(--wakaba); opacity:.42; }
+/* 全体の 行に かさねる 内わけ（必須の ぶん）。子ども画面の
+   .bar-fill--must と 同じ 置きかた・同じ 濃さ */
+.pstat-fill--inner{ position:absolute; left:0; top:0; background:var(--wakaba); }
 @media (max-width:420px){
   .pstat-row{ grid-template-columns:minmax(72px,auto) minmax(0,1fr) minmax(54px,auto); gap:8px; }
   .pstat-row-lab{ font-size:13px; }

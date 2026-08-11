@@ -96,13 +96,19 @@
 [data-theme="cat"]{
   --ai:oklch(31% .04 42); --ai-usu:oklch(50% .04 42);
   --kami:oklch(99% .012 78); --sora:oklch(94% .035 45); --hougan:oklch(83% .045 25);
-  --suika:oklch(49% .15 22); --himawari:oklch(79% .14 80);
-  --asagao:oklch(48% .12 300); --wakaba:oklch(46% .11 148);
-  --suika-usu:oklch(96% .03 22); --himawari-usu:oklch(97% .04 80);
-  --asagao-usu:oklch(96% .025 300); --wakaba-usu:oklch(95% .035 148);
+  /* ほかの テーマは 使いまわしの 赤・黄・紫・緑。ネコだけ 帯を
+     あたたかく しても、見出しが そのままでは「よその 色を かりた」
+     ように 見える。意味の わけかた（かならず＝赤み／つぎに＝黄み／
+     まいにち＝紫み／すすみ＝緑）は 変えずに、色みだけ ミルクティーの
+     ほうへ ずらす。彩度を おとし、色相を 少し あたたかい 側へ、
+     明度を すこし あげて やわらかく する */
+  --suika:oklch(53% .125 25); --himawari:oklch(82% .115 72);
+  --asagao:oklch(53% .095 318); --wakaba:oklch(50% .085 152);
+  --suika-usu:oklch(96% .028 25); --himawari-usu:oklch(97% .035 72);
+  --asagao-usu:oklch(96% .022 318); --wakaba-usu:oklch(95% .03 152);
   --surface-soft:oklch(96% .025 48); --bar-track:oklch(94% .03 35);
-  --on-band-muted:oklch(86% .035 42); --on-must-muted:oklch(93% .04 22);
-  --on-option:oklch(38% .08 72); --on-daily-muted:oklch(91% .04 300);
+  --on-band-muted:oklch(88% .03 55); --on-must-muted:oklch(93% .035 25);
+  --on-option:oklch(38% .075 66); --on-daily-muted:oklch(92% .035 318);
   --focus:oklch(50% .13 300); --star-off:oklch(86% .03 42);
   --pace-past-a:oklch(81% .045 35); --pace-past-b:oklch(89% .03 35);
   --fun-a:oklch(99% .025 75); --fun-b:oklch(96% .035 42);

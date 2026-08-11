@@ -2535,7 +2535,7 @@ function viewParent(){
       ${/* 経過とすぐ見くらべたいのは「全体」なので、経過の真下に置く。
             必須・つぎにやる は その内わけとして 下に つづける */''}
       ${pstatRow('夏休みの経過', nat, '', 'natsu')}
-      ${pstatRow('全体の進捗', allTotal ? allDone/allTotal*100 : 0, `${allDone}/${allTotal}`, 'all')}
+      ${pstatRow('全体の進捗', allTotal ? allDone/allTotal*100 : 0, `${allDone}/${allTotal}`, 'all', allTotal ? s.done/allTotal*100 : 0)}
       ${pstatRow('必須の宿題', s.pct, `${s.done}/${s.total}`, 'must')}
       ${so.total ? pstatRow('つぎに やる', so.pct, `${so.done}/${so.total}`, 'opt') : ''}
     </div>
@@ -3036,12 +3036,23 @@ function syncSectionHTML(opts){
 /* 保護者ページの すすみぐあい。
    数字を 5つ ならべると 折り返しが 半端に なり、くらべにくい。
    子ども画面と 同じ バーで そろえ、上から下へ 目で 追えるようにする。 */
-function pstatRow(label, pct, count, kind){
+/* inner … 全体の 行だけ、内わけ（必須の ぶん）を 上に かさねる。
+
+   3本を 色の 濃さだけで 分けると、「全体」と「つぎに やる」が
+   おなじ うすい緑に なって 見分けが つかない。かといって 全体に
+   別の 濃さを あてると、子ども画面の うすい層と ずれる。
+   そこで 色では なく **かたち**で 分ける。全体の 行は 子ども画面の
+   バーを そのまま 持ちこむ（うすい＝ぜんぶ／こい＝かならず やる）。
+   3本が「全体 ＝ 必須 ＋ つぎに やる」と 読めるように なる。 */
+function pstatRow(label, pct, count, kind, inner){
   const p = clamp(Number(pct) || 0, 0, 100);
+  const q = clamp(Number(inner) || 0, 0, 100);
   return `
     <div class="pstat-row">
       <span class="pstat-row-lab">${esc(label)}</span>
-      <div class="bar"><div class="bar-fill pstat-fill--${kind}" style="width:${p.toFixed(1)}%"></div></div>
+      <div class="bar"><div class="bar-fill pstat-fill--${kind}" style="width:${p.toFixed(1)}%"></div>${
+        inner === undefined ? '' :
+        `<div class="bar-fill pstat-fill--inner" style="width:${q.toFixed(1)}%"></div>`}</div>
       <span class="pstat-row-num">${Math.round(p)}<small>%</small>${
         count ? `<small class="pstat-row-cnt">${esc(count)}</small>` : ''}</span>
     </div>`;

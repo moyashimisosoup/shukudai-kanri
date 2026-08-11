@@ -1580,3 +1580,47 @@ test('帯の色はテーマごとに変えられ、ネコは見出しと別の�
   /* 肉球は帯の上に置くので、帯用の色を使うこと */
   assert.match(STYLE, /\[data-theme="cat"\] \.topband-mark\{[\s\S]{0,120}background:var\(--cat-band-mark\);/);
 });
+
+/* 3本を色の濃さだけで分けると「全体」と「つぎに やる」が同じうすい緑に
+   なる。全体に別の濃さをあてると子ども画面のうすい層とずれる。
+   そこで色ではなく、かたちで分ける。 */
+test('全体の行は、子ども画面と同じ2枚がさねで見分ける', ()=>{
+  const f = grab(APP, 'pstatRow');
+  assert.match(f, /function pstatRow\(label, pct, count, kind, inner\)/);
+  assert.match(f, /inner === undefined \? '' :/,
+    '内わけを渡した行だけ、かさねること');
+  assert.match(f, /pstat-fill--inner/);
+  const parent = grab(APP, 'viewParent');
+  assert.match(parent, /pstatRow\('全体の進捗'[^)]*'all', allTotal \? s\.done\/allTotal\*100 : 0\)/,
+    '全体の行にだけ必須のぶんをかさねること');
+  assert.doesNotMatch(parent, /pstatRow\('必須の宿題'[^)]*,[^)]*,[^)]*,[^)]*,[^)]*\)/,
+    'ほかの行にはかさねないこと');
+  /* かさねかたは子ども画面と同じ */
+  assert.match(STYLE, /\.pstat-fill--inner\{ position:absolute; left:0; top:0; background:var\(--wakaba\); \}/);
+});
+
+/* テーマごとのしるし。形は1色の抜き型なので、色は background で決まる。 */
+test('名前のあるテーマには、そのテーマのしるしをあてる', ()=>{
+  for(const [theme, file] of [['cat','paw.svg'], ['sunny','sun.svg'], ['soda','soda.svg'],
+                              ['berry','berry.svg'], ['block','block.svg']]){
+    const re = new RegExp('\\[data-theme="' + theme + '"\\] \\.topband-mark\\{[\\s\\S]{0,220}mask:url\\("' + file + '"\\)');
+    assert.match(STYLE, re, theme + ' に ' + file + ' をあてること');
+    assert.ok(fs.existsSync(path.join(ROOT, 'assets', file)), file + ' が無い');
+  }
+  /* ノートは4色の帯のまま（見出しシールに見立てている） */
+  assert.doesNotMatch(STYLE, /\[data-theme="notebook"\] \.topband-mark/);
+});
+
+/* 帯だけあたためても、見出しが使いまわしの赤・紫のままでは
+   「よその色をかりた」ように見える。意味のわけかたは変えずに色みをずらす。 */
+test('ネコは見出しの色みもテーマに合わせる', ()=>{
+  const tokens = fs.readFileSync(path.join(ROOT, 'tokens.css'), 'utf8');
+  const cat = tokens.slice(tokens.indexOf('[data-theme="cat"]'), tokens.indexOf('[data-theme="cat"] body'));
+  assert.match(cat, /--suika:oklch\(53% \.125 25\)/);
+  assert.match(cat, /--asagao:oklch\(53% \.095 318\)/);
+  assert.match(cat, /--wakaba:oklch\(50% \.085 152\)/);
+  /* 意味のわけかたは、ほかのテーマと同じ4色のままにすること */
+  ['--suika','--himawari','--asagao','--wakaba'].forEach(n=>{
+    assert.ok(cat.includes(n + ':'), n + ' を残すこと');
+  });
+});
