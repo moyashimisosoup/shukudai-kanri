@@ -8,8 +8,9 @@ rules_version = '2';
    ここを変えたら Console にも貼り直してください。
 
    考え方
-   ・アプリはサーバーを持たない静的サイトなので、
+   ・内容の読み書きは静的クライアントから行うため、
      「あいことばを知っている＝そのグループの人」という前提で守る。
+     保持期限の平文メタデータだけは Cloud Function が管理する。
    ・したがって守るべきは「あいことばを知らない人が、
      当てずっぽうや一覧取得でたどり着けないこと」。
    ・list（コレクションの一覧）は、アプリが一度も使わないので
@@ -25,11 +26,24 @@ service cloud.firestore {
       return id.matches('[0-9a-f]{64}');
     }
 
-    /* アプリが書きこむ欄はこの5つだけ。
-       ほかの名前の欄を混ぜた書きこみは受けつけない。 */
-    function onlyKnownFields() {
+    /* 保存できる欄。保持期限の4項目はサーバーの activity trigger だけが
+       書きこむ。クライアントは作成時に指定できず、更新時にも変更できない。 */
+    function onlyKnownStoredFields() {
+      return request.resource.data.keys()
+        .hasOnly(['config', 'state', 'configAt', 'stateAt', 'devices',
+                  'lastActivityAt', 'expiresAt', 'retentionVersion',
+                  'retentionEligibleAt']);
+    }
+
+    function onlyClientCreateFields() {
       return request.resource.data.keys()
         .hasOnly(['config', 'state', 'configAt', 'stateAt', 'devices']);
+    }
+
+    function retentionMetadataUntouched() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'lastActivityAt', 'expiresAt', 'retentionVersion', 'retentionEligibleAt'
+      ]);
     }
 
     /* config と state は、端末で鍵をかけた文字列でしか置かせない。
@@ -48,8 +62,11 @@ service cloud.firestore {
     match /households/{houseId} {
       allow get:            if request.auth != null && validHouseId(houseId);
       allow list:           if false;
-      allow create, update: if request.auth != null && validHouseId(houseId)
-                            && onlyKnownFields() && sealedContent();
+      allow create:         if request.auth != null && validHouseId(houseId)
+                            && onlyClientCreateFields() && sealedContent();
+      allow update:         if request.auth != null && validHouseId(houseId)
+                            && onlyKnownStoredFields() && sealedContent()
+                            && retentionMetadataUntouched();
       allow delete:         if false;
     }
 

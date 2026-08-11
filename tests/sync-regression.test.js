@@ -42,7 +42,8 @@ const APP_NAMES = [
   'emptyState', 'normalizeState', 'ms', 'deepCopy', 'mergeById',
   'pickStamped', 'mergeProgress', 'mergeState', 'resetState',
   'canon', 'sameState', 'stripLocal', 'cacheBustURL', 'homeInstallPlatform', 'clamp', 'dailyCountSelection',
-  'parentShareSummary', 'defaultTitleFor', 'isGeneratedTitle', 'logByLabel'
+  'parentShareSummary', 'defaultTitleFor', 'isGeneratedTitle', 'logByLabel',
+  'isBook', 'isSheetCount', 'countUsesCircle'
 ];
 const appFns = new Function('location', `
   const SCHEMA=6, TRASH_MAX=50, GONE_MAX=300, MESSAGES_MAX=3, READS_MAX=400;
@@ -169,12 +170,27 @@ test('毎日の項目は6回以上を任意入力でき、0〜5の選択もそ�
   assert.equal(appFns.dailyCountSelection(4, '150'), 99);
   assert.match(STYLE, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/,
     '0〜5の回数を同じ幅の6列に並べること');
-  assert.match(STYLE, /daily-more-unit\{ grid-column:span 2/,
-    '「以上」を含む単位は2列を使い、狭幅でも切らないこと');
-  assert.match(APP, /readingGrade\(\) === 9 \? '以上' : 'いじょう'/,
-    '小学2年生までの「以上」はひらがなで表示すること');
+  assert.match(APP, /6回以上のときは、何回できたか 入れてね。/,
+    '6回以上では具体的な回数入力を促すこと');
+  assert.match(APP, /applyReadingDisplay\(\$\('#sheetWrap'\)\)/,
+    '記録シートを開いた後も学年別のかな表示を適用すること');
+  assert.match(STYLE, /\.daily-more input\{[\s\S]*min-height:76px[\s\S]*font-size:30px/,
+    '6回以上の入力欄と例の数字は1〜5ボタンと同じ大きさにすること');
   assert.match(APP, /DEBUG_WELCOME_ROLE === 'welcome-parent'/,
     '初期設定の確認用URLを保護者用・子ども用に分けること');
+});
+
+test('読書と枚数の記録は丸数字を使わず、数える単位を質問に含める', ()=>{
+  assert.equal(appFns.countUsesCircle({type:'count', numbered:true, unit:'ばん'}), true);
+  assert.equal(appFns.countUsesCircle({type:'count', numbered:true, unit:'まい'}), false);
+  assert.equal(appFns.countUsesCircle({type:'count', numbered:true, unit:'枚'}), false);
+  assert.equal(appFns.countUsesCircle({type:'count', recordStyle:'book', numbered:true, unit:'さつ'}), false);
+  assert.match(APP, /何.*unitAdult.*目までやった？/,
+    '枚で数える記録では何枚目までかを尋ねること');
+  assert.match(APP, /何冊目の本？[\s\S]*\$\{nth\}冊目/,
+    '読書の記録では何冊目かを示すこと');
+  assert.match(APP, /book-no">\$\{b\.nth\}冊/,
+    '保護者の読書一覧は1冊、2冊と表示すること');
 });
 
 test('初期タイトルは子どもの名前に合わせ、未入力ならしゅくだいノートにする', ()=>{
@@ -1862,7 +1878,7 @@ test('完了予測は全体進捗から求め、実績が少ないときは行�
   assert.equal(dated.kind, 'date');
   assert.equal(dated.label, '8月10日');
   assert.equal(forecast.forecastText(dated, false), '完了予測 8月10日');
-  assert.equal(forecast.forecastText(dated, true), 'このペースなら 8月10日ごろ');
+  assert.equal(forecast.forecastText(dated, true), 'このペースなら8月10日におわりそう。');
 
   const little = forecast.completionForecast(1, 100, start, now);
   assert.equal(little.kind, 'more');
@@ -1887,11 +1903,15 @@ test('保護者ページは縦の余白を節約する表示になっている',
   assert.match(STYLE, /\.set-task-summary strong\{[\s\S]*font-size:17px/);
   assert.match(STYLE, /\.book-title\{ font-size:17px/);
   assert.match(STYLE, /\.toast\{[\s\S]*font-size:16px/);
-  assert.match(STYLE, /\.parent-message-text textarea\{[\s\S]*height:48px[\s\S]*font-size:17px/);
+  assert.match(STYLE, /\.parent-message-text textarea\{[\s\S]*height:48px[\s\S]*box-sizing:border-box[\s\S]*font-size:17px/);
+  assert.match(STYLE, /\.parent-sender-fields select,\.parent-sender-fields input\{[\s\S]*height:48px[\s\S]*font-size:17px/,
+    '差出人欄もメッセージ欄と同じ高さ・文字サイズにする');
   assert.match(STYLE, /\.parent-today-logs \.ti-name\{ font-size:17px; \}/,
     '保護者ページの記録名は宿題一覧と同じ17pxにする');
   assert.match(APP, /<span class="parent-share-short">：設定<\/span>/,
     '狭い画面では共有設定の案内を短くする');
   assert.match(STYLE, /\.pace-forecast\{[\s\S]*font-size:12px/);
+  assert.doesNotMatch(STYLE, /\.pace-forecast\{[^}]*border:/,
+    '子どもの完了予測は吹き出し風にしない');
   assert.match(STYLE, /\.pstat-forecast\{[\s\S]*font-size:12px/);
 });

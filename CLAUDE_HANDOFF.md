@@ -1072,3 +1072,31 @@ pushAll・flushPendingSoon を呼ばない → そのまま return
   別案が選ばれる。
 - 320 / 375 / 414 / 768pxで親子両画面を確認。横スクロールなし。320pxでも予測ラベルは
   1行・約25px高に収まる。`html` と `body` の横方向は `overflow-x:clip` に統一した。
+
+## 2026-08-11 Codex追記（記録単位の表記・保持期限第1段階）
+
+配信前のキャッシュ版は app / style / tokens / kanji ともに `20260811u`。UI回帰テスト
+101件、保持期限専用テスト5件が通過。保持期限のFunctionとルールは**まだ未デプロイ**。
+
+- 本の記録は丸数字をやめ、一覧・記録シート・ログを `1冊` / `何冊目の本？` /
+  `1冊目` に統一。単位が「枚」の課題も算用数字と `何枚目までやった？` を使う。
+  それ以外の `numbered` 課題は従来どおり丸数字。
+- 6回以上の毎日の項目は、具体的な回数入力を促す。入力欄は1〜5のボタンと同じ
+  1グリッド分・高さ76px・数字30px。回以外の単位も案内文を自動調整する。
+- 記録シートは開いた直後にも `applyReadingDisplay($('#sheetWrap'))` を通す。子どもの
+  漢字設定が低学年なら `冊` / `枚` / `以上` も既存辞書でかな表示になる。
+- 保護者メッセージの差出人欄と本文欄は外寸48px・17pxに統一。textarea は
+  `box-sizing:border-box` が必要（無いとpadding込みで67pxになった）。
+- 子どもの完了予測は紙ラベルをやめ、`このペースなら8月10日におわりそう。` の通常文。
+  保護者用の小ラベルは変更していない。
+
+保持期限第1段階のソースは `functions/`、`firebase.json`、`firestore.rules` にある。
+config/stateの暗号文がサーバーで受理された変更だけを活動とし、サーバーイベント時刻から
+`lastActivityAt` / `expiresAt` / `retentionVersion` / `retentionEligibleAt` を記録する。
+devices更新・snapshot・Function自身の書き戻しは活動に数えない。削除・墓標・警告は未実装。
+
+**デプロイ順を守ること。** Blazeプランと権限を確認し、まず
+`firebase deploy --only firestore:rules`、反映確認後に
+`firebase deploy --only functions:recordHouseholdActivity`。無指定の `firebase deploy` は使わない。
+詳細は `functions/README.md`。npm auditのmoderate 7件は現行SDKの推移依存 `uuid` 由来で、
+現時点では非破壊の自動修正なし。

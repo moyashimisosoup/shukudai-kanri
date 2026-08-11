@@ -992,6 +992,12 @@ function dailyCountSelection(selected, raw){
   const more = /^\d+$/.test(text) ? Number(text) : 0;
   return more >= 6 ? clamp(more, 6, 99) : clamp(selected|0, 0, 99);
 }
+function dailyMorePrompt(task){
+  const unit = unitAdult((task && task.targetUnit) || 'かい');
+  return unit === '回'
+    ? '6回以上のときは、何回できたか 入れてね。'
+    : '6' + unit + '以上のときは、いくつできたか 入れてね。';
+}
 function maru(n){ return (n>=1 && n<=20) ? String.fromCharCode(0x245F + n) : String(n); }
 function pad2(n){ return String(n).padStart(2,'0'); }
 
@@ -1130,7 +1136,8 @@ function nextLabel(task){
   }
   if(task.type === 'count'){
     const n = p.done + 1;
-    return task.numbered
+    if(isBook(task)) return { lead:'つぎは', num:String(n), tail:'冊目' };
+    return countUsesCircle(task)
       ? { lead:'つぎは', num: maru(n), tail:'' }
       : { lead:'つぎは', num: String(n), tail: (task.unit||'')+'め' };
   }
@@ -1140,6 +1147,15 @@ function nextLabel(task){
   }
   const nokori = Math.max(0, p.total - p.done);
   return { lead:'きょうは あと', num:String(nokori), tail: task.targetUnit || 'かい' };
+}
+
+/* 本とプリントは、①②より「1冊目」「1枚目」のほうが
+   何を数えているか分かる。古い設定の numbered は残したまま、表示だけ整える。 */
+function isSheetCount(task){
+  return task && ['まい','枚'].includes(String(task.unit || '').trim());
+}
+function countUsesCircle(task){
+  return !!(task && task.numbered) && !isBook(task) && !isSheetCount(task);
 }
 
 /* しゅくだい ぜんたいの すすみぐあい（かならずやる だけ／まいにちアプリは のぞく）
@@ -1762,7 +1778,7 @@ function completionForecast(done, total, startAt, now){
 }
 function forecastText(forecast, child){
   if(forecast.kind === 'date') return child
-    ? 'このペースなら ' + forecast.label + 'ごろ'
+    ? 'このペースなら' + forecast.label + 'におわりそう。'
     : '完了予測 ' + forecast.label;
   if(forecast.kind === 'done') return child ? 'しゅくだい ぜんぶ できた！' : '完了予測　完了';
   if(forecast.kind === 'empty') return child ? '' : '宿題を登録すると予測できます';
@@ -2137,7 +2153,7 @@ function viewBooks(){
     ${rows.map(b=>`
       <article class="bookcard">
         <div class="bookcard-head">
-          <span class="book-no">${b.nth}</span>
+          <span class="book-no">${b.nth}冊</span>
           <h3 class="bookcard-title">${esc(b.title)}</h3>
           <button class="btn btn-sm btn-ghost" data-open="${esc(b.taskId)}"
             data-book="${esc(b.id)}" type="button">なおす</button>
@@ -3182,7 +3198,7 @@ function bookSectionHTML(){
     <div class="paper">
       ${rows.length ? rows.map(b=>`
         <div class="book-row">
-          <span class="book-no">${b.nth}</span>
+          <span class="book-no">${b.nth}冊</span>
           <div class="book-main">
             <div class="book-title">${esc(b.title)}</div>
             <div class="book-sub">${[
@@ -3220,7 +3236,7 @@ function openSheet(id, editBookId){
     sheetSel = p.done;
     body += `
     <div class="field">
-      <span class="lab">どこまで やった？</span>
+      <span class="lab">${isSheetCount(t) ? '何' + esc(unitAdult(t.unit||'まい')) + '目までやった？' : 'どこまで やった？'}</span>
       <p class="hint">やった ところを おしてね。そこまで ぜんぶ できたことに なるよ。</p>
       <p class="sel-say" id="selSay">${selSayText(t, sheetSel)}</p>
       <div class="nums" id="nums">${numsHTML(t, sheetSel)}</div>
@@ -3247,9 +3263,9 @@ function openSheet(id, editBookId){
           `<button class="tally-btn${i===sheetSel?' sel':''}" data-n="${i}" type="button">${i}</button>`).join('')}
       </div>
       <label class="daily-more" for="dailyMore">
-        <span class="daily-more-label">もっとやった：</span>
-        <input id="dailyMore" type="number" inputmode="numeric" min="6" max="99" value="${more}" placeholder="6" aria-label="もっとやった回数（6${readingGrade() === 9 ? '回以上' : 'かいいじょう'}）">
-        <span class="daily-more-unit">${esc(t.targetUnit||'かい')}${readingGrade() === 9 ? '以上' : 'いじょう'}</span>
+        <span class="daily-more-label">${esc(dailyMorePrompt(t))}</span>
+        <input id="dailyMore" type="number" inputmode="numeric" min="6" max="99" value="${more}" placeholder="6" aria-label="${esc(dailyMorePrompt(t))}">
+        <span class="daily-more-unit">${esc(t.targetUnit||'かい')}</span>
       </label>
     </div>`;
   }
@@ -3295,6 +3311,7 @@ function openSheet(id, editBookId){
   $('#sheetBody').innerHTML = body;
   $('#sheetBody').scrollTop = 0;
   $('#sheetWrap').hidden = false;
+  applyReadingDisplay($('#sheetWrap'));
   document.body.style.overflow = 'hidden';
 }
 
@@ -3311,7 +3328,7 @@ function openBookSheet(t, p, editBookId){
   const val = k => esc(b ? (b[k] || '') : '');
 
   const body = `
-  <p class="book-nth">${t.numbered ? maru(nth) : nth}さつめ</p>
+  <p class="book-nth"><span>何冊目の本？</span><strong>${nth}冊目</strong></p>
 
   <div class="field">
     <span class="lab">本の なまえ<span class="need-mark">かならず 入れてね</span></span>
@@ -3392,6 +3409,7 @@ function openBookSheet(t, p, editBookId){
   $('#sheetSave').textContent = 'できた！';
   $('#sheetBody').scrollTop = 0;
   $('#sheetWrap').hidden = false;
+  applyReadingDisplay($('#sheetWrap'));
   document.body.style.overflow = 'hidden';
 }
 
@@ -3414,6 +3432,7 @@ function openFreeSheet(t){
   $('#sheetSave').textContent = 'かけた！';
   $('#sheetBody').scrollTop = 0;
   $('#sheetWrap').hidden = false;
+  applyReadingDisplay($('#sheetWrap'));
   document.body.style.overflow = 'hidden';
 }
 
@@ -3503,7 +3522,7 @@ function saveBookSheet(){
     state.logs.push({
       id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
       at: now.toISOString(), by: logBy(), taskId: t.id, name: t.name,
-      what: (t.numbered ? maru(rec.nth) : rec.nth + (t.unit||'')) + '　「' + title + '」',
+      what: rec.nth + '冊　「' + title + '」',
       memo: [rec.author && 'さくしゃ：' + rec.author,
              rec.rating ? 'おすすめ度 ' + '★'.repeat(rec.rating) : '',
              out || memo].filter(Boolean).join('\n')
@@ -3596,12 +3615,12 @@ function numsHTML(t, sel){
   return Array.from({length: Math.max(1,t.total|0)}, (_,k)=>{
     const n = k+1;
     const cls = n===sel ? 'num sel' : (n<sel ? 'num done' : 'num');
-    return `<button class="${cls}" data-n="${n}" type="button">${t.numbered ? maru(n) : n}</button>`;
+    return `<button class="${cls}" data-n="${n}" type="button">${countUsesCircle(t) ? maru(n) : n}</button>`;
   }).join('');
 }
 function selSayText(t, sel){
   if(!sel) return 'まだ ひとつも やっていない';
-  const label = t.numbered ? maru(sel) : sel + (t.unit||'');
+  const label = countUsesCircle(t) ? maru(sel) : sel + (t.unit||'');
   return (sel >= (t.total|0)) ? label + ' まで ぜんぶ できた！' : label + ' まで できた';
 }
 function stepsHTML(t, arr){
@@ -3680,11 +3699,11 @@ function saveSheet(){
     const after = clamp(sheetSel|0, 0, t.total|0);
     progPatch(t.id, { done: after });
     if(after > before){
-      what = t.numbered
+      what = countUsesCircle(t)
         ? maru(before+1) + (after>before+1 ? '〜'+maru(after) : '') + ' できた'
         : (before+1) + (after>before+1 ? '〜'+after : '') + (t.unit||'') + ' できた';
     }else if(after < before){
-      what = (t.numbered ? maru(after) : after+(t.unit||'')) + ' まで に なおした';
+      what = (countUsesCircle(t) ? maru(after) : after+(t.unit||'')) + ' まで に なおした';
     }else{
       what = 'すすみは そのまま';
     }
@@ -4265,7 +4284,7 @@ function viewConfig(){
    辞書は選択した端末で一度だけ読み込み、同じ文の変換結果は使い回す。 */
 let readingPass = 0;
 const readingCache = new Map();
-function applyReadingDisplay(){
+function applyReadingDisplay(targetRoot){
   const grade = readingGrade();
   if(typeof setReadingGrade !== 'function') return;
   setReadingGrade(grade);
@@ -4273,7 +4292,8 @@ function applyReadingDisplay(){
      かかわらず元の漢字表記を保つ。変換するのは子ども向け画面だけ。 */
   if(isAdultTab(tab) || tab === 'stats') return;
   if(grade === 9 || !getLocal(K_READING) || typeof convertForTranscription !== 'function') return;
-  const root = $('#view');
+  const root = targetRoot || $('#view');
+  if(!root) return;
   const pass = ++readingPass;
   const nodes = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
