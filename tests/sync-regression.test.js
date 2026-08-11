@@ -1497,3 +1497,58 @@ test('せまい画面では、帯をつめてタイトルの場所を作る', ()
   assert.match(STYLE, /@media \(max-width:430px\)\{[\s\S]{0,200}\.topband-title\{ font-size:18px; \}/);
   assert.match(STYLE, /@media \(max-width:430px\)\{[\s\S]{0,200}\.topband-date\{ font-size:13px; \}/);
 });
+
+/* iOS の「ホーム画面に追加」がおぼえるのは追加時のURL。そこに # が残るかは
+   こちらから決められない。残らないと子ども画面が開くため、保護者が
+   「親端末」を選んで追加しても子ども画面になり、開き直すたびに戻った。 */
+test('ホーム画面から開いたとき、保護者の端末は保護者ページを出す', ()=>{
+  const f = grab(APP, 'routeFromHash');
+  assert.match(f, /if\(!location\.hash && isStandalone\(\) && getLocal\(K_ROLE\) === 'parent'\) return 'settings';/);
+  /* 初期設定より後に置くこと。順番を逆にすると、まっさらな端末が
+     初期設定をとばして保護者ページに出る */
+  const onboardIdx = f.indexOf("return 'welcome';");
+  const roleIdx = f.indexOf("=== 'parent') return 'settings';");
+  assert.ok(onboardIdx > -1 && roleIdx > onboardIdx,
+    '初期設定の判定を先に通すこと');
+  /* # が付いているときはさわらない。「子ども画面へ」は #home を付ける */
+  assert.match(f, /!location\.hash &&/);
+  /* 子どもの端末では立たない値なので、5回タップ・長押しは唯一の道のまま */
+  assert.match(APP, /setLocal\(K_ROLE, role\)/);
+
+  /* 実際に動かして確かめる */
+  const route = (hash, standalone, role, onboarded)=> new Function(
+    'location', 'isStandalone', 'getLocal', 'isStatsURL', 'TABS',
+    'K_CFG', 'K_ST', 'K_ONBOARD', 'K_ROLE', 'TEST_MODE', 'writesTaskId', `
+    ${grab(APP, 'routeFromHash')}
+    return routeFromHash();
+  `)(
+    { hash }, ()=> standalone,
+    k => ({ role, onboard: onboarded ? 'done' : '', cfg:'' })[
+      { 'natsu.device.role.v1':'role', 'natsu.onboarding.v1':'onboard', 'natsu.config.v2':'cfg' }[k]
+    ] || '',
+    ()=> false,
+    ['welcome','stats','home','log','calendar','books','writes','settings','tasks','config'],
+    'natsu.config.v2', 'natsu.state.v2', 'natsu.onboarding.v1', 'natsu.device.role.v1',
+    false, ''
+  );
+
+  assert.equal(route('', true, 'parent', true), 'settings',
+    'ホーム画面の保護者端末は、# が無くても保護者ページ');
+  assert.equal(route('', true, 'child', true), 'home',
+    '子どもの端末は子ども画面のまま');
+  assert.equal(route('', true, '', true), 'home',
+    '役割が未選択なら子ども画面のまま');
+  assert.equal(route('', false, 'parent', true), 'home',
+    'ふつうのブラウザのタブでは子ども画面（アドレスを開いた人が親とは限らない）');
+  assert.equal(route('#home', true, 'parent', true), 'home',
+    '「子ども画面へ」で付けた #home は尊重する');
+  assert.equal(route('', true, 'parent', false), 'welcome',
+    'まっさらな端末は、まず初期設定');
+});
+
+test('ホーム画面追加の案内は、どちらの画面が開くかを書く', ()=>{
+  const f = grab(APP, 'homeInstallGuideHTML');
+  assert.match(f, /保護者の端末<\/b>」を選んでいれば/);
+  assert.match(f, /この保護者ページが開きます/);
+  assert.match(f, /選んでいないときは子ども画面が開きます/);
+});

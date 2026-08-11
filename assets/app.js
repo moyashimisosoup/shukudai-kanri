@@ -562,6 +562,7 @@ function homeInstallGuideHTML(){
     <div class="sec-head"><h2>ホーム画面に追加</h2></div>
     <div class="paper home-install-paper">
       <p class="set-note">いつも使う端末では、ホーム画面に追加しておくと見つけやすくなります。</p>
+      <p class="set-note">「この端末は <b>保護者の端末</b>」を選んでいれば、追加したアイコンからは<b>この保護者ページが開きます</b>（子ども画面はページ内の「子ども画面へ」から見られます）。選んでいないときは子ども画面が開きます。設定は「ほかの端末と共有」→「この端末の表示と役割」で変えられます。</p>
       <div class="set-actions"><button class="btn btn-sm" id="homeInstallBtn" type="button">ホーム画面に追加する</button></div>
       <p class="set-note home-install-guide" id="homeInstallGuide" hidden>${esc(text)}</p>
     </div>
@@ -5657,6 +5658,23 @@ function routeFromHash(){
   const hasExistingData = !!(getLocal(K_CFG) || getLocal(K_ST));
   /* おためしモードでは起動時の内部データを「設定済み」と数えない。 */
   if(requested !== 'welcome' && !getLocal(K_ONBOARD) && (TEST_MODE || !hasExistingData)) return 'welcome';
+  /* ホーム画面の アイコンから 開いた ときに、どの画面を 出すか。
+
+     これまでは URL の # だけで 決めていた。ところが iOS の
+     「ホーム画面に追加」が おぼえるのは **追加した ときの URL** で、
+     そこに # が 残るかは こちらから 決められない。残らなければ
+     上の行で 'home'（子ども画面）に なる。保護者が「親端末」を
+     えらんで 追加しても 子ども画面が 開く、いちど 閉じて 開き直すと
+     子ども画面に なる、は これ。
+
+     そこで **この端末が 保護者の端末か**を 見る。役割は 端末ごとの
+     設定で、初期設定・招待後の えらび直し・共有の設定でしか つかない。
+     子どもの端末では ぜったいに 立たないので、子ども画面から 保護者
+     ページへ 抜ける 道（5回タップ・長押し）は これまで通り 唯一のまま。
+
+     # が 付いている ときは さわらない。保護者ページの「子ども画面へ」は
+     #home を 付けるので、そちらは これまで通り 子ども画面へ 行く。 */
+  if(!location.hash && isStandalone() && getLocal(K_ROLE) === 'parent') return 'settings';
   return requested;
 }
 window.addEventListener('hashchange', ()=>{
