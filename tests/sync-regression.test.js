@@ -1682,3 +1682,112 @@ test('かなにするページは、辞書が無くても印だけは出す', ()
   /* 18MB の進み具合を出す。出さないと止まったのか待てばよいのか分からない */
   assert.match(js, /setDictProgress/);
 });
+
+/* --- 学年別漢字配当表 -----------------------------------------------------
+   表そのものは docs/kanji-grades.md のとおり原典と突き合わせて入れた。
+   ここで見るのは「あとから壊れていないか」。字数は原典が括弧書きしている
+   数字そのものなので、1文字でも増減すれば必ずどこかが合わなくなる。
+   -------------------------------------------------------------------------- */
+
+const KANJI_SRC = fs.readFileSync(path.join(ROOT, 'assets', 'kanji.js'), 'utf8');
+
+/* kanji.js は素の script。ワーカーも辞書も触らせずに、判定の部分だけ動かす */
+function loadKanji(){
+  const ctx = vm.createContext({
+    URL,
+    location: { href: 'https://example.test/assets/kanji.js' },
+    setTimeout, clearTimeout,
+  });
+  vm.runInContext(KANJI_SRC, ctx);
+  return ctx;
+}
+
+function gradeChars(n){
+  const i = KANJI_SRC.indexOf('const KANJI_G' + n);
+  const j = KANJI_SRC.indexOf(';', i);
+  return [...KANJI_SRC.slice(i, j).replace(/[^\u3400-\u9FFF]/g, '')];
+}
+
+test('配当表の字数は、原典の括弧書きと同じ', ()=>{
+  const want = { 1:80, 2:160, 3:200, 4:202, 5:193, 6:191 };
+  let total = 0;
+  for(const n of [1,2,3,4,5,6]){
+    const chars = gradeChars(n);
+    assert.equal(chars.length, want[n], '小' + n + '年の字数');
+    total += chars.length;
+  }
+  /* 1,026字。改訂前の版は1,006字なので、取り違えるとここで落ちる */
+  assert.equal(total, 1026);
+});
+
+test('配当表に、同じ字は二度出てこない', ()=>{
+  const seen = new Map();
+  for(const n of [1,2,3,4,5,6]){
+    for(const ch of gradeChars(n)){
+      const before = seen.get(ch);
+      assert.equal(before, undefined,
+        ch + ' が 小' + before + '年 と 小' + n + '年 の両方にある');
+      seen.set(ch, n);
+    }
+  }
+  assert.equal(seen.size, 1026);
+});
+
+/* ソースの1行が配当表の1行。PDF と並べて行ごとに照合できるようにしてある。
+   折り返しを変えると、その照合ができなくなる */
+test('配当表は、原典と同じ1行20字で折り返す', ()=>{
+  for(const n of [1,2,3,4,5,6]){
+    const i = KANJI_SRC.indexOf('const KANJI_G' + n);
+    const rows = KANJI_SRC.slice(i, KANJI_SRC.indexOf(';', i))
+      .split('\n').slice(1).map(l => [...l.replace(/[^\u3400-\u9FFF]/g, '')])
+      .filter(r => r.length);
+    rows.slice(0, -1).forEach((r, k)=>{
+      assert.equal(r.length, 20, '小' + n + '年 ' + (k + 1) + '行目');
+    });
+    assert.ok(rows.at(-1).length <= 20);
+  }
+});
+
+test('学年を選ぶと、その学年までが習った字になる', ()=>{
+  const k = loadKanji();
+  /* vm の中で作った配列は外の Array と別物なので、文字列にして比べる */
+  const unlearned = text => k.unlearnedKanji(text).join('');
+
+  /* 0 は「まだ何も習っていない」。漢字はすべて未習 */
+  k.setReadingGrade(0);
+  assert.equal(unlearned('一'), '一');
+
+  /* 各学年で、その学年の字は既習・次の学年の字は未習になる */
+  for(const n of [1,2,3,4,5]){
+    k.setReadingGrade(n);
+    const mine = gradeChars(n).at(-1), next = gradeChars(n + 1)[0];
+    assert.equal(unlearned(mine), '', '小' + n + '年: ' + mine + ' は既習');
+    assert.equal(unlearned(next), next, '小' + n + '年: ' + next + ' は未習');
+  }
+
+  /* 小6まで選べば、配当表の1,026字はすべて既習 */
+  k.setReadingGrade(6);
+  assert.equal(unlearned([1,2,3,4,5,6].flatMap(gradeChars).join('')), '');
+
+  /* 配当表の外（中学以降）の字は、小6を選んでも未習のまま */
+  assert.equal(unlearned('斬'), '斬');
+
+  /* 9 は「直さない」。印も出さない */
+  k.setReadingGrade(9);
+  assert.equal(unlearned('斬'), '');
+
+  /* 知らない値は、これまで通り小2に落とす */
+  k.setReadingGrade(7);
+  assert.equal(k.getReadingGrade(), 2);
+  k.setReadingGrade('ねこ');
+  assert.equal(k.getReadingGrade(), 2);
+});
+
+test('かなにするページは、小1から小6まで選べる', ()=>{
+  const html = fs.readFileSync(path.join(ROOT, 'kana.html'), 'utf8');
+  for(const n of [0,1,2,3,4,5,6,9]){
+    assert.match(html, new RegExp('<option value="' + n + '"'), '学年 ' + n);
+  }
+  /* 初期値は小2のまま。本体の想定読者と揃えておく */
+  assert.match(html, /<option value="2" selected>/);
+});
