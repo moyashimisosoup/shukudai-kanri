@@ -2109,8 +2109,27 @@ test('記念日の本文も子どもの漢字設定に合わせて既存のか�
   const open = grab(APP, 'openKinenbi');
   assert.match(open, /applyReadingDisplay\(dialog\)/,
     '後から差し込む題名・本文・日付にも、画面本体と同じ変換を適用すること');
+  const reading = grab(APP, 'applyReadingDisplay');
+  assert.doesNotMatch(reading, /!getLocal\(K_READING\)/,
+    '現在の共有設定で小1・小2を選んだ場合も、旧端末キーの有無で変換を止めないこと');
   assert.doesNotMatch(open, /ruby|furigana|readingOverride/,
     '固有名詞・年号に未確認の個別読みを埋め込まないこと');
+});
+
+test('子どもの記録は現在の単位と漢字レベルで冊・枚を表示し直す', ()=>{
+  const row = grab(APP, 'logRowHTML');
+  const display = grab(APP, 'logWhatDisplay');
+  assert.match(row, /logWhatDisplay\(l, adult\)/,
+    '保存時の文言をそのまま出さず、表示用の単位を使うこと');
+  assert.match(display, /isBook\(task\) \? bookCountUnit\(adult\)/,
+    '本は子どもの漢字設定に応じて冊・さつを切り替えること');
+  assert.match(display, /unitForLogDisplay\(task\.unit, adult\)/,
+    '枚数なども表示先に合わせた単位を使うこと');
+  const unit = grab(APP, 'unitForLogDisplay');
+  assert.match(unit, /adult \|\| readingGrade\(\) === 9\) return kanji/,
+    '保護者と「漢字のまま」の子どもには冊・枚を出すこと');
+  assert.match(unit, /Object\.keys\(ADULT_UNIT\)/,
+    '低学年の子どもには既存のひらがな単位へ戻すこと');
 });
 
 test('記念日ダイアログは本文とずれる背景罫線を使わない', ()=>{
@@ -2127,6 +2146,19 @@ test('子どもの「きょう やったこと」は保護者の記録見出し�
   assert.match(STYLE, /\.sec-today \.sec-head \.sec-note\{ color:var\(--on-band-muted\); \}/);
 });
 
+test('子ども画面のタブと月移動は端末依存の絵文字でなく線画アイコンを使う', ()=>{
+  assert.match(INDEX, /data-tab="home"[\s\S]{0,420}<svg viewBox="0 0 24 24">/);
+  assert.match(INDEX, /data-tab="log"[\s\S]{0,500}<svg viewBox="0 0 24 24">/);
+  assert.match(INDEX, /data-tab="calendar"[\s\S]{0,500}<svg viewBox="0 0 24 24">/);
+  assert.doesNotMatch(INDEX, /🏠|📖|🗓️/,
+    'OSごとに見え方が変わる絵文字を下部タブに残さないこと');
+  const calendar = grab(APP, 'viewCalendar');
+  assert.match(calendar, /aria-label="まえの月"[\s\S]{0,100}\$\{calChevronIcon\(-1\)\}/);
+  assert.match(calendar, /aria-label="つぎの月"[\s\S]{0,100}\$\{calChevronIcon\(1\)\}/);
+  assert.match(STYLE, /\.cal-nav \.btn\{[\s\S]{0,160}flex:0 0 44px/,
+    '月移動はアイコンのみでも44pxの押しやすさを保つこと');
+});
+
 test('必須・任意・読書の完了カードは「ぜんぶできた！」と表示する', ()=>{
   const card = grab(APP, 'taskHTML');
   assert.match(card, /t\.group === 'must' \|\| t\.group === 'option' \? ' task-whole' : ''/,
@@ -2138,6 +2170,6 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260811af'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812a'));
   }
 });

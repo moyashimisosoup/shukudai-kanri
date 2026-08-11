@@ -2089,19 +2089,45 @@ function logByLabel(l){
 function logRowHTML(l){
   /* だれが 入れたかは、おうちの人が 見るための もの。
      子ども画面では じゃまに なるので 出さない */
-  const by = isAdultTab(tab) ? logByLabel(l) : '';
+  const adult = isAdultTab(tab);
+  const by = adult ? logByLabel(l) : '';
   return `
   <div class="today-item">
     <span class="ti-time">${fmtTime(new Date(l.at))}</span>
     <div class="ti-body">
       <div class="ti-name">${esc(l.name)}</div>
-      <div class="ti-what">${esc(l.what)}${
+      <div class="ti-what">${esc(logWhatDisplay(l, adult))}${
         by ? `<span class="ti-by">（${esc(by)}）</span>` : ''}</div>
       ${l.memo ? `<div class="ti-memo">${esc(l.memo)}</div>` : ''}
     </div>
     ${canDeleteLog() ? `<button class="icon-btn del ti-del" data-dellog="${esc(l.id)}"
             title="この記録を消す" aria-label="この記録を消す" type="button">🗑</button>` : ''}
   </div>`;
+}
+
+/* 記録は入力時の文言も残すが、数える単位は今の課題設定を正として表示する。
+   これなら「まい」から「枚」へ変えた後の記録も、子ども画面では読める漢字に合わせ、
+   保護者ページでは常に漢字の単位でそろう。 */
+function logWhatDisplay(l, adult){
+  const task = config.tasks.find(t => t.id === l.taskId);
+  const what = String(l.what || '');
+  if(!task) return what;
+  const unit = isBook(task) ? bookCountUnit(adult)
+    : unitForLogDisplay(task.unit, adult);
+  if(isBook(task)) return what.replace(/^(\d+)(?:冊|さつ)/, '$1' + unit);
+  if(task.type === 'count' && !countUsesCircle(task)){
+    return what.replace(/^(\d+(?:〜\d+)?)[^\s　]*/, '$1' + unit);
+  }
+  return what;
+}
+
+function unitForLogDisplay(unit, adult){
+  const raw = String(unit || '');
+  const kanji = unitAdult(raw);
+  if(adult || readingGrade() === 9) return kanji;
+  /* 設定が旧データの「枚」でも、子ども側は既存の単位表記（まい）に戻す。 */
+  const child = Object.keys(ADULT_UNIT).find(key => ADULT_UNIT[key] === kanji);
+  return child || raw;
 }
 
 /* 記録の1行けしを 出してよいか。
@@ -2539,6 +2565,11 @@ function calHasFree(logs){
   });
 }
 
+function calChevronIcon(direction){
+  const d = direction < 0 ? 'M14.5 5.5 8 12l6.5 6.5' : 'm9.5 5.5 6.5 6.5-6.5 6.5';
+  return `<svg class="cal-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+}
+
 function viewCalendar(){
   const now = new Date(), todayKey = dayKey(now);
   const r = calRange();
@@ -2590,10 +2621,10 @@ function viewCalendar(){
   <section class="sec">
     <div class="cal-nav paper">
       <button class="btn btn-sm btn-ghost" data-calmove="-1" type="button"
-        ${canPrev ? '' : 'disabled'}>◀ まえの月</button>
+        aria-label="まえの月" ${canPrev ? '' : 'disabled'}>${calChevronIcon(-1)}</button>
       <h2 class="cal-title">${y}年 ${m+1}月</h2>
       <button class="btn btn-sm btn-ghost" data-calmove="1" type="button"
-        ${canNext ? '' : 'disabled'}>つぎの月 ▶</button>
+        aria-label="つぎの月" ${canNext ? '' : 'disabled'}>${calChevronIcon(1)}</button>
     </div>
 
     <div class="paper cal-paper">
@@ -4403,7 +4434,10 @@ function applyReadingDisplay(targetRoot){
   /* 保護者用ページと設定画面は大人が読むため、端末の漢字レベルに
      かかわらず元の漢字表記を保つ。変換するのは子ども向け画面だけ。 */
   if(isAdultTab(tab) || tab === 'stats') return;
-  if(grade === 9 || !getLocal(K_READING) || typeof convertForTranscription !== 'function') return;
+  /* 漢字レベルは現在の config を正とする。K_READING は旧版との互換用なので、
+     ここで存在を条件にすると共有設定で小1・小2へ変えた直後のダイアログだけ
+     かな化されないことがある。 */
+  if(grade === 9 || typeof convertForTranscription !== 'function') return;
   const root = targetRoot || $('#view');
   if(!root) return;
   const pass = ++readingPass;

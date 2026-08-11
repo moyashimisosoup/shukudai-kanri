@@ -23,8 +23,8 @@
 <!-- Webフォントの通信で初期描画を止めない。読み込み中は端末内の丸ゴシックを使う -->
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/style.css?v=20260811af">
-<link rel="stylesheet" href="tokens.css?v=20260811af">
+<link rel="stylesheet" href="assets/style.css?v=20260812a">
+<link rel="stylesheet" href="tokens.css?v=20260812a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
 </head>
 <body>
@@ -63,13 +63,13 @@
 
 <nav class="tabbar" aria-label="メニュー">
   <button class="tab is-on" data-tab="home" type="button">
-    <span class="tab-ico" aria-hidden="true">🏠</span><span class="tab-txt">のこりの<br class="tab-break">しゅくだい</span>
+    <span class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20H4Z"/><path d="M9 20v-5h6v5"/></svg></span><span class="tab-txt">のこりの<br class="tab-break">しゅくだい</span>
   </button>
   <button class="tab" data-tab="log" type="button">
-    <span class="tab-ico" aria-hidden="true">📖</span><span class="tab-txt">やった<br class="tab-break">こと</span>
+    <span class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5c3.2-1.4 5.8-.8 8 1.6 2.2-2.4 4.8-3 8-1.6V19c-3.2-1.4-5.8-.8-8 1.6-2.2-2.4-4.8-3-8-1.6Z"/><path d="M12 7.1V20.6M6.8 9.2h2.6m-2.6 3h2.6m5.2-3h2.6m-2.6 3h2.6"/></svg></span><span class="tab-txt">やった<br class="tab-break">こと</span>
   </button>
   <button class="tab" data-tab="calendar" type="button">
-    <span class="tab-ico" aria-hidden="true">🗓️</span><span class="tab-txt">カレンダー</span>
+    <span class="tab-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M7.5 3.8v3.4m9-3.4v3.4M4 10h16M8 13.5h.1m3.9 0h.1m3.9 0h.1M8 16.6h.1m3.9 0h.1m3.9 0h.1"/></svg></span><span class="tab-txt">カレンダー</span>
   </button>
 </nav>
 
@@ -107,12 +107,12 @@ window.natsuBootProgress = function(value, label){
   document.getElementById('bootLabel').textContent = label || '読み込んでいます';
 };
 </script>
-<script src="assets/kanji.js?v=20260811af"></script>
+<script src="assets/kanji.js?v=20260812a"></script>
 <script>window.natsuBootProgress(25, '文字の表示を準備しています');</script>
 <script src="assets/codex-icons.js?v=0.3.4"></script>
 <script src="assets/kanji-origin.js?v=20260809d"></script>
 <script>window.natsuBootProgress(40, '画面の部品を準備しています');</script>
-<script src="assets/data.js?v=20260811af"></script>
+<script src="assets/data.js?v=20260812a"></script>
 <script>window.natsuBootProgress(55, '宿題の項目を読み込んでいます');</script>
 <!-- まねきリンクを QR にするだけの 同梱ライブラリ（MIT）。
      外に つなぎに いかないので、圏外でも QR が 出る。
@@ -120,9 +120,9 @@ window.natsuBootProgress = function(value, label){
 <script src="assets/vendor/qrcode.js?v=2.0.4"></script>
 <script>window.natsuBootProgress(75, '共有の準備をしています');</script>
 <script>window.natsuBootProgress(88, 'この端末の記録を読み込んでいます');</script>
-<script src="assets/app.js?v=20260811af"></script>
+<script src="assets/app.js?v=20260812a"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
-<script type="module" src="assets/sync.js?v=20260811af"></script>
+<script type="module" src="assets/sync.js?v=20260812a"></script>
 </body>
 </html>
