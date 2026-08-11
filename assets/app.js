@@ -25,9 +25,9 @@ function appVersionHTML(version){
 /* ---------------------------------------------------------
    ほぞん
    --------------------------------------------------------- */
-/* ?new=1 は、今の家庭データと同期に触れず初期設定だけを試すための隔離モード。 */
+/* ?new=1 は、今のグループデータと同期に触れず初期設定だけを試すための隔離モード。 */
 const TEST_MODE = new URLSearchParams(location.search).get('new') === '1';
-/* 保護者画面の確認用。preview専用キーだけを作るため、普段の家庭データには触れない。 */
+/* 保護者画面の確認用。preview専用キーだけを作るため、普段のグループデータには触れない。 */
 const DEBUG_PARENT = TEST_MODE && new URLSearchParams(location.search).get('debug') === 'parent';
 /* 初期設定の確認用。合言葉欄と注意事項まで表示するが、preview専用キー以外には触れない。 */
 const DEBUG_WELCOME_ROLE = TEST_MODE ? new URLSearchParams(location.search).get('debug') : '';
@@ -37,13 +37,13 @@ const DEBUG_WELCOME = DEBUG_WELCOME_ROLE === 'welcome-parent' || DEBUG_WELCOME_R
 const DEBUG_CONTENT = ['trivia','content'].includes(new URLSearchParams(location.search).get('debug'));
 const K_CFG = TEST_MODE ? 'natsu.preview.config.v1' : 'natsu.config.v2';
 const K_ST  = TEST_MODE ? 'natsu.preview.state.v1'  : 'natsu.state.v2';
-/* 初期設定は端末ごとに一度だけ表示する。家庭の設定そのものは従来どおり
+/* 初期設定は端末ごとに一度だけ表示する。グループの設定そのものは従来どおり
    Firebase（あいことば）経由で共有し、端末の役割・表示名だけは端末内に残す。 */
 const K_ONBOARD = TEST_MODE ? 'natsu.preview.onboarding.v1' : 'natsu.onboarding.v1';
 /* 人が じぶんで えらんだ 合言葉。
    ホーム画面に 追加した アプリは、**起動URLに 招待の 合言葉が 焼きついて
    いる**。そのため 共有を 解除しても、作り直しても、次に ホーム画面から
-   開いた 瞬間に URL の 合言葉で つなぎ直され、前の 家庭に 戻ってしまう。
+   開いた 瞬間に URL の 合言葉で つなぎ直され、前の グループに 戻ってしまう。
    起動URLは あとから 書きかえられないので、「人が どれを えらんだか」を
    この端末に おぼえておき、URL より そちらを 優先する。
    解除した ときは 'none' を 入れて、どこにも つながらないことを おぼえる */
@@ -53,10 +53,10 @@ const K_ROLE = TEST_MODE ? 'natsu.preview.role.v1' : 'natsu.device.role.v1';
 const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
 const K_READING = TEST_MODE ? 'natsu.preview.reading.v1' : 'natsu.device.reading.v1';
 const K_THEME = TEST_MODE ? 'natsu.preview.theme.v1' : 'natsu.device.theme.v1';
-/* 共有へ入る子どもが初期設定で選んだデザイン。家庭の設定を受け取ったあとに
+/* 共有へ入る子どもが初期設定で選んだデザイン。グループの設定を受け取ったあとに
    1度だけ反映し、受信前の初期値を先に送る事故を避ける。 */
 const K_WELCOME_THEME = TEST_MODE ? 'natsu.preview.welcome.theme.v1' : 'natsu.welcome.theme.v1';
-/* 既存家庭への参加画面で変更した名前・漢字設定。家庭の設定を最初に
+/* 既存グループへの参加画面で変更した名前・漢字設定。グループの設定を最初に
    受け取ったあとで1度だけ重ね、参加端末の初期値による上書きを防ぐ。 */
 const K_WELCOME_JOIN = TEST_MODE ? 'natsu.preview.welcome.join.v1' : 'natsu.welcome.join.v1';
 /* sync.js が この端末に ふった ランダム番号。一覧で「この端末」を 見わけるのに つかう */
@@ -71,7 +71,7 @@ const STATS_PARAM = 'stats';
 const STATS_VALUE = 'family-count';
 
 /* おためしURLを開くたびに、前回のおためし内容を消して必ず初期画面にする。
-   消すのは preview 専用キーだけで、普段の家庭データ・あいことばには触れない。 */
+   消すのは preview 専用キーだけで、普段のグループデータ・あいことばには触れない。 */
 if(TEST_MODE){
   try{
     [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME, K_WELCOME_THEME, K_WELCOME_JOIN].forEach(k=>localStorage.removeItem(k));
@@ -168,7 +168,7 @@ function emptyState(){ return { schema:SCHEMA, resetAt:0, progress:{}, logs:[], 
    墓標も かねている。ここから あふれた ぶんは、相手が ずっと オフラインだった
    場合に かぎり 復活しうる。ふだんは 数秒で とどくので 50もあれば 足りる */
 const TRASH_MAX = 50;
-/* 「まいにち」の例は設定に残すが、新規家庭の子ども画面では初期非表示。 */
+/* 「まいにち」の例は設定に残すが、新規グループの子ども画面では初期非表示。 */
 function freshConfig(){
   return normalizeConfig(deepCopy(DEFAULT_CONFIG));
 }
@@ -189,13 +189,13 @@ function normalizeConfig(c){
   if(!Array.isArray(c.tasks)) c.tasks = [];
   if(isGeneratedTitle(c.title, c.childName)) c.title = defaultTitleFor(c.childName);
   /* これまで端末内だけだったデザインは、おうちの設定として同期する。
-     既存家庭は、最初の保存時にその端末で選んでいたデザインを引き継ぐ。 */
+     既存グループは、最初の保存時にその端末で選んでいたデザインを引き継ぐ。 */
   if(!THEME_IDS.includes(c.theme)){
     const legacyTheme = getLocal(K_THEME);
     c.theme = THEME_IDS.includes(legacyTheme) ? legacyTheme : 'notebook';
   }
   if(typeof c.showDaily !== 'boolean') c.showDaily = false;
-  /* 読める漢字。既存家庭は、その端末に のこっている 値を 引きつぐ */
+  /* 読める漢字。既存グループは、その端末に のこっている 値を 引きつぐ */
   if(![0,1,2,9].includes(Number(c.readingGrade))){
     const legacy = Number(getLocal(K_READING));
     c.readingGrade = [0,1,2,9].includes(legacy) ? legacy : 2;
@@ -216,7 +216,7 @@ function normalizeConfig(c){
 function normalizeState(s){
   if(!s || typeof s !== 'object' || !s.progress) return emptyState();
   if(!s.schema) s.schema = SCHEMA;
-  /* 「記録をすべて削除」した時刻。同じ家庭の古い端末が、削除前の一式を
+  /* 「記録をすべて削除」した時刻。同じグループの古い端末が、削除前の一式を
      あとから送り返しても復活させないための世代番号として使う。 */
   s.resetAt = ms(s.resetAt);
   if(!Array.isArray(s.logs))  s.logs  = [];
@@ -366,13 +366,13 @@ function deviceLabelOf(id){
   return row ? row.label : '';
 }
 
-/* 設定を 家庭側で 置きかえた ときの ようす。
+/* 設定を グループ側で 置きかえた ときの ようす。
    設定は 合流できず「まるごと どちらか」なので、採否の 理由が 分からないと
    デザインや 題名が 戻る 事故を 追えない。目に 見える 欄だけ のこす。 */
 const TRACE_CONFIG_FIELDS = ['theme','title','childName','readingGrade','showDaily'];
 /* 課題そのものは 長すぎて そのままでは のこせない。
    「いくつ あったか」を 欄に して のこす。まいにちの 項目が
-   家庭ぜんたいから 消えた ときに、どちら側の 値が 勝ったのかを
+   グループぜんたいから 消えた ときに、どちら側の 値が 勝ったのかを
    これで 追える（数だけなので 個人情報は 出ない） */
 function taskCensus(c){
   const tasks = Array.isArray((c || {}).tasks) ? c.tasks : [];
@@ -574,7 +574,7 @@ function cleanCode(value){ return String(value || '').trim().normalize('NFKC').r
    そのため おうちの人の端末で 変えても、子どもの端末は そのままで、
    保護者から 直せない状態に なっていた。
    デザイン（テーマ）と 同じく おうちの設定として 同期する。
-   まだ config に 無い 家庭は、その端末に のこっている 値を 引きつぐ。 */
+   まだ config に 無い グループは、その端末に のこっている 値を 引きつぐ。 */
 function readingGrade(){
   const c = config && Number(config.readingGrade);
   if([0,1,2,9].includes(c)) return c;
@@ -816,15 +816,15 @@ function applyRemote(remote){
      あとに 保存された方を まるごと 採る。
 
      時刻は かならず ms() を 通す。旧版が `時刻 | 0` で 保存した 負の値が
-     そのまま 入っていると、`負の数 > 0` が 成り立たず 家庭の 設定が
+     そのまま 入っていると、`負の数 > 0` が 成り立たず グループの 設定が
      いつまでも 採られない（QR で 入った 端末だけ デザインが 初期値の まま
      という 形で 出た）。
 
-     つないでから 最初の 1回は、時刻を くらべずに 家庭の 設定を 採る。
-     まだ 一度も 受け取っていない 端末には、手元の 設定が 家庭より
+     つないでから 最初の 1回は、時刻を くらべずに グループの 設定を 採る。
+     まだ 一度も 受け取っていない 端末には、手元の 設定が グループより
      新しいと 言える 根拠が ない。よそで つけた 時刻・壊れた 時刻・
      同じ あいことばに 入り直した ときの 古い 時刻印が のこっていても、
-     ここで かならず 家庭側に そろう。 */
+     ここで かならず グループ側に そろう。 */
   const remoteConfigAt = ms(remote.configAt);
   const localConfigAt  = ms(at.config);
   const remoteThemeMissing = !!(remote.config && !THEME_IDS.includes(remote.config.theme));
@@ -835,12 +835,12 @@ function applyRemote(remote){
     localStorage.setItem(K_CFG, JSON.stringify(config));
     markReceivedAt('config', remoteConfigAt);
     traceConfig(beforeConfig, config, localConfigAt, remoteConfigAt, remote.first);
-    /* 家庭側の 時刻が 壊れている（0 に なる）ときは、採ったあと
-       正しい 時刻で 送り返して 家庭の 時刻印を 直す。中身は 同じなので
+    /* グループ側の 時刻が 壊れている（0 に なる）ときは、採ったあと
+       正しい 時刻で 送り返して グループの 時刻印を 直す。中身は 同じなので
        ほかの端末の 表示は 変わらず、次からは ふつうの 比較に 戻る */
     if(!remoteConfigAt){ markSaved('config'); syncPush('config'); }
-    /* デザイン共有前から使っている家庭では remote.config に theme が無い。
-       既存端末は自分が実際に使ってきた色を家庭設定へ移行する。一方、招待URLで
+    /* デザイン共有前から使っているグループでは remote.config に theme が無い。
+       既存端末は自分が実際に使ってきた色をグループ設定へ移行する。一方、招待URLで
        入ったばかりの端末は初期色しか知らないため、移行元にしてはいけない。 */
     else if(remoteThemeMissing && !joinCodeFromURL()){
       markSaved('config');
@@ -872,35 +872,35 @@ function applyRemote(remote){
     if(remoteNeedsUpdate) syncPush('state');
   }
 
-  /* **家庭の 設定を まだ 受け取れていない うちは、ここから 先へ 進まない。**
+  /* **グループの 設定を まだ 受け取れていない うちは、ここから 先へ 進まない。**
 
      この先は、初期設定で 選んだ 名前・漢字・デザインを 手元の config に
-     入れて saveCfg() する。saveCfg() は 家庭ぜんたいへ 送る。
+     入れて saveCfg() する。saveCfg() は グループぜんたいへ 送る。
      つまり remote.config が 無い ときに ここを 通ると、**参加した ばかりの
      端末の 初期値（既定の宿題・まいにち なし・初期デザイン）が
-     家庭の 設定として 配られる**。
+     グループの 設定として 配られる**。
 
-     家庭を 作った 直後に QR を 読むと、作った側の 最初の 送信が まだ
+     グループを 作った 直後に QR を 読むと、作った側の 最初の 送信が まだ
      届いておらず、文書は あるのに config が 無い snapshot が 1回 来る。
      ここが「参加すると まいにちの 項目が 消える」「デザインが 移らない」の
      正体。あとで ホーム画面から 開き直すと 直る ことが あったのは、
      その ときには config が そろっていて first で 採れていたため。
 
-     取っておいた 初期設定は 消さずに 残す。次の snapshot で 家庭の
+     取っておいた 初期設定は 消さずに 残す。次の snapshot で グループの
      設定を 受け取れた ときに、あらためて 反映する。 */
   if(!remote.config){
     if(changed) render({ keepScroll:true });
     return;
   }
 
-  /* 初期設定で子どもが選んだデザインは、家庭の設定を受け取ってから反映する。
-     受信前に送ると、端末内の初期設定一式で家庭の設定を上書きしてしまうため、
+  /* 初期設定で子どもが選んだデザインは、グループの設定を受け取ってから反映する。
+     受信前に送ると、端末内の初期設定一式でグループの設定を上書きしてしまうため、
      デザイン1項目だけをここで確定し、すぐ通常の保存手順へ戻す。 */
   let welcomeChanged = false;
   let welcomeTheme = null;
   try{ welcomeTheme = JSON.parse(getLocal(K_WELCOME_THEME) || 'null'); }catch(e){}
   /* 一時デザインは、確認済みの同じ合言葉へ手動参加したときだけ使う。
-     旧版の文字列だけの値や、別の家庭・招待URLから入ったときの残りは捨てる。 */
+     旧版の文字列だけの値や、別のグループ・招待URLから入ったときの残りは捨てる。 */
   try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
   const syncApi = typeof window !== 'undefined' ? window.NatsuSync : null;
   const activeCode = syncApi && typeof syncApi.getCode === 'function' ? syncApi.getCode() : '';
@@ -939,16 +939,16 @@ function applyRemote(remote){
 window.NatsuApp = {
   current: () => ({ config, state: stripLocal(state) }),
   onRemote: applyRemote,
-  /* sync.js が 家庭の文書を 新しく 作る ときだけ 呼ばれる。
-     これは「この端末の 設定が 家庭の 中身に なる」瞬間なので、
+  /* sync.js が グループの文書を 新しく 作る ときだけ 呼ばれる。
+     これは「この端末の 設定が グループの 中身に なる」瞬間なので、
      意図せず 起きたときに 気づけるよう 記録に のこす。
      文書IDは 合言葉そのものでは ない（SHA-256）が、念のため 頭だけ */
   onHouseholdCreate(houseId){
     const census = taskCensus(config);
-    traceAdd([{ at:Date.now(), id:'家庭を新しく作った', f:'tasks（数）',
+    traceAdd([{ at:Date.now(), id:'グループを新しく作った', f:'tasks（数）',
                 meId:getLocal(K_DEVICE_ID), youId:'',
                 mine:census['tasks（数）'], mineAt:0,
-                theirs:'（家庭の文書なし）', theirsAt:0,
+                theirs:'（グループの文書なし）', theirsAt:0,
                 won:census['tasks（数）'] + '／まいにち ' + census['まいにち（数）'],
                 remoteAt:0 }]);
   },
@@ -1170,7 +1170,7 @@ function viewWelcome(){
       <span class="welcome-num">1</span>
       <div><h3>ホーム画面に 追加しよう</h3>
       <p>${installed ? 'この端末はホーム画面から開いています。' : 'iPad / iPhone では、Safari の共有ボタン →「ホーム画面に追加」を押すと、いつも同じ場所から開けます。'}</p>
-      <p class="set-note">あとでホーム画面に追加したときも、あいことばを読み込めば、同じ家庭の複数の端末で同じ記録と設定を使えます。</p></div>
+      <p class="set-note">あとでホーム画面に追加したときも、あいことばを読み込めば、同じグループの複数の端末で同じ記録と設定を使えます。</p></div>
     </div>
     <div class="paper welcome-step">
       <span class="welcome-num">2</span>
@@ -1179,7 +1179,7 @@ function viewWelcome(){
         <button class="btn welcome-role" data-welcome-mode="solo" type="button" aria-pressed="false"><span class="welcome-role-copy"><b>こどもだけでつかう</b><small>すぐにつかえます</small></span></button>
         <button class="btn welcome-role welcome-role--share${DEBUG_WELCOME ? ' is-selected' : ''}" data-welcome-mode="share" type="button" aria-pressed="${DEBUG_WELCOME ? 'true' : 'false'}">${icon('users')}<span class="welcome-role-copy"><b>保護者も共有する</b><small>あとからでも設定できます</small></span></button>
       </div>
-      ${TEST_MODE ? '<p class="set-note">おためしモードでは、いま使っている家庭のデータ・あいことば・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>')}</div>
+      ${TEST_MODE ? '<p class="set-note">おためしモードでは、いま使っているグループのデータ・あいことば・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>')}</div>
     </div>
     <div class="welcome-form" id="welcomeForm"${DEBUG_WELCOME ? '' : ' hidden'}>${DEBUG_WELCOME
       ? (previewRole === 'parent' ? welcomeParentSharePickerHTML(3) : welcomeFormHTML('child', true, 3)) : ''}</div>
@@ -1272,7 +1272,7 @@ function welcomeRolePickerHTML(){
         <button class="btn welcome-role" data-welcome-role="parent" type="button" aria-pressed="false">おうちの人の端末<br><small>合言葉を作る・入力する</small></button>
         <button class="btn welcome-role" data-welcome-role="child" type="button" aria-pressed="false">こどもの端末<br><small>合言葉を 入れる</small></button>
       </div>
-      <p class="set-note">同じ合言葉を入れると、同じ家庭の複数の端末で使えます。</p>`)
+      <p class="set-note">同じ合言葉を入れると、同じグループの複数の端末で使えます。</p>`)
     + '<div id="welcomeRoleForm"></div>';
 }
 
@@ -1282,16 +1282,16 @@ function welcomeParentSharePickerHTML(step){
       <button class="btn welcome-role" data-parent-share="create" type="button" aria-pressed="false">
         <span class="welcome-role-copy"><b>まだない</b><small>新しく合言葉を作る</small></span></button>
       <button class="btn welcome-role" data-parent-share="join" type="button" aria-pressed="false">
-        <span class="welcome-role-copy"><b>すでにある</b><small>今ある家庭に参加する</small></span></button>
+        <span class="welcome-role-copy"><b>すでにある</b><small>今あるグループに参加する</small></span></button>
     </div>
     <p class="set-note">最初の保護者は「まだない」を、ほかの保護者が作った共有へ参加するときは「すでにある」を選びます。</p>`)
     + '<div id="welcomeParentShareForm"></div>';
 }
 
-/* 名前と 漢字の 設定は 家庭ぜんたいの 設定なので、保護者端末・子ども端末の
+/* 名前と 漢字の 設定は グループぜんたいの 設定なので、保護者端末・子ども端末の
    どちらで 入れても 同じ ところに 入る。先に もう一方で 入れて あるなら
    もう一度 入れる 必要は ない。入れなかった ときは、つないだ あとに
-   家庭の 設定が とどいて そちらが つかわれる。 */
+   グループの 設定が とどいて そちらが つかわれる。 */
 function alreadySetNoteHTML(side){
   return side === 'child'
     ? `<p class="set-note" id="welcomeExistingNote">あいことばを かくにんすると、おうちで きめた なまえと よめる かんじが ここに はいるよ。</p>`
@@ -1326,7 +1326,7 @@ function welcomeShareSetupHTML(role, code){
     <div class="welcome-share-setup" id="welcomeShareSetup" aria-label="共有をはじめる手順">
       <ol>
         <li>保護者から受け取った合言葉を、上の欄に入力します。</li>
-        <li>下のボタンを押すと、同じ家庭の宿題・設定・記録を読み込みます。</li>
+        <li>下のボタンを押すと、同じグループの宿題・設定・記録を読み込みます。</li>
       </ol>
       <p class="set-note">保護者からQRコードや招待リンクを受け取った場合は、それを開くと合言葉を入力せずに接続できます。</p>
     </div>`;
@@ -1404,15 +1404,15 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
     if(!syncReady) return welcomeStepHTML(start, '共有の準備',
       '<p class="set-note">同期の準備を読み込めませんでした。通信を確認して、もう一度開いてください。</p>');
     if(!creating){
-      const join = welcomeStepHTML(start, '今ある家庭に参加', `
+      const join = welcomeStepHTML(start, '今あるグループに参加', `
         <label class="lab">共有中の合言葉
           <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="合言葉を入力"></label>
-        <p class="set-note">合言葉を作った保護者から受け取り、同じ家庭の宿題・設定・記録を読み込みます。</p>
+        <p class="set-note">合言葉を作った保護者から受け取り、同じグループの宿題・設定・記録を読み込みます。</p>
         ${welcomeJoinCheckHTML('parent')}
         ${inAppBrowserNoteHTML()}`);
       const settings = `<div id="welcomeJoinSettings" hidden>${welcomeStepHTML(start + 1, '保護者の設定', `${settingsBody}
         <button class="btn btn-go btn-wide" id="welcomeStart" data-role="parent" data-sharing="yes"
-          data-creating="no" data-next-step="${start + 2}" type="button" hidden>この家庭に参加する</button>`)}</div>`;
+          data-creating="no" data-next-step="${start + 2}" type="button" hidden>このグループに参加する</button>`)}</div>`;
       return join + settings;
     }
     /* 合言葉は 自動作成の まま つかって もらうのが 安全。
@@ -1421,9 +1421,9 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
        そこで 既定は 読み取り専用に して、どうしても 自分で 決めたい人だけ
        ボタンを 押して 手入力に 切りかえる（ひと手間 かける）。 */
     const create = welcomeStepHTML(start, '合言葉を作ろう', `
-      <label class="lab">この家庭の合言葉（16文字・おまかせで作成）
+      <label class="lab">このグループの合言葉（16文字・おまかせで作成）
         <input id="welcomeCode" type="text" value="${esc(code)}" readonly autocapitalize="off" autocorrect="off" spellcheck="false"></label>
-      <p class="set-note">この合言葉で、新しい家庭の共有を始めます。覚える必要はありません。QRコードか招待リンクで、ほかの端末へ渡します。</p>
+      <p class="set-note">この合言葉で、新しいグループの共有を始めます。覚える必要はありません。QRコードか招待リンクで、ほかの端末へ渡します。</p>
       <div class="set-actions welcome-code-actions">
         <button class="btn btn-sm btn-ghost" id="welcomeCodeCustom" type="button">自分で決めた合言葉を使う</button>
         ${/* 手入力に した あと、戻り道が 無かった。自分で 考えて みて
@@ -1459,7 +1459,7 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
       ${deviceLabelFieldHTML('child')}
       ${welcomeShareSetupHTML('child', '')}`
       : '<p class="set-note">同期の準備を読み込めませんでした。通信を確認して、もう一度開いてください。</p>'}
-    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="yes" type="button" hidden aria-label="確認した合言葉でこの家庭に参加する">この家庭に参加する</button>`);
+    <button class="btn btn-go btn-wide" id="welcomeStart" data-role="child" data-sharing="yes" type="button" hidden aria-label="確認した合言葉でこのグループに参加する">このグループに参加する</button>`);
   return theme + settings + share;
 }
 
@@ -1507,18 +1507,18 @@ function shareSafetyText(){
     '共有する前にご確認ください',
     '',
     '・合言葉には、普段使っているパスワードや秘密の言葉を使わないでください。このアプリが自動で作る合言葉の利用をおすすめします。',
-    '・QRコードや招待リンクを受け取った人は、家庭の共有データに接続できます。信頼できる家族だけに渡してください。',
+    '・QRコードや招待リンクを受け取った人は、グループの共有データに接続できます。信頼できる相手だけに渡してください。',
     '・名前・宿題・記録は、端末間で共有するためクラウドに保存されます。保存の前にこの端末で暗号化するため、保管しているサーバー側では中身を読めません。',
     '・鍵は合言葉から作られ、どこにも送られません。**合言葉をすべての端末で忘れると、クラウド上の記録は誰にも復元できません。** 大切な記録は「データ管理」から書き出して保管してください。',
     '・住所、学校名、連絡先など、知られて困る情報は入力しないでください。'
   ].join('\n');
 }
-/* 家庭は 見つかったが、この端末では あけられない ときの 案内。
+/* グループは 見つかったが、この端末では あけられない ときの 案内。
    参加の 確認と、つないだ あとの 両方で 同じ 言い方に そろえる。
    「合言葉を 確認してください」だけだと、正しい 合言葉を 持っている 人が
    何度も 入れ直す ことに なる（実際に そうなった） */
 function unreadableJoinText(){
-  return 'この家庭は、暗号化に対応する前の方式で保存されています。'
+  return 'このグループは、暗号化に対応する前の方式で保存されています。'
     + '保護者の端末を最新に更新したうえで、合言葉を作り直してください。';
 }
 function confirmShareSafety(){
@@ -1541,14 +1541,14 @@ function welcomeMessageChoiceHTML(step){
 }
 
 /* ---------------------------------------------------------
-   ビュー：登録家庭数（URL の隠し入口からだけ開く） */
+   ビュー：登録グループ数（URL の隠し入口からだけ開く） */
 function viewStats(){
   return `
   <section class="welcome" aria-labelledby="statsTitle">
     <p class="welcome-kicker">うんよう よう</p>
-    <h2 id="statsTitle">登録家庭数</h2>
+    <h2 id="statsTitle">登録グループ数</h2>
     <div class="paper welcome-form">
-      <p class="set-note">初期設定を完了した家庭を、名前や記録内容を見ずに数えています。</p>
+      <p class="set-note">初期設定を完了したグループを、名前や記録内容を見ずに数えています。</p>
       <p class="stats-count" id="statsCount">読みこんでいます…</p>
       <p class="set-note" id="statsNote">この画面は通常のメニューには表示されません。</p>
     </div>
@@ -1886,7 +1886,7 @@ function parentTodayLogsHTML(){
 }
 
 /* だれが 記録したか。
-   共有していない家庭は 端末が 1つなので 見分ける必要が なく、
+   共有していないグループは 端末が 1つなので 見分ける必要が なく、
    よけいな 表示を 出さない。共有している ときだけ のこす。 */
 function sharingOn(){
   const S = window.NatsuSync;
@@ -2734,7 +2734,7 @@ function syncPromptHTML(){
   return `
   <section class="sec sync-prompt">
     ${syncSectionHTML({ lead:'この端末の記録は、まだこの端末の中だけにあります。'
-                           + 'あいことばを決めると、同じ家庭の複数の端末で使えます。' })}
+                           + 'あいことばを決めると、同じグループの複数の端末で使えます。' })}
   </section>`;
 }
 
@@ -2937,7 +2937,7 @@ function syncSectionHTML(opts){
             captureFormDraft が 拾った 古い 値が 描き直しの あとで
             書きもどされ、解除しても 前の 合言葉が のこる／
             おまかせを 押しても 新しい 合言葉が 出ない、が 起きる */''}
-      <div class="set-row"><span class="lab">この家庭の合言葉</span>
+      <div class="set-row"><span class="lab">このグループの合言葉</span>
         <input type="text" id="syncCodeShown" value="${esc(code)}" spellcheck="false"
                autocapitalize="off" autocorrect="off" placeholder="未設定" readonly></div>
       <p class="set-note">ほかの端末では、この合言葉を入力するか、下の「ほかの端末から読み取る」のQRコード・招待リンクを使ってください。</p>
@@ -2947,7 +2947,7 @@ function syncSectionHTML(opts){
       <details class="set-advanced" data-details-key="syncRejoin">
         <summary>べつの合言葉につなぎ直す</summary>
         <div class="set-advanced-body">
-          <p class="set-note">いま入っている家庭から離れ、入力した合言葉の家庭につなぎ直します。この端末の記録は残ります。</p>
+          <p class="set-note">いま入っているグループから離れ、入力した合言葉のグループにつなぎ直します。この端末の記録は残ります。</p>
           <div class="set-row"><span class="lab">つなぎ直す合言葉</span>
             <input type="text" id="syncRejoinCode" value="" spellcheck="false"
                    autocapitalize="off" autocorrect="off" placeholder="受け取った合言葉"></div>
@@ -2963,7 +2963,7 @@ function syncSectionHTML(opts){
            そろえ、文言も そう書く -->
       <div class="sync-start">
         <h3 class="sync-subhead">はじめて共有する</h3>
-        <p class="set-note">「おまかせ」を押すと、当てられにくい16文字の合言葉をこの端末が作ります。押した時点でこの端末の宿題・設定・記録が家庭の内容になり、ほかの端末から読み取れるようになります。そのあとに出るQRコード・招待リンクを、ほかの端末で読み取ってください。</p>
+        <p class="set-note">「おまかせ」を押すと、当てられにくい16文字の合言葉をこの端末が作ります。押した時点でこの端末の宿題・設定・記録がグループの内容になり、ほかの端末から読み取れるようになります。そのあとに出るQRコード・招待リンクを、ほかの端末で読み取ってください。</p>
         <div class="set-actions">
           <button class="btn btn-go" id="syncMake" type="button">合言葉をつくる（おまかせ）</button>
         </div>
@@ -2992,7 +2992,7 @@ function syncSectionHTML(opts){
         </div>
         <p class="set-note" id="syncJoinStatus" aria-live="polite"></p>
         <div class="set-actions">
-          <button class="btn btn-go" id="syncSave" type="button" hidden>この家庭に参加する</button>
+          <button class="btn btn-go" id="syncSave" type="button" hidden>このグループに参加する</button>
         </div>
       </div>`}
       ${code ? `<details class="set-advanced sync-detail"${opts && opts.openDetails ? ' open' : ''}>
@@ -4023,7 +4023,7 @@ function taskGroupHTML(rows, empty){
 
 /* 保護者ページの 使い方の 案内。
    ずっと 出していると 画面の 上ばかり とるので、読んだら 消せるように する。
-   消した ことは この端末に だけ のこす（家庭の 設定に 入れると、
+   消した ことは この端末に だけ のこす（グループの 設定に 入れると、
    1台で 消しただけで 全部の 端末から 消える）。 */
 const K_GUIDE_DONE = TEST_MODE ? 'natsu.preview.guide.parent.v1' : 'natsu.guide.parent.v1';
 function parentChildGuideHTML(){
@@ -4117,11 +4117,11 @@ function viewConfig(){
   ${adultHeadHTML('config', '変更はすぐに保存されます。')}
 
   <section class="sec config-sec"><div class="sec-head"><h2>名前と画面の設定</h2></div><div class="paper">
-    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（家庭で共有）</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
+    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（グループで共有）</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
     <p class="set-note">子どもの名前はここで入力・変更できます。共有中は、保護者・子どもの端末で同じ名前を表示します。</p>
     <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
-    <p class="set-note">名前と読める漢字は、家庭の設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
-    <fieldset class="theme-picker"><legend>色とデザイン（家庭で共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
+    <p class="set-note">名前と読める漢字は、グループの設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
+    <fieldset class="theme-picker"><legend>色とデザイン（グループで共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
     <p class="set-note">このページで変更すると、共有中の子ども端末のデザインも変更されます。</p>
   </div></section>
 
@@ -4333,12 +4333,12 @@ function bindWelcomeStart(){
     if(custom){
       input.value = '';
       input.placeholder = '8文字以上で入力';
-      if(label) label.firstChild.nodeValue = 'この家庭の合言葉（自分で決める）';
+      if(label) label.firstChild.nodeValue = 'このグループの合言葉（自分で決める）';
     }else{
       const S = window.NatsuSync;
       input.value = (S && typeof S.makeCode === 'function') ? S.makeCode() : input.value;
       input.placeholder = '';
-      if(label) label.firstChild.nodeValue = 'この家庭の合言葉（16文字・おまかせで作成）';
+      if(label) label.firstChild.nodeValue = 'このグループの合言葉（16文字・おまかせで作成）';
     }
     const warn = $('#welcomeCodeWarn', form);
     if(warn) warn.hidden = !custom;
@@ -4421,11 +4421,11 @@ function bindWelcomeStart(){
         if(note){
           if(start.dataset.role === 'child'){
             note.textContent = remoteName
-              ? 'なまえや よめる かんじを かえなくて よければ、そのまま「この家庭に参加する」を おしてね。'
+              ? 'なまえや よめる かんじを かえなくて よければ、そのまま「このグループに参加する」を おしてね。'
               : 'なまえは まだ きまっていないよ（入れなくても いいよ）。下から 入れられるよ。';
           }else{
             note.textContent = remoteName
-              ? 'お子さんの名前・漢字の扱いに変更がなければ、そのまま「この家庭に参加する」を押してください。'
+              ? 'お子さんの名前・漢字の扱いに変更がなければ、そのまま「このグループに参加する」を押してください。'
               : 'お子さんの名前は未設定です（任意入力）。以下から設定できます。';
           }
         }
@@ -4458,9 +4458,9 @@ function bindWelcomeStart(){
     const creating = start.dataset.creating === 'yes';
     const themeEl = $('input[name="welcomeTheme"]:checked', $('#welcomeForm'));
     const chosenTheme = themeEl && THEME_IDS.includes(themeEl.value) ? themeEl.value : config.theme;
-    /* すでに ある 家庭に 入る ときは、名前も 漢字の 設定も 家庭側に ある。
-       ここで 空のまま 進めても、つないだ あとに 家庭の 設定が とどく。
-       名前を 入れた ときだけ 家庭の 設定として 書きかえる */
+    /* すでに ある グループに 入る ときは、名前も 漢字の 設定も グループ側に ある。
+       ここで 空のまま 進めても、つないだ あとに グループの 設定が とどく。
+       名前を 入れた ときだけ グループの 設定として 書きかえる */
     const joining = sharing && (role === 'child' || !creating);
     if(!name && !joining){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
     if(sharing && !TEST_MODE && S && S.configured() && code.length < 8){ toast('あいことばを 8文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
@@ -4520,10 +4520,10 @@ function bindWelcomeStart(){
       if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
       forgetConfigStampForNewHousehold(code);
       rememberChosenCode(code);
-      /* 参加は「ある家庭へ入る」。文書が無かったときに、この端末の
-         初期値で家庭を作らせない（joining を渡す意味はそこだけ） */
+      /* 参加は「あるグループへ入る」。文書が無かったときに、この端末の
+         初期値でグループを作らせない（joining を渡す意味はそこだけ） */
       S.reconnect(code, { joining });
-      /* 同じ家庭を複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */
+      /* 同じグループを複数の親端末で数えないよう、あいことば由来の匿名IDで重複を除く。 */
       S.registerHousehold(code).catch(()=>{});
     }
     if(role === 'parent' && sharing){
@@ -4555,7 +4555,7 @@ function bindStats(){
     return;
   }
   S.getRegistrationCount().then(count=>{
-    out.textContent = Number(count || 0).toLocaleString('ja-JP') + ' 家庭';
+    out.textContent = Number(count || 0).toLocaleString('ja-JP') + ' グループ';
   }).catch(()=>{
     out.textContent = '集計を読みこめません';
     note.textContent = 'Firestore のルールに metrics の読み取り許可を追加してください。';
@@ -4812,7 +4812,7 @@ function bindSync(){
   const joinStatus = $('#syncJoinStatus');
   const save = $('#syncSave');
   /* 参加は 確認できた あいことばだけ。存在しない あいことばで
-     つなぐと、この端末の 設定で 新しい 家庭が できてしまう */
+     つなぐと、この端末の 設定で 新しい グループが できてしまう */
   let verified = '';
   const resetVerified = ()=>{
     verified = '';
@@ -4859,14 +4859,14 @@ function bindSync(){
         if(joinStatus) joinStatus.textContent = '接続できませんでした。合言葉を確認してください。';
         return;
       }
-      /* 家庭は あったが、中身を あけられない。ここで 通してしまうと
+      /* グループは あったが、中身を あけられない。ここで 通してしまうと
          「接続しました ✓」の あとに 参加できない、という 行き止まりに なる */
       if(result.unreadable){
         if(joinStatus) joinStatus.textContent = unreadableJoinText();
         return;
       }
       verified = c;
-      if(joinStatus) joinStatus.textContent = '接続しました ✓　この家庭に参加できます。';
+      if(joinStatus) joinStatus.textContent = '接続しました ✓　このグループに参加できます。';
       if(save) save.hidden = false;
     }catch(err){
       if(joinStatus) joinStatus.textContent = '接続を確認できませんでした。通信を確認してください。';
@@ -4920,7 +4920,7 @@ function bindSync(){
   if(off) off.addEventListener('click', ()=>{
     if(!confirm('この端末を切り離しますか？\nこの端末の記録は残りますが、他の端末とはそろわなくなります。')) return;
     /* ホーム画面版は 起動URLに 合言葉が のこる。おぼえておかないと、
-       次に 開いた 瞬間に 同じ家庭へ つなぎ直されて 解除が 効かない */
+       次に 開いた 瞬間に 同じグループへ つなぎ直されて 解除が 効かない */
     rememberChosenCode('none');
     S.setCode('');
     S.disconnect();
@@ -5394,7 +5394,7 @@ document.addEventListener('click', e=>{
   }
 
   /* 招待で つながった 端末に、どちらの端末かを 聞く。
-     選んだ 役割は この端末だけの 設定（家庭の 設定には 入れない）。
+     選んだ 役割は この端末だけの 設定（グループの 設定には 入れない）。
      保護者を 選んだら、そのまま 保護者ページへ 送る */
   const joinRole = e.target.closest('[data-join-role]');
   if(joinRole){
@@ -5653,7 +5653,7 @@ function routeFromHash(){
   const name = c < 0 ? h : h.slice(0, c);
   if(name === 'writes'){ writesTaskId = c < 0 ? writesTaskId : h.slice(c + 1); return 'writes'; }
   const requested = TABS.indexOf(h) >= 0 ? h : 'home';
-  /* すでにこの端末で使い始めている家庭は、導線変更で止めない。
+  /* すでにこの端末で使い始めているグループは、導線変更で止めない。
      保存済みデータのない新規端末だけ、最初の設定に案内する。 */
   const hasExistingData = !!(getLocal(K_CFG) || getLocal(K_ST));
   /* おためしモードでは起動時の内部データを「設定済み」と数えない。 */
@@ -5779,13 +5779,13 @@ function applyJoinCode(){
      ホーム画面版の 起動URLに のこった 古い 招待で 引き戻さない */
   const chosen = getLocal(K_CODE_CHOSEN);
   if(chosen && chosen !== code) return;
-  /* 手動参加で選んだ色が残っていても、招待URLの家庭へ持ち込まない。
-     招待では接続先の家庭デザインが常に正となる。 */
+  /* 手動参加で選んだ色が残っていても、招待URLのグループへ持ち込まない。
+     招待では接続先のグループデザインが常に正となる。 */
   try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
   setLocal(K_ONBOARD, 'done');              // 招かれた側は 初期設定を とばす
   forgetConfigStampForNewHousehold(code);
-  /* 招待リンクは かならず「ある家庭へ入る」。見つからないときに
-     この端末の初期値で家庭を作ると、招いた側の設定が消える */
+  /* 招待リンクは かならず「あるグループへ入る」。見つからないときに
+     この端末の初期値でグループを作ると、招いた側の設定が消える */
   rememberChosenCode(code);
   S.reconnect(code, { joining:true });
   toast('おうちの 共有に つながりました');

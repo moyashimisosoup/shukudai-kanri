@@ -107,6 +107,11 @@
   --pace-past-a:oklch(81% .045 35); --pace-past-b:oklch(89% .03 35);
   --fun-a:oklch(99% .025 75); --fun-b:oklch(96% .035 42);
   --cat-paw:oklch(87% .04 28);
+  /* 帯だけ、見出しの こげ茶（--ai）より あかるい ミルクティー色に する。
+     見出しの ブロックと 帯が 同じ色だと、ネコらしい やわらかさが 出ない。
+     白い字を のせるので、明度は 50% より 下に とどめる */
+  --band:oklch(46% .075 48);
+  --cat-band-mark:oklch(93% .05 65);
   --r:20px; --r-s:14px; --r-button:14px; --r-pill:999px; --line:2px; --masu:64px;
   --shadow:0 3px 0 var(--ai); --shadow-lift:0 5px 0 var(--ai);
   --page-pattern:paws;

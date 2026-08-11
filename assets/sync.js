@@ -30,7 +30,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/12.17.1/';
 /* あいことばは この端末の localStorage に のこす。
    Firestore では SHA-256 で変換したIDの1件を端末どうしで見に行く。
    中身は この端末で 鍵を かけてから 送る（下の「1.5 中身の 暗号化」）。 */
-/* ?new=1 のおためしモードは、普段使っている家庭のあいことばを読まない。 */
+/* ?new=1 のおためしモードは、普段使っているグループのあいことばを読まない。 */
 const K_CODE = new URLSearchParams(location.search).get('new') === '1'
   ? 'natsu.preview.sync.code.v1'
   : 'natsu.sync.code.v1';
@@ -62,9 +62,9 @@ let unsub = null;
    古いのか わからない。その あいだに 設定を 送ると、まだ 何も
    受け取っていない 初期値が おうち全体に 配られる（実際に 起きた） */
 let gotSnapshot = false;
-/* すでに ある 家庭へ 入る つもりで つないだか（招待リンク・確認ずみの参加）。
-   true の あいだは、家庭の文書が 無くても 新しく 作らない。
-   家庭を 1回 受け取れたら 用ずみなので おろす */
+/* すでに ある グループへ 入る つもりで つないだか（招待リンク・確認ずみの参加）。
+   true の あいだは、グループの文書が 無くても 新しく 作らない。
+   グループを 1回 受け取れたら 用ずみなので おろす */
 let joiningExisting = false;
 let status = 'off';          // off | connecting | online | offline | error
 let statusText = '';
@@ -255,8 +255,8 @@ function configured(){
   return !!(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId);
 }
 
-/* 初期設定で「今ある家庭に参加」する前の読み取り専用確認。
-   connect() を使うと、存在しない合言葉でも新しい家庭を作ってしまうため、
+/* 初期設定で「今あるグループに参加」する前の読み取り専用確認。
+   connect() を使うと、存在しない合言葉でも新しいグループを作ってしまうため、
    ここでは文書を読むだけにして devices や設定を一切書き込まない。 */
 async function verifyHousehold(code){
   const c = String(code || '').trim().normalize('NFKC').replace(/\s+/g,'').replace(/[\/\u0000-\u001f]/g, '');
@@ -295,7 +295,7 @@ let initPromise = null;
 /* snapshot を先に張る。接続前に getDoc を待つと、オフライン時に
    ブラウザ内へためておく仕組みまで始められなくなるため。
    新方式の書類がオンラインで「ない」と確認できた時だけ、旧方式の
-   書類を一度試す。これで既存家庭を引き継ぎつつ、通信待ちで記録を失わない。 */
+   書類を一度試す。これで既存グループを引き継ぎつつ、通信待ちで記録を失わない。 */
 function watchHousehold(fs, ref, code){
   if(unsub){ unsub(); unsub = null; }
   docRef = ref;
@@ -308,24 +308,24 @@ function watchHousehold(fs, ref, code){
 
       if(!snap.exists()){
         /* キャッシュだけでは新旧を決めない。ここで新規文書を作ると、
-           オフラインの既存端末が別の家庭を作ってしまうため、オンラインの
+           オフラインの既存端末が別のグループを作ってしまうため、オンラインの
            確認が来るまで保留する。保存操作の pending はそのまま残る。
 
            **ここに 例外を 作らないこと。** 以前は 旧方式へ 切りかえた
            あとの watcher だけ 素通りしていた。招待リンクで 入ったばかりの
            端末は その参照を まだ ためていないので、「文書なし（キャッシュ）」が
-           1回 来る。そこで pushAll() すると、**まだ 家庭の 設定を
-           受け取っていない 端末の 初期値が 家庭ぜんたいへ 配られる**。 */
+           1回 来る。そこで pushAll() すると、**まだ グループの 設定を
+           受け取っていない 端末の 初期値が グループぜんたいへ 配られる**。 */
         if(snap.metadata.fromCache) return;
-        /* 招待リンクなどで「ある家庭へ入る」つもりの端末は、ここで
-           家庭を作らない。この端末の初期値が家庭の中身になってしまう。
+        /* 招待リンクなどで「あるグループへ入る」つもりの端末は、ここで
+           グループを作らない。この端末の初期値がグループの中身になってしまう。
            あいことばの取りちがえ・旧方式IDの取りこぼしを、静かに
            上書きせず 画面に 出して 気づけるようにする */
         if(joiningExisting){
-          setStatus('error', 'この合言葉の家庭が見つかりません。合言葉を確認してください');
+          setStatus('error', 'この合言葉のグループが見つかりません。合言葉を確認してください');
           return;
         }
-        /* 家庭を 新しく 作る、ただ1つの 道。あとから 事故を 追えるように
+        /* グループを 新しく 作る、ただ1つの 道。あとから 事故を 追えるように
            「作った」ことを 記録に のこす（#config の 同期の記録） */
         const app0 = window.NatsuApp;
         if(app0 && typeof app0.onHouseholdCreate === 'function'){
@@ -338,7 +338,7 @@ function watchHousehold(fs, ref, code){
 
       const d = snap.data() || {};
       /* はずされた 判定は 平文の まま 先に。鍵が 合わなくても
-         「もう この家庭の 端末では ない」ことは 分かる */
+         「もう このグループの 端末では ない」ことは 分かる */
       if(revokedForMe(d.devices)){
         rememberRevokedCode(getCode());
         setCode('');
@@ -349,8 +349,8 @@ function watchHousehold(fs, ref, code){
 
       /* **鍵を あけられない うちは、受信済みに しないこと。**
          gotSnapshot を 先に 立てると configHeldBack() が false に なり、
-         次の saveCfg() が この端末の 初期値を 家庭ぜんたいへ 配る。
-         「まだ 家庭を 受け取っていない 端末が 家庭を 上書きする」という、
+         次の saveCfg() が この端末の 初期値を グループぜんたいへ 配る。
+         「まだ グループを 受け取っていない 端末が グループを 上書きする」という、
          この作りで くり返し 起きてきた 事故と 同じ 道すじ。
          読めない ときは 何も 受け取らなかった ことに して、画面に 出す */
       let plainConfig = null;
@@ -360,9 +360,9 @@ function watchHousehold(fs, ref, code){
          何度も 入れ直す ことに なる。分けて 出す */
       const sealed = v => v === undefined || v === null || isCiphertext(v);
       if(!sealed(d.config) || !sealed(d.state)){
-        /* 鍵を かける 前の 版が 作った 家庭。鍵が 無いのでは なく、
+        /* 鍵を かける 前の 版が 作った グループ。鍵が 無いのでは なく、
            そもそも かかっていない。合言葉を 入れ直しても 直らない */
-        setStatus('error', 'この家庭は 古い方式で 保存されています。'
+        setStatus('error', 'このグループは 古い方式で 保存されています。'
           + '保護者の端末を 最新に 更新し、合言葉を 作り直してください');
         return;
       }
@@ -376,11 +376,11 @@ function watchHousehold(fs, ref, code){
       if(docRef !== ref) return;    // 読んでいる あいだに つなぎ直された
 
       /* 中身があるキャッシュ、またはオンラインで確認できた文書だけを
-         「家庭の設定を受信済み」とする。空のキャッシュを受信済みにすると、
-         QR参加直後の初期設定を家庭へ送れる状態になってしまう。 */
+         「グループの設定を受信済み」とする。空のキャッシュを受信済みにすると、
+         QR参加直後の初期設定をグループへ送れる状態になってしまう。 */
       const firstSnapshot = !gotSnapshot;
       gotSnapshot = true;
-      joiningExisting = false;      // 家庭を受け取れた。以後はふつうの端末
+      joiningExisting = false;      // グループを受け取れた。以後はふつうの端末
 
       const devs = d.devices || {};
       setDeviceCount(Object.keys(devs).filter(k => !(devs[k] && devs[k].revoked)).length);
@@ -393,9 +393,9 @@ function watchHousehold(fs, ref, code){
           state:    plainState,
           configAt: d.configAt || 0,
           stateAt:  d.stateAt  || 0,
-          /* つなぎ直してから 最初に 受け取った 家庭の中身かどうか。
+          /* つなぎ直してから 最初に 受け取った グループの中身かどうか。
              この 1回だけは、手元の 設定が どれだけ 新しく 見えても
-             家庭の 設定を 採る（下の app.js 側の 説明を 見ること） */
+             グループの 設定を 採る（下の app.js 側の 説明を 見ること） */
           first:    firstSnapshot
         });
       }
@@ -425,7 +425,7 @@ async function connect(){
     }
 
     const fs = Sync._fs;
-    /* 新しい方式を先に読む。旧版で作った家庭かどうかは、snapshot が
+    /* 新しい方式を先に読む。旧版で作ったグループかどうかは、snapshot が
        オンラインで空だった時だけ watchHousehold() が確認する。 */
     const secureId = await houseIdFor(code);
     const secureRef = fs.doc(db, 'households', secureId);
@@ -630,17 +630,17 @@ async function flush(){
 }
 
 /* ---------------------------------------------------------
-   6. 匿名の登録家庭数
+   6. 匿名の登録グループ数
 
-   あいことばそのものは保存せず、SHA-256 の値だけで同じ家庭を見分ける。
+   あいことばそのものは保存せず、SHA-256 の値だけで同じグループを見分ける。
    初期設定の親端末から一度だけ呼ばれる。
 
    以前は metrics/registrations の中に
    { households: { <あいことばのSHA-256>: 登録日時 } } を持っていた。
    数を数えるには その一覧を 読む必要が あるため、規則で 読みを 止められず、
-   誰でも 全家庭ぶんの ハッシュを 取り出せる状態に なっていた。
+   誰でも 全グループぶんの ハッシュを 取り出せる状態に なっていた。
    旧版の短いあいことばでは、一覧が出ると総当たりで割られ、
-   その家庭の 記録まで 読まれてしまう。
+   そのグループの 記録まで 読まれてしまう。
 
    そこで 2つに 分けた。
    ・metrics/registrations      … 数（count）だけ。増やす向きにしか 書けない
@@ -668,7 +668,7 @@ async function registerHousehold(code){
   await fs.runTransaction(db, async tx=>{
     /* transaction は 読みを ぜんぶ 先に すませてから 書く */
     const mine = await tx.get(marker);
-    if(mine.exists()) return;                 // この家庭は すでに 数えてある
+    if(mine.exists()) return;                 // このグループは すでに 数えてある
     const now = await tx.get(counter);
     const next = (now.exists() ? Number((now.data() || {}).count || 0) : 0) + 1;
     tx.set(marker, { at: Date.now() });
@@ -715,10 +715,10 @@ const Sync = {
   registerHousehold,
   getRegistrationCount,
   /* あいことばを 入れ替えて つなぎ直す */
-  /* opts.joining … すでに ある 家庭へ 入るとき true。
-     招待リンク・確認ずみの 手入力参加が これ。**その端末は 家庭を
-     作ってはいけない。** 作れてしまうと、まだ 家庭の 設定を 受け取って
-     いない 端末の 初期値が 家庭の 中身に なる */
+  /* opts.joining … すでに ある グループへ 入るとき true。
+     招待リンク・確認ずみの 手入力参加が これ。**その端末は グループを
+     作ってはいけない。** 作れてしまうと、まだ グループの 設定を 受け取って
+     いない 端末の 初期値が グループの 中身に なる */
   async reconnect(code, opts){
     /* 入れ直した 直後の 1回は「はずされた」印を 見のがす。
        でないと 入れたとたんに また 切られる */

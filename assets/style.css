@@ -93,8 +93,10 @@ button{ font:inherit; color:inherit; }
    ========================================================= */
 .topband{
   flex:none; position:relative; z-index:40;
-  background:var(--ai);
-  border-bottom:var(--line) solid var(--ai);
+  /* 帯の色は テーマで 変えられる。既定は 見出しと 同じ --ai。
+     ネコでは 見出しと 同じ こげ茶だと かたい ので、別の 色を あてる */
+  background:var(--band, var(--ai));
+  border-bottom:var(--line) solid var(--band, var(--ai));
   padding-top:env(safe-area-inset-top);
 }
 .topband-inner{
@@ -110,7 +112,7 @@ button{ font:inherit; color:inherit; }
 }
 [data-theme="cat"] .topband-mark{
   width:28px; height:28px; border-radius:0;
-  background:var(--himawari);
+  background:var(--cat-band-mark);
   -webkit-mask:url("paw.svg") center / contain no-repeat;
   mask:url("paw.svg") center / contain no-repeat;
 }
@@ -1455,10 +1457,18 @@ body.no-tabbar{ padding-bottom:0; }
 .pstat-row-num{ font-size:17px; font-weight:900; text-align:right; white-space:nowrap; }
 .pstat-row-num small{ font-size:12px; font-weight:900; }
 .pstat-row-cnt{ display:block; color:var(--ai-usu); }
+/* 子ども画面の バーは「1色の 濃淡で 範囲を 表す」。
+   うすい緑＝ぜんぶ、こい緑＝かならず やる（.bar-fill--todo / --must）。
+   保護者ページだけ「つぎに やる」が 黄色で、系統の 外に あった。
+   おなじ ものを 見ているのに 色が ちがうと、見くらべる 手間が 増える。
+
+   そろえかたは 濃淡に する。3本が「全体 ＝ 必須 ＋ つぎに やる」の
+   関係を そのまま 表すので、色の 意味を おぼえ直さなくてよい。
+   黄色は 見出しの 色として 残す（見出しと 進みぐあいは 役割が ちがう）。 */
 .pstat-fill--natsu{ background:repeating-linear-gradient(45deg,var(--pace-past-a) 0 8px,var(--pace-past-b) 8px 16px); }
 .pstat-fill--must{ background:var(--wakaba); }
-.pstat-fill--all{ background:var(--wakaba); opacity:.55; }
-.pstat-fill--opt{ background:var(--himawari); }
+.pstat-fill--all{ background:var(--wakaba); opacity:.42; }
+.pstat-fill--opt{ background:var(--wakaba); opacity:.42; }
 @media (max-width:420px){
   .pstat-row{ grid-template-columns:minmax(72px,auto) minmax(0,1fr) minmax(54px,auto); gap:8px; }
   .pstat-row-lab{ font-size:13px; }

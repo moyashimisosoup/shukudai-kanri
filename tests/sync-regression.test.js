@@ -410,7 +410,7 @@ test('はずされた端末は、招待URLを開き直しても勝手に戻ら�
   }
   assert.equal(harness(''), CODE, 'ふつうの招待は これまで通り つながる');
   assert.equal(harness(CODE), '', 'はずされた あいことばでは 自動で つなぎ直さない');
-  assert.equal(harness('betsunoaikotoba'), CODE, 'べつの家庭の はずし記録は じゃまをしない');
+  assert.equal(harness('betsunoaikotoba'), CODE, 'べつのグループの はずし記録は じゃまをしない');
 
   /* はずされた あいことばのままでは、ホーム画面追加の案内も出さない
      （「引き継げる準備ができています」は この状態では うそになる） */
@@ -469,7 +469,7 @@ test('版の新旧は、zをこえてaaに回ったあとも正しくならぶ',
 });
 
 /* 初期設定は 名前を入れて saveCfg() を呼び、そのあとで つなぎにいく。
-   受け取る前の初期値に「いま」の時刻が付くので、それが家庭全体に配られ、
+   受け取る前の初期値に「いま」の時刻が付くので、それがグループ全体に配られ、
    デザインも題名も消えていた。受け取るまでは時刻を押さないこと。 */
 test('おうちの中身を受け取るまで、手元の設定を送らない', ()=>{
   const store = {};
@@ -499,7 +499,7 @@ test('おうちの中身を受け取るまで、手元の設定を送らない',
     '受け取ったあとは これまで通り 保存して送る');
 });
 
-test('空のキャッシュは家庭設定を受信済みと数えない', ()=>{
+test('空のキャッシュはグループ設定を受信済みと数えない', ()=>{
   const watch = grab(SYNC, 'watchHousehold');
   const missing = watch.indexOf('if(!snap.exists())');
   const cacheReturn = watch.indexOf('if(snap.metadata.fromCache) return');
@@ -509,7 +509,7 @@ test('空のキャッシュは家庭設定を受信済みと数えない', ()=>{
 });
 
 /* よそで保存した時刻は、これから入るおうちの時刻とくらべても意味がない。
-   0 に戻さないと、古い設定が「新しい」と判定されて家庭全体に配られる。 */
+   0 に戻さないと、古い設定が「新しい」と判定されてグループ全体に配られる。 */
 test('ちがうあいことばにつなぐとき、設定の保存時刻を0に戻す', ()=>{
   function harness(rememberedHouse, joining){
     const store = { 'natsu.savedAt.v1': JSON.stringify({ config:9999, state:8888 }) };
@@ -582,13 +582,13 @@ test('初期設定の選択肢は、選んだものだけ色とチェックが�
   assert.match(STYLE, /content:"✓"/, '色だけでなくチェックでも選択を示す');
 });
 
-test('共有する初期設定は、端末と家庭の状態に合わせて分岐する', ()=>{
+test('共有する初期設定は、端末とグループの状態に合わせて分岐する', ()=>{
   const form = grab(APP, 'welcomeFormHTML');
   const setup = grab(APP, 'welcomeShareSetupHTML');
   const picker = grab(APP, 'welcomeParentSharePickerHTML');
   const plan = grab(APP, 'welcomeParentConnectionPlanHTML');
-  assert.match(picker, /data-parent-share="create"/, '保護者は新しい家庭を作れる');
-  assert.match(picker, /data-parent-share="join"/, '保護者は今ある家庭にも参加できる');
+  assert.match(picker, /data-parent-share="create"/, '保護者は新しいグループを作れる');
+  assert.match(picker, /data-parent-share="join"/, '保護者は今あるグループにも参加できる');
   assert.match(setup, /inviteQrHTML\(url\)/, '保護者側にQRを表示する');
   assert.match(setup, /welcomeInviteUrl/, '離れた端末向けの招待リンクも表示する');
   assert.match(setup, /QRコードや招待リンクを受け取った場合/,
@@ -604,8 +604,8 @@ test('共有する初期設定は、端末と家庭の状態に合わせて分�
   assert.match(form, /readonly autocapitalize=/,
     '新しく作った合言葉は初期設定中に書き換えさせない');
   assert.match(form, /data-creating="no"/,
-    '今ある家庭へ参加する保護者を、合言葉の作成者と区別する');
-  assert.match(form, /aria-label="確認した合言葉でこの家庭に参加する"/,
+    '今あるグループへ参加する保護者を、合言葉の作成者と区別する');
+  assert.match(form, /aria-label="確認した合言葉でこのグループに参加する"/,
     '子どもの最終操作も読み上げで接続先を明示する');
   assert.match(form, /id="welcomeStart"[\s\S]{0,180}hidden/,
     '接続確認前は参加ボタンを隠す');
@@ -641,8 +641,8 @@ test('子ども端末は合言葉を受け取るだけで、作成者向け注�
   assert.match(child, /例：子ども用iPad/, '子ども端末に父・母の例を出さない');
   assert.match(create, /data-share-safety/, '新しく作る保護者には注意事項を出す');
   assert.match(create, /readonly/, '新しく作る合言葉は自動作成する');
-  assert.doesNotMatch(join, /data-share-safety/, '既存家庭へ参加する保護者にも作成者向け注意を重ねない');
-  assert.match(join, /placeholder="合言葉を入力"/, '既存家庭へ参加するときは合言葉を入力する');
+  assert.doesNotMatch(join, /data-share-safety/, '既存グループへ参加する保護者にも作成者向け注意を重ねない');
+  assert.match(join, /placeholder="合言葉を入力"/, '既存グループへ参加するときは合言葉を入力する');
 });
 
 test('初期設定は選択したルートに応じて③以降を連番で示す', ()=>{
@@ -663,7 +663,7 @@ test('初期設定は選択したルートに応じて③以降を連番で示�
     '共有する子ども端末も接続まで番号付きで案内する');
 });
 
-test('子どもが選んだデザインは、家庭設定の受信後に1度だけ反映する', ()=>{
+test('子どもが選んだデザインは、グループ設定の受信後に1度だけ反映する', ()=>{
   const storage = new Map([
     ['natsu.savedAt.v1', JSON.stringify({config:100})],
     ['natsu.welcome.theme.v1', JSON.stringify({code:'abcdefgh',theme:'berry'})]
@@ -701,11 +701,11 @@ test('子どもが選んだデザインは、家庭設定の受信後に1度だ�
 
   storage.set('natsu.welcome.theme.v1', JSON.stringify({code:'other-house',theme:'cat'}));
   harness.applyRemote({ config:{tasks:[],theme:'sunny'}, configAt:300 });
-  assert.equal(harness.config().theme, 'sunny', '別の家庭で残った一時デザインは採らない');
-  assert.equal(saved, 1, '別家庭の一時値を家庭設定として保存しない');
+  assert.equal(harness.config().theme, 'sunny', '別のグループで残った一時デザインは採らない');
+  assert.equal(saved, 1, '別グループの一時値をグループ設定として保存しない');
 });
 
-test('参加画面で変えた名前と漢字設定は、家庭設定の受信後にだけ反映する', ()=>{
+test('参加画面で変えた名前と漢字設定は、グループ設定の受信後にだけ反映する', ()=>{
   const storage = new Map([
     ['natsu.savedAt.v1', JSON.stringify({config:100})],
     ['natsu.welcome.join.v1', JSON.stringify({
@@ -738,14 +738,14 @@ test('参加画面で変えた名前と漢字設定は、家庭設定の受信�
     removeItem:key => storage.delete(key)
   }, ()=>{ saved++; });
   harness.applyRemote({
-    config:{tasks:[],theme:'notebook',childName:'家庭の名前',readingGrade:2,title:'家庭の名前の夏休みの宿題'},
+    config:{tasks:[],theme:'notebook',childName:'グループの名前',readingGrade:2,title:'グループの名前の夏休みの宿題'},
     configAt:200,
     first:true
   });
   assert.equal(harness.config().childName, 'はな');
   assert.equal(harness.config().readingGrade, 1);
   assert.equal(harness.config().title, 'はなの夏休みの宿題');
-  assert.equal(saved, 1, '家庭設定を採ったあとに変更を1回だけ保存する');
+  assert.equal(saved, 1, 'グループ設定を採ったあとに変更を1回だけ保存する');
   assert.equal(storage.has('natsu.welcome.join.v1'), false, '反映後は一時値を消す');
 });
 
@@ -807,10 +807,10 @@ test('音声入力は古い終了イベントに新しい認識を消されず�
 });
 
 /* QRで入った端末だけ デザインが 初期値の まま だった。
-   設定は「あとに保存した方がまるごと勝つ」ので、まだ一度も家庭を
+   設定は「あとに保存した方がまるごと勝つ」ので、まだ一度もグループを
    受け取っていない端末が 新しい（または壊れた）時刻印を持っていると、
-   家庭の設定が いつまでも 採られない。 */
-test('つないだ直後の1回は、時刻を問わず家庭の設定を採る', ()=>{
+   グループの設定が いつまでも 採られない。 */
+test('つないだ直後の1回は、時刻を問わずグループの設定を採る', ()=>{
   function harness(localAt, remoteAt, first){
     const store = { 'natsu.savedAt.v1': JSON.stringify({ config:localAt }) };
     let pushedConfig = 0;
@@ -836,23 +836,23 @@ test('つないだ直後の1回は、時刻を問わず家庭の設定を採る'
 
   const older = 1786312076482, newer = older + 5000;
   assert.equal(harness(newer, older, true).theme, 'cat',
-    'つないだ直後は、手元の時刻が新しく見えても家庭の設定を採る');
+    'つないだ直後は、手元の時刻が新しく見えてもグループの設定を採る');
   assert.equal(harness(newer, older, false).theme, 'notebook',
     '受け取ったあとは、これまで通り新しい方が勝つ');
   assert.equal(harness(older, newer, false).theme, 'cat',
-    '家庭の方が新しければ採る');
+    'グループの方が新しければ採る');
 
   /* 旧版が `時刻 | 0` で保存した負の値は、`負 > 0` が成り立たないため
-     家庭の設定が永久に採られなくなる。0（時刻なし）に倒して救う */
+     グループの設定が永久に採られなくなる。0（時刻なし）に倒して救う */
   const broken = harness(older, older | 0, true);
-  assert.equal(broken.theme, 'cat', '壊れた時刻でも家庭の設定を採る');
+  assert.equal(broken.theme, 'cat', '壊れた時刻でもグループの設定を採る');
   assert.equal(broken.pushedConfig, 1, '壊れた時刻は、正しい時刻で送り返して直す');
   assert.equal(harness(older, newer, false).theme, 'cat');
   assert.match(grab(APP, 'applyRemote'), /ms\(at\.state\) >= ms\(remote\.stateAt\)/,
     '記録側の時刻も ms() を通すこと');
 });
 
-test('設定が家庭側に置きかわったら、同期の記録に理由をのこす', ()=>{
+test('設定がグループ側に置きかわったら、同期の記録に理由をのこす', ()=>{
   const trace = new Function('getLocal', 'traceAdd', 'K_DEVICE_ID', `
     ${/const TRACE_CONFIG_FIELDS = \[[^\]]*\];/.exec(APP)[0]}
     ${grab(APP, 'taskCensus')}
@@ -911,21 +911,21 @@ test('QR招待の案内は大人向けのまま出し、ボタンを枠に収め
     'かな変換に data-no-reading の除外があること');
 });
 
-test('招待URLでは端末に残ったデザインを持ち込まず、家庭のデザインを採る', ()=>{
+test('招待URLでは端末に残ったデザインを持ち込まず、グループのデザインを採る', ()=>{
   const join = grab(APP, 'applyJoinCode');
   const remote = grab(APP, 'applyRemote');
   assert.match(join, /localStorage\.removeItem\(K_WELCOME_THEME\)/,
     '招待接続前に手動参加の一時デザインを消す');
   assert.match(remote, /welcomeTheme\.code === activeCode/,
-    '一時デザインは確認済みの同じ家庭だけに適用する');
+    '一時デザインは確認済みの同じグループだけに適用する');
   assert.match(remote, /remoteThemeMissing[\s\S]{0,180}!joinCodeFromURL\(\)/,
-    '旧家庭のテーマ移行に招待直後の端末を使わない');
+    '旧グループのテーマ移行に招待直後の端末を使わない');
   const bind = grab(APP, 'bindWelcomeStart');
   assert.match(bind, /themeInput\.checked = true/,
-    '手動参加でも確認後に家庭のデザインを選択状態へ反映する');
+    '手動参加でも確認後にグループのデザインを選択状態へ反映する');
 });
 
-test('既存の家庭に入るときは、名前と漢字の設定を任意にする', ()=>{
+test('既存のグループに入るときは、名前と漢字の設定を任意にする', ()=>{
   const make = new Function(`
     const window={NatsuSync:{configured:()=>true,makeCode:()=> 'abcdefghjkmnpqrs'}};
     const DEBUG_WELCOME=false, TEST_MODE=false, K_NAME='name', K_DEVICE_LABEL='label';
@@ -955,16 +955,16 @@ test('既存の家庭に入るときは、名前と漢字の設定を任意に�
   assert.doesNotMatch(make('child', false), /あいことばを かくにんすると/,
     'この端末だけで使うときは名前が要る');
 
-  /* 空のまま進めても家庭の設定を壊さないこと */
+  /* 空のまま進めてもグループの設定を壊さないこと */
   const start = APP.slice(APP.indexOf('start.addEventListener'), APP.indexOf('function bindStats'));
   assert.match(start, /const joining = sharing && \(role === 'child' \|\| !creating\)/);
   assert.match(start, /if\(!name && !joining\)\{ toast\('なまえを 入れてください'\)/,
     '参加する経路では、名前が空でも進める');
   assert.match(start, /if\(name && !joining\)\{\s*config\.childName = name;/,
-    '参加時の変更は家庭設定の初回受信後まで保留する');
+    '参加時の変更はグループ設定の初回受信後まで保留する');
 });
 
-test('既存家庭への参加は読み取り確認後だけ許可し、接続先の設定を表示する', ()=>{
+test('既存グループへの参加は読み取り確認後だけ許可し、接続先の設定を表示する', ()=>{
   const bind = grab(APP, 'bindWelcomeStart');
   const verify = grab(SYNC, 'verifyHousehold');
   assert.match(bind, /S\.verifyHousehold\(code\)/, '参加前に合言葉の接続先を確認する');
@@ -973,16 +973,16 @@ test('既存家庭への参加は読み取り確認後だけ許可し、接続�
   assert.match(bind, /接続しています…/);
   assert.match(bind, /接続しました ✓/);
   assert.match(bind, /welcomeJoinVerified = \{ code, config:deepCopy\(remoteConfig\) \}/,
-    '確認済みの合言葉と家庭設定を保持する');
+    '確認済みの合言葉とグループ設定を保持する');
   assert.match(bind, /nameInput\.value = remoteName/,
     '接続先のお子さんの名前をフォームへ表示する');
   assert.match(bind, /start\.hidden = false/,
     '確認できた場合だけ参加ボタンを表示する');
   assert.match(bind, /先に合言葉の接続を確認してください/,
     '画面操作を迂回しても未確認では参加できない');
-  assert.match(verify, /getDocFromServer/, 'サーバー上の家庭を読み取り専用で確認する');
+  assert.match(verify, /getDocFromServer/, 'サーバー上のグループを読み取り専用で確認する');
   assert.doesNotMatch(verify, /pushAll|registerDevice|setDoc/,
-    '存在確認だけでは家庭を作成・変更しない');
+    '存在確認だけではグループを作成・変更しない');
 });
 
 test('曜日の月は「つき」ではなく曜日読みの「げつ」にする', ()=>{
@@ -1068,11 +1068,11 @@ test('ねこテーマの飾りは paw.svg のまま残す', ()=>{
   assert.equal(fs.existsSync(path.join(ROOT, 'assets', 'paw.svg')), true);
 });
 
-/* QR参加した端末の初期値が家庭ぜんたいへ配られ、まいにちの項目が
+/* QR参加した端末の初期値がグループぜんたいへ配られ、まいにちの項目が
    参加端末でも招いた端末でも消えた。空のキャッシュ対策が
-   `mayUseLegacy` のときだけ効いており、旧方式の家庭へ切りかえた
+   `mayUseLegacy` のときだけ効いており、旧方式のグループへ切りかえた
    あとの watcher（mayUseLegacy = false）が素通りしていた。 */
-test('文書なしのキャッシュは、旧方式へ切りかえた後の watcher でも家庭を作らせない', ()=>{
+test('文書なしのキャッシュは、旧方式へ切りかえた後の watcher でもグループを作らせない', ()=>{
   const watch = grab(SYNC, 'watchHousehold');
   assert.doesNotMatch(watch, /mayUseLegacy && snap\.metadata\.fromCache/,
     'キャッシュ判定に mayUseLegacy を混ぜないこと');
@@ -1083,7 +1083,7 @@ test('文書なしのキャッシュは、旧方式へ切りかえた後の watc
     'オンラインで確認できるまで pushAll() へ進ませないこと');
 });
 
-test('ある家庭へ入る端末は、家庭が見つからなくても新しく作らない', ()=>{
+test('あるグループへ入る端末は、グループが見つからなくても新しく作らない', ()=>{
   const watch = grab(SYNC, 'watchHousehold');
   const guard = watch.indexOf('if(joiningExisting)');
   const push = watch.indexOf('pushAll();');
@@ -1093,7 +1093,7 @@ test('ある家庭へ入る端末は、家庭が見つからなくても新し�
   /* 招待リンクと初期設定の参加は、かならず joining を渡す */
   assert.match(grab(APP, 'applyJoinCode'), /reconnect\(code, \{ joining:true \}\)/);
   assert.match(grab(APP, 'bindWelcomeStart'), /reconnect\(code, \{ joining \}\)/);
-  /* 家庭を1回でも受け取ったら、ふつうの端末に戻す */
+  /* グループを1回でも受け取ったら、ふつうの端末に戻す */
   assert.match(watch, /gotSnapshot = true;\s*\n\s*joiningExisting = false/);
 });
 
@@ -1143,7 +1143,7 @@ test('設定画面の共有は、作成でそのままつながり、参加は�
   /* 設定からも 自分で 決められる（最初の設定と そろえる） */
   assert.match(section, /id="syncOwnCode"/);
   assert.match(section, /id="syncMakeOwn"[^>]*>この合言葉でつくる/);
-  assert.match(section, /id="syncSave"[^>]*hidden[^>]*>この家庭に参加する|id="syncSave" type="button" hidden/);
+  assert.match(section, /id="syncSave"[^>]*hidden[^>]*>このグループに参加する|id="syncSave" type="button" hidden/);
 
   /* 参加は確認ずみのあいことばだけ。未確認では reconnect まで進ませない */
   assert.match(bind, /if\(verify && verified !== c\)\{[\s\S]{0,120}return;/);
@@ -1241,7 +1241,7 @@ test('招待で入った端末には、先に保護者か子どもかを聞く',
   const pick = grab(APP, 'joinRolePickHTML');
   assert.match(pick, /data-join-role="parent"/);
   assert.match(pick, /data-join-role="child"/);
-  /* 選んだ役割はこの端末だけの設定。家庭の設定に混ぜない */
+  /* 選んだ役割はこの端末だけの設定。グループの設定に混ぜない */
   assert.match(APP, /setLocal\(K_ROLE, role\)/);
   assert.match(APP, /if\(role === 'parent'\) location\.hash = 'settings'/);
 });
@@ -1258,7 +1258,7 @@ function cryptoHarness(){
   `)(webcrypto, TextEncoder, TextDecoder, btoa, atob);
 }
 
-test('家庭の中身は暗号化して往復でき、平文が残らない', async ()=>{
+test('グループの中身は暗号化して往復でき、平文が残らない', async ()=>{
   const c = cryptoHarness();
   const code = 'abcdefghjkmnpqrs';
   const config = { childName:'テスト児童', tasks:[{ id:'t1', name:'かん字ドリル' }] };
@@ -1296,12 +1296,12 @@ test('鍵の塩は、保存される文書IDと別物にする', async ()=>{
     '文書IDを塩にすると、保存された値がそのまま鍵の材料になる');
 });
 
-/* この作りで くり返し 起きてきた事故。まだ家庭を受け取っていない端末が
-   自分の初期値で家庭を上書きする。復号できないうちに gotSnapshot を
+/* この作りで くり返し 起きてきた事故。まだグループを受け取っていない端末が
+   自分の初期値でグループを上書きする。復号できないうちに gotSnapshot を
    立てると configHeldBack() が false になり、同じ道すじが再びひらく。 */
 test('復号できないうちは、受信済みにも上書き可能にもしない', ()=>{
   const watch = grab(SYNC, 'watchHousehold');
-  const failIdx = watch.indexOf('この家庭は 古い方式で');
+  const failIdx = watch.indexOf('このグループは 古い方式で');
   const gotIdx  = watch.indexOf('gotSnapshot = true');
   assert.ok(failIdx > -1, '読めないことを画面に出すこと');
   assert.ok(gotIdx > failIdx,
@@ -1309,14 +1309,14 @@ test('復号できないうちは、受信済みにも上書き可能にもし�
   const fail = watch.slice(failIdx, gotIdx);
   assert.match(fail, /return;/, '読めないときはそこで戻ること');
   assert.doesNotMatch(fail, /pushAll\(\)|flushPendingSoon\(\)|joiningExisting = false/,
-    '読めないまま家庭へ送り出さないこと');
+    '読めないままグループへ送り出さないこと');
   /* 平文のまま置かれた文書も「読めない」に倒す（黙って上書きしない）。
-     ただし理由は分ける。古い方式の家庭に「合言葉を確かめて」と言うと、
+     ただし理由は分ける。古い方式のグループに「合言葉を確かめて」と言うと、
      正しい合言葉を何度も入れ直すことになる */
   assert.match(watch, /const sealed = v => v === undefined \|\| v === null \|\| isCiphertext\(v\)/);
-  assert.match(watch, /この家庭は 古い方式で 保存されています/);
+  assert.match(watch, /このグループは 古い方式で 保存されています/);
   assert.match(watch, /合言葉が ちがうため、中身を 読めません/);
-  const oldWayIdx = watch.indexOf('この家庭は 古い方式で');
+  const oldWayIdx = watch.indexOf('このグループは 古い方式で');
   assert.ok(oldWayIdx > -1 && oldWayIdx < gotIdx,
     '古い方式の判定も gotSnapshot より前で止めること');
 });
@@ -1340,21 +1340,21 @@ test('参加前の確認は、鍵が合ったときだけ中身を見せる', ()
 });
 
 /* 実機で「QR参加すると、まいにちの項目が消える」「デザインが移らない」。
-   家庭を作った直後にQRを読むと、作成側の最初の送信が届く前に
+   グループを作った直後にQRを読むと、作成側の最初の送信が届く前に
    「文書はあるが config が無い」snapshot が1回来る。そこで初期設定の
    名前・デザインを saveCfg() すると、参加したばかりの端末の初期値
-   （既定の宿題・まいにち無し・初期デザイン）が家庭へ配られる。 */
-test('家庭の設定を受け取れていないうちは、初期設定を家庭へ送らない', ()=>{
+   （既定の宿題・まいにち無し・初期デザイン）がグループへ配られる。 */
+test('グループの設定を受け取れていないうちは、初期設定をグループへ送らない', ()=>{
   const f = grab(APP, 'applyRemote');
   const guardIdx = f.indexOf('if(!remote.config){');
   const consumeIdx = f.indexOf('localStorage.removeItem(K_WELCOME_THEME)');
   const saveIdx = f.indexOf('if(welcomeChanged){ saveCfg(); changed = true; }');
-  assert.ok(guardIdx > -1, '家庭の設定が無いときの分岐を置くこと');
+  assert.ok(guardIdx > -1, 'グループの設定が無いときの分岐を置くこと');
   assert.ok(consumeIdx > guardIdx,
     '受け取れていないうちに、取っておいた初期設定を使い切らないこと');
   assert.ok(saveIdx > guardIdx,
-    '受け取れていないうちに saveCfg() で家庭へ送らないこと');
-  /* 消さずに残す。次のsnapshotで家庭の設定が来たときに反映する */
+    '受け取れていないうちに saveCfg() でグループへ送らないこと');
+  /* 消さずに残す。次のsnapshotでグループの設定が来たときに反映する */
   const guard = f.slice(guardIdx, consumeIdx);
   assert.match(guard, /return;/);
   assert.doesNotMatch(guard, /removeItem\(K_WELCOME_JOIN\)|saveCfg\(\)/);
@@ -1384,7 +1384,7 @@ test('文章で記録の呼びかけは、決めていなければ例文を出�
 /* verifyHousehold は「見つかったが中身をあけられない」を返すようになった。
    呼び出し側がこれを見落とすと、「接続しました ✓」と出たあとで
    参加できない行き止まりになる（実機でそうなった）。 */
-test('あけられない家庭は、参加の確認で止めて理由を出す', ()=>{
+test('あけられないグループは、参加の確認で止めて理由を出す', ()=>{
   const text = grab(APP, 'unreadableJoinText');
   assert.match(text, /暗号化に対応する前の方式/);
   assert.match(text, /合言葉を作り直してください/);
@@ -1405,7 +1405,7 @@ test('あけられない家庭は、参加の確認で止めて理由を出す',
 
 /* ホーム画面に追加したアプリは、起動URLに招待の合言葉が焼きついている。
    共有を解除しても作り直しても、次に開いた瞬間にURLの合言葉でつなぎ直され、
-   前の家庭に戻ってしまう（実機で「解除しても同じ合言葉のまま」と出た）。
+   前のグループに戻ってしまう（実機で「解除しても同じ合言葉のまま」と出た）。
    起動URLは書きかえられないので、人がえらんだほうを優先する。 */
 test('起動URLの古い招待より、人がえらんだ合言葉を優先する', ()=>{
   const apply = grab(APP, 'applyJoinCode');
@@ -1441,7 +1441,7 @@ test('この端末だけのときは、待っていると書く', ()=>{
    「この合言葉で接続」だと、作った本人がまだ繋がっていないと読む。 */
 test('共有ずみの合言葉は見せるだけ。つなぎ直しはたたむ', ()=>{
   const f = grab(APP, 'syncSectionHTML');
-  assert.match(f, /<span class="lab">この家庭の合言葉<\/span>/);
+  assert.match(f, /<span class="lab">このグループの合言葉<\/span>/);
   assert.match(f, /id="syncCodeShown"[\s\S]{0,200}readonly/, '見せるだけの欄にすること');
   /* 参加の欄と id を分けること。同じ id だと captureFormDraft が拾った
      古い値が描き直しのあとで書きもどされ、解除しても前の合言葉がのこり、
@@ -1551,4 +1551,32 @@ test('ホーム画面追加の案内は、どちらの画面が開くかを書�
   assert.match(f, /保護者の端末<\/b>」を選んでいれば/);
   assert.match(f, /この保護者ページが開きます/);
   assert.match(f, /選んでいないときは子ども画面が開きます/);
+});
+
+/* 保護者ページと子ども画面で、同じものが違う色で出ていた。
+   子ども画面のバーは「1色の濃淡で範囲を表す」（うすい緑＝ぜんぶ、
+   こい緑＝かならず やる）。保護者ページだけ「つぎに やる」が黄色だった。 */
+test('進みぐあいのバーは、保護者ページも子ども画面と同じ濃淡でそろえる', ()=>{
+  /* 子ども画面の決めかた */
+  assert.match(STYLE, /\.bar-fill--todo\{ background:var\(--wakaba\); opacity:\.42; \}/);
+  assert.match(STYLE, /\.bar-fill--must\{[\s\S]{0,80}background:var\(--wakaba\);/);
+  /* 保護者ページも同じ色・同じ濃さにする */
+  assert.match(STYLE, /\.pstat-fill--must\{ background:var\(--wakaba\); \}/);
+  assert.match(STYLE, /\.pstat-fill--all\{ background:var\(--wakaba\); opacity:\.42; \}/);
+  assert.match(STYLE, /\.pstat-fill--opt\{ background:var\(--wakaba\); opacity:\.42; \}/);
+  /* 黄色は見出しの色として残す。見出しと進みぐあいは役割がちがう */
+  assert.match(STYLE, /\.sec-opt\s+\.sec-head\{ background:var\(--himawari\); \}/);
+  assert.doesNotMatch(STYLE, /\.pstat-fill--opt\{ background:var\(--himawari\)/);
+});
+
+/* ネコの帯が見出しのブロックと同じこげ茶で、やわらかさが出ていなかった。
+   帯だけテーマで色を変えられるようにし、白い字が読める明るさに収める。 */
+test('帯の色はテーマごとに変えられ、ネコは見出しと別の色にする', ()=>{
+  assert.match(STYLE, /background:var\(--band, var\(--ai\)\);/,
+    '既定は見出しと同じ --ai にたおすこと');
+  const tokens = fs.readFileSync(path.join(ROOT, 'tokens.css'), 'utf8');
+  assert.match(tokens, /--band:oklch\(46% \.075 48\);/);
+  assert.match(tokens, /--cat-band-mark:/);
+  /* 肉球は帯の上に置くので、帯用の色を使うこと */
+  assert.match(STYLE, /\[data-theme="cat"\] \.topband-mark\{[\s\S]{0,120}background:var\(--cat-band-mark\);/);
 });
