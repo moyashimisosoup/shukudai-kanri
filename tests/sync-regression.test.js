@@ -44,7 +44,7 @@ const APP_NAMES = [
   'pickStamped', 'mergeProgress', 'mergeState', 'resetState',
   'canon', 'sameState', 'stripLocal', 'cacheBustURL', 'homeInstallPlatform', 'clamp', 'dailyCountSelection',
   'parentShareSummary', 'defaultTitleFor', 'isGeneratedTitle', 'logByLabel',
-  'isBook', 'isSheetCount', 'countUsesCircle'
+  'isBook', 'isSheetCount', 'countUsesCircle', 'bookCountUnit', 'bookOrdinal'
 ];
 const appFns = new Function('location', `
   const SCHEMA=6, TRASH_MAX=50, GONE_MAX=300, MESSAGES_MAX=3, READS_MAX=400;
@@ -188,10 +188,21 @@ test('読書と枚数の記録は丸数字を使わず、数える単位を質�
   assert.equal(appFns.countUsesCircle({type:'count', recordStyle:'book', numbered:true, unit:'さつ'}), false);
   assert.match(APP, /何.*unitAdult.*目までやった？/,
     '枚で数える記録では何枚目までかを尋ねること');
-  assert.match(APP, /何冊目の本？[\s\S]*\$\{nth\}冊目/,
-    '読書の記録では何冊目かを示すこと');
-  assert.match(APP, /book-no">\$\{b\.nth\}冊/,
-    '保護者の読書一覧は1冊、2冊と表示すること');
+  assert.equal(appFns.bookCountUnit(false, 0), 'さつ');
+  assert.equal(appFns.bookCountUnit(false, 2), 'さつ');
+  assert.equal(appFns.bookCountUnit(false, 9), '冊');
+  assert.equal(appFns.bookCountUnit(true, 0), '冊');
+  assert.equal(appFns.bookOrdinal(10, false, 0), '10さつ目');
+  assert.equal(appFns.bookOrdinal(10, false, 9), '10冊目');
+  assert.equal(appFns.bookOrdinal(10, true, 0), '10冊目');
+  assert.doesNotMatch(APP, /何冊目の本？/,
+    '読書シートで何冊目かを重ねて尋ねないこと');
+  assert.match(APP, /book-nth"><strong>\$\{bookOrdinal\(nth\)\}の本/,
+    '子どもの読書シートは「10冊目の本」の形で示すこと');
+  assert.match(APP, /book-no">\$\{bookOrdinal\(b\.nth, true\)\}/,
+    '保護者の読書一覧は1冊目、2冊目と表示すること');
+  assert.match(APP, /book-no">\$\{bookOrdinal\(b\.nth\)\}/,
+    '子どもの読書一覧は漢字設定に応じて冊目・さつ目を出すこと');
 });
 
 test('初期タイトルは子どもの名前に合わせ、未入力ならしゅくだいノートにする', ()=>{
@@ -338,6 +349,12 @@ test('メッセージと注意事項のUIは狭幅・横幅の役割を分ける
   assert.match(APP, /confirmShareSafety\(\)/, '接続前にも注意事項を確認すること');
   assert.match(APP, /id="welcomeCode"[\s\S]{0,900}privacyNoteHTML\(\)/,
     '初期設定では合言葉欄の直後に注意事項を置くこと');
+  assert.match(APP, /どの端末からも更新が90日間ない場合、管理者の確認後に削除します/,
+    '共有データの手動削除条件を登録時に明記すること');
+  assert.match(APP, /見るだけでは期間は延びません。端末だけで使うデータは対象外です/,
+    '閲覧と端末内利用を90日の対象から区別すること');
+  assert.match(STYLE, /\.set-note\.retention-note\{[\s\S]{0,100}font-size:12px/,
+    '登録画面を圧迫しない小さな注記にすること');
   assert.match(APP, /id="logCareSection"[\s\S]{0,160}class="paper log-care-paper"/,
     '記録の手入れの内側だけに、ほかの設定枠と同じ余白を設けること');
 });
@@ -967,18 +984,24 @@ test('既存のグループに入るときは、名前と漢字の設定を任�
   assert.match(make('parent', true, 'join'), /合言葉を確認すると、共有中のお子さんの名前と漢字設定を表示します/,
     '参加する保護者には、接続先の設定を表示すると示す');
   assert.doesNotMatch(make('parent', true, 'create'), /合言葉を確認すると/,
-    '新しく作るときは名前が要る');
+    '新しく作る経路には既存グループの確認案内を出さない');
   assert.match(make('child', true), /あいことばを かくにんすると/, '共有へ入る子どもにも取得を示す');
   assert.doesNotMatch(make('child', false), /あいことばを かくにんすると/,
-    'この端末だけで使うときは名前が要る');
+    'この端末だけで使う経路には合言葉の確認案内を出さない');
+  assert.match(make('parent', true, 'create'), /子どもの名前（任意）/);
+  assert.match(make('parent', true, 'join'), /子どもの名前（任意）/);
+  assert.match(make('child', false), /なまえ（入れなくても いいよ）/);
+  assert.match(make('child', true), /なまえ（入れなくても いいよ）/);
 
-  /* 空のまま進めてもグループの設定を壊さないこと */
+  /* どの経路でも名前は任意。新規作成では空欄を実際の設定にも保存する */
   const start = APP.slice(APP.indexOf('start.addEventListener'), APP.indexOf('function bindStats'));
   assert.match(start, /const joining = sharing && \(role === 'child' \|\| !creating\)/);
-  assert.match(start, /if\(!name && !joining\)\{ toast\('なまえを 入れてください'\)/,
-    '参加する経路では、名前が空でも進める');
-  assert.match(start, /if\(name && !joining\)\{\s*config\.childName = name;/,
-    '参加時の変更はグループ設定の初回受信後まで保留する');
+  assert.doesNotMatch(start, /なまえを 入れてください/,
+    '新規作成・端末だけで使う場合も名前を必須にしない');
+  assert.match(start, /if\(!joining\)\{\s*config\.childName = name;/,
+    '新規作成時は空欄も設定へ反映する');
+  assert.match(start, /localStorage\.removeItem\(K_NAME\)/,
+    '空欄へ戻したとき端末に古い名前を残さない');
 });
 
 test('既存グループへの参加は読み取り確認後だけ許可し、接続先の設定を表示する', ()=>{
@@ -1078,6 +1101,20 @@ test('ホーム画面アイコンは不透明PNGを持ち、ねこテーマの�
   assert.equal(png.readUInt32BE(16), 180, '180×180 であること');
   assert.equal(png.readUInt32BE(20), 180);
   assert.equal(png[25], 2, 'アルファ無し（不透明）の truecolor であること');
+});
+
+test('起動時は白画面の代わりに段階式の読み込み表示を出す', ()=>{
+  const index = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.match(index, /id="bootProgress"[\s\S]{0,300}読み込み中…[\s\S]{0,300}role="progressbar"/,
+    'JavaScriptを待つ間もHTMLだけで読み込み表示が見えること');
+  assert.match(index, /window\.natsuBootProgress\(88, 'この端末の記録を読み込んでいます'\)/,
+    '実際に終わった読込段階に合わせて表示を進めること');
+  assert.match(APP, /natsuBootProgress\(100, '表示します'\)/,
+    '通常画面へ切り替える直前に完了を通知すること');
+  assert.match(index, /fonts\.googleapis\.com[^>]+media="print"[^>]+onload="this\.media='all'"/,
+    'Webフォントの通信で初期描画を止めないこと');
+  assert.match(STYLE, /\.boot-track i::after[\s\S]{0,180}animation:boot-shimmer/,
+    '待機中だと分かる軽量なCSSアニメーションを使うこと');
 });
 
 test('ねこテーマの飾りは paw.svg のまま残す', ()=>{

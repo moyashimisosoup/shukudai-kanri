@@ -1143,7 +1143,15 @@ function streakLabelKanji(p){
   return p.isDone ? '' : '昨日できた';
 }
 
-function nextLabel(task){
+function bookCountUnit(adult, grade){
+  const g = grade == null ? readingGrade() : Number(grade);
+  return adult || g === 9 ? '冊' : 'さつ';
+}
+function bookOrdinal(n, adult, grade){
+  return String(n) + bookCountUnit(adult, grade) + '目';
+}
+
+function nextLabel(task, adult){
   const p = prog(task);
   if(p.isDone) return null;
   // 番号（段階）が ぜんぶ おわったら、さいごの2段階を 出す
@@ -1153,7 +1161,7 @@ function nextLabel(task){
   }
   if(task.type === 'count'){
     const n = p.done + 1;
-    if(isBook(task)) return { lead:'つぎは', num:String(n), tail:'冊目' };
+    if(isBook(task)) return { lead:'つぎは', num:String(n), tail:bookCountUnit(adult)+'目' };
     return countUsesCircle(task)
       ? { lead:'つぎは', num: maru(n), tail:'' }
       : { lead:'つぎは', num: String(n), tail: (task.unit||'')+'め' };
@@ -1430,8 +1438,8 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
   if(role === 'parent'){
     const settingsBody = `
       ${creating ? '' : alreadySetNoteHTML('parent')}
-      <label class="lab">子どもの名前${creating ? '' : '（任意）'}
-        <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="${creating ? '例：はな' : '入力しなくてかまいません'}"></label>
+      <label class="lab">子どもの名前（任意）
+        <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="入力しなくてもかまいません"></label>
       <label class="lab">漢字は何年生の字まで読めますか？
         <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>
       ${deviceLabelFieldHTML('parent')}`;
@@ -1475,8 +1483,8 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
   const theme = welcomeThemeHTML(start);
   const settings = welcomeStepHTML(start + 1, 'なまえを 入れよう', `
     ${sharing ? alreadySetNoteHTML('child') : ''}
-    <label class="lab">なまえ${sharing ? '（入れなくても いいよ）' : ''}
-      <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="${sharing ? '入れなくても いいよ' : '例：はな'}"></label>
+    <label class="lab">なまえ（入れなくても いいよ）
+      <input id="welcomeName" type="text" value="${esc(name)}" autocomplete="name" placeholder="入れなくても いいよ"></label>
     <label class="lab">よめる かんじを えらぼう
       <select id="welcomeReading">${readingOptions(readingGrade())}</select></label>`);
   if(!sharing){
@@ -1533,7 +1541,8 @@ function privacyNoteHTML(){
   return `<aside class="privacy-note">
     <span><b>注意事項</b><small>合言葉と共有データの取り扱い</small></span>
     <button class="btn btn-sm btn-ghost" type="button" data-share-safety>内容を確認</button>
-  </aside>`;
+  </aside>
+  <p class="set-note retention-note">共有データは、どの端末からも更新が90日間ない場合、管理者の確認後に削除します。見るだけでは期間は延びません。端末だけで使うデータは対象外です。</p>`;
 }
 function shareSafetyText(){
   return [
@@ -1543,6 +1552,7 @@ function shareSafetyText(){
     '・QRコードや招待リンクを受け取った人は、グループの共有データに接続できます。信頼できる相手だけに渡してください。',
     '・名前・宿題・記録は、端末間で共有するためクラウドに保存されます。保存の前にこの端末で暗号化するため、保管しているサーバー側では中身を読めません。',
     '・鍵は合言葉から作られ、どこにも送られません。**合言葉をすべての端末で忘れると、クラウド上の記録は誰にも復元できません。** 大切な記録は「データ管理」から書き出して保管してください。',
+    '・共有データは、どの端末からも更新が90日間ない場合、管理者の確認後に削除します。画面を開いて見るだけでは期間は延びません。端末だけで使うデータは対象外です。',
     '・住所、学校名、連絡先など、知られて困る情報は入力しないでください。'
   ].join('\n');
 }
@@ -2151,17 +2161,18 @@ function viewBooks(){
   const done = tasks.reduce((a,t)=> a + prog(t).done, 0);
   const total = tasks.reduce((a,t)=> a + (t.total|0), 0);
 
+  const childBookUnit = bookCountUnit();
   const head = `
     <div class="paper parent-head">
       <div>
         <h2 style="font-size:24px">よんだ本</h2>
-        <p style="font-size:17px">ぜんぶで ${done}さつ　あと ${Math.max(0, total - done)}さつ</p>
+        <p style="font-size:17px">ぜんぶで ${done}${childBookUnit}　あと ${Math.max(0, total - done)}${childBookUnit}</p>
       </div>
       <a class="btn btn-sm" href="#home">もどる</a>
     </div>`;
 
   if(!rows.length){
-    return head + `<div class="paper"><p class="empty">まだ 1さつも きろくして いないよ。<br>
+    return head + `<div class="paper"><p class="empty">まだ 1${childBookUnit}も きろくして いないよ。<br>
       「のこりの しゅくだい」から きろくしてね。</p></div>`;
   }
 
@@ -2171,7 +2182,7 @@ function viewBooks(){
     ${rows.map(b=>`
       <article class="bookcard">
         <div class="bookcard-head">
-          <span class="book-no">${b.nth}冊</span>
+          <span class="book-no">${bookOrdinal(b.nth)}</span>
           <h3 class="bookcard-title">${esc(b.title)}</h3>
           <button class="btn btn-sm btn-ghost" data-open="${esc(b.taskId)}"
             data-book="${esc(b.id)}" type="button">なおす</button>
@@ -2567,7 +2578,7 @@ function viewParent(){
 
   const row = t=>{
     const p = prog(t);
-    const nx = nextLabel(t);
+    const nx = nextLabel(t, true);
     const next = p.isDone ? '完了'
       : (t.type === 'daily' ? (isFree(t) ? (p.done ? '本日記入済み' : '本日未記入')
                                          : '本日 ' + p.done + '/' + p.total + unitAdult(t.targetUnit))
@@ -3216,7 +3227,7 @@ function bookSectionHTML(){
     <div class="paper">
       ${rows.length ? rows.map(b=>`
         <div class="book-row">
-          <span class="book-no">${b.nth}冊</span>
+          <span class="book-no">${bookOrdinal(b.nth, true)}</span>
           <div class="book-main">
             <div class="book-title">${esc(b.title)}</div>
             <div class="book-sub">${[
@@ -3346,7 +3357,7 @@ function openBookSheet(t, p, editBookId){
   const val = k => esc(b ? (b[k] || '') : '');
 
   const body = `
-  <p class="book-nth"><span>何冊目の本？</span><strong>${nth}冊目</strong></p>
+  <p class="book-nth"><strong>${bookOrdinal(nth)}の本</strong></p>
 
   <div class="field">
     <span class="lab">本の なまえ<span class="need-mark">かならず 入れてね</span></span>
@@ -4238,8 +4249,8 @@ function viewConfig(){
   ${adultHeadHTML('config', '変更はすぐに保存されます。')}
 
   <section class="sec config-sec"><div class="sec-head"><h2>名前と画面の設定</h2></div><div class="paper">
-    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（グループで共有）</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
-    <p class="set-note">子どもの名前はここで入力・変更できます。共有中は、保護者・子どもの端末で同じ名前を表示します。</p>
+    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（任意・グループで共有）</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
+    <p class="set-note">入力しなくても使えます。共有中に入力した場合は、保護者・子どもの端末で同じ名前を表示します。</p>
     <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
     <p class="set-note">名前と読める漢字は、グループの設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
     <fieldset class="theme-picker"><legend>色とデザイン（グループで共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
@@ -4580,11 +4591,9 @@ function bindWelcomeStart(){
     const creating = start.dataset.creating === 'yes';
     const themeEl = $('input[name="welcomeTheme"]:checked', $('#welcomeForm'));
     const chosenTheme = themeEl && THEME_IDS.includes(themeEl.value) ? themeEl.value : config.theme;
-    /* すでに ある グループに 入る ときは、名前も 漢字の 設定も グループ側に ある。
-       ここで 空のまま 進めても、つないだ あとに グループの 設定が とどく。
-       名前を 入れた ときだけ グループの 設定として 書きかえる */
+    /* 名前は どの 経路でも 任意。すでに ある グループへ 入る ときは、
+       まず グループ側の 設定を受け取り、この画面で変えた場合だけ後から反映する。 */
     const joining = sharing && (role === 'child' || !creating);
-    if(!name && !joining){ toast('なまえを 入れてください'); $('#welcomeName').focus(); return; }
     if(sharing && !TEST_MODE && S && S.configured() && code.length < 8){ toast('あいことばを 8文字以上 入れてください'); if(codeEl) codeEl.focus(); return; }
     if(joining && !TEST_MODE && (!welcomeJoinVerified || welcomeJoinVerified.code !== code)){
       toast('先に合言葉の接続を確認してください');
@@ -4605,6 +4614,7 @@ function bindWelcomeStart(){
     if(devLabel) setLocal(K_DEVICE_LABEL, devLabel);
     else try{ localStorage.removeItem(K_DEVICE_LABEL); }catch(e){}
     if(name) setLocal(K_NAME, name);
+    else try{ localStorage.removeItem(K_NAME); }catch(e){}
     setLocal(K_ROLE, role);
     setLocal(K_READING, grade);
     if(typeof setReadingGrade === 'function') setReadingGrade(grade);
@@ -4623,7 +4633,7 @@ function bindWelcomeStart(){
     }
     const oldName = config.childName;
     const titleWasGenerated = isGeneratedTitle(config.title, oldName);
-    if(name && !joining){
+    if(!joining){
       config.childName = name;
       if(titleWasGenerated) config.title = defaultTitleFor(name);
     }
@@ -5298,7 +5308,7 @@ function summaryLine(t){
   }
   if(p.isDone) return '✓ ' + t.name + '  ' + p.text + '  完了';
 
-  const nx = nextLabel(t);
+  const nx = nextLabel(t, true);
   const next = nx ? '  次は ' + (nx.num ? nx.num : '') + nx.tail : '';
   return '・' + t.name + '  ' + p.text + '  ' + pct + '%' + next;
 }
@@ -5944,6 +5954,7 @@ window.addEventListener('appinstalled', ()=>{
 loadAll();
 if(typeof setReadingGrade === 'function') setReadingGrade(readingGrade());
 tab = routeFromHash();
+if(typeof window.natsuBootProgress === 'function') window.natsuBootProgress(100, '表示します');
 render();
 
 })();
