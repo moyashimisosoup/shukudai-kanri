@@ -1,0 +1,146 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>かなにする — 話した言葉を、習った漢字だけで書きうつす</title>
+<meta name="description" content="声で入力した文章を、指定した学年までに習う漢字だけ残して、ほかをひらがなに直します。">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#1d3a52">
+<style>
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0; background:#eef4f8; color:#12293c;
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  font-size:17px; line-height:1.7;
+  display:flex; flex-direction:column;
+}
+header{
+  flex:none; background:#1d3a52; color:#fff;
+  padding:calc(env(safe-area-inset-top) + 12px) 16px 12px;
+}
+header h1{ margin:0; font-size:20px; font-weight:800; letter-spacing:.02em; }
+header p{ margin:4px 0 0; font-size:13px; color:#c6d7e4; }
+main{ flex:1 1 auto; overflow:auto; padding:16px; }
+.wrap{ max-width:1100px; margin:0 auto; display:grid; gap:16px; }
+@media (min-width:860px){ .wrap{ grid-template-columns:1fr 1fr; align-items:start; } .full{ grid-column:1 / -1; } }
+
+.card{ background:#fff; border:2px solid #1d3a52; border-radius:14px; padding:14px; }
+.card h2{ margin:0 0 8px; font-size:15px; font-weight:800; letter-spacing:.04em; }
+.note{ margin:8px 0 0; font-size:13px; line-height:1.65; color:#4a6377; }
+.note b{ color:#12293c; }
+
+/* 書きたいことを たっぷり 打てるように、入力欄は 大きく とる */
+textarea{
+  width:100%; min-height:min(46vh,420px); resize:vertical;
+  padding:12px; font:inherit; font-size:18px; line-height:1.9;
+  color:inherit; background:#fdfefe;
+  border:2px solid #9db4c6; border-radius:10px;
+}
+textarea:focus,select:focus,button:focus-visible{ outline:3px solid #2f7fbf; outline-offset:2px; }
+#out{ background:#f7fbfd; }
+
+.row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+.row--end{ justify-content:flex-end; }
+label.field{ display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; }
+select{
+  font:inherit; font-size:16px; padding:7px 10px;
+  border:2px solid #9db4c6; border-radius:10px; background:#fff; color:inherit;
+}
+button{
+  font:inherit; font-weight:800; cursor:pointer;
+  padding:10px 16px; min-height:44px;
+  border:2px solid #1d3a52; border-radius:10px;
+  background:#fff; color:#1d3a52;
+}
+button.primary{ background:#1d3a52; color:#fff; }
+button.rec{ background:#a8322f; border-color:#a8322f; color:#fff; }
+button[disabled]{ opacity:.45; cursor:default; }
+.status{ margin:10px 0 0; font-size:14px; font-weight:700; min-height:1.7em; }
+.status.err{ color:#a8322f; }
+mark.kj-x{ background:#ffe9a8; border-radius:3px; padding:0 1px; }
+.preview{
+  margin-top:10px; padding:10px; font-size:16px; line-height:1.9;
+  background:#f7fbfd; border:2px dashed #9db4c6; border-radius:10px;
+  white-space:pre-wrap; word-break:break-word;
+}
+footer{
+  flex:none; padding:12px 16px calc(env(safe-area-inset-bottom) + 14px);
+  font-size:12px; line-height:1.7; color:#4a6377; text-align:center;
+}
+footer a{ color:inherit; }
+.part{ display:inline-block; white-space:nowrap; }
+.part + .part::before{ content:"・"; }
+</style>
+</head>
+<body>
+<header>
+  <h1>かなにする</h1>
+  <p>話した言葉を、習った漢字だけ残して書きうつす</p>
+</header>
+
+<main>
+<div class="wrap">
+
+  <section class="card full">
+    <h2>つかいかた</h2>
+    <p class="note">
+      レポートや感想に書きたいことを、声でメモしてから紙に書きうつすための道具です。
+      入力した文のうち、<b>選んだ学年までに習う漢字はそのまま残し</b>、それより先に習う漢字を
+      ひらがなに直します。送りがなごと直るので（例：面白かった→おもしろかった）、そのまま書きうつせます。
+    </p>
+    <p class="note">
+      変換には日本語の辞書を使います。<b>はじめの1回だけ約18MBを読み込みます</b>（2回目からは端末に残るので、通信なしで使えます）。
+      入力した文はこの端末の中だけで処理し、どこにも送りません。
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>1. 書きたいことを入れる</h2>
+    <label class="field" style="margin-bottom:8px">
+      <span>のこす漢字</span>
+      <select id="grade">
+        <option value="0">ぜんぶ ひらがなにする</option>
+        <option value="1">小学1年までの漢字をのこす</option>
+        <option value="2" selected>小学2年までの漢字をのこす</option>
+        <option value="9">直さない（そのまま）</option>
+      </select>
+    </label>
+    <textarea id="src" placeholder="ここに入力するか、下の「声で入れる」を押してください。" autocapitalize="off" spellcheck="false"></textarea>
+    <div class="row">
+      <button id="mic" type="button">🎤 声で入れる</button>
+      <button id="clear" type="button">消す</button>
+      <span id="micNote" class="note"></span>
+    </div>
+    <div class="row row--end">
+      <button id="go" class="primary" type="button">かなにする</button>
+    </div>
+    <p id="status" class="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card">
+    <h2>2. 書きうつす</h2>
+    <textarea id="out" readonly placeholder="ここに結果が出ます。"></textarea>
+    <div class="row row--end">
+      <button id="copy" type="button">コピー</button>
+    </div>
+    <h2 style="margin-top:14px">まだ習っていない漢字</h2>
+    <p class="note">辞書が読み込めないときでも、印だけはすぐ出ます。</p>
+    <div id="marks" class="preview" aria-live="polite"></div>
+  </section>
+
+</div>
+</main>
+
+<footer>
+  <span class="part">「かなにする」 &copy; 2026 moyashimisosoup</span>
+  <span class="part"><a href="https://github.com/moyashimisosoup/shukudai-notebook" target="_blank" rel="noopener">ソースとライセンス</a></span>
+  <span class="part">コード Apache-2.0 ／ 画面の文 CC BY 4.0</span>
+</footer>
+
+<script src="assets/kanji.js?v=20260811q"></script>
+<script src="assets/kana.js?v=20260811q"></script>
+</body>
+</html>

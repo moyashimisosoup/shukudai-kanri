@@ -1650,3 +1650,35 @@ test('最下部のクレジットは、意味のかたまりで折り返す', ()
   assert.match(f, /CREDIT\.author/);
   assert.match(f, /CREDIT\.url/);
 });
+
+/* 「かなにする」単体ページ。しゅくだいノートとは別の読みもので、
+   共有も記録もしない。使うのは kanji.js だけ。 */
+test('かなにするページは、記録も共有もしない', ()=>{
+  const html = fs.readFileSync(path.join(ROOT, 'kana.html'), 'utf8');
+  const js = fs.readFileSync(path.join(ROOT, 'assets', 'kana.js'), 'utf8');
+  /* 同期・保存の仕組みを持ちこまないこと */
+  assert.doesNotMatch(html, /sync\.js|app\.js|data\.js/, '本体のスクリプトを読まないこと');
+  assert.doesNotMatch(js, /localStorage|NatsuSync|firebase/i, '端末にもクラウドにも残さないこと');
+  assert.match(html, /assets\/kanji\.js/);
+  assert.match(html, /assets\/kana\.js/);
+  /* 入れた文をどこにも送らないと書いてあること */
+  assert.match(html, /どこにも送りません/);
+  /* 辞書は18MB。はじめの1回だけであることを先に伝える */
+  assert.match(html, /約18MB/);
+  /* 独自のクレジット。別の主体として名のる */
+  assert.match(html, /「かなにする」/);
+  assert.match(html, /Apache-2\.0/);
+  assert.match(html, /CC BY 4\.0/);
+});
+
+test('かなにするページは、辞書が無くても印だけは出す', ()=>{
+  const js = fs.readFileSync(path.join(ROOT, 'assets', 'kana.js'), 'utf8');
+  /* 印は辞書なしで出せる。学年を変えたらすぐ反映する */
+  assert.match(js, /gradeSel\.addEventListener\('change', applyGrade\)/);
+  assert.match(js, /src\.addEventListener\('input', renderMarks\)/);
+  assert.match(js, /markUnlearnedHTML\(text\)/);
+  /* 変換に失敗しても、元の文と印は残して手直しできるようにする */
+  assert.match(js, /if\(!r\.ok\)\{[\s\S]{0,260}手で直してください/);
+  /* 18MB の進み具合を出す。出さないと止まったのか待てばよいのか分からない */
+  assert.match(js, /setDictProgress/);
+});
