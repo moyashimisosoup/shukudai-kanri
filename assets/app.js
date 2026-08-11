@@ -4136,7 +4136,7 @@ function taskGroupHTML(rows, empty){
 }
 
 /* 宿題の欄は4つとも この1つの型で 組む。
-   案内 →（毎日の項目だけ スイッチ）→ 一覧 → 追加ボタン、の順。
+   案内（必要な欄だけ）→（毎日の項目だけ スイッチ）→ 一覧 → 追加ボタン、の順。
 
    追加ボタンを 紙の中の いちばん下に 置くのは、押したとき どの欄に
    足されるのかを ボタンの 居場所そのもので 示すため。
@@ -4149,7 +4149,7 @@ function taskSectionHTML(o){
     <div class="sec-head"><h2>${esc(o.title)}</h2><span class="sec-note">${o.rows.length}件</span></div>
     <div class="paper task-settings">
       ${o.head || ''}
-      <p class="config-section-note">${esc(o.note)}</p>
+      ${o.note ? `<p class="config-section-note">${esc(o.note)}</p>` : ''}
       <div class="task-editor" id="${o.editorId}">${taskGroupHTML(o.rows, o.empty)}</div>
       <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="${o.addId}" type="button">${icon('plus')}<span>${esc(o.addLabel)}</span></button></div>
     </div>
@@ -4217,7 +4217,7 @@ function viewTasks(){
   /* 「子ども画面に表示する」は 毎日の項目 だけの もの。
      ほかの3つには 対応する 切りかえが 無いので、この欄にだけ 足す */
   const dailySwitch = `<label class="daily-switch"><input type="checkbox" id="cfgShowDaily"${config.showDaily?' checked':''}>
-        <span><strong>子ども画面に表示する</strong><small>学習アプリ・音読・お手伝いなどに使えます。</small></span></label>`;
+        <span><strong>子ども画面に表示する</strong><small>学習アプリ・音読・おてつだい・日記やメモなどに使えます。</small></span></label>`;
   return `
   ${adultHeadHTML('tasks', '変更はすぐに保存されます。')}
 
@@ -4238,7 +4238,6 @@ function viewTasks(){
 
   ${taskSectionHTML({
     title:'毎日の項目', rows:daily, editorId:'dailyTaskEditor', head:dailySwitch,
-    note:'学習アプリ・音読・お手伝いなど、毎日くりかえす項目です。上へ・下へで順番を変更できます。',
     empty:'毎日の項目はまだありません。', addId:'addDailyTask', addLabel:'毎日の項目を追加' })}
 
   ${creditHTML()}
