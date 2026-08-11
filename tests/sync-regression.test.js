@@ -1207,7 +1207,7 @@ test('設定ページの束ねは、欄が無いページでも止まらない',
   assert.doesNotMatch(bind, /\$\('#[A-Za-z][\w-]*'\)\.addEventListener/,
     '片方のページにしか無い欄を直に束ねないこと（null で以降が全部止まる）');
   /* 宿題ページ側の欄 */
-  ['#cfgShowDaily','#addNormalTask','#addBookTask','#addDailyTask'].forEach(sel=>{
+  ['#cfgShowDaily','#addMustTask','#addOptionTask','#addBookTask','#addDailyTask'].forEach(sel=>{
     assert.match(bind, new RegExp("on\\('" + sel + "'"), sel + ' は on() で束ねること');
   });
   /* 設定ページ側の欄 */
@@ -1790,4 +1790,37 @@ test('かなにするページは、小1から小6まで選べる', ()=>{
   }
   /* 初期値は小2のまま。本体の想定読者と揃えておく */
   assert.match(html, /<option value="2" selected>/);
+});
+
+/* 「宿題を追加」が 必ず行う宿題の下に 1つだけ 出ていて、押すと
+   次に行う宿題に 足されていた。見えている場所と 足される場所が
+   ちがうと、画面から 直しかたが 読みとれない。 */
+test('宿題の4つの欄は、同じ骨組みで組む', ()=>{
+  const view = grab(APP, 'viewTasks');
+  const sec = grab(APP, 'taskSectionHTML');
+
+  /* 欄ごとに手で組むと、また片方だけ揃わなくなる。型は1つ */
+  assert.equal((view.match(/taskSectionHTML\(\{/g) || []).length, 4,
+    '4つの欄はすべて taskSectionHTML で組むこと');
+  assert.doesNotMatch(view, /class="paper task-editor"/,
+    '欄ごとに紙を手で組まないこと');
+
+  /* 追加ボタンは 紙の中の 末尾。どの欄に足されるかを 居場所で示す */
+  const order = ['o.head', 'config-section-note', 'task-editor', 'set-actions'];
+  let at = -1;
+  for(const part of order){
+    const next = sec.indexOf(part);
+    assert.ok(next > at, part + ' の位置が違う');
+    at = next;
+  }
+  /* 件数の出しかたも4つで揃える */
+  assert.match(sec, /o\.rows\.length\}件/);
+});
+
+test('宿題を足すと、押したボタンの欄に入る', ()=>{
+  const bind = grab(APP, 'bindConfig');
+  /* group を決め打ちせず、押したボタンから受けとること */
+  assert.match(bind, /function addNormalTask\(group\)\{[\s\S]{0,200}id: 't' \+ Date\.now\(\), group,/);
+  assert.match(bind, /on\('#addMustTask',\s*'click',\s*\(\)=>addNormalTask\('must'\)\)/);
+  assert.match(bind, /on\('#addOptionTask',\s*'click',\s*\(\)=>addNormalTask\('option'\)\)/);
 });

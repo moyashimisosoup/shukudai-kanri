@@ -628,10 +628,6 @@ button{ font:inherit; color:inherit; }
   background:var(--wakaba-usu); border:2px solid var(--wakaba);
   border-radius:var(--r-pill); padding:4px 10px; white-space:nowrap;
 }
-.config-lead{
-  color:var(--ai-usu); font-size:15px; font-weight:700; line-height:1.65;
-  padding-inline:var(--space-xs);
-}
 .config-section-note{
   margin:0; padding:14px 16px;
   color:var(--ai-usu); background:var(--asagao-usu);
@@ -693,7 +689,11 @@ button{ font:inherit; color:inherit; }
 .set-task-actions{ display:flex; align-items:center; gap:8px; padding-top:16px; }
 .set-task-actions .btn:last-child{ margin-inline-start:auto; }
 .set-empty{ padding:22px 16px; color:var(--ai-usu); font-size:15px; font-weight:700; }
-.daily-settings{ overflow:clip; }
+/* 宿題の4つの欄は、同じ紙の中に 案内・一覧・追加ボタンを まとめる。
+   角を丸めた紙から 中身がはみ出さないように clip する */
+.task-settings{ overflow:clip; }
+/* 追加ボタンは その欄の 末尾。上の一覧と 地続きに 見えないよう 線で 区切る */
+.task-settings > .set-actions{ border-top:2px dashed var(--hougan); }
 .daily-switch{
   display:flex; gap:12px; align-items:flex-start; padding:16px;
   background:var(--asagao-usu); border-bottom:2px dashed var(--asagao); cursor:pointer;

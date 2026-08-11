@@ -4031,6 +4031,27 @@ function taskGroupHTML(rows, empty){
   return rows.length ? rows.map(({t,i})=>taskEditorRow(t,i)).join('') : `<p class="set-empty">${esc(empty)}</p>`;
 }
 
+/* 宿題の欄は4つとも この1つの型で 組む。
+   案内 →（毎日の項目だけ スイッチ）→ 一覧 → 追加ボタン、の順。
+
+   追加ボタンを 紙の中の いちばん下に 置くのは、押したとき どの欄に
+   足されるのかを ボタンの 居場所そのもので 示すため。
+   前は「必ず行う宿題」の 紙の外に 1つだけ 出ていて、しかも 押すと
+   「次に行う宿題」に 足されていた。見えている場所と 足される場所が
+   ちがうと、どう直せばよいか 画面から 読みとれない。 */
+function taskSectionHTML(o){
+  return `
+  <section class="sec config-sec">
+    <div class="sec-head"><h2>${esc(o.title)}</h2><span class="sec-note">${o.rows.length}件</span></div>
+    <div class="paper task-settings">
+      ${o.head || ''}
+      <p class="config-section-note">${esc(o.note)}</p>
+      <div class="task-editor" id="${o.editorId}">${taskGroupHTML(o.rows, o.empty)}</div>
+      <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="${o.addId}" type="button">${icon('plus')}<span>${esc(o.addLabel)}</span></button></div>
+    </div>
+  </section>`;
+}
+
 /* 保護者ページの 使い方の 案内。
    ずっと 出していると 画面の 上ばかり とるので、読んだら 消せるように する。
    消した ことは この端末に だけ のこす（グループの 設定に 入れると、
@@ -4089,32 +4110,32 @@ function viewTasks(){
   const option = rows.filter(({t})=>taskKind(t)==='normal' && t.group !== 'must');
   const books  = rows.filter(({t})=>taskKind(t)==='book');
   const daily  = rows.filter(({t})=>taskKind(t)==='daily');
+  /* 「子ども画面に表示する」は 毎日の項目 だけの もの。
+     ほかの3つには 対応する 切りかえが 無いので、この欄にだけ 足す */
+  const dailySwitch = `<label class="daily-switch"><input type="checkbox" id="cfgShowDaily"${config.showDaily?' checked':''}>
+        <span><strong>子ども画面に表示する</strong><small>学習アプリ・音読・お手伝いなどに使えます。</small></span></label>`;
   return `
   ${adultHeadHTML('tasks', '変更はすぐに保存されます。')}
 
-  <section class="sec config-sec"><div class="sec-head"><h2>必ず行う宿題</h2><span class="sec-note">${must.length}件</span></div>
-    <div class="paper task-editor" id="normalTaskEditor"><p class="config-section-note">子ども画面の「かならず やる」に出ます。上へ・下へで順番を変更できます。「表示する場所」を変えると、下の「次に行う宿題」へ移ります。</p>${taskGroupHTML(must,'まだ項目はありません。')}</div>
-    <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addNormalTask" type="button">${icon('plus')}<span>宿題を追加</span></button></div>
-  </section>
+  ${taskSectionHTML({
+    title:'必ず行う宿題', rows:must, editorId:'mustTaskEditor',
+    note:'子ども画面の「かならず やる」に出ます。上へ・下へで順番を変更できます。「表示する場所」を変えると、下の「次に行う宿題」へ移ります。',
+    empty:'まだ項目はありません。', addId:'addMustTask', addLabel:'必ず行う宿題を追加' })}
 
-  <section class="sec config-sec"><div class="sec-head"><h2>次に行う宿題</h2><span class="sec-note">${option.length}件</span></div>
-    <div class="paper task-editor" id="optionTaskEditor"><p class="config-section-note">必ず行う宿題が終わってから取り組む欄です。進みぐあいの判定には数えません。</p>${taskGroupHTML(option,'まだ項目はありません。')}</div>
-  </section>
+  ${taskSectionHTML({
+    title:'次に行う宿題', rows:option, editorId:'optionTaskEditor',
+    note:'必ず行う宿題が終わってから取り組む欄です。進みぐあいの判定には数えません。',
+    empty:'まだ項目はありません。', addId:'addOptionTask', addLabel:'次に行う宿題を追加' })}
 
-  <section class="sec config-sec"><div class="sec-head"><h2>読書の記録</h2><span class="sec-note">${books.length}件</span></div>
-    <div class="paper task-editor" id="bookTaskEditor"><p class="config-section-note">本の名前・読んだ日・一言を1冊ずつ残す読書専用の項目です。上へ・下へで順番を変更できます。</p>${taskGroupHTML(books,'読書の記録を使わないときは、空のままで構いません。')}</div>
-    <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addBookTask" type="button">${icon('plus')}<span>読書を追加</span></button></div>
-  </section>
+  ${taskSectionHTML({
+    title:'読書の記録', rows:books, editorId:'bookTaskEditor',
+    note:'本の名前・読んだ日・一言を1冊ずつ残す読書専用の項目です。上へ・下へで順番を変更できます。',
+    empty:'読書の記録を使わないときは、空のままで構いません。', addId:'addBookTask', addLabel:'読書を追加' })}
 
-  <section class="sec config-sec"><div class="sec-head"><h2>毎日の項目</h2><span class="sec-note">学習アプリなど</span></div>
-    <div class="paper daily-settings">
-      <label class="daily-switch"><input type="checkbox" id="cfgShowDaily"${config.showDaily?' checked':''}>
-        <span><strong>子ども画面に表示する</strong><small>学習アプリ・音読・お手伝いなどに使えます。</small></span></label>
-      <p class="config-lead">上へ・下へで順番を変更できます。</p>
-      <div class="task-editor" id="dailyTaskEditor">${taskGroupHTML(daily,'毎日の項目はまだありません。')}</div>
-      <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="addDailyTask" type="button">${icon('plus')}<span>毎日の項目を追加</span></button></div>
-    </div>
-  </section>
+  ${taskSectionHTML({
+    title:'毎日の項目', rows:daily, editorId:'dailyTaskEditor', head:dailySwitch,
+    note:'学習アプリ・音読・お手伝いなど、毎日くりかえす項目です。上へ・下へで順番を変更できます。',
+    empty:'毎日の項目はまだありません。', addId:'addDailyTask', addLabel:'毎日の項目を追加' })}
 
   ${creditHTML()}
   `;
@@ -5085,15 +5106,19 @@ function bindConfig(){
   });
   }
 
-  on('#addNormalTask', 'click', ()=>{
+  /* 押したボタンの 欄に 足す。group を まちがえると、足したものが
+     別の欄に 現れて「追加できていない」ように 見える */
+  function addNormalTask(group){
     const added = {
-      id: 't' + Date.now(), group:'option', type:'count',
+      id: 't' + Date.now(), group, type:'count',
       name:'あたらしい しゅくだい', total:10, unit:'かい', numbered:false,
       memoLabel:'やったことを かこう'
     };
     config.tasks.push(added); openConfigTaskId = added.id;
     saveCfg(); render({ keepScroll:true });
-  });
+  }
+  on('#addMustTask',   'click', ()=>addNormalTask('must'));
+  on('#addOptionTask', 'click', ()=>addNormalTask('option'));
   on('#addBookTask', 'click', ()=>{
     const added = { id:'book-'+Date.now(), group:'must', type:'count', recordStyle:'book',
       name:'読書の きろく', total:10, unit:'さつ', numbered:true,
