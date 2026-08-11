@@ -1273,3 +1273,15 @@ devices更新・snapshot・Function自身の書き戻しは活動に数えない
 - 必須宿題・任意宿題・読書課題のカードは、課題全体が完了したときの印を
   `できた！` から `ぜんぶできた！` に変更した。
 - 毎日の項目は1日ごとの達成を表すため、従来どおり `できた！` のままにした。
+
+## 2026-08-11 Codex追記（公開状況と次セッションの未検討事項）
+
+- 文言変更の公開コミットは `62157b3`（`Show full completion on task cards`）。
+  `public-households/main`（shukudai-notebook）と `origin/main`（shukudai-kanri）の両方へ
+  push済み。`shukudai-kanri` のPagesは `20260811ad` の6資産を配信済み。
+- `shukudai-notebook` のPagesは同コミットのビルドが `building` のまま停滞している
+  （作成時刻: 2026-08-11T12:25:13Z、errorはnull）。次セッションの最初にビルド状態と
+  `https://moyashimisosoup.github.io/shukudai-notebook/` が `20260811ad` を返すか確認すること。
+- 未検討: 「今日はなんの日？」本文の漢字を、かな表示設定に合わせてひらがな化できるか、
+  またはふりがな（`ruby`）を付けられるか。既存のかな化の辞書・処理を再利用できるか、
+  固有名詞・年号・外来語の読みを含めて調査してから実装方針を決めること。
