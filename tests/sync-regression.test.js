@@ -514,26 +514,35 @@ test('ちがうあいことばにつなぐとき、設定の保存時刻を0に�
   function harness(rememberedHouse, joining){
     const store = { 'natsu.savedAt.v1': JSON.stringify({ config:9999, state:8888 }) };
     if(rememberedHouse) store['natsu.config.house.v1'] = rememberedHouse;
+    const st = { resetAt: 777 };
     const api = new Function('getLocal', 'setLocal', 'savedAt', 'localStorage',
-                             'K_AT', 'K_CFG_HOUSE', `
+                             'K_AT', 'K_CFG_HOUSE', 'K_ST', 'state', 'ms', `
       ${grab(APP, 'forgetConfigStampForNewHousehold')}
       return forgetConfigStampForNewHousehold;
     `)(
       k => store[k] || '', (k, v) => { store[k] = v; },
       () => JSON.parse(store['natsu.savedAt.v1'] || '{}'),
       { setItem:(k,v)=>{ store[k]=v; } },
-      'natsu.savedAt.v1', 'natsu.config.house.v1'
+      'natsu.savedAt.v1', 'natsu.config.house.v1', 'natsu.state.v2', st,
+      v => Number(v) || 0
     );
     api(joining);
-    return JSON.parse(store['natsu.savedAt.v1']);
+    return { at: JSON.parse(store['natsu.savedAt.v1']), resetAt: st.resetAt };
   }
 
-  assert.deepEqual(harness('', 'aaaaaaaaaaaaaaaa'), { state:8888 },
+  assert.deepEqual(harness('', 'aaaaaaaaaaaaaaaa').at, { state:8888 },
     'はじめて つなぐ ときは 設定の時刻を 落とす');
-  assert.deepEqual(harness('bbbbbbbbbbbbbbbb', 'aaaaaaaaaaaaaaaa'), { state:8888 },
+  assert.deepEqual(harness('bbbbbbbbbbbbbbbb', 'aaaaaaaaaaaaaaaa').at, { state:8888 },
     'べつの おうちに 移る ときも 落とす');
-  assert.deepEqual(harness('aaaaaaaaaaaaaaaa', 'aaaaaaaaaaaaaaaa'),
+  assert.deepEqual(harness('aaaaaaaaaaaaaaaa', 'aaaaaaaaaaaaaaaa').at,
     { config:9999, state:8888 }, '同じ おうちなら そのまま');
+
+  /* 「記録をすべて削除」の世代番号は、前のおうちあての印。
+     のこしたまま入ると、入った先のおうちの記録がまるごと捨てられる */
+  assert.equal(harness('bbbbbbbbbbbbbbbb', 'aaaaaaaaaaaaaaaa').resetAt, 0,
+    'べつのおうちに移るとき、消した世代番号は手放すこと');
+  assert.equal(harness('aaaaaaaaaaaaaaaa', 'aaaaaaaaaaaaaaaa').resetAt, 777,
+    '同じおうちなら、消したことは伝えつづけること');
 
   /* 記録（state）の時刻は落とさない。値ごとに時刻を持って合流するので、
      落とすと せっかくの 進みぐあいが 安全側に 倒れてしまう */
@@ -1409,11 +1418,20 @@ test('起動URLの古い招待より、人がえらんだ合言葉を優先す�
 
 /* 1台しかない状態で「つながっています」と出すと、もう相手がいるように読める */
 test('この端末だけのときは、待っていると書く', ()=>{
-  const f = grab(APP, 'syncSectionHTML');
-  assert.match(f, /S\.status\(\) === 'online' && S\.deviceCount\(\) <= 1/);
+  const f = grab(APP, 'syncStatusText');
+  assert.match(f, /status === 'online'[\s\S]{0,120}deviceCount\(\) <= 1/);
   assert.match(f, /ほかの端末を待っています/);
-  assert.match(f, /alone \? text : \(S\.statusText\(\) \|\| text\)/,
-    '1台のときは通信状態の文言に上書きさせないこと');
+  /* 文言は1か所だけ。以前は sync.js からの通知が #syncStatus を直接
+     書きかえていたので、描き直しで直してもすぐ元に戻った */
+  assert.match(grab(APP, 'syncSectionHTML'),
+    /id="syncStatus">\$\{esc\(syncStatusText\(S\.status\(\), S\.statusText\(\)\)\)\}/);
+  const bind = grab(APP, 'bindSync');
+  assert.match(bind, /el\.textContent = syncStatusText\(st, text\)/,
+    '通知の側も同じ関数を通すこと');
+  assert.match(bind, /onDeviceCount\([\s\S]{0,200}syncStatusText\(S\.status\(\), S\.statusText\(\)\)/,
+    '1台から2台になったら文言を出しなおすこと');
+  assert.equal((APP.match(/ほかの端末を待っています/g) || []).length, 1,
+    '文言は1か所にだけ書くこと');
 });
 
 /* 共有ずみの画面に出ている合言葉は「すでに使っているもの」。

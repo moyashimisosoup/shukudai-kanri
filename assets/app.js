@@ -488,9 +488,13 @@ function saveCfg(){
 
 /* よその おうち（または はずされる 前の 自分）で 保存した 時刻は、
    これから 入る おうちの 時刻と くらべても 意味が ない。
-   ちがう あいことばに つなぐ ときは 0 に もどし、おうちの 設定が
-   かならず 勝つようにする。もどさないと、よそで 保存した 古い 設定が
-   「新しい」と 判定され、おうち全体に 配られる。 */
+   ちがう あいことばに つなぐ ときは 0 に もどし、おうちの 中身が
+   かならず 勝つようにする。もどさないと、よそで 保存した 古い 内容が
+   「新しい」と 判定され、おうち全体に 配られる。
+
+   記録（state）の 時刻は 落とさない。記録は 値ごとに 時刻を 持って
+   合流する（mergeProgress）ので、ここで 落とす 必要が なく、
+   落とすと 安全側に 倒れすぎる。 */
 const K_CFG_HOUSE = TEST_MODE ? 'natsu.preview.config.house.v1' : 'natsu.config.house.v1';
 function forgetConfigStampForNewHousehold(code){
   const c = String(code || '');
@@ -498,6 +502,18 @@ function forgetConfigStampForNewHousehold(code){
   const a = savedAt();
   delete a.config;
   try{ localStorage.setItem(K_AT, JSON.stringify(a)); }catch(e){}
+  /* 「記録をすべて削除」の 世代番号（resetAt）も 落とす。
+
+     これは **前の おうちで 全部 消した**という 印で、これから 入る
+     おうちには 関係が ない。のこしたまま 入ると、mergeState が
+     「新しい世代は こちら」と 判断し、**入った先の おうちの 記録を
+     まるごと 捨てる**（左右の どちらかを emptyState() に する）。
+     設定は 受け取れているのに 記録だけ 来ない、という 形で 出る。
+     消したことを 伝えたい 相手は 前の おうちなので、ここで 手放す。 */
+  if(state && ms(state.resetAt)){
+    state.resetAt = 0;
+    try{ localStorage.setItem(K_ST, JSON.stringify(state)); }catch(e){}
+  }
   setLocal(K_CFG_HOUSE, c);
 }
 function saveSt(){
@@ -2681,6 +2697,19 @@ function parentMessageEditorHTML(){
 
 /* 「べつの端末と つなぐ」。あいことばを 親の端末で 作り、子の端末に 同じものを 入れる。
    Firebase を 設定していないうちは、その旨だけを 出す */
+/* 状態の 文言は ここだけ。描き直しと、sync.js からの 通知の
+   両方が つかう。以前は 通知の 側が #syncStatus を 直接 書きかえて
+   いたので、描き直しで 直しても すぐ 上書きされて 元に 戻った */
+function syncStatusText(status, text){
+  const S = window.NatsuSync;
+  const [mark, def] = SYNC_LABEL[status] || SYNC_LABEL.off;
+  /* この端末だけの ときに「つながっています」と 出すと、もう 相手が
+     いるように 読める。実際は 相手を 待っている 状態なので そう書く */
+  const alone = status === 'online' && S && typeof S.deviceCount === 'function'
+                && S.deviceCount() <= 1;
+  return mark + ' ' + (alone ? 'ほかの端末を待っています' : (text || def));
+}
+
 const SYNC_LABEL = {
   off:        ['—',  'つないでいません'],
   connecting: ['…',  'つないでいます'],
@@ -2851,7 +2880,7 @@ function deviceListHTML(){
           data-details-key を 付けないと、detailsKey() が 見出しの 文字を
           鍵に してしまい、同じ 文の 折りたたみが 巻きぞえで 開く */''}
     <details class="set-advanced sync-help" data-details-key="deviceHelp">
-      <summary>この一覧の見かた（呼び名・役割・解除）</summary>
+      <summary>この一覧の見かた</summary>
       <div class="set-advanced-body">
         <p class="set-note">「親」「子」は、それぞれの端末の「この端末は」で選んだ役割です。「未設定」の端末では、その端末の共有設定から選んでください。</p>
         <p class="set-note">使わなくなった端末は「解除」で共有から切り離せます。解除した端末は、次に開いたときに合言葉が消え、再接続には入力し直しが必要になります。LINEなどの一時的なブラウザで接続してしまい、その端末から操作できなくなったときに使ってください。記録そのものは消えません。</p>
@@ -2889,16 +2918,11 @@ function syncSectionHTML(opts){
   }
 
   const code = S.getCode();
-  let [mark, text] = SYNC_LABEL[S.status()] || SYNC_LABEL.off;
-  /* この端末だけの ときに「つながっています」と 出すと、もう 相手が
-     いるように 読める。実際は 相手を 待っている 状態なので そう書く */
-  const alone = S.status() === 'online' && S.deviceCount() <= 1;
-  if(alone) text = 'ほかの端末を待っています';
 
   return `
   <section class="sec" id="syncSection">
     <div class="sec-head"><h2>ほかの端末と共有</h2>
-      <span class="sec-note" id="syncStatus">${mark} ${esc(alone ? text : (S.statusText() || text))}</span></div>
+      <span class="sec-note" id="syncStatus">${esc(syncStatusText(S.status(), S.statusText()))}</span></div>
     <div class="paper">
       ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
       <p class="set-note">同じ「合言葉」を入力した複数の端末で、同じ記録と設定を共有できます。</p>
@@ -4741,13 +4765,15 @@ function bindSync(){
     S.onStatus((st, text)=>{
       const el = $('#syncStatus');
       if(!el) return;
-      const [mark, def] = SYNC_LABEL[st] || SYNC_LABEL.off;
-      el.textContent = mark + ' ' + (text || def);
+      el.textContent = syncStatusText(st, text);
     });
   }
   if(!bindSync._deviceWatching){
     bindSync._deviceWatching = true;
     S.onDeviceCount(count=>{
+      /* 1台→2台で「待っています」から「つながっています」に変わる */
+      const st = $('#syncStatus');
+      if(st) st.textContent = syncStatusText(S.status(), S.statusText());
       const el = $('#syncDeviceCount');
       if(el) el.textContent = '共有リンク・端末ごとの設定（設定済み：' + count + '台）';
     });
