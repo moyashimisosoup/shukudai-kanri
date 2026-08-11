@@ -1643,7 +1643,10 @@ test('最下部のクレジットは、意味のかたまりで折り返す', ()
   assert.equal((f.match(/class="credit-part"/g) || []).length, 3,
     '作品名と著作権表示・ライセンス・版の3つに分けること');
   assert.match(STYLE, /\.credit-part\{ display:inline-block; white-space:nowrap; \}/);
-  assert.match(STYLE, /\.credit-part \+ \.credit-part::before\{ content:"・"; \}/);
+  assert.match(f, /<br><span class="credit-part"><a /,
+    '著作権表示の後でライセンスを改行すること');
+  assert.doesNotMatch(STYLE, /\.credit-part \+ \.credit-part::before/,
+    'ライセンスとの間に中黒を表示しないこと');
   /* 表示義務のある中身は落とさないこと */
   assert.match(f, /CREDIT\.title/);
   assert.match(f, /CREDIT\.year/);
@@ -1823,4 +1826,41 @@ test('宿題を足すと、押したボタンの欄に入る', ()=>{
   assert.match(bind, /function addNormalTask\(group\)\{[\s\S]{0,200}id: 't' \+ Date\.now\(\), group,/);
   assert.match(bind, /on\('#addMustTask',\s*'click',\s*\(\)=>addNormalTask\('must'\)\)/);
   assert.match(bind, /on\('#addOptionTask',\s*'click',\s*\(\)=>addNormalTask\('option'\)\)/);
+});
+
+test('「よゆう」は全体と必須の両方が夏休みより大幅に進んだときだけ出す', ()=>{
+  const start = APP.indexOf('const PACE_MESSAGES');
+  const end = APP.indexOf('/* 夏休みの経過率', start);
+  const pace = new Function(APP.slice(start, end) + '; return { verdictOf, PACE_MESSAGES };')();
+
+  const roomy = pace.verdictOf(12, 10);
+  assert.equal(roomy.cls, 'v-good');
+  assert.ok(pace.PACE_MESSAGES.good.includes(roomy.msg));
+
+  /* 任意を進めて全体が先行しても、必須が夏休み経過に足りなければ必須優先。 */
+  const focus = pace.verdictOf(12, -1);
+  assert.equal(focus.cls, 'v-hmm');
+  assert.equal(focus.focusMust, true);
+  assert.ok(pace.PACE_MESSAGES.focus.includes(focus.msg));
+
+  /* 必須が少し先行しているだけでは「よゆう」とは言わない。 */
+  assert.notEqual(pace.verdictOf(18, 1).cls, 'v-good');
+});
+
+test('保護者ページは縦の余白を節約する表示になっている', ()=>{
+  const settings = grab(APP, 'viewParent');
+  const credit = grab(APP, 'creditHTML');
+
+  assert.match(settings, /parent-head-title"><h2>保護者用ページ<\/h2>\$\{parentShareBadgeHTML\(\)\}/,
+    '共有中バッジは保護者用ページと同じ行に置く');
+  assert.ok(settings.indexOf('<section class="paper pstat">') < settings.indexOf('${parentMessageEditorHTML()}'),
+    '夏休みの残りを子どもへのメッセージより先に置く');
+  assert.match(credit, /<br><span class="credit-part"><a /,
+    '著作権表示の後でライセンスを改行する');
+  assert.doesNotMatch(STYLE, /\.credit-part \+ \.credit-part::before/,
+    'クレジットの中黒を表示しない');
+  assert.match(STYLE, /\.set-task-summary strong\{[\s\S]*font-size:17px/);
+  assert.match(STYLE, /\.book-title\{ font-size:17px/);
+  assert.match(STYLE, /\.toast\{[\s\S]*font-size:16px/);
+  assert.match(STYLE, /\.parent-message-text textarea\{[\s\S]*height:48px[\s\S]*font-size:17px/);
 });

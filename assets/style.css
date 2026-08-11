@@ -403,7 +403,6 @@ button{ font:inherit; color:inherit; }
    意味の 切れない ところで 折り返す。かたまりごとに 分け、
    かたまりの 中では 折り返さない。行が 変わるのは 区切りの ところだけ */
 .credit-part{ display:inline-block; white-space:nowrap; }
-.credit-part + .credit-part::before{ content:"・"; }
 
 .stats-count{
   margin:12px 0 6px; padding:16px; text-align:center;
@@ -648,7 +647,7 @@ button{ font:inherit; color:inherit; }
 .set-task[open] > .set-task-summary::after{ content:"−"; }
 .set-task-summary strong{
   grid-column:2; grid-row:1; min-width:0;
-  font-size:18px; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-size:17px; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 [data-theme="cat"] .set-task-summary strong::before{
   content:""; display:inline-block; width:20px; height:20px;
@@ -1095,7 +1094,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   background:var(--ai); color:var(--kami);
 }
 .book-main{ flex:1; min-width:0; }
-.book-title{ font-size:19px; font-weight:900; word-break:break-word; }
+.book-title{ font-size:17px; font-weight:900; word-break:break-word; }
 .book-sub{ font-size:15px; font-weight:700; color:var(--ai-usu); margin-top:2px; }
 .book-memo{
   font-size:15px; margin-top:6px; color:var(--ai-usu);
@@ -1220,6 +1219,8 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   padding:16px 18px;
 }
 .parent-head > div{ flex:1 1 260px; }
+.parent-head-title{ display:flex; align-items:center; gap:8px; min-width:0; }
+.parent-head-title h2{ flex:none; }
 .parent-head h2{ font-size:21px; font-weight:900; }
 .parent-head p{ font-size:16px; font-weight:700; color:var(--ai-usu); }
 .parent-head .btn{ text-decoration:none; display:inline-flex; align-items:center; }
@@ -1290,7 +1291,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
      ただ たけを のばすだけ なので 出さない */
   .parent-head p{ display:none; }
   .parent-share-badge{
-    max-width:100%; margin-top:2px; padding:2px 7px 2px 3px;
+    flex:0 1 auto; min-width:0; max-width:100%; margin-top:0; padding:2px 7px 2px 3px;
     font-size:11px; line-height:1.35; white-space:nowrap;
   }
   .parent-share-mark{ padding:1px 5px; font-size:10px; }
@@ -1426,10 +1427,10 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 }
 .sender-custom[hidden]{ display:none; }
 .parent-message-text textarea{
-  height:56px; min-height:56px; max-height:180px;
-  resize:vertical; line-height:1.5; overflow-y:auto;
+  height:48px; min-height:48px; max-height:144px;
+  padding:9px 11px; font-size:17px; resize:vertical; line-height:1.45; overflow-y:auto;
 }
-.parent-message-send{ min-height:56px; align-self:end; white-space:nowrap; }
+.parent-message-send{ min-height:48px; align-self:end; white-space:nowrap; }
 .parent-message-help{ margin-bottom:0; }
 .parent-message-toggle{
   display:flex;
@@ -1459,7 +1460,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
     justify-self:start; align-self:end; margin:0 0 14px;
   }
   .parent-message-text{ grid-column:1 / -1; }
-  .parent-message-send{ grid-column:1 / -1; width:100%; min-height:48px; }
+  .parent-message-send{ grid-column:1 / -1; width:100%; min-height:44px; }
   .home-parent-message{ width:calc(100% - 16px); margin-top:8px; }
 }
 
@@ -1665,8 +1666,8 @@ body.no-tabbar{ padding-bottom:0; }
   position:fixed; left:50%; bottom:calc(104px + env(safe-area-inset-bottom));
   transform:translateX(-50%); z-index:70;
   background:var(--ai); color:var(--kami);
-  font-size:18px; font-weight:900;
-  padding:12px 24px; border-radius:999px;
+  font-size:16px; font-weight:900;
+  padding:10px 18px; border-radius:999px;
   box-shadow:0 4px 14px rgba(20,55,94,.3);
   animation:slideup .2s ease;
   max-width:88vw; text-align:center;

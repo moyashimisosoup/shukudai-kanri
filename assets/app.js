@@ -1490,7 +1490,7 @@ function creditHTML(){
   return `
   <p class="credit">
     <span class="credit-part"><span class="credit-name">${esc(CREDIT.title)}</span> &copy; ${esc(CREDIT.year)} ${esc(CREDIT.author)}</span>
-    <span class="credit-part"><a href="${CREDIT.url}" target="_blank" rel="noopener">ライセンス</a></span>
+    <br><span class="credit-part"><a href="${CREDIT.url}" target="_blank" rel="noopener">ライセンス</a></span>
     <span class="credit-part">ver ${esc(APP_VER)}</span>
   </p>`;
 }
@@ -1703,12 +1703,26 @@ function parentMessageHTML(){
   </section>`;
 }
 
-/* 宿題の進捗率 − 夏休みの経過率 から、進み具合を判定する */
-function verdictOf(gap){
-  if(gap >= 8)   return { cls:'v-good', msg:'よゆうだね！このちょうし！' };
-  if(gap <= -18) return { cls:'v-hmm',  msg:'きょうは がんばりどき！' };
-  if(gap <= -6)  return { cls:'v-hmm',  msg:'すこし いそごう！' };
-  return { cls:'v-ok', msg:'いいペース！' };
+/* 宿題の進捗率 − 夏休みの経過率 から、進み具合を判定する。
+   「よゆう」は全体と必須の両方が十分に先行しているときだけにする。
+   任意だけを先に進めても、必須の遅れを隠さないため。 */
+const PACE_MESSAGES = {
+  good: ['よゆうだね！このちょうし！', 'とっても いいペース！', 'すすみぐあい ばっちり！', 'このまま いこう！'],
+  focus: ['「かならず やる」を さきに やると いいかも！', 'まずは「かならず やる」から すすめよう！', '「かならず やる」を ひとつずつ かたづけよう！', 'つぎの宿題の前に「かならず やる」を やろう！'],
+  hurry: ['きょうは がんばりどき！', 'いまから ひとつずつ すすもう！', 'すこしずつ とりもどそう！', 'まずは できるところから！'],
+  steady: ['いいペース！', 'このちょうしで すすめよう！', 'あわてず ひとつずつ！', '毎日すこしずつ すすもう！']
+};
+function paceMessage(kind, overallGap, mustGap){
+  const rows = PACE_MESSAGES[kind];
+  const n = Math.abs(Math.round(overallGap * 10) + Math.round(mustGap * 10));
+  return rows[n % rows.length];
+}
+function verdictOf(overallGap, mustGap){
+  if(overallGap >= 8 && mustGap >= 8) return { cls:'v-good', msg:paceMessage('good', overallGap, mustGap) };
+  if(overallGap >= 0 && mustGap < 0) return { cls:'v-hmm', msg:paceMessage('focus', overallGap, mustGap), focusMust:true };
+  if(mustGap <= -18) return { cls:'v-hmm', msg:paceMessage('hurry', overallGap, mustGap) };
+  if(mustGap <= -6)  return { cls:'v-hmm', msg:paceMessage('hurry', overallGap, mustGap) };
+  return { cls:'v-ok', msg:paceMessage('steady', overallGap, mustGap) };
 }
 
 /* 夏休みの経過率（％） */
@@ -1723,10 +1737,9 @@ function natsuPct(){
    必須が おわると そこで 止まってしまう。やったことは かならず
    目に 見えて 増える、という ところを いちばん だいじにする。
 
-   ただし 間に合うかの 判定（いいペース！など）は これまでどおり
-   必須だけで する。任意を たくさん やるほど「よゆう」と 出て、
-   必須が おくれていることが 隠れてしまうため。
-   バーが 伸びているのに おくれている ときは、その理由を そえる。 */
+   ただし「よゆう」の判定は、全体と必須の両方を見る。任意をたくさん
+   やるほど「よゆう」と出て必須の遅れが隠れることを防ぐため。
+   バーが伸びているのに必須がおくれているときは、その理由をそえる。 */
 function paceHTML(o){
   const natsu = natsuPct();
   const opt = overall('option');
@@ -1734,10 +1747,7 @@ function paceHTML(o){
   const allTotal = o.total + opt.total;
   const todo = allTotal ? allDone / allTotal * 100 : 0;   // バーは 合算
   const mustShare = allTotal ? o.done / allTotal * 100 : 0;
-  const gap = o.pct - natsu;                              // 判定は 必須だけ
-
-  const v = verdictOf(gap);
-  let cls = v.cls, msg = v.msg;
+  const mustGap = o.pct - natsu;
 
   /* のこりは「ばん」や「まい」の 合計では 数が 大きすぎて 伝わらない。
      見出しの「かならず やる のこり ◯しゅるい」と 同じ 課題の数で かぞえる */
@@ -1746,6 +1756,8 @@ function paceHTML(o){
   const mustLeft = left('must');
   const optLeft  = left('option');
   const allGap = todo - natsu;
+  const v = verdictOf(allGap, mustGap);
+  let cls = v.cls, msg = v.msg;
 
   /* 「かならず やる」を ぜんぶ 終えたのに、「つぎに やる」が のこっていて
      ぜんたいでは 足りない、という ことが ある。そこで「よゆうだね！」と
@@ -1760,7 +1772,7 @@ function paceHTML(o){
   }
   /* バーは 伸びているのに おくれている、という 分かりにくい 状態のときだけ、
      何が のこっているのかを はっきり 伝える */
-  const warn = (gap < -6 && mustLeft > 0 && opt.done > 0)
+  const warn = (!v.focusMust && mustGap < -6 && mustLeft > 0 && opt.done > 0)
     ? `<p class="pace-warn">「かならず やる」が あと ${mustLeft}しゅるい のこっているよ。さきに やろう！</p>`
     : '';
 
@@ -2509,9 +2521,8 @@ function viewParent(){
   ${adultNavHTML('settings')}
   <div class="paper parent-head">
     <div>
-      <h2>保護者用ページ</h2>
+      <div class="parent-head-title"><h2>保護者用ページ</h2>${parentShareBadgeHTML()}</div>
       <p>${esc(config.title)}</p>
-      ${parentShareBadgeHTML()}
     </div>
   </div>
 
@@ -2520,8 +2531,6 @@ function viewParent(){
   ${parentChildGuideHTML()}
 
   ${homeInstallGuideHTML()}
-
-  ${parentMessageEditorHTML()}
 
   <section class="paper pstat">
     <div class="pstat-left">
@@ -2539,6 +2548,8 @@ function viewParent(){
       ${so.total ? pstatRow('つぎに やる', so.pct, `${so.done}/${so.total}`, 'opt') : ''}
     </div>
   </section>
+
+  ${parentMessageEditorHTML()}
 
   ${parentTodayLogsHTML()}
 
@@ -4668,7 +4679,7 @@ function bindParent(){
   const fitMessageText = ()=>{
     if(!messageText) return;
     messageText.style.height = 'auto';
-    messageText.style.height = Math.max(56, Math.min(messageText.scrollHeight, 180)) + 'px';
+    messageText.style.height = Math.max(48, Math.min(messageText.scrollHeight, 144)) + 'px';
   };
   fitMessageText();
   messageText.addEventListener('input', fitMessageText);
