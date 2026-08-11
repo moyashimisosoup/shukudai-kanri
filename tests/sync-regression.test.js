@@ -11,6 +11,7 @@ const STYLE = fs.readFileSync(path.join(ROOT, 'assets', 'style.css'), 'utf8');
 const SYNC = fs.readFileSync(path.join(ROOT, 'assets', 'sync.js'), 'utf8');
 const RULES = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
 const DATA = fs.readFileSync(path.join(ROOT, 'assets', 'data.js'), 'utf8');
+const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 
 function grab(src, name){
@@ -2040,4 +2041,72 @@ test('保護者ページは縦の余白を節約する表示になっている',
     'iPadでは操作文言に左右されない固定幅の列を確保する');
   assert.match(STYLE, /\.task-list:not\(\.task-list--2up\) > \.task \.task-act > \.btn\{[\s\S]{0,80}width:100%/,
     'iPadの操作ボタンは固定列いっぱいにそろえる');
+});
+
+test('今日はなんの日は確認済みの8月21日分だけを持ち、処暑を年別にする', ()=>{
+  const box = {};
+  vm.runInNewContext(DATA + ';this.fixed=KINENBI_BY_MONTH_DAY;this.dated=KINENBI_BY_DATE;', box);
+  assert.equal(Object.keys(box.fixed).length, 20);
+  assert.equal(Object.keys(box.dated).length, 1);
+  assert.equal(box.fixed['08-23'], undefined, '処暑を月日固定にしないこと');
+  assert.equal(box.dated['2026-08-23'].title, '処暑');
+  assert.match(box.fixed['08-17'].title, /夜の試合/);
+  assert.match(box.fixed['08-18'].title, /女性の投票権/);
+  assert.doesNotMatch(box.fixed['08-18'].text, /米の日|高校野球/);
+});
+
+test('記念日の閲覧足跡は専用localStorageだけに保存する', ()=>{
+  assert.match(APP, /K_KINENBI_VIEWED = TEST_MODE \? 'natsu\.preview\.kinenbi\.viewed\.v1' : 'natsu\.kinenbi\.viewed\.v1'/);
+  const mark = grab(APP, 'markKinenbiViewed');
+  assert.match(mark, /setLocal\(K_KINENBI_VIEWED, JSON\.stringify\(viewed\)\)/);
+  assert.doesNotMatch(mark, /pushRead|saveSt|syncPush|state\./,
+    '共有stateや90日の活動時刻を変更しないこと');
+});
+
+test('日付ボタンは44px以上で、独自ダイアログと未読・低モーション表示を持つ', ()=>{
+  assert.match(INDEX, /<button class="topband-date" id="todayLabel"[^>]*aria-haspopup="dialog"/);
+  assert.match(INDEX, /<dialog class="kinenbi-dialog" id="kinenbiDialog"/);
+  assert.match(STYLE, /\.topband-date\{[\s\S]{0,160}min-width:44px; min-height:44px/);
+  assert.match(STYLE, /\.topband-date:focus-visible\{ outline:3px solid var\(--kami\); outline-offset:2px; \}/,
+    '濃色の帯では紙色の高コントラストリングを使うこと');
+  assert.match(STYLE, /\.topband-date\.has-unread \.topband-date-dot\{ display:block; \}/);
+  assert.match(STYLE, /@media \(prefers-reduced-motion:reduce\)\{[\s\S]{0,180}\.topband-date\.is-nudging\{ animation:none; \}/);
+  assert.match(STYLE, /\.kinenbi-close\{[^}]*white-space:nowrap/);
+  assert.match(STYLE, /\.kinenbi-dialog\{[^}]*width:min\(calc\(100% - 32px\), 520px\)/);
+  assert.doesNotMatch(grab(APP, 'renderKinenbiButton'), /\.hidden\s*=/,
+    '題材がない日も右上の日付そのものは消さないこと');
+});
+
+test('日付ボタンは上帯の先頭戻り・長押し・5回タップから除外する', ()=>{
+  assert.match(APP, /function fromKinenbi\(e\)\{[^}]*closest\('#todayLabel'\)/);
+  const tail = APP.slice(APP.indexOf('function fromKinenbi'));
+  assert.ok((tail.match(/fromKinenbi\(e\)/g) || []).length >= 6,
+    'click・touch・mouseの各親ハンドラで日付ボタンを判定すること');
+  assert.match(tail, /addEventListener\('touchend',\s+cancel\)/);
+  assert.match(tail, /addEventListener\('mouseup',\s+cancel\)/,
+    '帯の別位置から日付上へ移動して離しても長押しタイマーを必ず止めること');
+  assert.match(APP, /if\(e\.target\.closest\('#todayLabel'\)\)\{ openKinenbi\(new Date\(\)\); return; \}/);
+});
+
+test('画面を開いたまま日付が変わっても上帯と内容を当日にそろえる', ()=>{
+  assert.match(APP, /visibilitychange[\s\S]{0,180}renderKinenbiButton\(new Date\(\)\)/,
+    '保護者ページなどhome以外から復帰しても日付を更新すること');
+  assert.match(APP, /if\(dayKey\(now\) !== kinenbiRenderedDay\) renderKinenbiButton\(now\);/,
+    '前景のまま0時を越えた場合も日付を更新すること');
+});
+
+test('native dialogの閉じ方が変わっても状態を同期し、背景だけで閉じる', ()=>{
+  assert.match(APP, /kinenbiDialog\.addEventListener\('close', syncKinenbiClosed\)/,
+    '端末の戻る操作などnative closeでもariaとfocusを戻すこと');
+  const sync = grab(APP, 'syncKinenbiClosed');
+  assert.match(sync, /setAttribute\('aria-expanded', 'false'\)/);
+  assert.match(sync, /btn\.focus\(\)/);
+  assert.match(APP, /const outside = e\.clientX < r\.left[\s\S]{0,140}if\(outside\) closeKinenbi\(\)/,
+    'dialog内の余白でなく矩形外の背景クリックだけを閉じること');
+});
+
+test('記念日UIのキャッシュ版を一式そろえる', ()=>{
+  for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260811ac'));
+  }
 });

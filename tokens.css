@@ -14,6 +14,7 @@
   --on-band-muted:oklch(80% .04 235); --on-must-muted:oklch(92% .04 28);
   --on-option:oklch(38% .09 75); --on-daily-muted:oklch(89% .04 292);
   --focus:oklch(49% .145 292); --star-off:oklch(85% .025 220);
+  --modal-backdrop:oklch(22% .04 252 / .52);
   --pace-past-a:oklch(79% .05 220); --pace-past-b:oklch(85% .04 220);
   --fun-a:oklch(98% .035 92); --fun-b:oklch(96% .04 82);
   --r:18px; --r-s:12px; --r-button:14px; --r-pill:999px; --line:3px; --masu:28px;
@@ -32,6 +33,7 @@
   --on-band-muted:oklch(83% .035 78); --on-must-muted:oklch(92% .04 28);
   --on-option:oklch(36% .085 73); --on-daily-muted:oklch(90% .04 310);
   --focus:oklch(45% .14 310); --star-off:oklch(84% .035 86);
+  --modal-backdrop:oklch(20% .035 55 / .52);
   --pace-past-a:oklch(80% .055 88); --pace-past-b:oklch(87% .04 88);
   --fun-a:oklch(98% .035 91); --fun-b:oklch(95% .055 78);
   --r:16px; --r-s:10px; --r-button:12px; --r-pill:999px; --line:2px; --masu:22px;
@@ -50,6 +52,7 @@
   --on-band-muted:oklch(84% .045 200); --on-must-muted:oklch(92% .04 18);
   --on-option:oklch(37% .08 82); --on-daily-muted:oklch(90% .04 245);
   --focus:oklch(46% .145 245); --star-off:oklch(85% .03 195);
+  --modal-backdrop:oklch(20% .04 220 / .52);
   --pace-past-a:oklch(78% .07 195); --pace-past-b:oklch(86% .04 195);
   --fun-a:oklch(98% .025 185); --fun-b:oklch(95% .04 195);
   --r:24px; --r-s:16px; --r-button:18px; --r-pill:999px; --line:2px; --masu:32px;
@@ -68,6 +71,7 @@
   --on-band-muted:oklch(84% .035 330); --on-must-muted:oklch(92% .04 15);
   --on-option:oklch(36% .08 75); --on-daily-muted:oklch(90% .04 285);
   --focus:oklch(47% .14 285); --star-off:oklch(85% .03 320);
+  --modal-backdrop:oklch(20% .04 320 / .52);
   --pace-past-a:oklch(79% .055 320); --pace-past-b:oklch(87% .035 320);
   --fun-a:oklch(98% .025 340); --fun-b:oklch(95% .035 320);
   --r:20px; --r-s:12px; --r-button:14px; --r-pill:999px; --line:3px; --masu:26px;
@@ -86,6 +90,7 @@
   --on-band-muted:oklch(83% .045 132); --on-must-muted:oklch(91% .04 28);
   --on-option:oklch(32% .075 72); --on-daily-muted:oklch(88% .04 290);
   --focus:oklch(55% .14 78); --star-off:oklch(81% .04 78);
+  --modal-backdrop:oklch(20% .03 132 / .52);
   --pace-past-a:oklch(75% .07 64); --pace-past-b:oklch(84% .05 64);
   --fun-a:oklch(97% .03 78); --fun-b:oklch(93% .045 64);
   --r:4px; --r-s:2px; --r-button:4px; --r-pill:4px; --line:3px; --masu:32px;
@@ -110,6 +115,7 @@
   --on-band-muted:oklch(88% .03 55); --on-must-muted:oklch(93% .035 25);
   --on-option:oklch(38% .075 66); --on-daily-muted:oklch(92% .035 318);
   --focus:oklch(50% .13 300); --star-off:oklch(86% .03 42);
+  --modal-backdrop:oklch(22% .035 42 / .52);
   --pace-past-a:oklch(81% .045 35); --pace-past-b:oklch(89% .03 35);
   --fun-a:oklch(99% .025 75); --fun-b:oklch(96% .035 42);
   --cat-paw:oklch(87% .04 28);

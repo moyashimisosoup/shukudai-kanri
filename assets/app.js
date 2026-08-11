@@ -68,6 +68,8 @@ const K_RETIRED_NOTICE = TEST_MODE ? 'natsu.preview.retired.notice.v1' : 'natsu.
 const K_DEVICE_LABEL = TEST_MODE ? 'natsu.preview.device.label.v1' : 'natsu.device.label.v1';
 const K_DEVICE_ID = TEST_MODE ? 'natsu.preview.sync.device.v1' : 'natsu.sync.device.v1';
 const K_TRIVIA_REVIEW = TEST_MODE ? 'natsu.preview.trivia-review.v1' : 'natsu.trivia-review.v1';
+/* 記念日を見た足跡はこの端末だけ。共有 state や保持期限の活動には加えない。 */
+const K_KINENBI_VIEWED = TEST_MODE ? 'natsu.preview.kinenbi.viewed.v1' : 'natsu.kinenbi.viewed.v1';
 const K_METRIC = 'natsu.metric.registered.v1';
 /* URL の隠し入口。静的サイトなので認証ではなく、通常画面に出さないための合図。 */
 const STATS_PARAM = 'stats';
@@ -129,6 +131,8 @@ function applyTheme(theme){
 let config, state;
 let tab = 'home';
 let timer = null;
+let kinenbiNudgeShown = false;
+let kinenbiRenderedDay = '';
 let openSyncDetails = false;
 /* Chromium 系が出す「インストール」確認は、利用者が押すまでここで預かる。
    iOS Safari はこのイベントを出さないため、同じボタンで手順案内へ切り替える。 */
@@ -1032,6 +1036,64 @@ function dayOfYear(d){
 const WD = ['日','月','火','水','木','金','土'];
 const WD_READING = { 日:'にち', 月:'げつ', 火:'か', 水:'すい', 木:'もく', 金:'きん', 土:'ど' };
 function fmtDate(d){ return (d.getMonth()+1)+'月'+d.getDate()+'日（'+WD[d.getDay()]+'）'; }
+
+function kinenbiForDate(d){
+  const exact = KINENBI_BY_DATE[dayKey(d)];
+  const md = pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  return exact || KINENBI_BY_MONTH_DAY[md] || null;
+}
+function kinenbiViewed(){
+  try{ const value = JSON.parse(getLocal(K_KINENBI_VIEWED) || '{}'); return value && typeof value === 'object' ? value : {}; }
+  catch(e){ return {}; }
+}
+function markKinenbiViewed(key){
+  const viewed = kinenbiViewed();
+  viewed[key] = new Date().toISOString();
+  setLocal(K_KINENBI_VIEWED, JSON.stringify(viewed));
+}
+function renderKinenbiButton(now){
+  const btn = $('#todayLabel'), text = $('#todayLabelText');
+  if(!btn || !text) return;
+  const item = kinenbiForDate(now);
+  const key = dayKey(now);
+  kinenbiRenderedDay = key;
+  text.textContent = fmtDate(now);
+  btn.setAttribute('aria-label', item ? fmtDate(now) + '、今日はなんの日？をひらく' : fmtDate(now));
+  btn.setAttribute('aria-disabled', item ? 'false' : 'true');
+  const unread = !!item && !kinenbiViewed()[key];
+  btn.classList.toggle('has-unread', unread);
+  btn.classList.remove('is-nudging');
+  if(unread && !kinenbiNudgeShown){
+    kinenbiNudgeShown = true;
+    requestAnimationFrame(()=>btn.classList.add('is-nudging'));
+  }
+}
+function openKinenbi(now){
+  const item = kinenbiForDate(now), dialog = $('#kinenbiDialog');
+  if(!item || !dialog) return;
+  $('#kinenbiDate').textContent = fmtDate(now);
+  $('#kinenbiTitle').textContent = item.title;
+  $('#kinenbiText').textContent = item.text;
+  markKinenbiViewed(dayKey(now));
+  $('#todayLabel').classList.remove('has-unread', 'is-nudging');
+  $('#todayLabel').setAttribute('aria-expanded', 'true');
+  if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+  $('#kinenbiClose').focus();
+}
+function syncKinenbiClosed(){
+  const btn = $('#todayLabel');
+  if(!btn) return;
+  btn.setAttribute('aria-expanded', 'false');
+  btn.focus();
+}
+function closeKinenbi(){
+  const dialog = $('#kinenbiDialog');
+  if(!dialog || !dialog.open) return;
+  if(typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open');
+  if(typeof dialog.close !== 'function') syncKinenbiClosed();
+}
+const kinenbiDialog = $('#kinenbiDialog');
+if(kinenbiDialog) kinenbiDialog.addEventListener('close', syncKinenbiClosed);
 function fmtTime(d){ return pad2(d.getHours())+':'+pad2(d.getMinutes()); }
 function keyToDate(k){ const p = k.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
 
@@ -3906,7 +3968,7 @@ function render(opts){
 
   const shownTitle = TEST_MODE && (!getLocal(K_ONBOARD) || DEBUG_PARENT) ? 'おためし用の設定' : config.title;
   $('#appTitle').textContent = shownTitle;
-  $('#todayLabel').textContent = fmtDate(new Date());
+  renderKinenbiButton(new Date());
   document.title = shownTitle;
 
   const v = $('#view');
@@ -5510,6 +5572,15 @@ document.addEventListener('change', e=>{
 
 document.addEventListener('click', e=>{
 
+  if(e.target.closest('#todayLabel')){ openKinenbi(new Date()); return; }
+  if(e.target.closest('#kinenbiClose')){ closeKinenbi(); return; }
+  if(e.target.id === 'kinenbiDialog'){
+    const r = e.target.getBoundingClientRect();
+    const outside = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+    if(outside) closeKinenbi();
+    return;
+  }
+
   if(e.target.closest('[data-share-safety]')){
     alert(shareSafetyText());
     return;
@@ -5701,11 +5772,22 @@ document.addEventListener('click', e=>{
 });
 
 document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && $('#kinenbiDialog').open){ closeKinenbi(); return; }
   if(e.key === 'Escape' && !$('#sheetWrap').hidden) closeSheet();
 });
 
-// タブを もどってきたら 日づけを 更新
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==='home') render(); });
+// タブを もどってきたら、どの画面でも上帯の日づけを更新する。
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden) return;
+  renderKinenbiButton(new Date());
+  if(tab === 'home') render();
+});
+/* 前景のまま日をまたいだ場合も、表示日と開く内容を食い違わせない。
+   1分ごとに日付キーだけを比べ、日が変わったときだけDOMを更新する。 */
+setInterval(()=>{
+  const now = new Date();
+  if(dayKey(now) !== kinenbiRenderedDay) renderKinenbiButton(now);
+}, 60000);
 
 /* ---------------------------------------------------------
    おうちの人だけの 入口（タイトルを 2秒 長押し）
@@ -5734,7 +5816,10 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==
      そのかわり、上の 帯を さわったら 先頭に もどるように しておく。
      長押しや 5回タップの 合図とは ぶつからない（あちらは 押しつづける・
      くりかえす ことで 成りたつ） */
-  el.addEventListener('click', ()=>{
+  function fromKinenbi(e){ return !!(e && e.target && e.target.closest('#todayLabel')); }
+
+  el.addEventListener('click', e=>{
+    if(fromKinenbi(e)) return;
     const box = scrollBox();
     if(box && box.scrollTop > 0){
       try{ box.scrollTo({ top:0, behavior:'smooth' }); }
@@ -5771,24 +5856,27 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && tab==
   function cancel(){ clearTimeout(timerId); timerId = null; }
 
   el.addEventListener('touchstart', e=>{
+    if(fromKinenbi(e)) return;
     const t = e.touches[0]; if(t) start(t.clientX, t.clientY);
   }, { passive:true });
   el.addEventListener('touchmove', e=>{
+    if(fromKinenbi(e)){ cancel(); return; }
     const t = e.touches[0]; if(t) moved(t.clientX, t.clientY);
   }, { passive:true });
   el.addEventListener('touchend',    cancel);
   el.addEventListener('touchcancel', cancel);
 
   /* パソコンで ためすとき用 */
-  el.addEventListener('mousedown', e=> start(e.clientX, e.clientY));
-  el.addEventListener('mousemove', e=>{ if(timerId) moved(e.clientX, e.clientY); });
+  el.addEventListener('mousedown', e=>{ if(!fromKinenbi(e)) start(e.clientX, e.clientY); });
+  el.addEventListener('mousemove', e=>{ if(fromKinenbi(e)){ cancel(); return; } if(timerId) moved(e.clientX, e.clientY); });
   el.addEventListener('mouseup',    cancel);
   el.addEventListener('mouseleave', cancel);
 
   /* 長押しは iOS だと 文字の 選択や 虫めがねに 取られて
      途中で 切れることが ある。とんとん と 5回 つづけて たたく方でも
      開けるようにして、どちらか 通れば よい ことにする */
-  el.addEventListener('click', ()=>{
+  el.addEventListener('click', e=>{
+    if(fromKinenbi(e)) return;
     const now = performance.now();
     taps = (now - lastTap > TAP_GAP) ? 1 : taps + 1;
     lastTap = now;
