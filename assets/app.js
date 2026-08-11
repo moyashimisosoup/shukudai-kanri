@@ -1707,14 +1707,23 @@ function parentMessageHTML(){
    「よゆう」は全体と必須の両方が十分に先行しているときだけにする。
    任意だけを先に進めても、必須の遅れを隠さないため。 */
 const PACE_MESSAGES = {
-  good: ['よゆうだね！このちょうし！', 'とっても いいペース！', 'すすみぐあい ばっちり！', 'このまま いこう！'],
-  focus: ['「かならず やる」を さきに やると いいかも！', 'まずは「かならず やる」から すすめよう！', '「かならず やる」を ひとつずつ かたづけよう！', 'つぎの宿題の前に「かならず やる」を やろう！'],
-  hurry: ['きょうは がんばりどき！', 'いまから ひとつずつ すすもう！', 'すこしずつ とりもどそう！', 'まずは できるところから！'],
-  steady: ['いいペース！', 'このちょうしで すすめよう！', 'あわてず ひとつずつ！', '毎日すこしずつ すすもう！']
+  good: ['よゆうだね！このちょうし！', 'とっても いいペース！', 'すすみぐあい ばっちり！', 'このまま いこう！',
+    'こつこつ すすんでいるね！', 'いいリズムで できているよ！', 'しっかり すすんでいるね！', 'ここまで よく すすんだね！'],
+  focus: ['「かならず やる」を さきに やると いいかも！', 'まずは「かならず やる」から すすめよう！',
+    '「かならず やる」を ひとつずつ かたづけよう！', 'つぎの宿題の前に「かならず やる」を やろう！',
+    'きょうは「かならず やる」を えらんでみよう！', '「かならず やる」を ひとつ すすめよう！',
+    'まずは だいじな宿題から！', '「かならず やる」に もどってみよう！'],
+  hurry: ['きょうは がんばりどき！', 'いまから ひとつずつ すすもう！', 'すこしずつ とりもどそう！', 'まずは できるところから！',
+    'ひとつ えらんで はじめよう！', 'ちいさく すすめば だいじょうぶ！', 'きょうの ひとつを すすめよう！', 'できるぶんから やってみよう！'],
+  steady: ['いいペース！', 'このちょうしで すすめよう！', 'あわてず ひとつずつ！', '毎日すこしずつ すすもう！',
+    'きょうも ひとつ すすめよう！', 'じぶんのペースで だいじょうぶ！', 'つぎの ひとつへ いってみよう！', 'こつこつ つづけよう！']
 };
 function paceMessage(kind, overallGap, mustGap){
   const rows = PACE_MESSAGES[kind];
-  const n = Math.abs(Math.round(overallGap * 10) + Math.round(mustGap * 10));
+  /* 同じ進捗でも毎日少し表情を変える。日付を足すだけなので、
+     同じ日の再描画では文言がころころ変わらない。 */
+  const day = Math.floor(Date.now() / 86400000);
+  const n = Math.abs(Math.round(overallGap * 10) + Math.round(mustGap * 10) + day);
   return rows[n % rows.length];
 }
 function verdictOf(overallGap, mustGap){
@@ -1730,6 +1739,34 @@ function natsuPct(){
   const st = parseLocal(config.startAt), en = parseLocal(config.endAt);
   const span = en - st;
   return span > 0 ? clamp((new Date() - st) / span * 100, 0, 100) : 0;
+}
+
+/* 開始から今までの平均進捗で、全体（必須＋任意）の完了日を見積もる。
+   まいにちの項目は overall() と同じく除く。実績が少ないうちは不安定な
+   日付を断定せず、「進捗を増やすと表示できる」と次の行動を示す。 */
+function completionForecast(done, total, startAt, now){
+  const all = Math.max(0, Number(total) || 0);
+  const finished = clamp(Number(done) || 0, 0, all);
+  if(!all) return { kind:'empty' };
+  if(finished >= all) return { kind:'done' };
+
+  const start = startAt instanceof Date ? startAt : parseLocal(startAt);
+  const current = now instanceof Date ? now : new Date(now || Date.now());
+  const elapsed = current - start;
+  const enoughDone = Math.max(2, Math.ceil(all * .03));
+  if(!(elapsed >= 2 * 86400000) || finished < enoughDone) return { kind:'more' };
+
+  const at = new Date(start.getTime() + elapsed * all / finished);
+  if(!(at.getTime() === at.getTime())) return { kind:'more' };
+  return { kind:'date', at, label:(at.getMonth() + 1) + '月' + at.getDate() + '日' };
+}
+function forecastText(forecast, child){
+  if(forecast.kind === 'date') return child
+    ? 'このペースなら ' + forecast.label + 'ごろ'
+    : '完了予測 ' + forecast.label;
+  if(forecast.kind === 'done') return child ? 'しゅくだい ぜんぶ できた！' : '完了予測　完了';
+  if(forecast.kind === 'empty') return child ? '' : '宿題を登録すると予測できます';
+  return child ? 'すすむと めやすが でるよ' : '進捗が増えると予測できます';
 }
 
 /* しゅくだいバーは「かならず やる」と「つぎに やる」を あわせて 出す。
@@ -1756,6 +1793,8 @@ function paceHTML(o){
   const mustLeft = left('must');
   const optLeft  = left('option');
   const allGap = todo - natsu;
+  const forecast = completionForecast(allDone, allTotal, config.startAt, new Date());
+  const forecastCopy = forecastText(forecast, true);
   const v = verdictOf(allGap, mustGap);
   let cls = v.cls, msg = v.msg;
 
@@ -1795,6 +1834,7 @@ function paceHTML(o){
       <span class="pace-key pace-key--must"></span>かならず やる
       <span class="pace-key pace-key--opt"></span>つぎに やる</p>` : ''}
     <p class="pace-verdict ${cls}">${msg}</p>
+    ${forecastCopy ? `<p class="pace-forecast">${esc(forecastCopy)}</p>` : ''}
     ${warn}
   </div>`;
 }
@@ -2489,6 +2529,7 @@ function viewParent(){
      子どもの画面で 何が 起きているのかが 分からなくなるため */
   const allDone  = s.done + so.done;
   const allTotal = s.total + so.total;
+  const forecast = completionForecast(allDone, allTotal, config.startAt, now);
 
   const row = t=>{
     const p = prog(t);
@@ -2538,6 +2579,7 @@ function viewParent(){
       <span class="pstat-val">${ms > 0
         ? `<span class="pstat-num">${Math.floor(ms/86400000)}</span><small class="pstat-unit">日</small><span class="pstat-num">${Math.floor(ms/3600000)%24}</span><small class="pstat-unit">時間</small>`
         : '終了'}</span>
+      <span class="pstat-forecast">${esc(forecastText(forecast, false))}</span>
     </div>
     <div class="pstat-bars">
       ${/* 経過とすぐ見くらべたいのは「全体」なので、経過の真下に置く。
@@ -2855,7 +2897,7 @@ function parentShareBadgeHTML(){
     title="共有なし・共有の設定を開く">
     <span class="parent-share-mark" aria-hidden="true">共有なし</span>
     <span class="parent-share-full">：共有の設定はこちら</span>
-    <span class="parent-share-short">：共有の設定はこちら</span>
+    <span class="parent-share-short">：設定</span>
   </button>`;
   const summary = parentShareSummary(
     deviceRows(typeof S.devices === 'function' ? S.devices() : {}),

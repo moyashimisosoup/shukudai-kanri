@@ -1845,6 +1845,31 @@ test('「よゆう」は全体と必須の両方が夏休みより大幅に進�
 
   /* 必須が少し先行しているだけでは「よゆう」とは言わない。 */
   assert.notEqual(pace.verdictOf(18, 1).cls, 'v-good');
+  Object.values(pace.PACE_MESSAGES).forEach(rows=>assert.ok(rows.length >= 8,
+    '進捗メッセージは各状態に8案以上用意する'));
+});
+
+test('完了予測は全体進捗から求め、実績が少ないときは行動を示す', ()=>{
+  const forecast = new Function('clamp', 'parseLocal', `
+    ${grab(APP, 'completionForecast')}
+    ${grab(APP, 'forecastText')}
+    return { completionForecast, forecastText };
+  `)((n,a,b)=>Math.max(a,Math.min(b,n)), s=>new Date(s));
+
+  const start = new Date(2026, 6, 1);
+  const now = new Date(2026, 6, 11);
+  const dated = forecast.completionForecast(25, 100, start, now);
+  assert.equal(dated.kind, 'date');
+  assert.equal(dated.label, '8月10日');
+  assert.equal(forecast.forecastText(dated, false), '完了予測 8月10日');
+  assert.equal(forecast.forecastText(dated, true), 'このペースなら 8月10日ごろ');
+
+  const little = forecast.completionForecast(1, 100, start, now);
+  assert.equal(little.kind, 'more');
+  assert.equal(forecast.forecastText(little, false), '進捗が増えると予測できます');
+  assert.doesNotMatch(forecast.forecastText(little, false), /計算中/);
+  assert.equal(forecast.completionForecast(100, 100, start, now).kind, 'done');
+  assert.equal(forecast.completionForecast(0, 0, start, now).kind, 'empty');
 });
 
 test('保護者ページは縦の余白を節約する表示になっている', ()=>{
@@ -1863,4 +1888,10 @@ test('保護者ページは縦の余白を節約する表示になっている',
   assert.match(STYLE, /\.book-title\{ font-size:17px/);
   assert.match(STYLE, /\.toast\{[\s\S]*font-size:16px/);
   assert.match(STYLE, /\.parent-message-text textarea\{[\s\S]*height:48px[\s\S]*font-size:17px/);
+  assert.match(STYLE, /\.parent-today-logs \.ti-name\{ font-size:17px; \}/,
+    '保護者ページの記録名は宿題一覧と同じ17pxにする');
+  assert.match(APP, /<span class="parent-share-short">：設定<\/span>/,
+    '狭い画面では共有設定の案内を短くする');
+  assert.match(STYLE, /\.pace-forecast\{[\s\S]*font-size:12px/);
+  assert.match(STYLE, /\.pstat-forecast\{[\s\S]*font-size:12px/);
 });
