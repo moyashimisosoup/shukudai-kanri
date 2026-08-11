@@ -1979,6 +1979,14 @@ test('保護者ページは縦の余白を節約する表示になっている',
     '保護者ページの記録名は宿題一覧と同じ17pxにする');
   assert.match(APP, /<span class="parent-share-short">：設定<\/span>/,
     '狭い画面では共有設定の案内を短くする');
+  assert.match(STYLE, /\.parent-head-title\{[^}]*width:100%/,
+    '保護者ページの見出し行はカード幅を使う');
+  assert.match(STYLE, /\.parent-share-badge\{[\s\S]*?margin:5px 0 0 auto/,
+    '共有表示は見出し行の右端に寄せる');
+  assert.match(STYLE, /\.pagenav\{[\s\S]*?grid-template-columns:repeat\(3,minmax\(0,1fr\)\) auto/,
+    '子ども画面への導線は3つの保護者タブと同じ段に置く');
+  assert.doesNotMatch(STYLE, /\.pagenav-child\{[^}]*grid-column:1 \/ -1/,
+    '子ども画面への導線だけを別段に落とさない');
   assert.match(STYLE, /\.pace-forecast\{[\s\S]*font-size:12px/);
   assert.match(APP, /<span>かんりょうよそく：<\/span><span>いまのペースだと\$\{esc\(forecast\.label\)\}<\/span>/,
     '狭幅では日付の途中でなくコロンの後を折り返し位置にする');

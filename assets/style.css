@@ -1272,14 +1272,14 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   padding:16px 18px;
 }
 .parent-head > div{ flex:1 1 260px; }
-.parent-head-title{ display:flex; align-items:center; gap:8px; min-width:0; }
+.parent-head-title{ display:flex; align-items:center; gap:8px; width:100%; min-width:0; }
 .parent-head-title h2{ flex:none; }
 .parent-head h2{ font-size:21px; font-weight:900; }
 .parent-head p{ font-size:16px; font-weight:700; color:var(--ai-usu); }
 .parent-head .btn{ text-decoration:none; display:inline-flex; align-items:center; }
 .parent-share-badge{
   display:inline-flex; align-items:center; gap:6px; max-width:100%;
-  margin-top:5px; padding:3px 10px 3px 4px;
+  margin:5px 0 0 auto; padding:3px 10px 3px 4px;
   border:0; border-radius:999px; background:var(--ai); color:var(--kami);
   font-size:13px; font-weight:900; line-height:1.45;
   font-family:inherit; cursor:pointer;
@@ -1303,7 +1303,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
    3層レイアウトを 壊さないよう fixed / sticky は つかわず、
    #view の 中を ふつうに 流す */
 .pagenav{
-  display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+  display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) auto;
   gap:6px; align-items:stretch; margin-bottom:12px;
 }
 .pagenav-item{
@@ -1316,18 +1316,18 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 /* 色だけで 示さない。いま見ている ページは 白黒を 反転する */
 .pagenav-item[aria-current="page"]{ background:var(--ai); color:var(--kami); }
 .pagenav-child{
-  grid-column:1 / -1; justify-self:end; padding:4px 2px;
+  min-width:max-content; display:flex; align-items:center; justify-content:center;
+  min-height:44px; padding:8px 10px; white-space:nowrap;
   font-size:13px; font-weight:700; color:var(--ai-usu);
-  text-decoration:underline; text-underline-offset:2px;
+  background:transparent; border:2px solid var(--ai-usu); border-radius:var(--r-pill);
+  text-decoration:none;
 }
+.pagenav-child:hover{ background:var(--kami); }
+.pagenav-child:active{ background:var(--ai-usu); color:var(--kami); }
 @media (max-width:340px){
   .pagenav{ gap:4px; }
   .pagenav-item{ font-size:13px; padding:8px 2px; }
-}
-@media (min-width:640px){
-  .pagenav{ grid-template-columns:repeat(3,auto) minmax(0,1fr); justify-content:start; }
-  .pagenav-item{ padding:8px 20px; }
-  .pagenav-child{ grid-column:auto; justify-self:end; align-self:center; }
+  .pagenav-child{ padding-inline:6px; font-size:12px; }
 }
 .app-version-suffix{ text-decoration:underline; text-underline-offset:2px; }
 
@@ -1344,7 +1344,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
      ただ たけを のばすだけ なので 出さない */
   .parent-head p{ display:none; }
   .parent-share-badge{
-    flex:0 1 auto; min-width:0; max-width:100%; margin-top:0; padding:2px 7px 2px 3px;
+    flex:0 1 auto; min-width:0; max-width:100%; margin:0 0 0 auto; padding:2px 7px 2px 3px;
     font-size:11px; line-height:1.35; white-space:nowrap;
   }
   .parent-share-mark{ padding:1px 5px; font-size:10px; }
