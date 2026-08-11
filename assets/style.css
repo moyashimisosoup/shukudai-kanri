@@ -517,11 +517,11 @@ button{ font:inherit; color:inherit; }
   font-size:18px; font-weight:700; color:var(--ai-usu);
   margin-bottom:12px;
 }
-.count-lead b{ color:var(--suika); font-weight:900; }
 /* 画面幅に合わせて縮むので、iPad の縦でも横1行に収まる */
 .cd{
   display:flex; justify-content:center; align-items:flex-end;
   flex-wrap:nowrap; gap:clamp(3px, .9vw, 10px);
+  transform:translateX(6px);
 }
 .cd-unit{ display:flex; align-items:flex-end; gap:clamp(2px, .35vw, 3px); }
 .cd-d{
@@ -534,6 +534,13 @@ button{ font:inherit; color:inherit; }
   color:var(--ai); background:var(--surface-soft);
   border:2px solid var(--ai); border-radius:8px;
   /* 方眼のマス目に数字が1つずつ入る */
+}
+.cd-unit--big{ position:relative; }
+.cd-prefix{
+  position:absolute; inset-inline-end:calc(100% + 6px); top:50%;
+  transform:translateY(-50%);
+  color:var(--suika); font-size:clamp(14px, 2vw, 18px); font-weight:900;
+  line-height:1; white-space:nowrap;
 }
 .cd-unit--big .cd-d{
   width:clamp(34px, 6.2vw, 72px);
@@ -598,9 +605,12 @@ button{ font:inherit; color:inherit; }
 .pace-verdict{
   margin-top:6px; text-align:center;
   font-size:21px; font-weight:900;
-  padding:10px 14px; border-radius:var(--r-s);
+  line-height:1.3; white-space:nowrap; overflow:hidden;
+  padding:10px 6px; border-radius:var(--r-s);
   border:2px solid var(--ai);
 }
+.pace-verdict--medium{ font-size:clamp(16px, 4.4vw, 19px); }
+.pace-verdict--long{ font-size:clamp(14px, 3.9vw, 17px); }
 .pace-forecast{
   max-width:100%; margin:7px auto 0;
   display:flex; justify-content:center; flex-wrap:wrap; column-gap:.25em;

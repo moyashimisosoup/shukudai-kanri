@@ -1910,7 +1910,7 @@ test('宿題を足すと、押したボタンの欄に入る', ()=>{
 test('「よゆう」は全体と必須の両方が夏休みより大幅に進んだときだけ出す', ()=>{
   const start = APP.indexOf('const PACE_MESSAGES');
   const end = APP.indexOf('/* 夏休みの経過率', start);
-  const pace = new Function(APP.slice(start, end) + '; return { verdictOf, PACE_MESSAGES };')();
+  const pace = new Function(APP.slice(start, end) + '; return { verdictOf, paceMessage, paceVerdictSizeClass, PACE_MESSAGES };')();
 
   const roomy = pace.verdictOf(12, 10);
   assert.equal(roomy.cls, 'v-good');
@@ -1926,6 +1926,33 @@ test('「よゆう」は全体と必須の両方が夏休みより大幅に進�
   assert.notEqual(pace.verdictOf(18, 1).cls, 'v-good');
   Object.values(pace.PACE_MESSAGES).forEach(rows=>assert.ok(rows.length >= 8,
     '進捗メッセージは各状態に8案以上用意する'));
+  const visualWidth = msg => Array.from(msg).reduce((n, ch) =>
+    n + (ch === ' ' ? .35 : '！「」'.includes(ch) ? .55 : 1), 0);
+  Object.values(pace.PACE_MESSAGES).flat().forEach(msg=>assert.ok(visualWidth(msg) <= 13.25,
+    '320pxで14pxの1行に収まる長さにする: ' + msg));
+
+  /* UTCの日替わり（日本時間9時）ではなく、端末の0時まで同じ文言を保つ。 */
+  const morning = pace.paceMessage('steady', 2, 1, new Date(2026, 7, 11, 0, 1));
+  const night = pace.paceMessage('steady', 2, 1, new Date(2026, 7, 11, 23, 59));
+  assert.equal(morning, night, '同じ暦日の途中で励まし文を変えない');
+
+  /* 長い案だけ縮め、短い案の大きさは保つ。 */
+  assert.equal(pace.paceVerdictSizeClass('いいペース！'), '');
+  assert.equal(pace.paceVerdictSizeClass('つぎの ひとつへ いこう！'), ' pace-verdict--medium');
+  assert.equal(pace.paceVerdictSizeClass('ちいさく すすめば だいじょうぶ！'), ' pace-verdict--long');
+});
+
+test('励まし文と「あと」は狭い画面でも一続きに読める', ()=>{
+  assert.match(APP, /<p class="count-lead">なつやすみ おわりまで<\/p>/);
+  assert.match(APP, /big \? '<span class="cd-prefix">あと<\/span>' : ''/,
+    '「あと」は日数の数字盤に結びつける');
+  assert.match(STYLE, /\.cd-unit--big\{ position:relative; \}/);
+  assert.match(STYLE, /\.cd\{[\s\S]{0,180}transform:translateX\(6px\)/,
+    '「あと」を足した見た目の重心を右へ戻す');
+  assert.match(STYLE, /\.cd-prefix\{[\s\S]*inset-inline-end:calc\(100% \+ 6px\)[\s\S]*white-space:nowrap/);
+  assert.match(STYLE, /\.pace-verdict\{[\s\S]*white-space:nowrap[\s\S]*padding:10px 6px/);
+  assert.match(STYLE, /\.pace-verdict--medium\{ font-size:clamp\(16px, 4\.4vw, 19px\); \}/);
+  assert.match(STYLE, /\.pace-verdict--long\{ font-size:clamp\(14px, 3\.9vw, 17px\); \}/);
 });
 
 test('完了予測は全体進捗から求め、実績が少ないときは行動を示す', ()=>{

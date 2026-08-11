@@ -1659,7 +1659,7 @@ function viewHome(){
 
   return `
   <section class="count">
-    <p class="count-lead">なつやすみ おわりまで　<b>あと</b></p>
+    <p class="count-lead">なつやすみ おわりまで</p>
     <div id="cdBox"></div>
     ${paceHTML(o)}
   </section>
@@ -1752,23 +1752,37 @@ function parentMessageHTML(){
    任意だけを先に進めても、必須の遅れを隠さないため。 */
 const PACE_MESSAGES = {
   good: ['よゆうだね！このちょうし！', 'とっても いいペース！', 'すすみぐあい ばっちり！', 'このまま いこう！',
-    'こつこつ すすんでいるね！', 'いいリズムで できているよ！', 'しっかり すすんでいるね！', 'ここまで よく すすんだね！'],
-  focus: ['「かならず やる」を さきに やると いいかも！', 'まずは「かならず やる」から すすめよう！',
-    '「かならず やる」を ひとつずつ かたづけよう！', 'つぎの宿題の前に「かならず やる」を やろう！',
-    'きょうは「かならず やる」を えらんでみよう！', '「かならず やる」を ひとつ すすめよう！',
-    'まずは だいじな宿題から！', '「かならず やる」に もどってみよう！'],
-  hurry: ['きょうは がんばりどき！', 'いまから ひとつずつ すすもう！', 'すこしずつ とりもどそう！', 'まずは できるところから！',
-    'ひとつ えらんで はじめよう！', 'ちいさく すすめば だいじょうぶ！', 'きょうの ひとつを すすめよう！', 'できるぶんから やってみよう！'],
+    'こつこつ すすんでいるね！', 'いいリズムだね！', 'しっかり すすんでいるね！', 'ここまで よく できたね！'],
+  focus: ['まず「かならず やる」から！', 'だいじな宿題を さきに！',
+    '「かならず やる」を ひとつ！', 'きょうは だいじな宿題から！',
+    'まずは ひとつ すすめよう！', 'だいじな宿題に もどろう！',
+    'さきに ひとつ かたづけよう！', 'まずは だいじなほうから！'],
+  hurry: ['きょうは がんばりどき！', 'いまから ひとつずつ！', 'すこしずつ とりもどそう！', 'まずは できるところから！',
+    'ひとつ えらんで はじめよう！', 'ちいさく すすめば へいき！', 'きょうの ひとつを やろう！', 'できるところから やろう！'],
   steady: ['いいペース！', 'このちょうしで すすめよう！', 'あわてず ひとつずつ！', '毎日すこしずつ すすもう！',
-    'きょうも ひとつ すすめよう！', 'じぶんのペースで だいじょうぶ！', 'つぎの ひとつへ いってみよう！', 'こつこつ つづけよう！']
+    'きょうも ひとつ すすめよう！', 'じぶんのペースで いこう！', 'つぎの ひとつへ いこう！', 'こつこつ つづけよう！']
 };
-function paceMessage(kind, overallGap, mustGap){
+function localDayNumber(now){
+  const d = now instanceof Date ? now : new Date(now == null ? Date.now() : now);
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000;
+}
+function paceMessage(kind, overallGap, mustGap, now){
   const rows = PACE_MESSAGES[kind];
   /* 同じ進捗でも毎日少し表情を変える。日付を足すだけなので、
-     同じ日の再描画では文言がころころ変わらない。 */
-  const day = Math.floor(Date.now() / 86400000);
+     同じ日の再描画では文言がころころ変わらない。
+     UTC の日付番号だと日本時間の朝9時に文言が変わるため、端末の暦日を使う。 */
+  const day = localDayNumber(now);
   const n = Math.abs(Math.round(overallGap * 10) + Math.round(mustGap * 10) + day);
   return rows[n % rows.length];
+}
+function paceVerdictSizeClass(msg){
+  /* 日本語1文字を1、空白と括弧を少し細く見積もる。
+     短い一言の存在感は保ち、長い文だけを2段階で縮める。 */
+  const width = Array.from(String(msg || '')).reduce((n, ch) =>
+    n + (ch === ' ' ? .35 : '！「」'.includes(ch) ? .55 : 1), 0);
+  if(width > 12.5) return ' pace-verdict--long';
+  if(width > 9.5) return ' pace-verdict--medium';
+  return '';
 }
 function verdictOf(overallGap, mustGap){
   if(overallGap >= 8 && mustGap >= 8) return { cls:'v-good', msg:paceMessage('good', overallGap, mustGap) };
@@ -1854,7 +1868,7 @@ function paceHTML(o){
      必須が のこる 場合は、下の「さきに やろう！」が 受けもつ。 */
   if(mustLeft === 0 && optLeft > 0 && allGap <= -6){
     cls = 'v-hmm';
-    msg = 'かならず やるは ぜんぶ できた！ のこり ' + optLeft + 'しゅるい';
+    msg = 'かならずは できた！あと' + optLeft + 'こ';
   }
   /* バーは 伸びているのに おくれている、という 分かりにくい 状態のときだけ、
      何が のこっているのかを はっきり 伝える */
@@ -1880,7 +1894,7 @@ function paceHTML(o){
     ${opt.total ? `<p class="pace-legend">
       <span class="pace-key pace-key--must"></span>かならず やる
       <span class="pace-key pace-key--opt"></span>つぎに やる</p>` : ''}
-    <p class="pace-verdict ${cls}">${msg}</p>
+    <p class="pace-verdict ${cls}${paceVerdictSizeClass(msg)}">${msg}</p>
     ${forecastCopy ? `<p class="pace-forecast">${forecastHTML}</p>` : ''}
     ${warn}
   </div>`;
@@ -2147,6 +2161,7 @@ function renderCountdown(){
 
   const unit = (v, lab, big) =>
     `<div class="cd-unit${big?' cd-unit--big':''}">` +
+    (big ? '<span class="cd-prefix">あと</span>' : '') +
     pad2(v).split('').map(c=>`<span class="cd-d">${c}</span>`).join('') +
     `<span class="cd-lab">${lab}</span></div>`;
 
