@@ -954,6 +954,7 @@ select{ appearance:auto; -webkit-appearance:menulist; }
   background:var(--ai); border-radius:999px;
   padding:3px 12px; vertical-align:middle; white-space:nowrap;
 }
+.task.is-done.task-whole .task-name::after{ content:"ぜんぶできた！"; }
 
 /* まいにちアプリの ハート */
 .hearts{ display:flex; gap:6px; font-size:28px; line-height:1; }

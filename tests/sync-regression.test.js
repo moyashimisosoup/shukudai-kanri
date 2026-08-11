@@ -2105,8 +2105,17 @@ test('native dialogの閉じ方が変わっても状態を同期し、背景だ�
     'dialog内の余白でなく矩形外の背景クリックだけを閉じること');
 });
 
-test('記念日UIのキャッシュ版を一式そろえる', ()=>{
+test('必須・任意・読書の完了カードは「ぜんぶできた！」と表示する', ()=>{
+  const card = grab(APP, 'taskHTML');
+  assert.match(card, /t\.group === 'must' \|\| t\.group === 'option' \? ' task-whole' : ''/,
+    '必須・任意と、そのどちらかに属する読書だけへ完了用クラスを付けること');
+  assert.match(STYLE, /\.task\.is-done\.task-whole \.task-name::after\{ content:"ぜんぶできた！"; \}/);
+  assert.match(STYLE, /\.task\.is-done \.task-name::after\{\s*content:"できた！"/,
+    '毎日の項目は従来の「できた！」を保つこと');
+});
+
+test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260811ac'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260811ad'));
   }
 });

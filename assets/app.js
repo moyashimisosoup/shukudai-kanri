@@ -2017,7 +2017,8 @@ function taskHTML(t){
 
   return `
   <article class="task${p.isDone?' is-done':''}${
-    (!p.isDone && p.numDone && hasWrap(t))?' is-almost':''}${isFree(t)?' task-free':''}">
+    (!p.isDone && p.numDone && hasWrap(t))?' is-almost':''}${isFree(t)?' task-free':''}${
+    t.group === 'must' || t.group === 'option' ? ' task-whole' : ''}">
     <h3 class="task-name">${esc(t.name)}</h3>
     ${nx && !isFree(t) ? `<p class="task-next"><span class="next-lead">${esc(nx.lead)}</span>
         ${nx.num ? `<span class="next-num">${esc(nx.num)}</span>` : ''}<span class="next-tail">${esc(nx.tail)}</span></p>` : ''}
