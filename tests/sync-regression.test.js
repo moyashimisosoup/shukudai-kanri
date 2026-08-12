@@ -620,6 +620,10 @@ test('初期設定の選択肢は、選んだものだけ色とチェックが�
   assert.match(STYLE, /\.welcome-role\[aria-pressed="true"\][\s\S]*background:var\(--wakaba\)/,
     '選択中は既存の緑で塗る');
   assert.match(STYLE, /content:"✓"/, '色だけでなくチェックでも選択を示す');
+  assert.match(view, /class="welcome-parent-entry"[^>]*data-no-reading/,
+    '初期設定の段階で大人向けの入口案内を表示すること');
+  assert.match(view, /タイトルを<b>5回タップ<\/b>するか、<b>2秒長押し<\/b>/,
+    '子ども画面から保護者ページを開く操作を明示すること');
 });
 
 test('共有する初期設定は、端末とグループの状態に合わせて分岐する', ()=>{
@@ -2172,7 +2176,7 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812d'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812e'));
   }
 });
 

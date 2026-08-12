@@ -1299,11 +1299,12 @@ function viewWelcome(){
     <div class="paper welcome-step">
       <span class="welcome-num">2</span>
       <div><h3>どうやって つかう？</h3>
-      <div class="welcome-roles">
-        <button class="btn welcome-role" data-welcome-mode="solo" type="button" aria-pressed="false"><span class="welcome-role-copy"><b>こどもだけでつかう</b><small>すぐにつかえます</small></span></button>
-        <button class="btn welcome-role welcome-role--share${DEBUG_WELCOME ? ' is-selected' : ''}" data-welcome-mode="share" type="button" aria-pressed="${DEBUG_WELCOME ? 'true' : 'false'}">${icon('users')}<span class="welcome-role-copy"><b>保護者も共有する</b><small>あとからでも設定できます</small></span></button>
-      </div>
-      ${TEST_MODE ? '<p class="set-note">おためしモードでは、いま使っているグループのデータ・あいことば・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>')}</div>
+       <div class="welcome-roles">
+         <button class="btn welcome-role" data-welcome-mode="solo" type="button" aria-pressed="false"><span class="welcome-role-copy"><b>こどもだけでつかう</b><small>すぐにつかえます</small></span></button>
+         <button class="btn welcome-role welcome-role--share${DEBUG_WELCOME ? ' is-selected' : ''}" data-welcome-mode="share" type="button" aria-pressed="${DEBUG_WELCOME ? 'true' : 'false'}">${icon('users')}<span class="welcome-role-copy"><b>保護者も共有する</b><small>あとからでも設定できます</small></span></button>
+       </div>
+       <aside class="welcome-parent-entry" data-no-reading><b>保護者の方へ</b><p>子ども画面へ進んだあと、画面上のタイトルを<b>5回タップ</b>するか、<b>2秒長押し</b>すると保護者ページを開けます。宿題の登録・変更や設定は、そこから行えます。</p></aside>
+       ${TEST_MODE ? '<p class="set-note">おためしモードでは、いま使っているグループのデータ・あいことば・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>')}</div>
     </div>
     <div class="welcome-form" id="welcomeForm"${DEBUG_WELCOME ? '' : ' hidden'}>${DEBUG_WELCOME
       ? (previewRole === 'parent' ? welcomeParentSharePickerHTML(3) : welcomeFormHTML('child', true, 3)) : ''}</div>
