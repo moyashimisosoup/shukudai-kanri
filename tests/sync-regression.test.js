@@ -410,6 +410,8 @@ test('QR招待の共有コードはホーム画面版へ渡し、ホーム画面
   assert.deepEqual(harness(false), { code:'abcdefghjkmnpqrs', replaced:'' });
   assert.deepEqual(harness(true), { code:'abcdefghjkmnpqrs', replaced:'/app/?r=9#home' });
   assert.equal(Object.hasOwn(MANIFEST, 'start_url'), false);
+  assert.match(INDEX, /manifest\.webmanifest\?v=20260812d/,
+    '古い起動URL設定を持つマニフェストを再利用しないこと');
 });
 
 /* URLに join を残すようにしたぶん、「はずした端末」がリロードだけで
@@ -451,6 +453,11 @@ test('はずされた端末は、招待URLを開き直しても勝手に戻ら�
   assert.equal(harness(''), CODE, 'ふつうの招待は これまで通り つながる');
   assert.equal(harness(CODE), '', 'はずされた あいことばでは 自動で つなぎ直さない');
   assert.equal(harness('betsunoaikotoba'), CODE, 'べつのグループの はずし記録は じゃまをしない');
+  const apply = grab(APP, 'applyJoinCode');
+  assert.match(apply, /const code = joinCodeFromURL\(\);/,
+    '同期の準備が終わる前に招待URLのコードを消さないこと');
+  assert.match(apply, /S\.reconnect\(code, \{ joining:true \}\);\s*if\(isStandalone\(\)\) clearJoinCodeFromURL\(\);/,
+    'ホーム画面版では接続開始後にだけ招待コードをURLから消すこと');
 
   /* はずされた あいことばのままでは、ホーム画面追加の案内も出さない
      （「引き継げる準備ができています」は この状態では うそになる） */

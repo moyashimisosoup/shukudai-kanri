@@ -6183,7 +6183,11 @@ function takeJoinCode(){
   return code;
 }
 function applyJoinCode(){
-  const code = takeJoinCode();
+  /* 招待URLをホーム画面版へ渡す唯一の経路。同期モジュールがまだ準備中・
+     一時的な読み込み失敗などで接続できない段階に URL から消すと、PWA 側の
+     別localStorageへ合言葉を渡す方法がなくなる。接続を始められることを
+     確認してから、ホーム画面版だけURLから消す。 */
+  const code = joinCodeFromURL();
   const S = window.NatsuSync;
   if(!code || !S || !S.configured() || code.length < 8) return;
   if(S.getCode() === code) return;          // すでに 同じ あいことば
@@ -6205,6 +6209,7 @@ function applyJoinCode(){
      この端末の初期値でグループを作ると、招いた側の設定が消える */
   rememberChosenCode(code);
   S.reconnect(code, { joining:true });
+  if(isStandalone()) clearJoinCodeFromURL();
   toast('おうちの 共有に つながりました');
   if(routeFromHash() === 'welcome') location.hash = 'home';
   render({ keepScroll:true });
