@@ -1624,6 +1624,8 @@ test('ホーム画面から開いたとき、保護者の端末は保護者ペ�
     '「子ども画面へ」で付けた #home は尊重する');
   assert.equal(route('', true, 'parent', false), 'welcome',
     'まっさらな端末は、まず初期設定');
+  assert.match(f, /const hasExistingConfig = !!getLocal\(K_CFG\);/,
+    '初期設定を通過済みかは保存された設定で判定すること');
 });
 
 test('ホーム画面追加の案内は、どちらの画面が開くかを書く', ()=>{
@@ -2170,7 +2172,7 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812c'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812d'));
   }
 });
 

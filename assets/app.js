@@ -6067,11 +6067,13 @@ function routeFromHash(){
   const name = c < 0 ? h : h.slice(0, c);
   if(name === 'writes'){ writesTaskId = c < 0 ? writesTaskId : h.slice(c + 1); return 'writes'; }
   const requested = TABS.indexOf(h) >= 0 ? h : 'home';
-  /* すでにこの端末で使い始めているグループは、導線変更で止めない。
-     保存済みデータのない新規端末だけ、最初の設定に案内する。 */
-  const hasExistingData = !!(getLocal(K_CFG) || getLocal(K_ST));
+  /* すでにこのブラウザで使い始めている人は、導線変更で止めない。
+     ただし起動直後のミニコンテンツ抽選も state に保存される。K_ST まで
+     見ると、新しいブラウザでもその保存だけで「設定済み」になってしまう。
+     設定を保存した印（K_CFG）があるときだけ、初期設定を通過済みとみなす。 */
+  const hasExistingConfig = !!getLocal(K_CFG);
   /* おためしモードでは起動時の内部データを「設定済み」と数えない。 */
-  if(requested !== 'welcome' && !getLocal(K_ONBOARD) && (TEST_MODE || !hasExistingData)) return 'welcome';
+  if(requested !== 'welcome' && !getLocal(K_ONBOARD) && (TEST_MODE || !hasExistingConfig)) return 'welcome';
   /* ホーム画面の アイコンから 開いた ときに、どの画面を 出すか。
 
      これまでは URL の # だけで 決めていた。ところが iOS の
