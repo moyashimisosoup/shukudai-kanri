@@ -1326,6 +1326,12 @@ test('招待で入った端末には、先に保護者か子どもかを聞く',
   const pick = grab(APP, 'joinRolePickHTML');
   assert.match(pick, /data-join-role="parent"/);
   assert.match(pick, /data-join-role="child"/);
+  assert.match(STYLE, /\.join-role\{ width:100%; max-width:560px; margin:24px auto 0; \}/,
+    '端末役割の選択画面は広い画面で横に伸びすぎないこと');
+  assert.match(STYLE, /\.join-role-body\{ display:flex; flex-direction:column; gap:14px; padding:22px 20px 24px; \}/,
+    '見出し・説明・ボタンをカード端から離してそろえること');
+  assert.match(STYLE, /\.join-role-actions \.btn\{ min-height:58px; \}/,
+    '余白を足しても選択ボタンの押しやすさを保つこと');
   /* 選んだ役割はこの端末だけの設定。グループの設定に混ぜない */
   assert.match(APP, /setLocal\(K_ROLE, role\)/);
   assert.match(APP, /if\(role === 'parent'\) location\.hash = 'settings'/);
@@ -2190,7 +2196,7 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812g'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812h'));
   }
 });
 
