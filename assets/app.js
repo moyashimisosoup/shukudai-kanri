@@ -4571,12 +4571,15 @@ function applyReadingDisplay(targetRoot){
 }
 
 /* 辞書だけでは文脈のない「月」を「つき」と読む。
-   曜日の括弧は「げつ」、全ひらがな設定の日付は「がつ」を先に確定する。
+   全ひらがな設定では曜日の括弧を「げつ」など、日付を「がつ」に先に確定する。
    小学1年生以上では「月」「日」が既習なので、日付の漢字をそのまま残す。 */
 function readingContextText(body, grade){
-  let text = String(body || '').replace(/（([日月火水木金土])）/g,
-    (all, day)=>'（' + WD_READING[day] + '）');
-  if(Number(grade) === 0) text = text.replace(/(\d{1,2})月(?=\d{1,2}日)/g, '$1がつ');
+  let text = String(body || '');
+  if(Number(grade) === 0){
+    text = text.replace(/（([日月火水木金土])）/g,
+      (all, day)=>'（' + WD_READING[day] + '）');
+    text = text.replace(/(\d{1,2})月(?=\d{1,2}日)/g, '$1がつ');
+  }
   return text;
 }
 

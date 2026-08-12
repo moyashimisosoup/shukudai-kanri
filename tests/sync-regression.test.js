@@ -1065,8 +1065,10 @@ test('曜日と日付の月を文脈に合う読みへ直す', ()=>{
   assert.match(reading, /readingContextText\(body, grade\)/);
   assert.equal(context('8月11日（火）', 0), '8がつ11日（か）');
   assert.equal(context('8月11日（月）', 0), '8がつ11日（げつ）');
-  assert.equal(context('8月11日（月）', 1), '8月11日（げつ）',
-    '小学1年生以上では既習の月日を漢字のまま残す');
+  assert.equal(context('8月11日（月）', 1), '8月11日（月）',
+    '小学1年生以上では既習の月日と曜日を漢字のまま残す');
+  assert.equal(context('8月11日（水）', 2), '8月11日（水）',
+    '小学2年生まで読める設定では曜日の漢字をひらがなへ先置換しない');
 });
 
 test('端末の呼び名には自明な変更範囲の説明を重ねない', ()=>{
@@ -2202,7 +2204,7 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-  assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812j'));
+  assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812k'));
   }
 });
 
