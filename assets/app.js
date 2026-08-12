@@ -77,6 +77,11 @@ const K_KINENBI_VIEWED = TEST_MODE ? 'natsu.preview.kinenbi.viewed.v1' : 'natsu.
    保護者と子どもは別の端末を見ているので、しるしも別にする。 */
 const K_SAMPLE_PARENT = TEST_MODE ? 'natsu.preview.sample.parent.v1' : 'natsu.sample.parent.v1';
 const K_SAMPLE_CHILD  = TEST_MODE ? 'natsu.preview.sample.child.v1'  : 'natsu.sample.child.v1';
+/* 保護者ページの共有・ホーム画面追加の案内を、今は使わない人が閉じたしるし。
+   端末ごとの選択なので config / state には入れない。共有データを変更すると
+   90日の保持期限に影響し、1台で閉じた案内が家族全員から消えてしまう。 */
+const K_SYNC_PROMPT_DONE = TEST_MODE ? 'natsu.preview.prompt.sync.v1' : 'natsu.prompt.sync.v1';
+const K_HOME_INSTALL_DONE = TEST_MODE ? 'natsu.preview.prompt.install.v1' : 'natsu.prompt.install.v1';
 const K_METRIC = 'natsu.metric.registered.v1';
 /* URL の隠し入口。静的サイトなので認証ではなく、通常画面に出さないための合図。 */
 const STATS_PARAM = 'stats';
@@ -87,7 +92,7 @@ const STATS_VALUE = 'family-count';
 if(TEST_MODE){
   try{
     [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME, K_WELCOME_THEME, K_WELCOME_JOIN,
-     K_SAMPLE_PARENT, K_SAMPLE_CHILD].forEach(k=>localStorage.removeItem(k));
+     K_SAMPLE_PARENT, K_SAMPLE_CHILD, K_SYNC_PROMPT_DONE, K_HOME_INSTALL_DONE].forEach(k=>localStorage.removeItem(k));
     if(DEBUG_PARENT){
       localStorage.setItem(K_ONBOARD, 'done');
       localStorage.setItem(K_ROLE, 'parent');
@@ -563,7 +568,7 @@ function deviceKindLabel(ua, touchPoints){
   return 'この端末';
 }
 function homeInstallGuideHTML(){
-  if(isStandalone()) return '';
+  if(isStandalone() || getLocal(K_HOME_INSTALL_DONE) === 'done') return '';
   const platform = homeInstallPlatform(navigator.userAgent, navigator.maxTouchPoints);
   const text = platform === 'ios'
     ? 'Safariでこのページを開き、画面下（iPadは上）の共有ボタン □↑ を押して、「ホーム画面に追加」→「追加」を選びます。LINEなどのアプリ内ブラウザでは、先に「Safariで開く」を選んでください。'
@@ -578,7 +583,10 @@ function homeInstallGuideHTML(){
     <div class="paper home-install-paper">
       <p class="set-note">いつも使う端末では、ホーム画面に追加しておくと見つけやすくなります。</p>
       <p class="set-note">「この端末は <b>保護者の端末</b>」を選んでいれば、追加したアイコンからは<b>この保護者ページが開きます</b>（子ども画面はページ内の「子ども画面へ」から見られます）。選んでいないときは子ども画面が開きます。設定は「ほかの端末と共有」→「この端末の表示と役割」で変えられます。</p>
-      <div class="set-actions"><button class="btn btn-sm" id="homeInstallBtn" type="button">ホーム画面に追加する</button></div>
+      <div class="set-actions">
+        <button class="btn btn-sm" id="homeInstallBtn" type="button">ホーム画面に追加する</button>
+        <button class="btn btn-sm btn-ghost" id="homeInstallDismiss" type="button">今は追加しない</button>
+      </div>
       <p class="set-note home-install-guide" id="homeInstallGuide" hidden>${esc(text)}</p>
     </div>
   </section>`;
@@ -2963,11 +2971,12 @@ function syncNeedsSetup(){
    まだ つないでいない あいだは、進捗より先に ここを 見てほしい。
    つないだ あとは 出さない（設定ページの 元の場所に もどる） */
 function syncPromptHTML(){
-  if(!syncNeedsSetup()) return '';
+  if(!syncNeedsSetup() || getLocal(K_SYNC_PROMPT_DONE) === 'done') return '';
   return `
   <section class="sec sync-prompt">
     ${syncSectionHTML({ lead:'この端末の記録は、まだこの端末の中だけにあります。'
-                           + 'あいことばを決めると、同じグループの複数の端末で使えます。' })}
+                           + 'あいことばを決めると、同じグループの複数の端末で使えます。',
+                         dismissPrompt:true })}
   </section>`;
 }
 
@@ -3158,7 +3167,8 @@ function syncSectionHTML(opts){
     <div class="sec-head"><h2>ほかの端末と共有</h2>
       <span class="sec-note" id="syncStatus">${esc(syncStatusText(S.status(), S.statusText()))}</span></div>
     <div class="paper">
-      ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
+       ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
+       ${opts && opts.dismissPrompt ? `<div class="set-actions"><button class="btn btn-sm btn-ghost" id="syncPromptDismiss" type="button">接続せず使う</button></div><p class="set-note">1台の端末で使う場合などは、接続せずにこの端末だけで続けられます。</p>` : ''}
       <p class="set-note">同じ「合言葉」を入力した複数の端末で、同じ記録と設定を共有できます。</p>
       ${code ? `
       ${/* 共有ずみの 画面。ここに 出ているのは **すでに 使っている**
@@ -4941,6 +4951,16 @@ function bindAdultNav(){
   const guideOk = $('#parentGuideOk');
   if(guideOk) guideOk.addEventListener('click', ()=>{
     setLocal(K_GUIDE_DONE, 'done');
+    render({ keepScroll:true });
+  });
+  const syncPromptDismiss = $('#syncPromptDismiss');
+  if(syncPromptDismiss) syncPromptDismiss.addEventListener('click', ()=>{
+    setLocal(K_SYNC_PROMPT_DONE, 'done');
+    render({ keepScroll:true });
+  });
+  const homeInstallDismiss = $('#homeInstallDismiss');
+  if(homeInstallDismiss) homeInstallDismiss.addEventListener('click', ()=>{
+    setLocal(K_HOME_INSTALL_DONE, 'done');
     render({ keepScroll:true });
   });
   const sampleReset = $('#sampleResetBtn');

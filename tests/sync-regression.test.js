@@ -2170,7 +2170,7 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812b'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812c'));
   }
 });
 
@@ -2213,9 +2213,33 @@ test('サンプルのリセットは課題と記録の両方を、墓標の世�
 test('案内を閉じたしるしは端末内だけに持ち、共有する config / state へ入れない', ()=>{
   assert.match(APP, /const K_SAMPLE_PARENT = TEST_MODE \? 'natsu\.preview\.sample\.parent\.v1' : 'natsu\.sample\.parent\.v1';/);
   assert.match(APP, /const K_SAMPLE_CHILD  = TEST_MODE \? 'natsu\.preview\.sample\.child\.v1'  : 'natsu\.sample\.child\.v1';/);
-  assert.match(APP, /K_SAMPLE_PARENT, K_SAMPLE_CHILD\]\.forEach\(k=>localStorage\.removeItem\(k\)\)/,
+  assert.match(APP, /K_SAMPLE_PARENT, K_SAMPLE_CHILD(?:, [A-Z_]+)*\]\.forEach\(k=>localStorage\.removeItem\(k\)\)/,
     'おためしURLでは preview 用のしるしも消すこと');
   for(const key of ['K_SAMPLE_PARENT', 'K_SAMPLE_CHILD']){
+    assert.doesNotMatch(APP, new RegExp('config\\.[A-Za-z]+\\s*=\\s*' + key),
+      key + ' を config へ書かないこと');
+    assert.doesNotMatch(APP, new RegExp('state\\.[A-Za-z]+\\s*=\\s*' + key),
+      key + ' を state へ書かないこと');
+  }
+});
+
+test('保護者ページの共有・ホーム画面追加の案内は、この端末だけで閉じられる', ()=>{
+  assert.match(APP, /const K_SYNC_PROMPT_DONE = TEST_MODE \? 'natsu\.preview\.prompt\.sync\.v1' : 'natsu\.prompt\.sync\.v1';/);
+  assert.match(APP, /const K_HOME_INSTALL_DONE = TEST_MODE \? 'natsu\.preview\.prompt\.install\.v1' : 'natsu\.prompt\.install\.v1';/);
+  assert.match(grab(APP, 'syncPromptHTML'), /getLocal\(K_SYNC_PROMPT_DONE\) === 'done'/,
+    '共有しない選択をした端末では接続案内を再表示しないこと');
+  assert.match(grab(APP, 'syncSectionHTML'), /id="syncPromptDismiss"[\s\S]*接続せず使う/,
+    '1台だけで使う人が接続案内を閉じられること');
+  assert.match(grab(APP, 'homeInstallGuideHTML'), /getLocal\(K_HOME_INSTALL_DONE\) === 'done'/,
+    '追加しない選択をした端末ではホーム画面案内を再表示しないこと');
+  assert.match(grab(APP, 'homeInstallGuideHTML'), /id="homeInstallDismiss"[\s\S]*今は追加しない/,
+    'ホーム画面へ今は追加しない選択を置くこと');
+  const nav = grab(APP, 'bindAdultNav');
+  assert.match(nav, /setLocal\(K_SYNC_PROMPT_DONE, 'done'\)/);
+  assert.match(nav, /setLocal\(K_HOME_INSTALL_DONE, 'done'\)/);
+  assert.match(APP, /K_SAMPLE_PARENT, K_SAMPLE_CHILD, K_SYNC_PROMPT_DONE, K_HOME_INSTALL_DONE\]\.forEach/,
+    'おためしURLでは新しい端末内のしるしも初期化すること');
+  for(const key of ['K_SYNC_PROMPT_DONE', 'K_HOME_INSTALL_DONE']){
     assert.doesNotMatch(APP, new RegExp('config\\.[A-Za-z]+\\s*=\\s*' + key),
       key + ' を config へ書かないこと');
     assert.doesNotMatch(APP, new RegExp('state\\.[A-Za-z]+\\s*=\\s*' + key),

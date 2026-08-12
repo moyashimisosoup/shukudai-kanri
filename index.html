@@ -23,8 +23,8 @@
 <!-- Webフォントの通信で初期描画を止めない。読み込み中は端末内の丸ゴシックを使う -->
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/style.css?v=20260812b">
-<link rel="stylesheet" href="tokens.css?v=20260812b">
+<link rel="stylesheet" href="assets/style.css?v=20260812c">
+<link rel="stylesheet" href="tokens.css?v=20260812c">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
 </head>
 <body>
@@ -107,12 +107,12 @@ window.natsuBootProgress = function(value, label){
   document.getElementById('bootLabel').textContent = label || '読み込んでいます';
 };
 </script>
-<script src="assets/kanji.js?v=20260812b"></script>
+<script src="assets/kanji.js?v=20260812c"></script>
 <script>window.natsuBootProgress(25, '文字の表示を準備しています');</script>
 <script src="assets/codex-icons.js?v=0.3.4b"></script>
 <script src="assets/kanji-origin.js?v=20260809d"></script>
 <script>window.natsuBootProgress(40, '画面の部品を準備しています');</script>
-<script src="assets/data.js?v=20260812b"></script>
+<script src="assets/data.js?v=20260812c"></script>
 <script>window.natsuBootProgress(55, '宿題の項目を読み込んでいます');</script>
 <!-- まねきリンクを QR にするだけの 同梱ライブラリ（MIT）。
      外に つなぎに いかないので、圏外でも QR が 出る。
@@ -120,9 +120,9 @@ window.natsuBootProgress = function(value, label){
 <script src="assets/vendor/qrcode.js?v=2.0.4"></script>
 <script>window.natsuBootProgress(75, '共有の準備をしています');</script>
 <script>window.natsuBootProgress(88, 'この端末の記録を読み込んでいます');</script>
-<script src="assets/app.js?v=20260812b"></script>
+<script src="assets/app.js?v=20260812c"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
-<script type="module" src="assets/sync.js?v=20260812b"></script>
+<script type="module" src="assets/sync.js?v=20260812c"></script>
 </body>
 </html>
