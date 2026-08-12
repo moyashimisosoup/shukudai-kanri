@@ -1660,6 +1660,14 @@ test('ホーム画面から開いたとき、保護者の端末は保護者ペ�
     '初期設定を通過済みかは保存された設定で判定すること');
 });
 
+test('ミニコンテンツは低学年設定でも漢字とルビを保つ', ()=>{
+  const fun = grab(APP, 'funHTML');
+  const reads = grab(APP, 'readsHTML');
+  assert.match(fun, /class="fun-q" data-no-reading>\$\{rubyHTML\(f\.q\)\}/);
+  assert.match(fun, /class="fun-a" data-no-reading>\$\{rubyHTML\(f\.a\)\}/);
+  assert.match(reads, /class="reads-q" data-no-reading>\$\{rubyHTML\(r\.q\)\}/);
+});
+
 test('ホーム画面追加の案内は、どちらの画面が開くかを書く', ()=>{
   const f = grab(APP, 'homeInstallGuideHTML');
   assert.match(f, /保護者の端末<\/b>」を選んでいれば/);
@@ -2204,7 +2212,7 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-  assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812k'));
+  assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812l'));
   }
 });
 

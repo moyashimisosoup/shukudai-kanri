@@ -330,7 +330,7 @@ function readsHTML(key){
     ${rows.map(r=>`
       <div class="reads-row">
         <span class="reads-tag">${esc(r.t)}</span>
-        <span class="reads-q">${rubyHTML(r.q)}</span>
+        <span class="reads-q" data-no-reading>${rubyHTML(r.q)}</span>
       </div>`).join('')}
   </div>`;
 }
@@ -1797,8 +1797,8 @@ function contentDebugHTML(){
     <div class="fun-debug-list">${rows.map(({f,i},n)=>`
       <article class="paper fun fun-debug-card">
         <span class="fun-tag">${esc(f.t)} ${n+1}</span>
-        <p class="fun-q">${rubyHTML(f.q)}</p>
-        <p class="fun-a">${rubyHTML(f.a)}</p>
+        <p class="fun-q" data-no-reading>${rubyHTML(f.q)}</p>
+        <p class="fun-a" data-no-reading>${rubyHTML(f.a)}</p>
         ${f.fig ? kanjiOriginHTML(f.fig) : ''}
         <div class="fun-debug-checks">
           <label class="fun-debug-check"><input type="checkbox" data-content-ok="${i}"> OK</label>
@@ -2241,8 +2241,8 @@ function funHTML(){
     ${f.t === 'むかしのことば'
       ? '<p class="fun-note">つかってみよう。ひみつの あんごうに なるかもね！</p>'
       : ''}
-    <p class="fun-q">${rubyHTML(f.q)}</p>
-    ${funOpen ? `<p class="fun-a">${rubyHTML(f.a)}</p>${f.fig ? kanjiOriginHTML(f.fig) : ''}` : ''}
+    <p class="fun-q" data-no-reading>${rubyHTML(f.q)}</p>
+    ${funOpen ? `<p class="fun-a" data-no-reading>${rubyHTML(f.a)}</p>${f.fig ? kanjiOriginHTML(f.fig) : ''}` : ''}
     <div class="fun-row">
       ${funOpen ? '' : `<button class="btn btn-sm" data-fun="open" type="button">${
         isQuiz ? 'こたえを 見る' : (f.ask || 'つづきを 見る')}</button>`}
