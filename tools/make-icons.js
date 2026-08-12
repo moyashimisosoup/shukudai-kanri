@@ -21,17 +21,39 @@ const zlib = require('node:zlib');
 const OUT = path.join(__dirname, '..', 'assets');
 
 /* 図案（180×180 の設計座標）。assets/icon.svg と同じ値 */
-const BG    = [0x14, 0x37, 0x5e];   // 濃い紺（manifest の theme_color）
-const PAPER = [0xff, 0xf9, 0xef];   // 紙のクリーム色
-const RULE  = [0xc6, 0xd6, 0xe4];   // うすい罫線
-const CHECK = [0x3e, 0xa0, 0x5c];   // みどりの チェック
+const BG    = [0xff, 0xe2, 0xc2];   // あんず色の 地
+const CHEEK = [0xef, 0x91, 0x86];   // ほっぺ
+const INK   = [0x2f, 0x5c, 0x48];   // 目・口・バーの わく（ふかみどり）
+const TRACK = [0xff, 0xf7, 0xea];   // バーの まだの ところ
+const GREEN = [0x3e, 0xa0, 0x5c];   // すすんだ ところ（アプリと 同じ）
+const SPARK = [0xe0, 0x7a, 0x2a];   // 3本の 光
 
-const PAGE  = { cx:90, cy:90, hw:56, hh:64, r:12 };
-const RULES = [
-  { x0:52, x1:128, y:56, w:7 },
-  { x0:52, x1:110, y:78, w:7 }
+const CHEEKS = [
+  { cx:63, cy:67, rx:10, ry:6.5 },
+  { cx:117, cy:67, rx:10, ry:6.5 }
 ];
-const TICK  = { pts:[[58,112],[80,134],[126,84]], w:16 };
+const EYES = [
+  { cx:73, cy:52, r:7 },
+  { cx:107, cy:52, r:7 }
+];
+/* 口。SVG の `M76 65 c4.5 8 23.5 8 28 0` と同じ3次ベジエ */
+const SMILE = { p0:[76,65], p1:[80.5,73], p2:[99.5,73], p3:[104,65], w:6 };
+/* バー。stroke は 線の 中心が わくの 上に のるので、太さの 半分ずつ 内外へ ひろがる */
+const BAR   = { cx:90, cy:125, hw:68, hh:13, r:13, stroke:3.5 };
+const FILL  = { cx:62.5, cy:125, hw:35, hh:7.5, r:7.5 };
+/* 3本の光。**開き角を せまくすると 1枚の 扇に 見える。**
+   assets/icon.svg では translate(97,111) rotate(24) の中で ±42度 回している。
+   ここでは 設計座標へ 変換ずみの 4点として 持つ */
+const RAY_ORIGIN = [97, 111];
+const RAY_BASE   = 24;
+const RAYS = [[-42, 22], [0, 24], [42, 22]].map(([spread, tip])=>{
+  const a = (RAY_BASE + spread) * Math.PI / 180;
+  const cos = Math.cos(a), sin = Math.sin(a);
+  return [[-1.7,-9], [1.7,-9], [3.6,-tip], [-3.6,-tip]].map(([x,y])=>[
+    RAY_ORIGIN[0] + x * cos - y * sin,
+    RAY_ORIGIN[1] + x * sin + y * cos
+  ]);
+});
 
 /* 角丸四角の 符号つき距離。0以下なら 中 */
 function sdRoundRect(px, py, b){
@@ -50,15 +72,56 @@ function sdSegment(px, py, x0, y0, x1, y1){
   return Math.hypot(wx - vx * t, wy - vy * t);
 }
 
+/* 3次ベジエは 折れ線に ほぐしてから 線分の 距離を とる。
+   24分割あれば 180pxの 設計座標では 目に見える 差が 出ない */
+const SMILE_PTS = (()=>{
+  const pts = [];
+  for(let i = 0; i <= 24; i++){
+    const t = i / 24, u = 1 - t;
+    pts.push([
+      u*u*u*SMILE.p0[0] + 3*u*u*t*SMILE.p1[0] + 3*u*t*t*SMILE.p2[0] + t*t*t*SMILE.p3[0],
+      u*u*u*SMILE.p0[1] + 3*u*u*t*SMILE.p1[1] + 3*u*t*t*SMILE.p2[1] + t*t*t*SMILE.p3[1]
+    ]);
+  }
+  return pts;
+})();
+
+/* だ円の 中か。ほっぺは 線を 持たないので 中か外かだけ 分かればよい */
+function inEllipse(px, py, e){
+  const dx = (px - e.cx) / e.rx, dy = (py - e.cy) / e.ry;
+  return dx * dx + dy * dy <= 1;
+}
+
+/* 凸四角形の 中か（光の 1本）。全部の 辺で 同じ側なら 中 */
+function inQuad(px, py, q){
+  let sign = 0;
+  for(let i = 0; i < q.length; i++){
+    const [ax, ay] = q[i], [bx, by] = q[(i + 1) % q.length];
+    const cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+    if(cross === 0) continue;
+    const s = cross > 0 ? 1 : -1;
+    if(sign === 0) sign = s;
+    else if(sign !== s) return false;
+  }
+  return true;
+}
+
 /* 設計座標の 1点が どの色かを 返す。手前の ものが 勝つ */
 function colorAt(x, y){
-  for(const [a, b] of [[TICK.pts[0], TICK.pts[1]], [TICK.pts[1], TICK.pts[2]]]){
-    if(sdSegment(x, y, a[0], a[1], b[0], b[1]) <= TICK.w / 2) return CHECK;
+  for(const q of RAYS){ if(inQuad(x, y, q)) return SPARK; }
+
+  for(const e of EYES){ if(Math.hypot(x - e.cx, y - e.cy) <= e.r) return INK; }
+  for(let i = 1; i < SMILE_PTS.length; i++){
+    const a = SMILE_PTS[i - 1], b = SMILE_PTS[i];
+    if(sdSegment(x, y, a[0], a[1], b[0], b[1]) <= SMILE.w / 2) return INK;
   }
-  for(const r of RULES){
-    if(sdSegment(x, y, r.x0, r.y, r.x1, r.y) <= r.w / 2) return RULE;
-  }
-  if(sdRoundRect(x, y, PAGE) <= 0) return PAPER;
+  for(const c of CHEEKS){ if(inEllipse(x, y, c)) return CHEEK; }
+
+  if(sdRoundRect(x, y, FILL) <= 0) return GREEN;
+  const bar = sdRoundRect(x, y, BAR);
+  if(Math.abs(bar) <= BAR.stroke / 2) return INK;
+  if(bar < 0) return TRACK;
+
   return BG;
 }
 

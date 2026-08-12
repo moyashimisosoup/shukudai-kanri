@@ -3,15 +3,38 @@
 <!-- しゅくだいノートの ホーム画面アイコン。
      数字は tools/make-icons.js と そろえてある。図案を 直すときは 両方を 直し、
      `node tools/make-icons.js` で PNG を 作り直すこと。
-     背景は 不透明。iOS は 透過を 黒で うめるため -->
+     背景は 不透明。iOS は 透過を 黒で うめるため。
+
+     図案の 決めごと
+     - 顔は 輪郭を 描かない。円を 置かず、目・ほっぺ・口だけを 背景の上に のせる。
+       アイコンの 外形（角丸の四角）が そのまま 顔の 輪郭を 兼ねる
+     - バーは 細身。中の みどりは アプリの すすみぐあいと 同じ色
+     - 3本の光は「進んだ ところの 先端」から 右上へ。
+       **開き角を せまくすると 1枚の 扇に 見える。** ±42度と 根もとの 余白は 守る -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180"
      role="img" aria-label="しゅくだいノート">
-  <rect width="180" height="180" fill="#14375e"/>
-  <rect x="34" y="26" width="112" height="128" rx="12" fill="#fff9ef"/>
-  <g stroke="#c6d6e4" stroke-width="7" stroke-linecap="round">
-    <line x1="52" y1="56" x2="128" y2="56"/>
-    <line x1="52" y1="78" x2="110" y2="78"/>
+  <rect width="180" height="180" fill="#ffe2c2"/>
+
+  <!-- 顔（輪郭なし。目・ほっぺ・口だけ） -->
+  <g fill="#ef9186">
+    <ellipse cx="63" cy="67" rx="10" ry="6.5"/>
+    <ellipse cx="117" cy="67" rx="10" ry="6.5"/>
   </g>
-  <polyline points="58,112 80,134 126,84" fill="none" stroke="#3ea05c"
-            stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#2f5c48">
+    <circle cx="73" cy="52" r="7"/>
+    <circle cx="107" cy="52" r="7"/>
+  </g>
+  <path d="M76 65c4.5 8 23.5 8 28 0" fill="none" stroke="#2f5c48"
+        stroke-width="6" stroke-linecap="round"/>
+
+  <!-- バー（細身。みどりはアプリと同じ） -->
+  <rect x="22" y="112" width="136" height="26" rx="13" fill="#fff7ea" stroke="#2f5c48" stroke-width="3.5"/>
+  <rect x="27.5" y="117.5" width="70" height="15" rx="7.5" fill="#3ea05c"/>
+
+  <!-- 進んだところの先端から出る3本の光 -->
+  <g fill="#e07a2a" transform="translate(97,111) rotate(24)">
+    <polygon points="-1.7,-9 1.7,-9 3.6,-22 -3.6,-22" transform="rotate(-42)"/>
+    <polygon points="-1.7,-9 1.7,-9 3.6,-24 -3.6,-24"/>
+    <polygon points="-1.7,-9 1.7,-9 3.6,-22 -3.6,-22" transform="rotate(42)"/>
+  </g>
 </svg>
