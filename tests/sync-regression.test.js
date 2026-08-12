@@ -2265,6 +2265,12 @@ test('案内を閉じたしるしは端末内だけに持ち、共有する conf
   }
 });
 
+test('Cloudflare Web Analyticsの計測タグを公開HTMLへ一度だけ置く', ()=>{
+  assert.equal((INDEX.match(/static\.cloudflareinsights\.com\/beacon\.min\.js/g) || []).length, 1);
+  assert.match(INDEX, /data-cf-beacon='\{"token": "4844611a6258456f866196574e92a9e3"\}'/);
+  assert.match(INDEX, /<script type="module" src="https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js"[^>]*><\/script>\s*<\/body>/);
+});
+
 test('保護者ページの共有・ホーム画面追加の案内は、この端末だけで閉じられる', ()=>{
   assert.match(APP, /const K_SYNC_PROMPT_DONE = TEST_MODE \? 'natsu\.preview\.prompt\.sync\.v1' : 'natsu\.prompt\.sync\.v1';/);
   assert.match(APP, /const K_HOME_INSTALL_DONE = TEST_MODE \? 'natsu\.preview\.prompt\.install\.v1' : 'natsu\.prompt\.install\.v1';/);
