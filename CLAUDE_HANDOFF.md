@@ -1654,3 +1654,4 @@ devices更新・snapshot・Function自身の書き戻しは活動に数えない
 - 「1年の中で、30日ある月は？」は30日以上の月を問う形で紛らわしかったため、「30日までの月は いくつ？」へ変更。答えは4つ（4月・6月・9月・11月）とし、2月と31日の月も補足した。
 - 曜日は全ひらがな設定のときだけ読みを先に確定する。小1以上では曜日の7字は既習なので、そのまま漢字で表示する。
 - ミニコンテンツの本文と「よんだミニコンテンツ」の控えは `data-no-reading` でかな変換から除外する。データに付けたルビを残し、小1設定でも本文の漢字をひらがなに置き換えない。
+- 管理者用 `tools/retention-admin.js` は Firebase Admin SDK 14 の実体パス（`functions/node_modules/firebase-admin/lib/app` / `lib/firestore`）を読む。`.../firebase-admin/app` という相対参照は SDK 14 では解決できず、`npm.cmd ci --prefix functions` 後の起動時に MODULE_NOT_FOUND になるため戻さない。

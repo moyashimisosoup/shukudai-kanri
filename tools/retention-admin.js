@@ -10,8 +10,11 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const { parseHouseIds, retirementStatus } = require('./retention-admin-lib');
-const { initializeApp, applicationDefault, cert, getApps } = require('../functions/node_modules/firebase-admin/app');
-const { getFirestore, FieldValue, Timestamp } = require('../functions/node_modules/firebase-admin/firestore');
+/* firebase-admin は functions 配下にだけインストールする。SDK 14 では
+   パッケージのサブパスが exports 管理になり、相対パスの `.../firebase-admin/app`
+   は解決できないため、実体の lib エントリを読む。 */
+const { initializeApp, applicationDefault, cert, getApps } = require('../functions/node_modules/firebase-admin/lib/app');
+const { getFirestore, FieldValue, Timestamp } = require('../functions/node_modules/firebase-admin/lib/firestore');
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.RETENTION_ADMIN_PORT || 8787);
