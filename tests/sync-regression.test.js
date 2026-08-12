@@ -640,7 +640,7 @@ test('初期設定の選択肢は、選んだものだけ色とチェックが�
 
 test('月の日数クイズは30日までの月を正しくたずねる', ()=>{
   assert.match(DATA, /q:'1年の中で、30日までの月は いくつ？'/);
-  assert.match(DATA, /a:'4か月。4月、6月、9月、11月だよ。2月は28日か29日、のこりは31日。'/);
+  assert.match(DATA, /a:'4つ。4月、6月、9月、11月だよ。2月は28日か29日、のこりは31日。'/);
   assert.doesNotMatch(DATA, /30日 ある月は いくつ？/);
 });
 
@@ -2202,7 +2202,7 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812i'));
+  assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812j'));
   }
 });
 
