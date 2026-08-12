@@ -1374,6 +1374,37 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .parent-child-guide p{ max-width:70ch; font-size:15px; font-weight:700; line-height:1.65; color:var(--ai-usu); }
 #parentGuideOk{ flex:0 0 auto; margin-inline-start:auto; }
 
+/* サンプルの宿題が入ったままのときの案内（保護者ページ）。
+   消すと元に戻せないので、ほかの案内より強い色で囲む。
+   色だけに頼らず、警告の一文も本文に出す */
+.sample-notice{
+  margin-top:14px; padding:12px 16px;
+  display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px;
+  border-color:var(--suika);
+}
+.sample-notice-body{ flex:1 1 16em; min-width:0; }
+.sample-notice h2{ margin:0 0 4px; font-size:17px; font-weight:900; }
+.sample-notice p{ max-width:70ch; font-size:15px; font-weight:700; line-height:1.65; color:var(--ai-usu); }
+/* `.sample-notice p` より強くしないと色が上書きされる（要素セレクタのぶん向こうが強い） */
+.sample-notice p.sample-notice-warn{ margin-top:6px; color:var(--suika); }
+/* せまい画面では ボタンを 本文の下へ 全幅で 置く。
+   flex:0 0 auto のまま 右へ 寄せると、2つのボタンが 縮まず 横に はみ出す
+   （320px で 実際に 11px あふれた）。 */
+.sample-notice-actions{
+  flex:1 1 100%; min-width:0;
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+}
+@media (min-width:561px){
+  .sample-notice-actions{ flex:0 0 auto; margin-inline-start:auto; }
+}
+
+/* 子ども画面の おなじ案内。読むのは 子どもなので 文字を 大きく、
+   ボタンは 1つだけに する（消す入口は 保護者ページだけ） */
+.sample-child-body{ padding:14px 16px; }
+.sample-child-body h2{ margin:0 0 6px; font-size:19px; font-weight:900; }
+.sample-child-body p{ font-size:17px; font-weight:700; line-height:1.7; color:var(--ai-usu); }
+.sample-child-actions{ margin-top:12px; }
+
 /* 大人向け3ページの 行き来。
    下の .tabbar は 子ども画面 専用なので つかえない。
    3層レイアウトを 壊さないよう fixed / sticky は つかわず、
@@ -1729,7 +1760,16 @@ body.no-tabbar{ padding-bottom:0; }
   border:2px solid var(--ai); background:var(--kami);
   font-size:20px; font-weight:900; cursor:pointer;
 }
-.icon-btn.del{ background:var(--suika-usu); color:var(--suika); border-color:var(--suika); }
+/* 消すボタンは 枠なし。ゴミ箱の 図だけを 置く。
+   border は 消さずに 透明にする。太さを 残しておかないと、
+   まわりの ボタンと 高さが ずれて 行が がたつく。
+   44px の 当たり判定は .icon-btn の まま 変えない。 */
+.icon-btn.del{ background:transparent; color:var(--suika); border-color:transparent; box-shadow:none; }
+.icon-btn.del .codex-icon{ width:24px; height:24px; }
+/* 押した ことが 分かるように、押している 間だけ うすい 面を 出す */
+.icon-btn.del:active{ background:var(--suika-usu); }
+@media (hover:hover){ .icon-btn.del:hover{ background:var(--suika-usu); } }
+.icon-btn.del:focus-visible{ outline:3px solid var(--focus); outline-offset:2px; }
 .set-note{
   font-size:15px; font-weight:700; color:var(--ai-usu);
   padding:12px 16px; line-height:1.7;

@@ -70,6 +70,13 @@ const K_DEVICE_ID = TEST_MODE ? 'natsu.preview.sync.device.v1' : 'natsu.sync.dev
 const K_TRIVIA_REVIEW = TEST_MODE ? 'natsu.preview.trivia-review.v1' : 'natsu.trivia-review.v1';
 /* 記念日を見た足跡はこの端末だけ。共有 state や保持期限の活動には加えない。 */
 const K_KINENBI_VIEWED = TEST_MODE ? 'natsu.preview.kinenbi.viewed.v1' : 'natsu.kinenbi.viewed.v1';
+/* サンプルの宿題が入ったままであることの案内を、閉じたかどうか。
+   **config / state に入れてはいけない。** 入れると saveCfg()/saveSt() で
+   暗号文が変わり、90日の保持期限が「活動あり」と数えてしまう。
+   さらに共有すると、1台で閉じただけで全部の端末から消える。
+   保護者と子どもは別の端末を見ているので、しるしも別にする。 */
+const K_SAMPLE_PARENT = TEST_MODE ? 'natsu.preview.sample.parent.v1' : 'natsu.sample.parent.v1';
+const K_SAMPLE_CHILD  = TEST_MODE ? 'natsu.preview.sample.child.v1'  : 'natsu.sample.child.v1';
 const K_METRIC = 'natsu.metric.registered.v1';
 /* URL の隠し入口。静的サイトなので認証ではなく、通常画面に出さないための合図。 */
 const STATS_PARAM = 'stats';
@@ -79,7 +86,8 @@ const STATS_VALUE = 'family-count';
    消すのは preview 専用キーだけで、普段のグループデータ・あいことばには触れない。 */
 if(TEST_MODE){
   try{
-    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME, K_WELCOME_THEME, K_WELCOME_JOIN].forEach(k=>localStorage.removeItem(k));
+    [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME, K_WELCOME_THEME, K_WELCOME_JOIN,
+     K_SAMPLE_PARENT, K_SAMPLE_CHILD].forEach(k=>localStorage.removeItem(k));
     if(DEBUG_PARENT){
       localStorage.setItem(K_ONBOARD, 'done');
       localStorage.setItem(K_ROLE, 'parent');
@@ -1293,8 +1301,17 @@ function viewWelcome(){
       ? (previewRole === 'parent' ? welcomeParentSharePickerHTML(3) : welcomeFormHTML('child', true, 3)) : ''}</div>
   </section>`;
 }
+/* 自前で 描いた アイコン。@codexteam/icons（MIT）とは べつに、
+   このアプリの ために かいたもの なので Apache-2.0 側に なる。
+   ゴミ箱は 線ではなく 塗りの ピクトグラム。20px でも つぶれず、
+   丸みで やわらかく 見えるように している。
+   色は currentColor なので、ボタン側の color が そのまま つかわれる。 */
+const APP_ICONS = {
+  trash:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M9.8 2.4h4.4A1.6 1.6 0 0 1 15.8 4v1.2H8.2V4a1.6 1.6 0 0 1 1.6-1.6Z"/><rect x="2.8" y="5.1" width="18.4" height="3" rx="1.5" fill="currentColor"/><path fill="currentColor" fill-rule="evenodd" d="M5.4 9.6h13.2l-.6 8.6a3.2 3.2 0 0 1-3.2 3H9.2a3.2 3.2 0 0 1-3.2-3L5.4 9.6Zm4.3 2.6a1.05 1.05 0 0 0-1.05 1.05v4.2a1.05 1.05 0 1 0 2.1 0v-4.2A1.05 1.05 0 0 0 9.7 12.2Zm4.6 0a1.05 1.05 0 0 0-1.05 1.05v4.2a1.05 1.05 0 1 0 2.1 0v-4.2a1.05 1.05 0 0 0-1.05-1.05Z"/></svg>'
+};
+/* 自前のものを 先に 見る。同じ名前が codex 側に あっても こちらが 勝つ */
 function icon(name){
-  const svg = window.CodeXIcons && window.CodeXIcons[name];
+  const svg = APP_ICONS[name] || (window.CodeXIcons && window.CodeXIcons[name]);
   return svg ? `<span class="codex-icon" aria-hidden="true">${svg}</span>` : '';
 }
 function parentSenderOptions(selected){
@@ -1730,6 +1747,8 @@ function viewHome(){
     ${paceHTML(o)}
   </section>
 
+  ${sampleChildNoticeHTML()}
+
   ${parentMessageHTML()}
 
   ${joinInstallTransferHTML()}
@@ -2101,7 +2120,7 @@ function logRowHTML(l){
       ${l.memo ? `<div class="ti-memo">${esc(l.memo)}</div>` : ''}
     </div>
     ${canDeleteLog() ? `<button class="icon-btn del ti-del" data-dellog="${esc(l.id)}"
-            title="この記録を消す" aria-label="この記録を消す" type="button">🗑</button>` : ''}
+            title="この記録を消す" aria-label="この記録を消す" type="button">${icon('trash')}</button>` : ''}
   </div>`;
 }
 
@@ -2727,6 +2746,8 @@ function viewParent(){
     </div>
   </div>
 
+  ${sampleResetNoticeHTML()}
+
   ${syncPromptHTML()}
 
   ${parentChildGuideHTML()}
@@ -2879,7 +2900,7 @@ function messageListHTML(){
           <span class="msg-text">${esc(m.text)}</span>
         </div>
         <button class="icon-btn del" data-delmsg="${esc(m.id)}" type="button"
-                title="このメッセージを消す" aria-label="${esc(messageHeading(m))}のメッセージを消す">🗑</button>
+                title="このメッセージを消す" aria-label="${esc(messageHeading(m))}のメッセージを消す">${icon('trash')}</button>
       </div>`).join('')}
   </div>`;
 }
@@ -3352,7 +3373,7 @@ function bookSectionHTML(){
             ${b.memoOut || b.memo ? `<div class="book-memo">${esc(b.memoOut || b.memo)}</div>` : ''}
           </div>
           <button class="btn btn-sm" data-open="${esc(b.taskId)}" data-book="${esc(b.id)}" type="button">編集</button>
-          <button class="icon-btn del" data-delbook="${esc(b.id)}" title="削除" type="button">🗑</button>
+          <button class="icon-btn del" data-delbook="${esc(b.id)}" title="削除" aria-label="この本の記録を消す" type="button">${icon('trash')}</button>
         </div>`).join('')
       : `<p class="empty">まだ記録がありません。</p>`}
       <p class="set-note">「編集」で書名・読んだ日・感想を訂正できます。削除すると冊数も1つ戻ります。</p>
@@ -4285,6 +4306,77 @@ function parentChildGuideHTML(){
   </aside>`;
 }
 
+/* ---------------------------------------------------------
+   サンプルの宿題が入ったままのときの案内
+
+   新しい端末は freshConfig() から始まるので、宿題は必ず data.js の
+   サンプル一式が入っている。初期設定にサンプルを消す手順は無い。
+   そのため「知らない宿題が並んでいる」状態で使い始める人がいる。
+
+   判定は **課題の id の集合が DEFAULT_CONFIG と同じか** で行う。
+   名前で見ないのは、サンプルの名前を書きかえて使うのがふつうの
+   使い方だから（書きかえた時点で「もう自分のもの」なので、
+   id が同じでも案内は出しつづける。閉じるボタンで消せる）。
+   --------------------------------------------------------- */
+function usingSampleTasks(){
+  const now = (config.tasks || []).map(t=>t.id).sort();
+  const def = (DEFAULT_CONFIG.tasks || []).map(t=>t.id).sort();
+  if(!now.length || now.length !== def.length) return false;
+  return now.every((id,i)=> id === def[i]);
+}
+/* 保護者ページ。消すのは この端末だけの しるしでは なく 実データなので、
+   confirm を 通してから 行う */
+function sampleResetNoticeHTML(){
+  if(!usingSampleTasks()) return '';
+  if(getLocal(K_SAMPLE_PARENT) === 'done') return '';
+  return `
+  <aside class="paper sample-notice" role="status">
+    <div class="sample-notice-body">
+      <h2>サンプルの宿題が入っています</h2>
+      <p>いま並んでいるのは、最初から入っているサンプルです。実際の宿題に入れかえるなら、リセットしてから「宿題」ページで登録してください。名前や数を書きかえて、そのまま使うこともできます。</p>
+      <p class="sample-notice-warn">リセットすると、入力したデータ（進捗・記録・本の記録）もすべて削除されます。</p>
+    </div>
+    <div class="sample-notice-actions">
+      <button class="btn btn-sm btn-danger" id="sampleResetBtn" type="button">リセット（消去）</button>
+      <button class="btn btn-sm" id="sampleKeepBtn" type="button">このまま使う</button>
+    </div>
+  </aside>`;
+}
+/* 子ども画面。子どもは 消せない（消す入口は 保護者ページだけ）ので、
+   OK で 閉じるだけ。文は かな変換の 対象に する（data-no-reading を 付けない）。
+   読むのが 子ども本人だから */
+function sampleChildNoticeHTML(){
+  if(!usingSampleTasks()) return '';
+  if(getLocal(K_SAMPLE_CHILD) === 'done') return '';
+  return `
+  <section class="sec sample-child-notice">
+    <div class="paper sample-child-body">
+      <h2>これは おためしの しゅくだいです</h2>
+      <p>じぶんの しゅくだいに 入れかえるときは、おうちの人に 「ほごしゃ用ページ」から けしてもらってね。なまえを かきかえて、そのまま つかうことも できるよ。</p>
+      <div class="sample-child-actions">
+        <button class="btn btn-go btn-wide" id="sampleChildOk" type="button">OK</button>
+      </div>
+    </div>
+  </section>`;
+}
+/* サンプルを 消す。課題（config）と 記録（state）の 両方を 消す。
+
+   記録側は resetState() を 通すこと。中を 空にするだけだと、
+   同じグループの ほかの端末が 持っている 古い記録が あとから 送り返されて
+   復活する。resetState() は 世代番号（resetAt）を 押すので、
+   すべての端末へ「この時刻より前は 無効」と つたわる。 */
+function resetSampleTasks(){
+  if(!confirm('サンプルの宿題をすべて消して、最初からやり直しますか？\n\n入力したデータ（進捗・記録・本の記録）も、共有しているすべての端末から削除されます。\nこの操作は取り消せません。')) return;
+  config.tasks = [];
+  config.showDaily = false;
+  saveCfg();
+  state = resetState(Date.now());
+  saveSt();
+  setLocal(K_SAMPLE_PARENT, 'done');
+  render();
+  toast('消しました。「宿題」ページから登録してください');
+}
+
 /* 大人向けの3ページを行き来する帯。
    下の .tabbar は 子ども画面 専用なので つかえない（render() の noTabs）。
    position:fixed / sticky は 3層レイアウトを 壊すので つかわない。
@@ -4849,6 +4941,13 @@ function bindAdultNav(){
   const guideOk = $('#parentGuideOk');
   if(guideOk) guideOk.addEventListener('click', ()=>{
     setLocal(K_GUIDE_DONE, 'done');
+    render({ keepScroll:true });
+  });
+  const sampleReset = $('#sampleResetBtn');
+  if(sampleReset) sampleReset.addEventListener('click', resetSampleTasks);
+  const sampleKeep = $('#sampleKeepBtn');
+  if(sampleKeep) sampleKeep.addEventListener('click', ()=>{
+    setLocal(K_SAMPLE_PARENT, 'done');
     render({ keepScroll:true });
   });
 }
@@ -5689,6 +5788,14 @@ document.addEventListener('click', e=>{
     const status = contentReviewStatus();
     Object.keys(status).forEach(i=>{ if(status[i] === 'ok') delete status[i]; });
     saveContentReview(status);
+    render({ keepScroll:true });
+    return;
+  }
+
+  /* 子ども画面の「おためしの しゅくだいです」の OK。
+     この端末に だけ しるしを のこす（config / state には 入れない）。 */
+  if(e.target.closest('#sampleChildOk')){
+    setLocal(K_SAMPLE_CHILD, 'done');
     render({ keepScroll:true });
     return;
   }

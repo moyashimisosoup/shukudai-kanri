@@ -2170,6 +2170,77 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812a'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812b'));
   }
+});
+
+test('サンプルの宿題が入ったままなら、保護者と子どもの両方に案内を出す', ()=>{
+  /* 判定は課題の id 集合。名前で見ると、サンプルを書きかえて使う
+     ふつうの流れで案内が消えてしまう */
+  const using = grab(APP, 'usingSampleTasks');
+  assert.match(using, /DEFAULT_CONFIG\.tasks/, '既定の課題と比べること');
+  assert.match(using, /\.map\(t=>t\.id\)\.sort\(\)/, 'id の集合で比べること');
+
+  const parent = grab(APP, 'sampleResetNoticeHTML');
+  assert.match(parent, /if\(!usingSampleTasks\(\)\) return '';/);
+  assert.match(parent, /getLocal\(K_SAMPLE_PARENT\) === 'done'/, '閉じたら二度と出さないこと');
+  assert.match(parent, /id="sampleResetBtn"/);
+  assert.match(parent, /入力したデータ（進捗・記録・本の記録）もすべて削除されます/,
+    '消えるものを案内の中に書くこと');
+
+  const child = grab(APP, 'sampleChildNoticeHTML');
+  assert.match(child, /getLocal\(K_SAMPLE_CHILD\) === 'done'/);
+  assert.match(child, /id="sampleChildOk"/);
+  assert.doesNotMatch(child, /data-no-reading/,
+    '子どもが読む案内なので、かな変換から外さないこと');
+  assert.doesNotMatch(child, /sampleResetBtn|リセット（消去）/,
+    '子ども画面に消す入口を置かないこと');
+
+  assert.match(grab(APP, 'viewParent'), /\$\{sampleResetNoticeHTML\(\)\}/);
+  assert.match(grab(APP, 'viewHome'), /\$\{sampleChildNoticeHTML\(\)\}/);
+});
+
+test('サンプルのリセットは課題と記録の両方を、墓標の世代番号ごと消す', ()=>{
+  const reset = grab(APP, 'resetSampleTasks');
+  assert.match(reset, /confirm\(/, '取り消せないので確認を通すこと');
+  assert.match(reset, /config\.tasks = \[\];/);
+  assert.match(reset, /config\.showDaily = false;/);
+  assert.match(reset, /state = resetState\(Date\.now\(\)\);/,
+    '空にするだけでは他端末から復活するので、世代番号を押すこと');
+  assert.match(reset, /saveCfg\(\)[\s\S]*saveSt\(\)/);
+});
+
+test('案内を閉じたしるしは端末内だけに持ち、共有する config / state へ入れない', ()=>{
+  assert.match(APP, /const K_SAMPLE_PARENT = TEST_MODE \? 'natsu\.preview\.sample\.parent\.v1' : 'natsu\.sample\.parent\.v1';/);
+  assert.match(APP, /const K_SAMPLE_CHILD  = TEST_MODE \? 'natsu\.preview\.sample\.child\.v1'  : 'natsu\.sample\.child\.v1';/);
+  assert.match(APP, /K_SAMPLE_PARENT, K_SAMPLE_CHILD\]\.forEach\(k=>localStorage\.removeItem\(k\)\)/,
+    'おためしURLでは preview 用のしるしも消すこと');
+  for(const key of ['K_SAMPLE_PARENT', 'K_SAMPLE_CHILD']){
+    assert.doesNotMatch(APP, new RegExp('config\\.[A-Za-z]+\\s*=\\s*' + key),
+      key + ' を config へ書かないこと');
+    assert.doesNotMatch(APP, new RegExp('state\\.[A-Za-z]+\\s*=\\s*' + key),
+      key + ' を state へ書かないこと');
+  }
+});
+
+test('消すボタンは枠なしの自前ゴミ箱アイコンにそろえる', ()=>{
+  assert.doesNotMatch(APP, /🗑/, '端末で見え方が変わる絵文字を残さないこと');
+  assert.match(APP, /const APP_ICONS = \{/, '自前アイコンは codex とは別に持つこと');
+  assert.match(APP, /trash:'<svg[^']*fill="currentColor"/,
+    '線ではなく塗りのピクトグラムにし、色はボタン側に従わせること');
+  assert.match(grab(APP, 'icon'), /APP_ICONS\[name\] \|\| \(window\.CodeXIcons/,
+    '同じ名前なら自前を優先すること');
+  const codex = fs.readFileSync(path.join(ROOT, 'assets', 'codex-icons.js'), 'utf8');
+  assert.doesNotMatch(codex, /trash:/, '差しかえた図案の元データを残さないこと');
+
+  for(const attr of ['data-dellog', 'data-delmsg', 'data-delbook']){
+    assert.match(APP, new RegExp(attr + '=[\\s\\S]{0,240}\\$\\{icon\\(\'trash\'\\)\\}'),
+      attr + ' のボタンをゴミ箱アイコンにすること');
+  }
+  assert.match(STYLE, /\.icon-btn\.del\{ background:transparent; color:var\(--suika\); border-color:transparent;/,
+    '枠と面を消すこと');
+  assert.match(STYLE, /\.icon-btn\{[\s\S]{0,120}width:44px; height:44px/,
+    '枠を消しても44pxの当たり判定は残すこと');
+  assert.match(STYLE, /\.icon-btn\.del:focus-visible\{ outline:/,
+    '枠が無いぶん、キーボードの位置は必ず見せること');
 });
