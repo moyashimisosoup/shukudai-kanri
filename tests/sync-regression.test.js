@@ -624,6 +624,8 @@ test('初期設定の選択肢は、選んだものだけ色とチェックが�
     '初期設定の段階で大人向けの入口案内を表示すること');
   assert.match(view, /タイトルを<b>5回タップ<\/b>するか、<b>2秒長押し<\/b>/,
     '子ども画面から保護者ページを開く操作を明示すること');
+  assert.match(view, /初めの準備[\s\S]*ホーム画面に追加[\s\S]*使い方を選ぶ/,
+    '初期設定の入口は保護者にも読める通常の漢字表記にすること');
 });
 
 test('共有する初期設定は、端末とグループの状態に合わせて分岐する', ()=>{
@@ -953,6 +955,8 @@ test('QR招待の案内は大人向けのまま出し、ボタンを枠に収め
     '合言葉削除の内部動作を案内へ重ねないこと');
   assert.match(grab(APP, 'applyReadingDisplay'), /data-no-reading/,
     'かな変換に data-no-reading の除外があること');
+  assert.match(grab(APP, 'applyReadingDisplay'), /tab === 'welcome'/,
+    '初期設定は子どもの漢字設定を選ぶ前でも、保護者向けの漢字表記を保つこと');
 });
 
 test('招待URLでは端末に残ったデザインを持ち込まず、グループのデザインを採る', ()=>{
@@ -2176,7 +2180,7 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812e'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812f'));
   }
 });
 

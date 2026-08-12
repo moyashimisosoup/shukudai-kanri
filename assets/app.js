@@ -1287,24 +1287,24 @@ function viewWelcome(){
   const previewRole = DEBUG_WELCOME_ROLE === 'welcome-parent' ? 'parent' : 'child';
   return `
   <section class="welcome" aria-labelledby="welcomeTitle">
-    <p class="welcome-kicker">${TEST_MODE ? 'おためし モード' : 'はじめの じゅんび'}</p>
+    <p class="welcome-kicker">${TEST_MODE ? 'おためしモード' : '初めの準備'}</p>
     <h2 id="welcomeTitle">しゅくだいノート</h2>
     ${getLocal(K_RETIRED_NOTICE) ? `<div class="welcome-retired" role="status"><b>共有データを削除しています</b><p>この共有データは削除処理中のため、もう使えません。新しい合言葉で始めてください。</p></div>` : ''}
     <div class="paper welcome-step">
       <span class="welcome-num">1</span>
-      <div><h3>ホーム画面に 追加しよう</h3>
+      <div><h3>ホーム画面に追加</h3>
       <p>${installed ? 'この端末はホーム画面から開いています。' : 'iPad / iPhone では、Safari の共有ボタン →「ホーム画面に追加」を押すと、いつも同じ場所から開けます。'}</p>
-      <p class="set-note">あとでホーム画面に追加したときも、あいことばを読み込めば、同じグループの複数の端末で同じ記録と設定を使えます。</p></div>
+      <p class="set-note">後からホーム画面に追加したときも、合言葉を読み込めば、同じグループの複数の端末で同じ記録と設定を使えます。</p></div>
     </div>
     <div class="paper welcome-step">
       <span class="welcome-num">2</span>
-      <div><h3>どうやって つかう？</h3>
-       <div class="welcome-roles">
-         <button class="btn welcome-role" data-welcome-mode="solo" type="button" aria-pressed="false"><span class="welcome-role-copy"><b>こどもだけでつかう</b><small>すぐにつかえます</small></span></button>
-         <button class="btn welcome-role welcome-role--share${DEBUG_WELCOME ? ' is-selected' : ''}" data-welcome-mode="share" type="button" aria-pressed="${DEBUG_WELCOME ? 'true' : 'false'}">${icon('users')}<span class="welcome-role-copy"><b>保護者も共有する</b><small>あとからでも設定できます</small></span></button>
-       </div>
+      <div><h3>使い方を選ぶ</h3>
+      <div class="welcome-roles">
+        <button class="btn welcome-role" data-welcome-mode="solo" type="button" aria-pressed="false"><span class="welcome-role-copy"><b>子どもだけで使う</b><small>すぐに始められます</small></span></button>
+        <button class="btn welcome-role welcome-role--share${DEBUG_WELCOME ? ' is-selected' : ''}" data-welcome-mode="share" type="button" aria-pressed="${DEBUG_WELCOME ? 'true' : 'false'}">${icon('users')}<span class="welcome-role-copy"><b>保護者も共有する</b><small>後からでも設定できます</small></span></button>
+      </div>
        <aside class="welcome-parent-entry" data-no-reading><b>保護者の方へ</b><p>子ども画面へ進んだあと、画面上のタイトルを<b>5回タップ</b>するか、<b>2秒長押し</b>すると保護者ページを開けます。宿題の登録・変更や設定は、そこから行えます。</p></aside>
-       ${TEST_MODE ? '<p class="set-note">おためしモードでは、いま使っているグループのデータ・あいことば・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。あとから設定画面で同期を有効にできます。</p>')}</div>
+       ${TEST_MODE ? '<p class="set-note">おためしモードでは、現在使っているグループのデータ・合言葉・集計には触れません。</p>' : (hasSync ? '' : '<p class="set-note">同期の準備が未設定のため、この端末だけで使います。後から設定ページで同期を有効にできます。</p>')}</div>
     </div>
     <div class="welcome-form" id="welcomeForm"${DEBUG_WELCOME ? '' : ' hidden'}>${DEBUG_WELCOME
       ? (previewRole === 'parent' ? welcomeParentSharePickerHTML(3) : welcomeFormHTML('child', true, 3)) : ''}</div>
@@ -4536,7 +4536,7 @@ function applyReadingDisplay(targetRoot){
   setReadingGrade(grade);
   /* 保護者用ページと設定画面は大人が読むため、端末の漢字レベルに
      かかわらず元の漢字表記を保つ。変換するのは子ども向け画面だけ。 */
-  if(isAdultTab(tab) || tab === 'stats') return;
+  if(isAdultTab(tab) || tab === 'stats' || tab === 'welcome') return;
   /* 漢字レベルは現在の config を正とする。K_READING は旧版との互換用なので、
      ここで存在を条件にすると共有設定で小1・小2へ変えた直後のダイアログだけ
      かな化されないことがある。 */
