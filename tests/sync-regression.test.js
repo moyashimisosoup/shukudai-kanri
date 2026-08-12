@@ -431,6 +431,7 @@ test('はずされた端末は、招待URLを開き直しても勝手に戻ら�
       ${grab(APP, 'joinCodeFromURL')}
       ${grab(APP, 'clearJoinCodeFromURL')}
       ${grab(APP, 'takeJoinCode')}
+      let tab='welcome';
       ${grab(APP, 'applyJoinCode')}
       return applyJoinCode;
     `)(
@@ -458,6 +459,8 @@ test('はずされた端末は、招待URLを開き直しても勝手に戻ら�
     '同期の準備が終わる前に招待URLのコードを消さないこと');
   assert.match(apply, /S\.reconnect\(code, \{ joining:true \}\);\s*if\(isStandalone\(\)\) clearJoinCodeFromURL\(\);/,
     'ホーム画面版では接続開始後にだけ招待コードをURLから消すこと');
+  assert.match(apply, /if\(tab === 'welcome'\)\{\s*tab = 'home';[\s\S]{0,100}location\.hash = 'home';/,
+    '招待接続後は初期設定画面から、既存の端末役割選択を持つhome側へ切り替えること');
 
   /* はずされた あいことばのままでは、ホーム画面追加の案内も出さない
      （「引き継げる準備ができています」は この状態では うそになる） */
@@ -2187,7 +2190,7 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812f'));
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812g'));
   }
 });
 

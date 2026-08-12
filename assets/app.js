@@ -6211,7 +6211,14 @@ function applyJoinCode(){
   S.reconnect(code, { joining:true });
   if(isStandalone()) clearJoinCodeFromURL();
   toast('おうちの 共有に つながりました');
-  if(routeFromHash() === 'welcome') location.hash = 'home';
+  /* K_ONBOARD を先に保存するので、ここで routeFromHash() を呼ぶと既に
+     'home' を返す。その結果、画面変数 tab だけが welcome のまま残る。
+     招待で初期設定を飛ばした直後は、画面も明示して home 側へ切り替える。
+     役割が未選択なら viewHome() が既存の「保護者／子ども端末」選択を出す。 */
+  if(tab === 'welcome'){
+    tab = 'home';
+    if(location.hash !== '#home') location.hash = 'home';
+  }
   render({ keepScroll:true });
 }
 
