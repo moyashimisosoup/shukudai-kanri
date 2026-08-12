@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>しゅくだいノート　つかいかた</title>
+<link rel="icon" href="images/icon.png">
+<style>
+  :root{
+    --ink:#22303a; --ink-weak:#5a6b78; --paper:#fffdf8; --band:#ffe2c2;
+    --line:#e6ddcd; --green:#2f7a48; --warn-bg:#fff3e6; --warn-line:#e0a86a;
+    --code-bg:#f3f0e8;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      /* --band と、その上の文字色は暗くしない。
+         帯はアイコンと同じあんず色で、文字色を固定で置いてあるため */
+      --ink:#e8e6e1; --ink-weak:#a8b2b9; --paper:#1d2126;
+      --line:#39413a; --green:#7fc294; --warn-bg:#2c2419; --warn-line:#8a6a3c;
+      --code-bg:#262b30;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",
+                "Noto Sans JP",system-ui,sans-serif;
+    font-size:17px; line-height:1.85;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:720px; margin:0 auto; padding:0 20px 80px}
+
+  header{background:var(--band); margin-bottom:40px}
+  .head-inner{max-width:720px; margin:0 auto; padding:36px 20px 32px;
+              display:flex; gap:20px; align-items:center; flex-wrap:wrap}
+  .head-inner img{width:76px; height:76px; border-radius:18px; flex:none}
+  header h1{font-size:27px; margin:0 0 4px; line-height:1.4; color:#22303a}
+  header p{margin:0; font-size:15px; color:#4d5c52}
+
+  h2{font-size:21px; margin:52px 0 14px; padding-bottom:8px;
+     border-bottom:2px solid var(--line); line-height:1.5}
+  h3{font-size:17px; margin:30px 0 8px; line-height:1.6}
+  p{margin:0 0 16px}
+  ul,ol{margin:0 0 16px; padding-left:1.4em}
+  li{margin-bottom:8px}
+  a{color:var(--green)}
+  strong{font-weight:700}
+
+  figure{margin:24px 0 28px}
+  figure img{
+    display:block; width:100%; max-width:380px; height:auto;
+    border:1px solid var(--line); border-radius:12px;
+  }
+  figure.wide img{max-width:100%}
+  figcaption{margin-top:9px; font-size:14px; color:var(--ink-weak); line-height:1.7}
+
+  .lede{font-size:18px}
+  .url{
+    display:inline-block; background:var(--code-bg); border-radius:8px;
+    padding:9px 13px; font-size:15px; word-break:break-all; line-height:1.6;
+  }
+  .note{
+    background:var(--warn-bg); border-left:4px solid var(--warn-line);
+    padding:16px 18px; margin:22px 0; border-radius:0 8px 8px 0;
+  }
+  .note p:last-child{margin-bottom:0}
+  code{background:var(--code-bg); padding:2px 6px; border-radius:5px; font-size:.92em}
+
+  .bars{
+    background:var(--code-bg); border-radius:10px; padding:18px 20px; margin:20px 0;
+    font-size:15px;
+  }
+  .bar-row{display:flex; align-items:center; gap:12px; margin-bottom:10px}
+  .bar-row:last-child{margin-bottom:0}
+  .bar-label{width:6.2em; flex:none; font-size:14px}
+  .bar-track{
+    flex:1; min-width:0; height:16px; border-radius:8px;
+    background:rgba(128,128,128,.22); overflow:hidden;
+  }
+  /* span は inline のままだと height が効かない。block にしておくこと */
+  .bar-fill{display:block; height:100%; border-radius:8px; background:var(--green)}
+  .bar-fill.past{background:rgba(128,128,128,.45)}
+  .bar-pct{width:3.2em; flex:none; text-align:right; font-size:14px}
+
+  .qa{margin:0}
+  .qa dt{font-weight:700; margin:26px 0 6px}
+  .qa dd{margin:0}
+
+  footer{margin-top:60px; padding-top:22px; border-top:1px solid var(--line);
+         font-size:14px; color:var(--ink-weak)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-inner">
+    <img src="images/icon.png" alt="">
+    <div>
+      <h1>しゅくだいノート　つかいかた</h1>
+      <p>はじめて開く人が、最初に読むページ</p>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<p class="lede">夏休みの宿題があと何日ぶん残っているのかを、子ども本人が見るための道具です。
+ブラウザで開けば動きます。アプリの取得も、アカウントを作る手続きも要りません。</p>
+
+<p><span class="url">https://moyashimisosoup.github.io/shukudai-notebook/</span></p>
+
+<p>広告は出ません。課金もありません。作っているのは個人で、学校とは関係がありません。</p>
+
+<h2>まず開く</h2>
+
+<p>上のURLを、ふだん子どもが触る端末で開きます。iPadでもiPhoneでもパソコンでもかまいません。</p>
+
+<p>iPhoneとiPadの人は、開いたその場でSafariの共有ボタンから「ホーム画面に追加」まで済ませてください。
+次からはアイコンを押すだけで開きます。ブラウザのタブから探すことになると、たいてい使わなくなります。</p>
+
+<h2>先に覚えること — 保護者の画面の開き方</h2>
+
+<p>子どもの画面に、設定へ行くボタンはありません。押し間違いを減らすためです。開き方は2つあります。</p>
+
+<ul>
+  <li>画面いちばん上のタイトルを<strong>5回続けてタップ</strong>する</li>
+  <li>同じところを<strong>2秒押しつづける</strong></li>
+</ul>
+
+<p>URLの末尾に <code>#settings</code> を付けても同じ画面が出ます。よく使うならブックマークしておくと早いです。</p>
+
+<div class="note">
+  <p>この開き方だけは先に覚えておいてください。知らないまま使うと、宿題を登録することも、
+  次に出てくる見本の宿題を消すこともできません。</p>
+</div>
+
+<h2>最初に決めること</h2>
+
+<h3>1台で使うか、家族でつなぐか</h3>
+
+<p>「こどもだけでつかう」を選ぶと、記録はその端末の中だけに残ります。外へは何も送りません。
+1台しか使わないならこれで足ります。あとから家族でつなぐこともできます。</p>
+
+<h3>名前と、読める漢字</h3>
+
+<p>学年に合わせて「すべてひらがな」から「漢字のまま」までを選びます。
+子どもの画面では、まだ習っていない漢字がひらがなに変わります。保護者の画面はふつうの漢字のままです。</p>
+
+<h3>見本の宿題をどうするか</h3>
+
+<p>最初は「なつスキル」「読書ゆうびん」といった<strong>見本の宿題</strong>が入っています。
+お子さんが学校から持ち帰った宿題ではありません。開くと案内が出るので、どちらかを選んでください。</p>
+
+<ul>
+  <li><strong>消す</strong> — 見本を全部消して、ゼロから登録し直す</li>
+  <li><strong>このまま使う</strong> — 名前と数だけ書きかえる。項目を作る手間が省けます</li>
+</ul>
+
+<p>消す操作ができるのは保護者の画面だけです。子どもの画面には「おうちの人が消せます」という案内だけが出ます。</p>
+
+<h2>宿題を登録する</h2>
+
+<p>保護者の画面の「宿題」から登録します。数え方は3つあり、宿題の形に合うものを選びます。</p>
+
+<ul>
+  <li><strong>番号・かず</strong> — ドリルの①〜⑭、プリント6枚、読書20冊。画面には「つぎは ⑦」と出ます</li>
+  <li><strong>だんかい</strong> — 自由研究、観察カード、読書感想文。「つぎは『絵をかく』」と出ます</li>
+  <li><strong>まいにち</strong> — 音読、お手伝い、学習アプリ。その日のぶんと、続いた日数が出ます</li>
+</ul>
+
+<p>それぞれを「かならず やる」「つぎに やる」「まいにち」に分けます。
+学校から必ず出すように言われているものを「かならず やる」に入れてください。
+間に合うかどうかの判定は、こちらだけを見ています。</p>
+
+<figure class="wide">
+  <img src="images/child-tasks.png" alt="宿題のカードが縦に並んだ画面。それぞれに「つぎは⑫」と次の番号、進み具合の棒、「やった！」ボタンがある">
+  <figcaption>登録すると、宿題ごとにこういうカードが並びます。カードは次にやることを1つだけ出します。</figcaption>
+</figure>
+
+<h2>子どもが毎日すること</h2>
+
+<p>やることは1つです。カードの「やった！」を押して、やったところを選ぶ。それだけです。</p>
+
+<figure class="wide">
+  <img src="images/child-record.png" alt="記録の画面。①から⑭までの番号が並び、⑪までが色つきになっている">
+  <figcaption>番号を押すだけで記録できます。字を書く必要はありません。ひとこと書きたいときだけ、下の欄を使います。</figcaption>
+</figure>
+
+<p>画面はタブ3つだけです。「のこりの しゅくだい」「やったこと」「カレンダー」。
+迷うところがないように、これ以上増やしていません。</p>
+
+<figure class="wide">
+  <img src="images/child-log.png" alt="やったことの一覧。日付ごとに、時刻・宿題の名前・進んだ量が並んでいる">
+  <figcaption>「やったこと」には、いつ何をどれだけやったかが日付ごとに残ります。</figcaption>
+</figure>
+
+<h2>2本のバーの見かた</h2>
+
+<p>画面のいちばん上に、バーが2本並びます。</p>
+
+<div class="bars">
+  <div class="bar-row">
+    <span class="bar-label">なつやすみ</span>
+    <span class="bar-track"><span class="bar-fill past" style="width:54%"></span></span>
+    <span class="bar-pct">54%</span>
+  </div>
+  <div class="bar-row">
+    <span class="bar-label">しゅくだい</span>
+    <span class="bar-track"><span class="bar-fill" style="width:71%"></span></span>
+    <span class="bar-pct">71%</span>
+  </div>
+</div>
+
+<p>上が夏休みの過ぎたぶん、下が宿題の終わったぶんです。
+<strong>下が上より先に行っていれば間に合います。</strong>
+「あと何日」と言われるより、この2本を並べたほうが低学年には通じます。</p>
+
+<p>記録がある程度たまると、いまのペースなら何日に終わるかも出ます。
+数日ぶんしかないうちは日付を出しません。当てずっぽうの予定日は、外れたときに効きめがなくなるからです。</p>
+
+<figure class="wide">
+  <img src="images/child-home.png" alt="子どもの画面。夏休みの残り時間、2本のバー、保護者からのメッセージが並んでいる">
+  <figcaption>毎日ひらく画面。残り時間、2本のバー、おうちの人からのひとことが上から順に出ます。</figcaption>
+</figure>
+
+<h2>保護者がすること</h2>
+
+<p>見るだけで足ります。進み具合、終わりそうな日、宿題ごとの残り、その日の記録、読んだ本の一覧が並びます。</p>
+
+<p>それとは別に、<strong>80文字までのひとこと</strong>を送れます。子どもの画面の上のほうに、新しい順に3件まで出ます。
+承認を待たせるしくみも、ポイントを配るしくみもありません。
+「宿題やった？」と聞く代わりに使ってもらう想定で作りました。</p>
+
+<figure>
+  <img src="images/parent-progress.png" alt="保護者の画面。夏休みの残り、完了予測、4本の進捗バー、メッセージの入力欄">
+  <figcaption>保護者の画面。数字を確認して、そのまま下の欄からひとことを送れます。</figcaption>
+</figure>
+
+<h2>家族の端末をつなぐ</h2>
+
+<p>子どものiPadと保護者のiPhoneで同じ記録を見たいときに使います。</p>
+
+<ol>
+  <li>保護者の画面の共有設定で、合言葉を作ります。16文字のものが自動で出ます</li>
+  <li>そこに出るQRコードか招待リンクを、もう一方の端末で読み取ります</li>
+</ol>
+
+<p>つないだあとは、どちらで記録しても自動で合わさります。
+電波のないところで入れたぶんも、つながったときに送られます。</p>
+
+<div class="note">
+  <p><strong>合言葉は人に見せないでください。</strong>
+  これを知っている人は、その家族の記録を読めます。招待リンクにも合言葉が入っています。
+  SNSや掲示板に貼らないこと、送る相手を確かめることだけ守ってください。</p>
+</div>
+
+<h2>データの置き場所</h2>
+
+<p>家族でつないでいない場合、記録はその端末の中だけにあります。どこにも送っていません。</p>
+
+<p>つないでいる場合はクラウドを経由します。中身は端末側で暗号にしてから預けているので、
+そのままでは読めません。合言葉と鍵をクラウドへ送ることもしていません。
+ただし合言葉を知っている人には読めます。守っているのは合言葉だけです。</p>
+
+<p>どちらの場合も、設定画面からデータをファイルに書き出せます。
+端末を買いかえる前と、学期の切れめに書き出しておくと安心です。</p>
+
+<h2>よくある質問</h2>
+
+<dl class="qa">
+
+<dt>お金はかかりますか。</dt>
+<dd><p>かかりません。広告も課金もありません。個人が作って公開しているもので、途中から有料になる予定もありません。</p></dd>
+
+<dt>アプリストアにありますか。</dt>
+<dd><p>ありません。ブラウザで開いて使います。iPhoneとiPadでは「ホーム画面に追加」すると、
+アプリと同じようにアイコンから起動します。</p></dd>
+
+<dt>学校のアプリですか。</dt>
+<dd><p>違います。学校とも教育委員会とも関係ありません。学校名や先生の名前は入れないでください。</p></dd>
+
+<dt>何年生向けですか。</dt>
+<dd><p>小学校の低学年を考えて作りました。漢字の設定を変えれば、高学年でも読めます。</p></dd>
+
+<dt>夏休み以外にも使えますか。</dt>
+<dd><p>使えます。期間は設定で変えられるので、冬休みにも、週ごとの宿題にも使えます。</p></dd>
+
+<dt>子どもが設定を触ってしまいませんか。</dt>
+<dd><p>子どもの画面から設定へ行くボタンはありません。タイトルを5回タップするか2秒押しつづける必要があります。
+絶対とは言えませんが、うっかり触ってしまう事故はまず起きません。</p></dd>
+
+<dt>間違えて記録してしまいました。</dt>
+<dd><p>同じカードから入れ直せます。番号を戻すことも、0に戻すこともできます。
+記録そのものは、保護者の画面の「今日の記録」から1件ずつ消せます。</p></dd>
+
+<dt>子ども用の端末がありません。</dt>
+<dd><p>保護者の端末1台だけでも使えます。その場合は家族でつなぐ設定をせず、そのまま使ってください。</p></dd>
+
+<dt>記録を他人に見られませんか。</dt>
+<dd><p>家族でつないでいなければ、端末の外に出ません。つないでいる場合も、中身は暗号にしてから預けています。
+見られるとしたら合言葉が漏れたときです。</p></dd>
+
+<dt>しばらく使わないと消えますか。</dt>
+<dd><p>家族でつないでいるデータは、どの端末からも90日間まったく更新がないと削除の対象になります。
+画面を見ただけでは期間は延びません。端末の中だけのデータは対象外です。</p></dd>
+
+<dt>機種を変えるときはどうしますか。</dt>
+<dd><p>家族でつないでいれば、新しい端末で同じ合言葉を入れるだけで戻ります。
+つないでいない場合は、古い端末で書き出したファイルを新しい端末で読み込んでください。</p></dd>
+
+<dt>動きがおかしいときは。</dt>
+<dd><p>まず画面を読み込み直してください。iPhoneとiPadは古い内容を強く覚えているので、
+ホーム画面のアイコンから開いている場合は、一度アプリを終了してから開き直すと直ることがあります。
+それでも直らないときは、GitHubのIssuesに書いてください。</p></dd>
+
+<dt>自分で改造したり配ったりできますか。</dt>
+<dd><p>できます。プログラムはApache-2.0、中に入っている文章と図はCC BY 4.0です。
+表示のしかたは <code>LICENSE</code>、<code>LICENSE-CONTENT.md</code>、<code>NOTICE</code> に書いてあります。</p></dd>
+
+</dl>
+
+<footer>
+  <p>画面写真はすべてお試し用の中身で撮ったものです。実在の家族の記録は入っていません。<br>
+  ここに書ききれない細かい仕様は <code>README.md</code> にあります。</p>
+</footer>
+
+</div>
+</body>
+</html>
