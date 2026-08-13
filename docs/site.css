@@ -1731,6 +1731,10 @@ blockquote {
   font-weight: 700;
 }
 
+.updates-page .history-list dt {
+  white-space: nowrap;
+}
+
 .history-list dd {
   margin: 0;
   color: var(--color-ink-soft);
@@ -1748,6 +1752,10 @@ blockquote {
   .history-list div {
     grid-template-columns: 8rem minmax(0, 1fr);
     gap: var(--space-lg);
+  }
+
+  .updates-page .history-list div {
+    grid-template-columns: 14rem minmax(0, 1fr);
   }
 }
 

@@ -2245,12 +2245,21 @@ test('公開説明はPV解析と宿題データを分け、学校との関係を
 });
 
 test('90日保持を自動削除と誤記せず、予告と対象範囲も説明する', ()=>{
-  for(const text of [APP, DOCS_INDEX, GUIDE, UPDATES]){
+  for(const text of [APP, DOCS_INDEX, GUIDE]){
     assert.match(text, /90日/);
     assert.match(text, /自動削除ではなく/);
   }
   assert.match(GUIDE, /予告メールはありません/);
   assert.match(GUIDE, /書き出したファイルは対象外/);
+});
+
+test('変更履歴は公開版と内部配信版の事実だけを短く並べる', ()=>{
+  assert.match(UPDATES, /2026年8月13日　v1\.1/);
+  assert.match(UPDATES, /2026年8月13日　v1\.0/);
+  assert.match(UPDATES, /20260812a–l/);
+  assert.match(UPDATES, /20260811a–af/);
+  assert.match(UPDATES, /20260810a–aw/);
+  assert.doesNotMatch(UPDATES, /最優先｜|高｜|大切な訂正|確認してください|今回の対処項目/);
 });
 
 test('バックアップは版・日時を持ち、共有中の反映範囲を確認する', ()=>{
