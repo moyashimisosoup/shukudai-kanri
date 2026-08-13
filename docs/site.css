@@ -927,7 +927,19 @@ blockquote {
   width: 29%;
   height: 4.8%;
   border-radius: var(--radius-sm);
-  background: #fbf4e8;
+  background: var(--color-image-paper);
+  content: "";
+  pointer-events: none;
+}
+
+.extra-layout .quiet-figure::after {
+  position: absolute;
+  inset-block-start: 87.5%;
+  inset-inline: 6%;
+  inset-block-end: 2%;
+  z-index: var(--z-raised);
+  border-radius: var(--radius-sm);
+  background: var(--color-image-paper);
   content: "";
   pointer-events: none;
 }

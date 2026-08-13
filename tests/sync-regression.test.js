@@ -2320,6 +2320,7 @@ test('紹介ページの指摘箇所は実画面に沿う表現と配置にす�
   assert.match(DOCS_INDEX, /進み具合を見て、<\/span><span class="title-line">ひとこと送れます。/);
   assert.match(DOCS_STYLE, /figure,[\s\S]*blockquote\s*\{\s*margin: 0;/);
   assert.match(DOCS_STYLE, /\.extra-layout \.quiet-figure::before/);
+  assert.match(DOCS_STYLE, /\.extra-layout \.quiet-figure::after/);
   assert.match(DOCS_INDEX, /<h2 id="daily-title">「やった！」を押して記録<\/h2>/);
   assert.match(DOCS_STYLE, /\.stage-number\s*\{[^}]*background: var\(--color-navy\)[^}]*color: var\(--color-navy-ink\)[^}]*font-size: var\(--text-md\)/s);
   assert.match(DOCS_INDEX, /pace-fill--natsu/);

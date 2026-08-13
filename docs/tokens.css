@@ -4,6 +4,7 @@
 :root {
   --color-paper: oklch(97% 0.012 88);
   --color-paper-raised: oklch(99% 0.008 88);
+  --color-image-paper: oklch(97% 0.018 79);
   --color-paper-warm: oklch(94% 0.025 75);
   --color-paper-blue: oklch(94% 0.025 224);
   --color-paper-mint: oklch(94% 0.028 151);
