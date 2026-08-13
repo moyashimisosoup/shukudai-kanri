@@ -2285,6 +2285,19 @@ test('変更履歴と制作・説明方針へ主要ページから到達でき�
   assert.match(PRODUCT_POLICY, /大きな仕様変更は、実装前に裁定を挟む/);
 });
 
+test('紹介ページは意味のまとまりで見出しを組み、開発者本人の説明を載せる', ()=>{
+  assert.match(DOCS_INDEX, /個人で作っているWebアプリですが、便利だと思うので公開しています/);
+  assert.match(DOCS_INDEX, /<span class="title-line">宿題の残りを、<\/span><span class="title-line">子どもが自分で<\/span>/);
+  assert.match(DOCS_INDEX, /Claude CodeおよびCodex/);
+  assert.match(DOCS_INDEX, /小２息子の夏休みの宿題管理に疲れた等/);
+  assert.match(DOCS_INDEX, /一般の使用にも資する面があるのではないか思い/,
+    '開発者本人の文言は校正せず、そのまま載せること');
+  assert.match(DOCS_INDEX, /開発者本人からの説明です/);
+  assert.doesNotMatch(DOCS_INDEX, /こんにちは。|公開版/);
+  assert.match(DOCS_STYLE, /word-break: auto-phrase/);
+  assert.match(PRODUCT_POLICY, /無関係な全機能テストを毎回実行/);
+});
+
 test('サンプルの宿題が入ったままなら、保護者と子どもの両方に案内を出す', ()=>{
   /* 判定は課題の id 集合。名前で見ると、サンプルを書きかえて使う
      ふつうの流れで案内が消えてしまう */

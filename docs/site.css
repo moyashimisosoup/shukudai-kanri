@@ -96,6 +96,17 @@ h3,
   line-height: 1.2;
   letter-spacing: -0.035em;
   overflow-wrap: anywhere;
+  text-wrap: balance;
+  word-break: auto-phrase;
+}
+
+.title-line {
+  display: block;
+}
+
+.trust-title__tail span {
+  display: block;
+  white-space: nowrap;
 }
 
 h1 {
@@ -459,18 +470,15 @@ blockquote {
   font-size: clamp(2.35rem, 5.3vw, 4.3rem);
 }
 
+.letter-hero h1 .title-line {
+  white-space: nowrap;
+}
+
 .letter-lede {
   max-width: 46ch;
   color: var(--color-ink-soft);
   font-size: clamp(1.125rem, 1.5vw, 1.35rem);
   line-height: 1.65;
-}
-
-.maker-note {
-  max-width: 42rem;
-  padding-block-start: var(--space-md);
-  border-block-start: var(--rule-hair) solid var(--color-rule-strong);
-  color: var(--color-ink-soft);
 }
 
 .hero-visual {
@@ -504,18 +512,126 @@ blockquote {
 
 .hero-aside {
   position: absolute;
-  inset-inline-end: calc(var(--page-gutter) * -0.35);
-  inset-block-end: var(--space-xl);
-  width: min(16rem, 48%);
+  inset-inline-end: calc(var(--page-gutter) * -0.2);
+  inset-block-end: var(--space-lg);
+  width: 11rem;
+  aspect-ratio: 1;
+  display: grid;
+  place-content: center;
+  gap: var(--space-xs);
   padding: var(--space-lg);
-  border-radius: var(--radius-card);
-  background: var(--color-paper-warm);
+  border: var(--rule-strong) solid var(--color-accent-deep);
+  border-radius: 50%;
+  background: var(--color-accent-soft);
   color: var(--color-accent-ink);
   font-family: var(--font-display);
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: 700;
-  line-height: 1.5;
-  transform: rotate(-1.5deg);
+  line-height: 1.45;
+  text-align: center;
+  box-shadow: 0 var(--space-sm) var(--space-xl) var(--color-shadow-soft);
+}
+
+.hero-aside::after {
+  position: absolute;
+  inset-inline-start: 0.55rem;
+  inset-block-end: 1.15rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-inline-start: var(--rule-strong) solid var(--color-accent-deep);
+  border-block-end: var(--rule-strong) solid var(--color-accent-deep);
+  background: var(--color-accent-soft);
+  content: "";
+  transform: rotate(22deg);
+}
+
+.hero-aside span {
+  display: block;
+  white-space: nowrap;
+}
+
+.maker-letter {
+  border-block: var(--rule-hair) solid var(--color-rule-strong);
+  background: var(--color-paper-raised);
+}
+
+.maker-letter__inner {
+  display: grid;
+  gap: var(--space-xl);
+  padding-block: var(--space-2xl);
+}
+
+.maker-letter__heading {
+  align-self: start;
+}
+
+.maker-letter__heading h2 {
+  font-size: var(--text-xl);
+  white-space: nowrap;
+}
+
+.maker-letter__eyebrow {
+  margin-block-end: var(--space-xs);
+  color: var(--color-accent-deep);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.maker-letter__body {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-xl);
+  border: var(--rule-hair) solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-warm);
+  color: var(--color-ink-soft);
+}
+
+.maker-letter__body p {
+  max-width: var(--measure);
+}
+
+@media (max-width: 39.99rem) {
+  .announcement {
+    justify-content: flex-start;
+    gap: var(--space-xs);
+  }
+
+  .announcement__text {
+    display: -webkit-box;
+    white-space: normal;
+    font-size: var(--text-xs);
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .announcement a {
+    display: none;
+  }
+
+  .announcement__dismiss {
+    margin-inline-start: auto;
+  }
+
+  .plain-index .index-mark {
+    grid-row: 1 / span 2;
+  }
+
+  .plain-index strong,
+  .plain-index p {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 21.25rem) {
+  :root {
+    --banner-height: 3.5rem;
+  }
+
+  .announcement__text {
+    -webkit-line-clamp: 3;
+  }
 }
 
 .section {
@@ -1094,6 +1210,14 @@ blockquote {
   .section-heading {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
     align-items: end;
+  }
+
+  .trust-title__tail span {
+    display: inline;
+  }
+
+  .maker-letter__inner {
+    grid-template-columns: minmax(12rem, 0.55fr) minmax(0, 1.45fr);
   }
 
   .plain-index li {
