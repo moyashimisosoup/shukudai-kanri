@@ -2238,7 +2238,7 @@ test('公開説明はPV解析と宿題データを分け、学校との関係を
   for(const html of [DOCS_INDEX, GUIDE]){
     assert.match(html, /Cloudflare Web Analytics/);
     assert.match(html, /名前・宿題・記録/);
-    assert.doesNotMatch(html, /学校とは関係|学校とは無関係|学校のアプリですか|教育委員会/);
+    assert.doesNotMatch(html, /学校とは関係|学校とは無関係|学校のアプリですか|学校や企業が提供するサービスではありません|教育委員会/);
   }
   assert.match(INDEX, /static\.cloudflareinsights\.com\/beacon\.min\.js/,
     '管理に必要なPV解析タグを公開版から外さないこと');
