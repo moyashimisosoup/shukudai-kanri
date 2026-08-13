@@ -2316,6 +2316,7 @@ test('紹介ページの指摘箇所は実画面に沿う表現と配置にす�
   assert.equal((DOCS_INDEX.match(/>保護者機能の紹介<\/a>/g) || []).length, 2);
   assert.doesNotMatch(DOCS_INDEX, />保護者向け<\/a>/);
   assert.match(DOCS_INDEX, /「あとどのくらい？」を、<\/span><span class="title-line">毎日見られるように。/);
+  assert.match(DOCS_STYLE, /#made-for-title \.title-line:nth-child\(2\)[\s\S]*padding-inline-start: 1em/);
   assert.match(DOCS_INDEX, /進み具合を見て、<\/span><span class="title-line">ひとこと送れます。/);
   assert.match(DOCS_STYLE, /figure,[\s\S]*blockquote\s*\{\s*margin: 0;/);
   assert.match(DOCS_STYLE, /\.extra-layout \.quiet-figure::before/);

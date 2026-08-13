@@ -665,6 +665,10 @@ blockquote {
   font-size: var(--text-md);
 }
 
+#made-for-title .title-line:nth-child(2) {
+  padding-inline-start: 1em;
+}
+
 .plain-index {
   display: grid;
   gap: 0;
