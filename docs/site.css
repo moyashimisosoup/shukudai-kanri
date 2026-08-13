@@ -128,7 +128,7 @@ ol,
 dl,
 figure,
 blockquote {
-  margin-block: 0;
+  margin: 0;
 }
 
 .shell {
@@ -294,6 +294,7 @@ blockquote {
   padding-inline: var(--space-sm);
   border-radius: var(--radius-pill);
   color: var(--color-ink-soft);
+  font-family: var(--font-display);
   font-size: var(--text-sm);
   font-weight: 700;
   text-decoration: none;
@@ -318,6 +319,7 @@ blockquote {
   border: var(--rule-hair) solid var(--color-rule-strong);
   border-radius: var(--radius-pill);
   cursor: pointer;
+  font-family: var(--font-display);
   list-style: none;
   font-weight: 700;
 }
@@ -352,6 +354,7 @@ blockquote {
   align-items: center;
   padding-inline: var(--space-sm);
   border-radius: var(--radius-sm);
+  font-family: var(--font-display);
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
@@ -512,13 +515,12 @@ blockquote {
 }
 
 .hero-aside {
-  position: relative;
   width: 10rem;
   aspect-ratio: 1;
   display: grid;
   place-content: center;
   justify-self: end;
-  gap: var(--space-xs);
+  gap: var(--space-2xs);
   margin-block-start: calc(var(--space-sm) * -1);
   margin-inline-end: var(--space-md);
   padding: var(--space-lg);
@@ -532,19 +534,6 @@ blockquote {
   line-height: 1.45;
   text-align: center;
   box-shadow: 0 var(--space-sm) var(--space-xl) var(--color-shadow-soft);
-}
-
-.hero-aside::after {
-  position: absolute;
-  inset-inline-end: 0.45rem;
-  inset-block-end: 1rem;
-  width: 1.15rem;
-  height: 1.15rem;
-  border-inline-end: var(--rule-strong) solid var(--color-accent-deep);
-  border-block-end: var(--rule-strong) solid var(--color-accent-deep);
-  background: var(--color-accent-soft);
-  content: "";
-  transform: rotate(-22deg);
 }
 
 .hero-aside span {
@@ -571,13 +560,33 @@ blockquote {
   border-radius: var(--radius-card);
   background: var(--color-paper-warm);
   color: var(--color-ink-soft);
+  font-size: clamp(var(--text-base), 1.4vw, var(--text-md));
+  font-feature-settings: "palt" 1;
+  font-kerning: normal;
+  line-height: 1.85;
+  line-break: strict;
+  text-autospace: no-autospace;
 }
 
 .maker-letter__body p {
-  max-width: var(--measure);
+  max-width: none;
 }
 
 @media (max-width: 39.99rem) {
+  h2 {
+    font-size: 1.7rem;
+    line-height: 1.35;
+  }
+
+  .letter-hero h1 {
+    font-size: 1.95rem;
+    line-height: 1.38;
+  }
+
+  .maker-letter__body {
+    padding: var(--space-lg);
+  }
+
   .announcement {
     justify-content: flex-start;
     gap: var(--space-xs);
@@ -717,10 +726,14 @@ blockquote {
 
 .stage-number {
   width: fit-content;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-pill);
+  background: var(--color-navy);
+  color: var(--color-navy-ink);
   font-family: var(--font-display);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: 700;
-  color: var(--color-accent-deep);
+  line-height: 1.2;
 }
 
 .product-figure,
@@ -762,9 +775,17 @@ blockquote {
   color: var(--color-ink-soft);
 }
 
+.pace-copy h2 {
+  font-size: clamp(1.65rem, 3.4vw, 2.7rem);
+}
+
+.pace-copy h2 .title-line {
+  white-space: nowrap;
+}
+
 .pace-bars {
   display: grid;
-  gap: var(--space-lg);
+  gap: var(--space-sm);
   padding: var(--space-xl);
   border: var(--rule-strong) solid var(--color-navy);
   border-radius: var(--radius-card);
@@ -850,6 +871,21 @@ blockquote {
   color: var(--color-success);
 }
 
+.pace-forecast {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2xs);
+  color: var(--color-ink-soft);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-align: center;
+}
+
+.pace-forecast span {
+  white-space: nowrap;
+}
+
 .family-layout .quiet-figure {
   max-width: 24rem;
 }
@@ -865,7 +901,21 @@ blockquote {
 }
 
 .extra-layout .quiet-figure {
+  position: relative;
   max-width: 34rem;
+}
+
+.extra-layout .quiet-figure::before {
+  position: absolute;
+  inset-block-start: 3.5%;
+  inset-inline-start: 7.2%;
+  z-index: var(--z-raised);
+  width: 29%;
+  height: 4.8%;
+  border-radius: var(--radius-sm);
+  background: #fbf4e8;
+  content: "";
+  pointer-events: none;
 }
 
 .natural-theme-note {

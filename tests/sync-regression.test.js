@@ -2298,11 +2298,14 @@ test('紹介ページは意味のまとまりで見出しを組み、開発者�
   assert.match(DOCS_INDEX, /個人で作っているWebアプリですが、便利だと思うので公開しています/);
   assert.match(DOCS_INDEX, /<span class="title-line">宿題の残りを、<\/span><span class="title-line">子どもが自分で<\/span>/);
   assert.match(DOCS_INDEX, /Claude CodeおよびCodex/);
-  assert.match(DOCS_INDEX, /小２息子の夏休みの宿題管理に疲れた等/);
+  assert.match(DOCS_INDEX, /小２息子の夏休みの宿題管理に疲れた/);
+  assert.doesNotMatch(DOCS_INDEX, /宿題管理に疲れた等/);
   assert.match(DOCS_INDEX, /一般の使用にも資する面があるのではないか思い/,
     '開発者本人の文言は校正せず、そのまま載せること');
   assert.match(DOCS_INDEX, /はじめに―このアプリについて/);
   assert.match(DOCS_INDEX, /不具合、誤謬や使いづらい点/);
+  assert.match(DOCS_INDEX, /なお、この欄の文章はAI校正なしで開発者（人間）が書いています。/);
+  assert.doesNotMatch(DOCS_INDEX, /もしお試しいただいた/);
   assert.doesNotMatch(DOCS_INDEX, /開発者本人からの説明です/);
   assert.doesNotMatch(DOCS_INDEX, /こんにちは。|公開版/);
   assert.match(DOCS_STYLE, /word-break: auto-phrase/);
@@ -2310,14 +2313,27 @@ test('紹介ページは意味のまとまりで見出しを組み、開発者�
 });
 
 test('紹介ページの指摘箇所は実画面に沿う表現と配置にする', ()=>{
+  assert.equal((DOCS_INDEX.match(/>保護者機能の紹介<\/a>/g) || []).length, 2);
+  assert.doesNotMatch(DOCS_INDEX, />保護者向け<\/a>/);
+  assert.match(DOCS_INDEX, /「あとどのくらい？」を、<\/span><span class="title-line">毎日見られるように。/);
+  assert.match(DOCS_INDEX, /進み具合を見て、<\/span><span class="title-line">ひとこと送れます。/);
+  assert.match(DOCS_STYLE, /figure,[\s\S]*blockquote\s*\{\s*margin: 0;/);
+  assert.match(DOCS_STYLE, /\.extra-layout \.quiet-figure::before/);
+  assert.match(DOCS_INDEX, /<h2 id="daily-title">「やった！」を押して記録<\/h2>/);
+  assert.match(DOCS_STYLE, /\.stage-number\s*\{[^}]*background: var\(--color-navy\)[^}]*color: var\(--color-navy-ink\)[^}]*font-size: var\(--text-md\)/s);
   assert.match(DOCS_INDEX, /pace-fill--natsu/);
   assert.match(DOCS_INDEX, /pace-fill--todo/);
   assert.match(DOCS_INDEX, /pace-fill--must/);
+  assert.match(DOCS_INDEX, /いまのペースで間に合う？/);
+  assert.match(DOCS_INDEX, /かんりょうよそく：[\s\S]*いまのペースだと8月22日/);
+  assert.doesNotMatch(DOCS_INDEX, /完了予測日を出しません/);
   assert.match(DOCS_STYLE, /repeating-linear-gradient/);
-  assert.match(DOCS_INDEX, /<h2 id="parents-title">進み具合を見て、ひとこと送れます。<\/h2>/);
+  assert.doesNotMatch(DOCS_STYLE, /\.hero-aside::after/);
+  assert.match(DOCS_INDEX, /アプリ取得・[\s\S]*会員登録不要/);
+  assert.match(DOCS_INDEX, /<h2 id="parents-title"><span class="title-line">進み具合を見て、<\/span><span class="title-line">ひとこと送れます。<\/span><\/h2>/);
   assert.match(DOCS_INDEX, /<span class="title-line">宿題のあとに、<\/span>/);
   assert.doesNotMatch(DOCS_INDEX, /ねこのデザインを選んだ画面。この日のことば/);
-  assert.match(DOCS_INDEX, /画面写真つきの使い方のページをご覧ください/);
+  assert.match(DOCS_INDEX, /細かい設定やデータの扱いは、画面写真つきの使い方のページをご覧ください/);
   assert.equal((DOCS_INDEX.match(/<summary>[^<]+？<\/summary>/g) || []).length, 5);
   assert.match(DOCS_INDEX, /ご意見・ご感想をいただけると嬉しいです/);
   assert.doesNotMatch(DOCS_INDEX, /しゅくだいノート · 個人制作 · 無料・広告なし/);
