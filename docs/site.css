@@ -592,6 +592,13 @@ blockquote {
     line-height: 1.38;
   }
 
+  .hero-aside {
+    width: 8rem;
+    margin-inline-end: 0;
+    padding: var(--space-md);
+    font-size: var(--text-sm);
+  }
+
   .maker-letter__body {
     padding: var(--space-lg);
   }
