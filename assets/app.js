@@ -16,6 +16,8 @@ const APP_VER = (function(){
   const m = s && String(s.src || '').match(/[?&]v=([^&]*)/);
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
+/* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
+const RELEASE_VERSION = '1.1';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -1625,7 +1627,9 @@ function creditHTML(){
   <p class="credit">
     <span class="credit-part"><span class="credit-name">${esc(CREDIT.title)}</span> &copy; ${esc(CREDIT.year)} ${esc(CREDIT.author)}</span>
     <br><span class="credit-part"><a href="${CREDIT.url}" target="_blank" rel="noopener">ライセンス</a></span>
-    <span class="credit-part">ver ${esc(APP_VER)}</span>
+    <span class="credit-part"><a href="docs/updates.html">変更履歴</a></span>
+    <span class="credit-part">v${esc(RELEASE_VERSION)}</span>
+    <span class="credit-part">配信 ${esc(APP_VER)}</span>
   </p>`;
 }
 
@@ -1634,7 +1638,7 @@ function privacyNoteHTML(){
     <span><b>注意事項</b><small>合言葉と共有データの取り扱い</small></span>
     <button class="btn btn-sm btn-ghost" type="button" data-share-safety>内容を確認</button>
   </aside>
-  <p class="set-note retention-note">共有データは、どの端末からも更新が90日間ない場合、管理者の確認後に削除します。見るだけでは期間は延びません。端末だけで使うデータは対象外です。</p>`;
+  <p class="set-note retention-note">オンライン共有データは、どの端末からも更新が90日間ない場合に削除対象となり、管理者が確認して削除します。自動削除ではなく、予告メールもありません。見るだけでは期間は延びません。端末だけのデータと書き出したファイルは対象外です。</p>`;
 }
 function shareSafetyText(){
   return [
@@ -1644,7 +1648,7 @@ function shareSafetyText(){
     '・QRコードや招待リンクを受け取った人は、グループの共有データに接続できます。信頼できる相手だけに渡してください。',
     '・名前・宿題・記録は、端末間で共有するためクラウドに保存されます。保存の前にこの端末で暗号化するため、保管しているサーバー側では中身を読めません。',
     '・鍵は合言葉から作られ、どこにも送られません。**合言葉をすべての端末で忘れると、クラウド上の記録は誰にも復元できません。** 大切な記録は「データ管理」から書き出して保管してください。',
-    '・共有データは、どの端末からも更新が90日間ない場合、管理者の確認後に削除します。画面を開いて見るだけでは期間は延びません。端末だけで使うデータは対象外です。',
+    '・オンライン共有データは、どの端末からも更新が90日間ない場合に削除対象となり、管理者が確認して削除します。自動削除ではなく、予告メールもありません。画面を開いて見るだけでは期間は延びません。端末だけのデータと書き出したファイルは対象外です。',
     '・住所、学校名、連絡先など、知られて困る情報は入力しないでください。'
   ].join('\n');
 }
@@ -3118,7 +3122,7 @@ function deviceListHTML(){
       </span>
       ${r.id === mine
         ? '<span class="dev-me">この端末</span>'
-        : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">解除</button>`}
+        : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">一覧から外す</button>`}
     </li>`).join('')}</ul>
     ${/* 説明が 4段落 続くと 一覧そのものが 押し出される。ふだんは たたむ。
           data-details-key を 付けないと、detailsKey() が 見出しの 文字を
@@ -3126,8 +3130,8 @@ function deviceListHTML(){
     <details class="set-advanced sync-help" data-details-key="deviceHelp">
       <summary>この一覧の見かた</summary>
       <div class="set-advanced-body">
-        <p class="set-note">「親」「子」は、それぞれの端末の「この端末は」で選んだ役割です。「未設定」の端末では、その端末の共有設定から選んでください。</p>
-        <p class="set-note">使わなくなった端末は「解除」で共有から切り離せます。解除した端末は、次に開いたときに合言葉が消え、再接続には入力し直しが必要になります。LINEなどの一時的なブラウザで接続してしまい、その端末から操作できなくなったときに使ってください。記録そのものは消えません。</p>
+        <p class="set-note">「親」「子」は、開いたときの画面と記録者名を決める表示設定です。ロックや利用権限の設定ではありません。合言葉を知る人は、どちらの端末からでも共有データを扱えます。</p>
+        <p class="set-note">使わなくなった端末は「一覧から外す」で整理できます。外した端末は次に開いたときに合言葉が消えますが、合言葉を入れ直すと再参加できます。アクセスを止めたい場合は、データを書き出して共有を解除し、新しい合言葉で共有を作り直してください。</p>
       </div>
     </details>
     ${/* 版ちがいの 注意は 実害の 警告なので たたまない */''}
@@ -3262,7 +3266,7 @@ function syncSectionHTML(opts){
                <div class="set-advanced-body">
                  <p class="set-note">呼び名と役割は、この端末で決めます。共有中は、ほかの端末の一覧にも見分けるための情報として表示されますが、ほかの端末から変更されることはありません。</p>
                  <p class="set-note">呼び名は、共有中の端末一覧で見分けるための名前です（父、母など）。未設定のときは「${esc(deviceKindLabel(navigator.userAgent, navigator.maxTouchPoints))}」のように端末の種類で表示されます。ブラウザは機種名（iPhone SE など）までは通知しないため、細かく分けたいときは呼び名を入れてください。</p>
-                 <p class="set-note">この端末を使う人を選ぶと、共有中は保護者ページの記録に「誰が入力したか」が小さく表示されます。「保護者の端末」を選ぶと、「アプリの設定」の「記録の手入れ」で1件ずつ削除できるように設定できます。</p>
+                 <p class="set-note">この端末を使う人を選ぶと、最初に開く画面と、保護者ページの記録に表示する入力者名が変わります。「保護者の端末」では、記録を1件ずつ削除する設定も使えます。これは認証やアクセス制限ではありません。</p>
                </div>
              </details>
            </div>
@@ -5110,9 +5114,9 @@ function bindSync(){
     const id = b.dataset.devoff;
     const row = deviceRows(S.devices()).find(r => r.id === id);
     const name = row ? row.label : 'この端末';
-    if(!confirm('「' + name + '」を 共有から はずしますか？\n' +
-                'その端末では あいことばが 消え、つなぐには 入れ直しが 必要に なります。\n' +
-                '記録そのものは 消えません。')) return;
+    if(!confirm('「' + name + '」を 端末一覧から はずしますか？\n' +
+                'その端末では あいことばが 消えますが、入れ直すと 再参加できます。\n' +
+                'アクセス禁止には なりません。記録そのものは 消えません。')) return;
     b.disabled = true;
     const ok = await S.removeDevice(id);
     const el = $('#syncDeviceList');
@@ -5687,9 +5691,24 @@ function cacheBustURL(href, when){
 }
 
 function exportData(){
-  const blob = new Blob([JSON.stringify({config, state}, null, 2)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify({
+    exportVersion: 1,
+    exportedAt: new Date().toISOString(),
+    config,
+    state
+  }, null, 2)], {type:'application/json'});
   downloadBlob(blob, 'natsuyasumi-' + dayKey(new Date()) + '.json');
   toast('書き出しました');
+}
+
+function backupPreviewText(o){
+  const when = o.exportedAt ? new Date(o.exportedAt) : null;
+  const whenText = when && !Number.isNaN(when.getTime())
+    ? when.toLocaleString('ja-JP')
+    : '記録なし（旧形式）';
+  const tasks = o.config && Array.isArray(o.config.tasks) ? o.config.tasks.length : 0;
+  const logs = o.state && Array.isArray(o.state.logs) ? o.state.logs.length : 0;
+  return '書き出し日時：' + whenText + '\n宿題：' + tasks + '件\n記録：' + logs + '件';
 }
 
 function importData(e){
@@ -5700,7 +5719,11 @@ function importData(e){
     try{
       const o = JSON.parse(fr.result);
       if(!o || !o.config || !o.state) throw new Error('ファイル形式が異なります');
-      if(!confirm('現在のデータを、読み込んだ内容で置き換えます。よろしいですか？')) return;
+      const sharing = !!(window.NatsuSync && window.NatsuSync.getCode().length >= 8);
+      const scope = sharing
+        ? '\n\n共有中のため、つないだ家族のデータにも反映されます。'
+        : '';
+      if(!confirm(backupPreviewText(o) + scope + '\n\n現在のデータを、この内容で置き換えます。よろしいですか？')) return;
       config = o.config; state = normalizeState(o.state);
       saveCfg(); saveSt(); render(); toast('読み込みました');
     }catch(err){ alert('読み込めませんでした：' + err.message); }

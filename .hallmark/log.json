@@ -1,5 +1,21 @@
 [
   {
+    "date": "2026-08-13",
+    "scope": "v1.1-public-corrections",
+    "macrostructure": "Letter + Long Document + Release Ledger",
+    "theme": "Coral",
+    "enrichment": "real product screenshot crop",
+    "brief": "Correct sharing and retention explanations, add application changelog and policy records, replace count-led promo with an actual reading moment, and remove screenshot tilt"
+  },
+  {
+    "date": "2026-08-13",
+    "scope": "public-site-and-guide",
+    "macrostructure": "Letter",
+    "theme": "Coral",
+    "enrichment": "real product screenshots",
+    "brief": "Personal, parent-facing PR site and redesigned getting-started guide"
+  },
+  {
     "date": "2026-08-10",
     "scope": "onboarding-and-voice",
     "macrostructure": "Branching Workbench",

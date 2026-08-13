@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="しゅくだいノートのアプリ版ごとの変更履歴と、大切な説明の訂正。">
+  <title>しゅくだいノート｜変更履歴</title>
+  <link rel="icon" href="images/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body class="guide-legacy updates-page">
+  <a class="skip-link" href="#updates-main">本文へ移動</a>
+  <nav class="guide-topbar" aria-label="変更履歴ページのメニュー">
+    <div class="shell guide-topbar__inner">
+      <a class="brand" href="./">
+        <img src="images/icon.png" width="76" height="76" alt="">
+        <span class="wordmark">しゅくだいノート</span>
+      </a>
+      <div class="guide-topbar__links">
+        <a href="./">紹介</a>
+        <a href="getting-started.html">使い方</a>
+        <a href="../">公開版</a>
+      </div>
+    </div>
+  </nav>
+
+  <header>
+    <div class="head-inner">
+      <img src="images/icon.png" alt="">
+      <div>
+        <p class="version-kicker">アプリの変更履歴</p>
+        <h1>変更したことと、大切な訂正</h1>
+        <p>使い方やデータの扱いに関わる更新を、アプリ版ごとに記録します。</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap" id="updates-main">
+    <section class="release-lead" aria-labelledby="v11-title">
+      <p class="release-version">v1.1 <span>2026年8月13日</span></p>
+      <h2 id="v11-title">説明と、共有時の確認を改めました</h2>
+      <p>v1.0の公開後に、実装と説明を照らし合わせて見つかった問題を優先順に直した版です。全端末を開き直し、保護者画面の端末一覧で古い版が残っていないか確認してください。</p>
+    </section>
+
+    <section aria-labelledby="priority-title">
+      <h2 id="priority-title">今回の対処項目</h2>
+      <ol class="priority-list">
+        <li><strong>最優先｜保存期間の説明</strong><span>オンライン共有データは90日間更新がないと削除対象になります。現状は自動削除ではなく、管理者が確認して削除します。予告メールはありません。</span></li>
+        <li><strong>最優先｜PV解析の明記</strong><span>Cloudflare Web Analyticsによる公開版の閲覧数・表示性能の集計を明記しました。Cookieを使わず、名前・宿題・記録は解析へ送りません。</span></li>
+        <li><strong>高｜共有中のバックアップ読込</strong><span>家族の共有データにも反映されることを確認画面へ追加し、書き出し日時と件数を表示するようにしました。</span></li>
+        <li><strong>高｜端末の役割と「一覧から外す」</strong><span>役割は認証ではないこと、一覧から外しても合言葉で再参加できることを画面内に明記しました。</span></li>
+        <li><strong>高｜未送信の記録</strong><span>送信前に閉じた場合の目印を端末へ残し、同じ合言葉で再接続したときに送信を再開するようにしました。</span></li>
+        <li><strong>高｜合言葉・機種変更・削除後</strong><span>戻るデータと戻らない端末別情報、合言葉を失った場合、共有データ削除後の復旧方法を使い方ページへ追加しました。</span></li>
+        <li><strong>品質｜紹介画像と文章</strong><span>件数を並べる説明をやめ、実際の「たゆたう」の画面を中心に再構成しました。スクリーンショットの傾きもなくしました。</span></li>
+      </ol>
+    </section>
+
+    <section aria-labelledby="corrections-title">
+      <h2 id="corrections-title">v1.0からの大切な訂正</h2>
+      <div class="correction-list">
+        <article>
+          <h3>「90日で自動的に消える」ではありません</h3>
+          <p>削除対象の抽出と管理者による削除はありますが、自動削除と事前通知は未実装です。大切な記録は設定から書き出してください。</p>
+        </article>
+        <article>
+          <h3>端末を一覧から外しても、利用停止にはなりません</h3>
+          <p>合言葉を手で入れ直すと再参加できます。紛失端末などのアクセスを止める場合は、共有を作り直します。</p>
+        </article>
+        <article>
+          <h3>バックアップ読込は、この端末だけの操作とは限りません</h3>
+          <p>共有中は、読み込んだ内容が家族の共有データにも反映されます。確認画面で対象を確かめてから進めてください。</p>
+        </article>
+      </div>
+    </section>
+
+    <section aria-labelledby="v10-title">
+      <p class="release-version">v1.0 <span>2026年8月6日〜13日</span></p>
+      <h2 id="v10-title">最初の公開版</h2>
+      <p>この期間の細かな更新を、公開までの大きなまとまりで記録します。v1.0は今回定めた版名で、期間中の内部配信番号とは別です。</p>
+      <dl class="history-list">
+        <div><dt>8月6日</dt><dd>宿題一覧、記録、保護者画面、進捗表示の初版を公開。</dd></div>
+        <div><dt>8月7日</dt><dd>カレンダー、かな表示、記録の手入れ、家族の端末間共有を追加。</dd></div>
+        <div><dt>8月8日</dt><dd>初期設定、複数家庭、端末の役割、テーマ、家族メッセージを整備。GitHub Pagesで公開。</dd></div>
+        <div><dt>8月9日〜10日</dt><dd>ライセンス、共有時の安全対策、QR招待、オフライン時の合流、上書き事故の防止を追加。</dd></div>
+        <div><dt>8月11日</dt><dd>共有データの端末側暗号化、保護者画面の3ページ化、ペース表示、完了予測、共有データ削除を追加。</dd></div>
+        <div><dt>8月12日</dt><dd>初回案内、ホーム画面版への招待引継ぎ、サンプル宿題、端末表示、PV解析を整備。</dd></div>
+        <div><dt>8月13日</dt><dd>画面写真つきの使い方と、アプリ紹介ページを公開。</dd></div>
+      </dl>
+    </section>
+
+    <footer class="updates-footer">
+      <p><a href="../">公開版を開く</a>　<a href="getting-started.html">使い方を見る</a>　<a href="https://github.com/moyashimisosoup/shukudai-notebook#readme">技術仕様を見る</a></p>
+      <p>説明と運用の判断基準は <a href="https://github.com/moyashimisosoup/shukudai-notebook/blob/main/docs/PRODUCT_POLICY.md">制作・説明方針</a> に記録しています。</p>
+    </footer>
+  </main>
+</body>
+</html>

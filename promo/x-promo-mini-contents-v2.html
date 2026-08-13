@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1003">
+<title>しゅくだいノート PR画像 — たゆたう</title>
+<style>
+  :root {
+    --promo-paper: #f7f0e3;
+    --promo-paper-light: #fffaf0;
+    --promo-paper-deep: #f5e9dc;
+    --promo-ink: #402519;
+    --promo-ink-soft: #654638;
+    --promo-rule: #68412e;
+    --promo-accent: #aa574c;
+    --promo-accent-soft: #d7917c;
+    --promo-screen: #fae9e0;
+    --promo-shadow: rgba(72, 39, 25, .14);
+    --promo-speck-strong: rgba(201, 116, 92, .10);
+    --promo-speck-soft: rgba(201, 116, 92, .08);
+    --promo-frame: rgba(83, 47, 31, .24);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1003px; min-width: 1003px; background: var(--promo-paper); }
+  body { font-family: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif; color: var(--promo-ink); }
+  .canvas {
+    position: relative;
+    width: 1003px;
+    height: 1568px;
+    overflow: hidden;
+    padding: 72px 92px 64px;
+    background:
+      radial-gradient(circle at 11% 8%, var(--promo-speck-strong) 0 3px, transparent 4px),
+      radial-gradient(circle at 86% 15%, var(--promo-speck-soft) 0 2px, transparent 3px),
+      linear-gradient(155deg, var(--promo-paper-light) 0%, var(--promo-paper) 68%, var(--promo-paper-deep) 100%);
+  }
+  .canvas::after {
+    position: absolute;
+    inset: 20px;
+    border: 2px solid var(--promo-frame);
+    border-radius: 36px;
+    content: "";
+    pointer-events: none;
+  }
+  .eyebrow {
+    margin: 0 0 20px;
+    color: var(--promo-accent);
+    font-size: 25px;
+    font-weight: 700;
+    letter-spacing: .12em;
+  }
+  h1 {
+    max-width: 820px;
+    margin: 0;
+    font-size: 67px;
+    line-height: 1.28;
+    letter-spacing: -.045em;
+  }
+  .lead {
+    max-width: 760px;
+    margin: 28px 0 0;
+    color: var(--promo-ink-soft);
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.75;
+  }
+  .screen-window {
+    position: absolute;
+    top: 465px;
+    left: 100px;
+    width: 803px;
+    height: 880px;
+    overflow: hidden;
+    border: 3px solid var(--promo-rule);
+    border-radius: 30px;
+    background: var(--promo-screen);
+    box-shadow: 0 20px 46px var(--promo-shadow);
+  }
+  .screen-window img {
+    position: absolute;
+    width: 1565px;
+    max-width: none;
+    height: auto;
+    left: -62px;
+    top: -1076px;
+  }
+  .caption {
+    position: absolute;
+    left: 92px;
+    right: 92px;
+    bottom: 72px;
+    margin: 0;
+    padding-top: 28px;
+    border-top: 2px dotted var(--promo-accent-soft);
+    color: var(--promo-ink-soft);
+    font-size: 27px;
+    font-weight: 700;
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+  <main class="canvas" aria-label="しゅくだいノートの紹介画像">
+    <p class="eyebrow">しゅくだいノート</p>
+    <h1>「たゆたう」って、<br>どんな感じ？</h1>
+    <p class="lead">宿題を記録したあと、<br>その日の読みものがひとつ増えます。</p>
+    <div class="screen-window">
+      <img src="../docs/images/mini-contents-cat.png" alt="ねこのデザインの画面に、『たゆたう』という短い読みものが表示されている">
+    </div>
+    <p class="caption">この日は「たゆたう」。別の日は、なぞなぞや季節の話が出ます。</p>
+  </main>
+</body>
+</html>

@@ -12,6 +12,12 @@ const SYNC = fs.readFileSync(path.join(ROOT, 'assets', 'sync.js'), 'utf8');
 const RULES = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
 const DATA = fs.readFileSync(path.join(ROOT, 'assets', 'data.js'), 'utf8');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const DOCS_INDEX = fs.readFileSync(path.join(ROOT, 'docs', 'index.html'), 'utf8');
+const GUIDE = fs.readFileSync(path.join(ROOT, 'docs', 'getting-started.html'), 'utf8');
+const UPDATES = fs.readFileSync(path.join(ROOT, 'docs', 'updates.html'), 'utf8');
+const PRODUCT_POLICY = fs.readFileSync(path.join(ROOT, 'docs', 'PRODUCT_POLICY.md'), 'utf8');
+const DOCS_STYLE = fs.readFileSync(path.join(ROOT, 'docs', 'site.css'), 'utf8');
+const PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 
 function grab(src, name){
@@ -251,12 +257,14 @@ test('接続前の保留送信は初回snapshot後に再開できる', async ()=
   const names = ['flushPendingSoon', 'flush'];
   const harness = new Function('crypto', 'TextEncoder', 'btoa', `
     let docRef=null, pushTimer=null, pending={config:false,state:true};
+    let pendingVersion={config:0,state:1};
     let writes=0, last=null;
     const window={NatsuApp:{current:()=>({config:{},state:{logs:[]}})}};
     const Sync={_fs:{setDoc:async(_ref,payload)=>{ writes++; last=payload; }}};
     function getDeviceId(){ return 'device-1'; }
     function getCode(){ return 'abcdefghjkmnpqrs'; }
     function setStatus(){}
+    function persistPending(){}
     ${CRYPTO_PARTS}
     ${names.map(n=>grab(SYNC, n)).join('\n')}
     return {
@@ -291,11 +299,13 @@ test('接続前の保留送信は初回snapshot後に再開できる', async ()=
 test('Firestore書き込み失敗時は送信予約を失わない', async ()=>{
   const harness = new Function('crypto', 'TextEncoder', 'btoa', `
     let docRef={}, pushTimer=null, pending={config:false,state:true};
+    let pendingVersion={config:0,state:1};
     const window={NatsuApp:{current:()=>({config:{},state:{logs:[]}})}};
     const Sync={_fs:{setDoc:async()=>{ throw new Error('offline'); }}};
     function getDeviceId(){ return 'device-1'; }
     function getCode(){ return 'abcdefghjkmnpqrs'; }
     function setStatus(){}
+    function persistPending(){}
     ${CRYPTO_PARTS}
     ${grab(SYNC, 'flush')}
     return { flush, pending:()=>Object.assign({},pending) };
@@ -355,9 +365,9 @@ test('メッセージと注意事項のUIは狭幅・横幅の役割を分ける
   assert.match(APP, /confirmShareSafety\(\)/, '接続前にも注意事項を確認すること');
   assert.match(APP, /id="welcomeCode"[\s\S]{0,900}privacyNoteHTML\(\)/,
     '初期設定では合言葉欄の直後に注意事項を置くこと');
-  assert.match(APP, /どの端末からも更新が90日間ない場合、管理者の確認後に削除します/,
+  assert.match(APP, /どの端末からも更新が90日間ない場合に削除対象となり、管理者が確認して削除します/,
     '共有データの手動削除条件を登録時に明記すること');
-  assert.match(APP, /見るだけでは期間は延びません。端末だけで使うデータは対象外です/,
+  assert.match(APP, /見るだけでは期間は延びません。端末だけのデータと書き出したファイルは対象外です/,
     '閲覧と端末内利用を90日の対象から区別すること');
   assert.match(STYLE, /\.set-note\.retention-note\{[\s\S]{0,100}font-size:12px/,
     '登録画面を圧迫しない小さな注記にすること');
@@ -1762,8 +1772,8 @@ test('まいにちのそえ書きは、バーをつぶさず下の行へ落ち�
    意味の切れないところで折り返す。 */
 test('最下部のクレジットは、意味のかたまりで折り返す', ()=>{
   const f = grab(APP, 'creditHTML');
-  assert.equal((f.match(/class="credit-part"/g) || []).length, 3,
-    '作品名と著作権表示・ライセンス・版の3つに分けること');
+  assert.equal((f.match(/class="credit-part"/g) || []).length, 5,
+    '作品名と著作権表示・ライセンス・変更履歴・公開版・内部配信番号を意味単位に分けること');
   assert.match(STYLE, /\.credit-part\{ display:inline-block; white-space:nowrap; \}/);
   assert.match(f, /<br><span class="credit-part"><a /,
     '著作権表示の後でライセンスを改行すること');
@@ -2212,8 +2222,67 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-  assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260812l'));
+  assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260813a'));
   }
+});
+
+test('公開版番号v1.1をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.1';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.1">/);
+  assert.equal(PACKAGE.version, '1.1.0');
+  assert.match(UPDATES, /v1\.1/);
+  assert.match(UPDATES, /v1\.0/);
+});
+
+test('公開説明はPV解析と宿題データを分け、学校との関係を断定しない', ()=>{
+  for(const html of [DOCS_INDEX, GUIDE]){
+    assert.match(html, /Cloudflare Web Analytics/);
+    assert.match(html, /名前・宿題・記録/);
+    assert.doesNotMatch(html, /学校とは関係|学校とは無関係|学校のアプリですか|教育委員会/);
+  }
+  assert.match(INDEX, /static\.cloudflareinsights\.com\/beacon\.min\.js/,
+    '管理に必要なPV解析タグを公開版から外さないこと');
+});
+
+test('90日保持を自動削除と誤記せず、予告と対象範囲も説明する', ()=>{
+  for(const text of [APP, DOCS_INDEX, GUIDE, UPDATES]){
+    assert.match(text, /90日/);
+    assert.match(text, /自動削除ではなく/);
+  }
+  assert.match(GUIDE, /予告メールはありません/);
+  assert.match(GUIDE, /書き出したファイルは対象外/);
+});
+
+test('バックアップは版・日時を持ち、共有中の反映範囲を確認する', ()=>{
+  const exported = grab(APP, 'exportData');
+  const imported = grab(APP, 'importData');
+  assert.match(exported, /exportVersion:\s*1/);
+  assert.match(exported, /exportedAt:\s*new Date\(\)\.toISOString\(\)/);
+  assert.match(imported, /backupPreviewText\(o\)/);
+  assert.match(imported, /つないだ家族のデータにも反映されます/);
+  assert.match(grab(APP, 'backupPreviewText'), /o\.config\.tasks\.length/);
+  assert.match(GUIDE, /共有中にファイルを読み込むと、つないだ家族のデータにも反映されます/);
+});
+
+test('未送信の種類は端末に残し、再起動後も同じ合言葉で再送する', ()=>{
+  assert.match(SYNC, /natsu\.sync\.pending\.v1/);
+  assert.match(SYNC, /let pending = readPending\(\)/);
+  assert.match(grab(SYNC, 'push'), /persistPending\(\)/);
+  assert.match(grab(SYNC, 'flush'), /pendingVersion\.config === sentVersion\.config/);
+  assert.match(SYNC, /addEventListener\('online', flushPendingSoon\)/);
+});
+
+test('紹介ページの実画面画像を装飾目的で傾けない', ()=>{
+  assert.doesNotMatch(DOCS_STYLE, /workflow-step:nth-child\(2\)[^{]*\{[^}]*rotate/);
+  assert.doesNotMatch(DOCS_STYLE, /extra-layout \.quiet-figure img\s*\{[^}]*rotate/);
+  assert.match(DOCS_INDEX, /mini-contents-cat-v2\.png/);
+});
+
+test('変更履歴と制作・説明方針へ主要ページから到達できる', ()=>{
+  assert.match(APP, /docs\/updates\.html/);
+  assert.match(DOCS_INDEX, /href="updates\.html"/);
+  assert.match(GUIDE, /href="updates\.html"/);
+  assert.match(PRODUCT_POLICY, /大きな仕様変更は、実装前に裁定を挟む/);
 });
 
 test('サンプルの宿題が入ったままなら、保護者と子どもの両方に案内を出す', ()=>{

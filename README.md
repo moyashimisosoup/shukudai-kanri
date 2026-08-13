@@ -6,7 +6,10 @@
 > **はじめて知った方は [しゅくだいノートの紹介](https://moyashimisosoup.github.io/shukudai-notebook/docs/) をどうぞ。**
 > できること、実際の画面、使い始め方をまとめています。
 > 詳しい操作は [つかいかた（画面写真つき）](https://moyashimisosoup.github.io/shukudai-notebook/docs/getting-started.html) にあります。
-> ファイルは [`docs/index.html`](docs/index.html) と [`docs/getting-started.html`](docs/getting-started.html)。
+> アプリ版ごとの訂正は [変更履歴](https://moyashimisosoup.github.io/shukudai-notebook/docs/updates.html) にあります。
+> 制作・説明の検収基準は [`docs/PRODUCT_POLICY.md`](docs/PRODUCT_POLICY.md) に記録しています。
+> FAQだけでは答えを確定できない論点は [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md) に分離しています。
+> ファイルは [`docs/index.html`](docs/index.html)、[`docs/getting-started.html`](docs/getting-started.html)、[`docs/updates.html`](docs/updates.html)。
 > このREADMEは、全機能と運用・配布のための詳しい資料です。
 
 ## URL
@@ -61,6 +64,9 @@ Firebase の無料枠は1日あたり **50,000 読み取り / 20,000 書き込�
 
 合言葉由来の SHA-256 を中身のない重複防止マーカーの文書IDに使い、同じグループは1回だけ数えます。
 誰が何回開いたか、子どもの名前、宿題、記録内容は集計用文書には保存しません。
+
+これとは別に、公開版の閲覧数と表示性能を Cloudflare Web Analytics で集計します。Cloudflare の公式説明では
+Cookieを使わず、利用者をサイト横断で追跡しない方式です。名前・宿題・記録を解析用の通信へ加える実装はありません。
 
 ## できること
 
@@ -372,12 +378,10 @@ iOS の長押しは文字選択や虫めがねに取られて切れることが�
 
 - 共有中のすべての端末を同じ版にそろえてください。更新時刻や削除の印を知らない古い版が残ると、訂正前の値を送り返すことがあります
 - 保存の主体は今も localStorage です。起動は通信を待たず、オフラインでも普通に使えます
-- オフライン中の入力はブラウザに溜まり、つながった時点で自動送信されます
-  （Firestore の永続キャッシュ）
+- オフライン中の入力は localStorage に保存し、未送信の種類を端末にも記録します。同じ合言葉のまま再接続すると送信を再開します
 - あいことばを知っていれば誰でも読み書きできます。グループ内で使う前提の強度なので、
   SNS などに貼らないでください
-- 端末の時計が大きくずれていると、`config` の新旧判定を誤ることがあります
-  （記録と進捗は時刻に依存しないため影響を受けません）
+- 端末の時計が大きくずれていると、設定、同じ項目の訂正、削除の新旧判定に影響することがあります
 
 ## ファイル構成
 
@@ -411,10 +415,11 @@ licenses/                     第三者の配布条件の原文（辞書の IPAD
 ```
 
 ビルド不要。ファイルを置くだけで動きます。実行時の外部通信は次の通りです。
-どちらも失敗しても、端末内への記録と進捗管理は動きます。
+いずれも失敗しても、端末内への記録と進捗管理は動きます。
 
 - Google Fonts（丸ゴシックの代替）… iPad ではヒラギノ丸ゴ ProN が使われるため実質不要
 - Firebase SDK / Authentication / Firestore … 端末間共有を使うときに読み込む
+- Cloudflare Web Analytics … 公開版の閲覧数と表示性能をCookieなしで集計する。名前・宿題・記録は送らない
 
 kuromoji.js と約17MBの辞書はリポジトリに同梱しており、「ぜんぶ ひらがなに して」を押したときだけ Web Worker から同じ配信元のファイルを読み込みます。
 

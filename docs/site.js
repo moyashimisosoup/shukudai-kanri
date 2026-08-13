@@ -14,10 +14,15 @@
     catch { /* The banner still closes for this page view. */ }
   };
 
-  if (header && readBannerState()) header.classList.add('is-dismissed');
+  const setDismissed = (dismissed) => {
+    header?.classList.toggle('is-dismissed', dismissed);
+    document.documentElement.classList.toggle('banner-dismissed', dismissed);
+  };
+
+  if (header && readBannerState()) setDismissed(true);
 
   dismiss?.addEventListener('click', () => {
-    header?.classList.add('is-dismissed');
+    setDismissed(true);
     writeBannerState();
   });
 

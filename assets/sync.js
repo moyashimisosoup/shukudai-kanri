@@ -45,6 +45,11 @@ const K_DEVICE = new URLSearchParams(location.search).get('new') === '1'
 const K_JOIN_REVOKED = new URLSearchParams(location.search).get('new') === '1'
   ? 'natsu.preview.sync.revoked.code.v1'
   : 'natsu.sync.revoked.code.v1';
+/* Firestoreへ渡す前にページを閉じても、次回起動で送信を再開するための目印。
+   中身はすでに app.js の localStorage にあるため、種類と合言葉だけを持つ。 */
+const K_PENDING = new URLSearchParams(location.search).get('new') === '1'
+  ? 'natsu.preview.sync.pending.v1'
+  : 'natsu.sync.pending.v1';
 
 /* 打ちまちがえない 文字だけ。0/O と 1/l/I は 入れない */
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
@@ -71,7 +76,11 @@ let joiningExisting = false;
 let status = 'off';          // off | connecting | online | offline | error
 let statusText = '';
 let pushTimer = null;
-let pending = { config:false, state:false };
+let pending = readPending();
+let pendingVersion = {
+  config: pending.config ? 1 : 0,
+  state: pending.state ? 1 : 0
+};
 
 const listeners = [];
 const deviceListeners = [];
@@ -109,12 +118,41 @@ function displayedDeviceCount(){
 function getCode(){
   try{ return localStorage.getItem(K_CODE) || ''; }catch(e){ return ''; }
 }
+function readPending(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(K_PENDING) || 'null');
+    if(!saved || saved.code !== getCode()) return { config:false, state:false };
+    return { config:!!saved.config, state:!!saved.state };
+  }catch(e){ return { config:false, state:false }; }
+}
+function persistPending(){
+  try{
+    if(pending.config || pending.state){
+      localStorage.setItem(K_PENDING, JSON.stringify({
+        code:getCode(),
+        config:!!pending.config,
+        state:!!pending.state
+      }));
+    }else{
+      localStorage.removeItem(K_PENDING);
+    }
+  }catch(e){}
+}
+function clearPending(){
+  pending = { config:false, state:false };
+  pendingVersion.config += 1;
+  pendingVersion.state += 1;
+  persistPending();
+}
 function setCode(code){
+  const before = getCode();
   const c = String(code || '').trim().normalize('NFKC').replace(/\s+/g,'').replace(/[\/\u0000-\u001f]/g, '');
   try{
     if(c) localStorage.setItem(K_CODE, c);
     else  localStorage.removeItem(K_CODE);
   }catch(e){}
+  /* 別の家族へ、前の家族宛ての送信予約を持ち越さない。 */
+  if(before !== c) clearPending();
   return c;
 }
 /* はずされた あいことば。招待リンクからの 自動つなぎだけを ことわる。
@@ -633,8 +671,15 @@ function disconnect(){
    親が 設定を いじっている あいだに 子が 記録しても つぶし合わない。
    --------------------------------------------------------- */
 function push(kind){
-  if(kind === 'config') pending.config = true;
-  if(kind === 'state')  pending.state  = true;
+  if(kind === 'config'){
+    pending.config = true;
+    pendingVersion.config += 1;
+  }
+  if(kind === 'state'){
+    pending.state = true;
+    pendingVersion.state += 1;
+  }
+  persistPending();
   clearTimeout(pushTimer);
   pushTimer = setTimeout(flush, 1200);
 }
@@ -650,40 +695,45 @@ async function flush(){
   const app_ = window.NatsuApp;
   if(!app_ || typeof app_.current !== 'function') return;
 
-  const cur = app_.current();
-  const now = Date.now();
-  const payload = {};
-
-  /* 中身は 鍵を かけてから 出す。時刻は 平文の まま。
-     時刻まで 隠すと、どちらが 新しいかを 決めるのに 復号が 要り、
-     鍵の ない 端末が「文書は あるのに 何も 分からない」状態に なる */
-  const code = getCode();
-  if(pending.config){ payload.config = await encryptField('config', code, cur.config); payload.configAt = now; }
-  if(pending.state) {
-    payload.state   = await encryptField('state', code, cur.state);
-    payload.stateAt = now;
-    /* どの端末が 送ったかを のこす。合わなかった ときに、どちらの端末の
-       値だったのかを 名前で 見られる ようにする。
-       新しい 欄を 作ると 規則の 許可から 外れて 書けなくなるので、
-       すでに ある devices の 中に しまう。stateAt と 同じ値なので、
-       受け取った側は 時刻を 突き合わせて 送り主を 見わけられる */
-    payload.devices = { [getDeviceId()]: { lastAt: now } };
-  }
-  pending = { config:false, state:false };
-
-  if(!Object.keys(payload).length) return;
-
+  const sending = { config:pending.config, state:pending.state };
+  const sentVersion = { config:pendingVersion.config, state:pendingVersion.state };
+  if(!sending.config && !sending.state) return;
   try{
+    const cur = app_.current();
+    const now = Date.now();
+    const payload = {};
+
+    /* 中身は 鍵を かけてから 出す。時刻は 平文の まま。
+       時刻まで 隠すと、どちらが 新しいかを 決めるのに 復号が 要り、
+       鍵の ない 端末が「文書は あるのに 何も 分からない」状態に なる */
+    const code = getCode();
+    if(sending.config){ payload.config = await encryptField('config', code, cur.config); payload.configAt = now; }
+    if(sending.state) {
+      payload.state   = await encryptField('state', code, cur.state);
+      payload.stateAt = now;
+      /* どの端末が 送ったかを のこす。合わなかった ときに、どちらの端末の
+         値だったのかを 名前で 見られる ようにする。 */
+      payload.devices = { [getDeviceId()]: { lastAt: now } };
+    }
+
     /* merge:true にして、送っていない側の欄を 消さないようにする。
        通信が 切れていても ここは 成功する（ブラウザに たまり、あとで 送られる） */
     await Sync._fs.setDoc(docRef, payload, { merge:true });
+    /* 送信中に同じ種類がもう一度変更された場合、その新しい予約は残す。 */
+    if(sending.config && pendingVersion.config === sentVersion.config) pending.config = false;
+    if(sending.state && pendingVersion.state === sentVersion.state) pending.state = false;
+    persistPending();
   }catch(err){
-    /* 一時的な失敗で送信予約まで失わない。次の再接続・保存で再送する。 */
-    if(payload.config) pending.config = true;
-    if(payload.state)  pending.state  = true;
+    /* 一時的な失敗では送信予約を消さない。再接続・再起動後に再送する。 */
+    persistPending();
     setStatus('error', '保存できません：' + (err && err.code || err));
   }
 }
+
+addEventListener('online', flushPendingSoon);
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') flushPendingSoon();
+});
 
 /* ---------------------------------------------------------
    6. 匿名の登録グループ数
