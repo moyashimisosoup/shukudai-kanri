@@ -802,19 +802,19 @@ blockquote {
 
 .pace-row {
   display: grid;
-  grid-template-columns: minmax(5.5rem, auto) minmax(0, 1fr) 3.25rem;
-  gap: var(--space-sm);
+  grid-template-columns: minmax(4.6rem, auto) minmax(0, 1fr) 2.55rem;
+  gap: var(--space-xs);
   align-items: center;
   font-weight: 700;
 }
 
 .pace-track {
   position: relative;
-  height: 1.625rem;
+  height: 2rem;
   overflow: clip;
   border: var(--rule-strong) solid var(--color-navy);
   border-radius: var(--radius-pill);
-  background: var(--color-paper-blue);
+  background: var(--color-progress-track);
 }
 
 .pace-fill {
@@ -826,7 +826,7 @@ blockquote {
 }
 
 .pace-fill--natsu {
-  background: repeating-linear-gradient(45deg, var(--color-rule-strong) 0 var(--space-xs), var(--color-paper-blue) var(--space-xs) var(--space-md));
+  background: repeating-linear-gradient(45deg, var(--color-progress-summer) 0 var(--space-xs), var(--color-paper-raised) var(--space-xs) var(--space-md));
 }
 
 .pace-fill--todo {
@@ -866,8 +866,14 @@ blockquote {
 }
 
 .pace-key--todo {
-  background: var(--color-success-soft);
+  background: var(--color-progress-track);
   border: var(--rule-hair) solid var(--color-success);
+}
+
+@media (max-width: 39.99rem) {
+  .pace-bars {
+    padding: var(--space-lg);
+  }
 }
 
 .pace-caption {

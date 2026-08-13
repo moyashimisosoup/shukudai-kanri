@@ -2329,6 +2329,9 @@ test('紹介ページの指摘箇所は実画面に沿う表現と配置にす�
   assert.match(DOCS_INDEX, /かんりょうよそく：[\s\S]*いまのペースだと8月22日/);
   assert.doesNotMatch(DOCS_INDEX, /完了予測日を出しません/);
   assert.match(DOCS_STYLE, /repeating-linear-gradient/);
+  assert.match(DOCS_STYLE, /height: 2rem;/);
+  assert.match(DOCS_STYLE, /background: var\(--color-progress-track\)/);
+  assert.match(DOCS_STYLE, /var\(--color-progress-summer\)/);
   assert.doesNotMatch(DOCS_STYLE, /\.hero-aside::after/);
   assert.match(DOCS_INDEX, /アプリ取得なし[\s\S]*会員登録不要/);
   assert.match(DOCS_INDEX, /<h2 id="parents-title"><span class="title-line">進み具合を見て、<\/span><span class="title-line">ひとこと送れます。<\/span><\/h2>/);

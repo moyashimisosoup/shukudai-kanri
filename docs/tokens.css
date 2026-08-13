@@ -27,6 +27,8 @@
   --color-error-soft: oklch(94% 0.035 25);
   --color-success: oklch(43% 0.12 150);
   --color-success-soft: oklch(94% 0.035 150);
+  --color-progress-track: oklch(98% 0.012 224);
+  --color-progress-summer: oklch(60% 0.075 77);
   --color-shadow: oklch(25% 0.035 246 / 0.13);
   --color-shadow-soft: oklch(25% 0.035 246 / 0.07);
 
