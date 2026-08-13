@@ -2302,7 +2302,7 @@ test('紹介ページは意味のまとまりで見出しを組み、開発者�
   assert.doesNotMatch(DOCS_INDEX, /宿題管理に疲れた等/);
   assert.match(DOCS_INDEX, /一般の使用にも資する面があるのではないか思い/,
     '開発者本人の文言は校正せず、そのまま載せること');
-  assert.match(DOCS_INDEX, /<span class="maker-title-line">はじめに―<\/span><span class="maker-title-line">このアプリについて<\/span>/);
+  assert.match(DOCS_INDEX, /<span class="maker-title-line">はじめに<\/span><span class="maker-title-line">―このアプリについて<\/span>/);
   assert.match(DOCS_STYLE, /#maker-title \.maker-title-line \+ \.maker-title-line[\s\S]*font-size: 0\.78em/);
   assert.match(DOCS_INDEX, /<span class="title-line trust-title__tail">知っておいてほしいこと。<\/span>/);
   assert.match(DOCS_INDEX, /不具合、誤謬や使いづらい点/);
@@ -2338,6 +2338,8 @@ test('紹介ページの指摘箇所は実画面に沿う表現と配置にす�
   assert.doesNotMatch(DOCS_STYLE, /\.hero-aside::after/);
   assert.match(DOCS_INDEX, /アプリ取得なし[\s\S]*会員登録不要/);
   assert.match(DOCS_INDEX, /<h2 id="parents-title"><span class="title-line">進み具合を見て、<\/span><span class="title-line">ひとこと送れます。<\/span><\/h2>/);
+  assert.match(DOCS_INDEX, /<div class="message-arrival">[\s\S]*images\/child-home\.png[\s\S]*子どもの画面では、ここに出ます。/);
+  assert.match(DOCS_STYLE, /\.message-arrival__figure img[\s\S]*object-position: center 52%/);
   assert.match(DOCS_INDEX, /<span class="title-line">宿題のあとに、<\/span>/);
   assert.doesNotMatch(DOCS_INDEX, /ねこのデザインを選んだ画面。この日のことば/);
   assert.match(DOCS_INDEX, /細かい設定やデータの扱いは、画面写真つきの使い方のページをご覧ください/);

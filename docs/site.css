@@ -909,6 +909,40 @@ blockquote {
   max-width: 24rem;
 }
 
+.message-arrival {
+  display: grid;
+  gap: var(--space-lg);
+  align-items: center;
+  margin-block-start: var(--space-2xl);
+  padding-block-start: var(--space-2xl);
+  border-block-start: var(--rule-hair) solid var(--color-rule-strong);
+}
+
+.message-arrival__figure {
+  min-width: 0;
+  margin: 0;
+}
+
+.message-arrival__figure img {
+  width: 100%;
+  aspect-ratio: 5 / 4;
+  object-fit: cover;
+  object-position: center 52%;
+  border: var(--rule-hair) solid var(--color-rule-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-raised);
+}
+
+.message-arrival__copy {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.message-arrival__copy p {
+  max-width: 42ch;
+  color: var(--color-ink-soft);
+}
+
 .message-quote {
   max-width: 38rem;
   padding: var(--space-lg);
@@ -1357,6 +1391,10 @@ blockquote {
   .family-layout .quiet-figure,
   .extra-layout .quiet-figure {
     justify-self: center;
+  }
+
+  .message-arrival {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   }
 
   .extra-layout .extra-copy {
