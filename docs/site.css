@@ -572,6 +572,10 @@ blockquote {
   max-width: none;
 }
 
+.maker-title-line {
+  display: block;
+}
+
 @media (max-width: 39.99rem) {
   h2 {
     font-size: 1.7rem;
@@ -1296,6 +1300,10 @@ blockquote {
   }
 
   .trust-title__tail span {
+    display: inline;
+  }
+
+  .maker-title-line {
     display: inline;
   }
 
