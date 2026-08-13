@@ -2329,7 +2329,7 @@ test('紹介ページの指摘箇所は実画面に沿う表現と配置にす�
   assert.doesNotMatch(DOCS_INDEX, /完了予測日を出しません/);
   assert.match(DOCS_STYLE, /repeating-linear-gradient/);
   assert.doesNotMatch(DOCS_STYLE, /\.hero-aside::after/);
-  assert.match(DOCS_INDEX, /アプリ取得・[\s\S]*会員登録不要/);
+  assert.match(DOCS_INDEX, /アプリ取得なし[\s\S]*会員登録不要/);
   assert.match(DOCS_INDEX, /<h2 id="parents-title"><span class="title-line">進み具合を見て、<\/span><span class="title-line">ひとこと送れます。<\/span><\/h2>/);
   assert.match(DOCS_INDEX, /<span class="title-line">宿題のあとに、<\/span>/);
   assert.doesNotMatch(DOCS_INDEX, /ねこのデザインを選んだ画面。この日のことば/);
