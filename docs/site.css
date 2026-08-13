@@ -571,8 +571,14 @@ blockquote {
   max-width: none;
 }
 
-.maker-title-line {
+#maker-title .maker-title-line {
   display: block;
+}
+
+#maker-title .maker-title-line + .maker-title-line {
+  margin-block-start: var(--space-xs);
+  font-size: 0.78em;
+  letter-spacing: -0.02em;
 }
 
 @media (max-width: 39.99rem) {
@@ -1318,10 +1324,6 @@ blockquote {
   .section-heading {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
     align-items: end;
-  }
-
-  .maker-title-line {
-    display: inline;
   }
 
   .plain-index li {
