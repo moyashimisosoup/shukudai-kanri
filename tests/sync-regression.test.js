@@ -2303,6 +2303,7 @@ test('紹介ページは意味のまとまりで見出しを組み、開発者�
   assert.match(DOCS_INDEX, /一般の使用にも資する面があるのではないか思い/,
     '開発者本人の文言は校正せず、そのまま載せること');
   assert.match(DOCS_INDEX, /<span class="maker-title-line">はじめに―<\/span><span class="maker-title-line">このアプリについて<\/span>/);
+  assert.match(DOCS_INDEX, /<span class="title-line trust-title__tail">知っておいてほしいこと。<\/span>/);
   assert.match(DOCS_INDEX, /不具合、誤謬や使いづらい点/);
   assert.match(DOCS_INDEX, /なお、この欄の文章はAI校正なしで開発者（人間）が書いています。/);
   assert.doesNotMatch(DOCS_INDEX, /もしお試しいただいた/);
