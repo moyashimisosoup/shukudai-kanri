@@ -1,0 +1,81 @@
+/* Hallmark · theme: Coral · genre: modern-minimal · anchor hue: coral-navy
+ * pre-emit critique: P5 H5 E4 S5 R5 V5
+ */
+:root {
+  --color-paper: oklch(97% 0.012 88);
+  --color-paper-raised: oklch(99% 0.008 88);
+  --color-paper-warm: oklch(94% 0.025 75);
+  --color-paper-blue: oklch(94% 0.025 224);
+  --color-paper-mint: oklch(94% 0.028 151);
+  --color-paper-lavender: oklch(95% 0.022 304);
+  --color-ink: oklch(25% 0.035 246);
+  --color-ink-soft: oklch(42% 0.026 246);
+  --color-ink-faint: oklch(54% 0.02 246);
+  --color-navy: oklch(31% 0.075 252);
+  --color-navy-deep: oklch(24% 0.068 252);
+  --color-navy-ink: oklch(97% 0.008 88);
+  --color-accent: oklch(72% 0.12 29);
+  --color-accent-deep: oklch(52% 0.14 29);
+  --color-accent-soft: oklch(93% 0.035 29);
+  --color-accent-ink: oklch(24% 0.055 29);
+  --color-rule: oklch(83% 0.018 82);
+  --color-rule-strong: oklch(68% 0.025 82);
+  --color-focus: oklch(48% 0.16 259);
+  --color-focus-on-warm: oklch(27% 0.07 252);
+  --color-focus-on-dark: oklch(91% 0.09 95);
+  --color-error: oklch(51% 0.18 25);
+  --color-error-soft: oklch(94% 0.035 25);
+  --color-success: oklch(43% 0.12 150);
+  --color-success-soft: oklch(94% 0.035 150);
+  --color-shadow: oklch(25% 0.035 246 / 0.13);
+  --color-shadow-soft: oklch(25% 0.035 246 / 0.07);
+
+  --font-display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", sans-serif;
+  --font-body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
+
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+  --space-4xl: 9rem;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-md: 1.25rem;
+  --text-lg: 1.5625rem;
+  --text-xl: 1.953rem;
+  --text-2xl: 2.441rem;
+  --text-3xl: 3.052rem;
+  --text-display: clamp(2.55rem, 7vw, 5.15rem);
+  --text-display-small: clamp(2.2rem, 5vw, 4.1rem);
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-card: 1.25rem;
+  --radius-pill: 999px;
+  --rule-hair: 1px;
+  --rule-strong: 2px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+
+  --page-max: 74rem;
+  --page-gutter: clamp(1rem, 4vw, 3rem);
+  --measure: 65ch;
+  --nav-bar-height: 4.5rem;
+  --banner-height: 2.75rem;
+
+  --z-base: 1;
+  --z-raised: 10;
+  --z-sticky: 200;
+  --z-modal: 400;
+}

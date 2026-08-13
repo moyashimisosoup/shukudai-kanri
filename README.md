@@ -3,9 +3,10 @@
 小学2年生が自分で使える、夏休みの宿題の進捗管理アプリ。
 静的ファイルのみで動作し、GitHub Pages に置けば iPad の Safari から使えます。
 
-> **はじめて使う方は [つかいかた（画面写真つき）](https://moyashimisosoup.github.io/shukudai-notebook/docs/getting-started.html) をどうぞ。**
-> 最初の設定、保護者ページの開き方、毎日の使い方、Q&A をまとめた短い案内です。
-> ファイルは [`docs/getting-started.html`](docs/getting-started.html)。
+> **はじめて知った方は [しゅくだいノートの紹介](https://moyashimisosoup.github.io/shukudai-notebook/docs/) をどうぞ。**
+> できること、実際の画面、使い始め方をまとめています。
+> 詳しい操作は [つかいかた（画面写真つき）](https://moyashimisosoup.github.io/shukudai-notebook/docs/getting-started.html) にあります。
+> ファイルは [`docs/index.html`](docs/index.html) と [`docs/getting-started.html`](docs/getting-started.html)。
 > このREADMEは、全機能と運用・配布のための詳しい資料です。
 
 ## URL

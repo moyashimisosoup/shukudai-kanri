@@ -3,94 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>しゅくだいノート　つかいかた</title>
+<meta name="description" content="しゅくだいノートを初めて使う方向けの、画面写真つきの使い方。最初の設定、毎日の記録、保護者画面、家族での共有を説明します。">
+<title>しゅくだいノート｜画面写真つきの使い方</title>
 <link rel="icon" href="images/icon.png">
-<style>
-  :root{
-    --ink:#22303a; --ink-weak:#5a6b78; --paper:#fffdf8; --band:#ffe2c2;
-    --line:#e6ddcd; --green:#2f7a48; --warn-bg:#fff3e6; --warn-line:#e0a86a;
-    --code-bg:#f3f0e8;
-  }
-  @media (prefers-color-scheme: dark){
-    :root{
-      /* --band と、その上の文字色は暗くしない。
-         帯はアイコンと同じあんず色で、文字色を固定で置いてあるため */
-      --ink:#e8e6e1; --ink-weak:#a8b2b9; --paper:#1d2126;
-      --line:#39413a; --green:#7fc294; --warn-bg:#2c2419; --warn-line:#8a6a3c;
-      --code-bg:#262b30;
-    }
-  }
-  *{box-sizing:border-box}
-  body{
-    margin:0; background:var(--paper); color:var(--ink);
-    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",
-                "Noto Sans JP",system-ui,sans-serif;
-    font-size:17px; line-height:1.85;
-    -webkit-text-size-adjust:100%;
-  }
-  .wrap{max-width:720px; margin:0 auto; padding:0 20px 80px}
-
-  header{background:var(--band); margin-bottom:40px}
-  .head-inner{max-width:720px; margin:0 auto; padding:36px 20px 32px;
-              display:flex; gap:20px; align-items:center; flex-wrap:wrap}
-  .head-inner img{width:76px; height:76px; border-radius:18px; flex:none}
-  header h1{font-size:27px; margin:0 0 4px; line-height:1.4; color:#22303a}
-  header p{margin:0; font-size:15px; color:#4d5c52}
-
-  h2{font-size:21px; margin:52px 0 14px; padding-bottom:8px;
-     border-bottom:2px solid var(--line); line-height:1.5}
-  h3{font-size:17px; margin:30px 0 8px; line-height:1.6}
-  p{margin:0 0 16px}
-  ul,ol{margin:0 0 16px; padding-left:1.4em}
-  li{margin-bottom:8px}
-  a{color:var(--green)}
-  strong{font-weight:700}
-
-  figure{margin:24px 0 28px}
-  figure img{
-    display:block; width:100%; max-width:380px; height:auto;
-    border:1px solid var(--line); border-radius:12px;
-  }
-  figure.wide img{max-width:100%}
-  figcaption{margin-top:9px; font-size:14px; color:var(--ink-weak); line-height:1.7}
-
-  .lede{font-size:18px}
-  .url{
-    display:inline-block; background:var(--code-bg); border-radius:8px;
-    padding:9px 13px; font-size:15px; word-break:break-all; line-height:1.6;
-  }
-  .note{
-    background:var(--warn-bg); border-left:4px solid var(--warn-line);
-    padding:16px 18px; margin:22px 0; border-radius:0 8px 8px 0;
-  }
-  .note p:last-child{margin-bottom:0}
-  code{background:var(--code-bg); padding:2px 6px; border-radius:5px; font-size:.92em}
-
-  .bars{
-    background:var(--code-bg); border-radius:10px; padding:18px 20px; margin:20px 0;
-    font-size:15px;
-  }
-  .bar-row{display:flex; align-items:center; gap:12px; margin-bottom:10px}
-  .bar-row:last-child{margin-bottom:0}
-  .bar-label{width:6.2em; flex:none; font-size:14px}
-  .bar-track{
-    flex:1; min-width:0; height:16px; border-radius:8px;
-    background:rgba(128,128,128,.22); overflow:hidden;
-  }
-  /* span は inline のままだと height が効かない。block にしておくこと */
-  .bar-fill{display:block; height:100%; border-radius:8px; background:var(--green)}
-  .bar-fill.past{background:rgba(128,128,128,.45)}
-  .bar-pct{width:3.2em; flex:none; text-align:right; font-size:14px}
-
-  .qa{margin:0}
-  .qa dt{font-weight:700; margin:26px 0 6px}
-  .qa dd{margin:0}
-
-  footer{margin-top:60px; padding-top:22px; border-top:1px solid var(--line);
-         font-size:14px; color:var(--ink-weak)}
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
 </head>
-<body>
+<body class="guide-legacy">
+
+<a class="skip-link" href="#guide-main">本文へ移動</a>
+<nav class="guide-topbar" aria-label="案内ページのメニュー">
+  <div class="shell guide-topbar__inner">
+    <a class="brand" href="./">
+      <img src="images/icon.png" width="76" height="76" alt="">
+      <span class="wordmark">しゅくだいノート</span>
+    </a>
+    <div class="guide-topbar__links">
+      <a href="./">紹介</a>
+      <a href="../">公開版を開く</a>
+    </div>
+  </div>
+</nav>
 
 <header>
   <div class="head-inner">
@@ -102,7 +37,7 @@
   </div>
 </header>
 
-<div class="wrap">
+<div class="wrap" id="guide-main">
 
 <p class="lede">夏休みの宿題があと何日ぶん残っているのかを、子ども本人が見るための道具です。
 ブラウザで開けば動きます。アプリの取得も、アカウントを作る手続きも要りません。</p>
@@ -115,8 +50,8 @@
 
 <p>上のURLを、ふだん子どもが触る端末で開きます。iPadでもiPhoneでもパソコンでもかまいません。</p>
 
-<p>iPhoneとiPadの人は、開いたその場でSafariの共有ボタンから「ホーム画面に追加」まで済ませてください。
-次からはアイコンを押すだけで開きます。ブラウザのタブから探すことになると、たいてい使わなくなります。</p>
+<p>iPhoneとiPadでは、Safariの共有ボタンから「ホーム画面に追加」できます。
+次からは、ホーム画面のアイコンだけで開けます。</p>
 
 <h2>先に覚えること — 保護者の画面の開き方</h2>
 
@@ -130,8 +65,7 @@
 <p>URLの末尾に <code>#settings</code> を付けても同じ画面が出ます。よく使うならブックマークしておくと早いです。</p>
 
 <div class="note">
-  <p>この開き方だけは先に覚えておいてください。知らないまま使うと、宿題を登録することも、
-  次に出てくる見本の宿題を消すこともできません。</p>
+  <p>設定や宿題の登録、見本の宿題の削除は、保護者の画面から行います。</p>
 </div>
 
 <h2>最初に決めること</h2>
@@ -213,10 +147,10 @@
 
 <p>上が夏休みの過ぎたぶん、下が宿題の終わったぶんです。
 <strong>下が上より先に行っていれば間に合います。</strong>
-「あと何日」と言われるより、この2本を並べたほうが低学年には通じます。</p>
+2本を比べると、今のペースで間に合いそうかがわかります。</p>
 
 <p>記録がある程度たまると、いまのペースなら何日に終わるかも出ます。
-数日ぶんしかないうちは日付を出しません。当てずっぽうの予定日は、外れたときに効きめがなくなるからです。</p>
+記録が少ない間は、完了予測を表示しません。</p>
 
 <figure class="wide">
   <img src="images/child-home.png" alt="子どもの画面。夏休みの残り時間、2本のバー、保護者からのメッセージが並んでいる">
@@ -225,7 +159,7 @@
 
 <h2>保護者がすること</h2>
 
-<p>見るだけで足ります。進み具合、終わりそうな日、宿題ごとの残り、その日の記録、読んだ本の一覧が並びます。</p>
+<p>進み具合を見て、必要なら子どもへひとことを送ります。終わりそうな日、宿題ごとの残り、その日の記録、読んだ本の一覧も確認できます。</p>
 
 <p>それとは別に、<strong>80文字までのひとこと</strong>を送れます。子どもの画面の上のほうに、新しい順に3件まで出ます。
 承認を待たせるしくみも、ポイントを配るしくみもありません。
@@ -287,7 +221,7 @@
 
 <dt>子どもが設定を触ってしまいませんか。</dt>
 <dd><p>子どもの画面から設定へ行くボタンはありません。タイトルを5回タップするか2秒押しつづける必要があります。
-絶対とは言えませんが、うっかり触ってしまう事故はまず起きません。</p></dd>
+子どもが誤って開きにくい入り口にしています。</p></dd>
 
 <dt>間違えて記録してしまいました。</dt>
 <dd><p>同じカードから入れ直せます。番号を戻すことも、0に戻すこともできます。
