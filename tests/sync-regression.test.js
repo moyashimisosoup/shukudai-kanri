@@ -2275,7 +2275,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814a',
-    'assets/app.js': '20260814c',
+    'assets/app.js': '20260814d',
     'assets/sync.js': '20260813a'
   };
   for(const [file, version] of Object.entries(versions)){
