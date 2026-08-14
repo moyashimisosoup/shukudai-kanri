@@ -2606,6 +2606,11 @@ function calChevronIcon(direction){
   return `<svg class="cal-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
 }
 
+/* 端末ごとに姿の変わる絵文字ではなく、カレンダー内で統一した鉛筆の印 */
+function calPencilIcon(){
+  return `<svg class="cal-pencil-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5.2 16.9-.7 2.6 2.6-.7L18 7.9l-1.8-1.8L5.2 16.9Z"/><path d="m14.8 5 1.8-1.8 2.6 2.6-1.8 1.8M5.2 16.9l1.9 1.9"/></svg>`;
+}
+
 function viewCalendar(){
   const now = new Date(), todayKey = dayKey(now);
   const r = calRange();
@@ -2649,7 +2654,7 @@ function viewCalendar(){
         aria-pressed="${key === calDay ? 'true' : 'false'}"
         aria-label="${esc(fmtDate(date))}">
         <span class="cal-num">${d}</span>
-        <span class="cal-dots">${dots}${calHasFree(logs) ? `<span class="cal-free">📝</span>` : ''}</span>
+        <span class="cal-dots">${dots}${calHasFree(logs) ? `<span class="cal-free">${calPencilIcon()}</span>` : ''}</span>
       </button>`;
   }
 
@@ -2673,7 +2678,7 @@ function viewCalendar(){
       <span class="cal-leg"><span class="cal-dot cal-dot--option"></span>つぎに やる</span>
       ${dailyEnabled ? `<span class="cal-leg"><span class="cal-dot cal-dot--daily"></span>まいにち</span>` : ''}
       <span class="cal-leg"><span class="cal-leg-box"></span>なにか やった日</span>
-      ${freeEnabled ? `<span class="cal-leg"><span class="cal-free">📝</span>なんでも きろく</span>` : ''}
+      ${freeEnabled ? `<span class="cal-leg"><span class="cal-free">${calPencilIcon()}</span>なんでも きろく</span>` : ''}
     </div>
   </section>
 

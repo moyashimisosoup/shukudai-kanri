@@ -1999,7 +1999,8 @@ body.no-tabbar{ padding-bottom:0; }
 .cal-dot--must{   background:var(--suika); }
 .cal-dot--option{ background:var(--himawari); }
 .cal-dot--daily{  background:var(--asagao); }
-.cal-free{ font-size:12px; line-height:1; }
+.cal-free{ display:inline-grid; place-items:center; width:13px; height:13px; color:var(--ai); }
+.cal-pencil-icon{ width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
 
 /* できた日は わかばの地。きょうは ふとい枠。えらんだ日は 藍でぬる */
 .cal-day.is-all{ background:var(--wakaba-usu); border-color:var(--wakaba); }

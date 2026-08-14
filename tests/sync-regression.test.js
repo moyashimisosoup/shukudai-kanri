@@ -2232,6 +2232,11 @@ test('子ども画面のタブと月移動は端末依存の絵文字でなく�
   const calendar = grab(APP, 'viewCalendar');
   assert.match(calendar, /aria-label="まえの月"[\s\S]{0,100}\$\{calChevronIcon\(-1\)\}/);
   assert.match(calendar, /aria-label="つぎの月"[\s\S]{0,100}\$\{calChevronIcon\(1\)\}/);
+  assert.match(calendar, /\$\{calPencilIcon\(\)\}/,
+    'なんでも記録の日も端末依存の絵文字ではなく鉛筆ピクトグラムで示すこと');
+  assert.doesNotMatch(calendar, /📝/);
+  assert.match(APP, /function calPencilIcon\(\)\{/);
+  assert.match(STYLE, /\.cal-pencil-icon\{[^}]*stroke:currentColor/);
   assert.match(STYLE, /\.cal-nav \.btn\{[\s\S]{0,160}flex:0 0 44px/,
     '月移動はアイコンのみでも44pxの押しやすさを保つこと');
 });
