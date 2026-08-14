@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.1';
+const RELEASE_VERSION = '1.2';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -1141,29 +1141,34 @@ function stamp(text){
 /* しあげの2段階（マルつけ・なおし）が つく課題か */
 function hasWrap(t){ return !!(t && t.wrapUp && (t.type === 'count' || t.type === 'step')); }
 
+/* まるつけをする人。古い課題は、これまでどおりおとながする設定として読む */
+function wrapMarkerBy(t){ return t && t.wrapBy === 'child' ? 'child' : 'adult'; }
+
+function wrapLabelsFull(t){
+  return [wrapMarkerBy(t) === 'child' ? 'マルつけする' : 'マルつけして もらう', 'なおし'];
+}
+
 /* ほぞんされた wrap を かならず 真偽値の はいれつに する（無ければ 未着手） */
 function wrapOf(p){
   const a = Array.isArray(p.wrap) ? p.wrap : [];
   return WRAP_LABELS.map((_,i)=> !!a[i]);
 }
 
-/* しあげの2段階を すすみぐあいに 織りこむ。
-   done / total / text は 番号（段階）そのままの数を のこす。
-   14ばんの課題が 16ばんに 見えると まちがえるため。
-   バーも 番号（段階）だけの わりあいに する。マルつけ・なおしは
-   バーの そとの ランプで 見せるので、pct には 足さない。
-   足すと 14/14 なのに バーが 埋まらず、ちぐはぐに 見える。
-   完了（isDone）の 判定にだけ 2段階を 足す */
+/* しあげの2段階は、宿題全体のノルマにも入れる。
+   番号（段階）の表示はそのまま残し、allDone / allTotal / allPct で
+   マルつけ・なおし込みの全体進捗を出す。 */
 function withWrap(task, p, r){
   r.numDone  = r.isDone;        // 番号（段階）を ぜんぶ 終えたか
   r.wrap     = wrapOf(p);
   r.allDone  = r.done;
   r.allTotal = r.total;
+  r.allPct   = r.pct;
   if(!hasWrap(task)) return r;
   const w = r.wrap.filter(Boolean).length;
   // allDone / allTotal は 2段階こみの かぞえかた（ほかから 使うので のこす）
   r.allDone  = r.done + w;
   r.allTotal = r.total + r.wrap.length;
+  r.allPct   = r.allDone / r.allTotal * 100;
   r.isDone   = r.numDone && w >= r.wrap.length;
   return r;
 }
@@ -1241,7 +1246,7 @@ function nextLabel(task, adult){
   // 番号（段階）が ぜんぶ おわったら、さいごの2段階を 出す
   if(hasWrap(task) && p.numDone){
     const i = p.wrap.findIndex(v => !v);
-    return { lead:'つぎは', num:'', tail: WRAP_LABELS[i] };
+    return { lead:'つぎは', num:'', tail: wrapLabelsFull(task)[i] };
   }
   if(task.type === 'count'){
     const n = p.done + 1;
@@ -1267,13 +1272,12 @@ function countUsesCircle(task){
   return !!(task && task.numbered) && !isBook(task) && !isSheetCount(task);
 }
 
-/* しゅくだい ぜんたいの すすみぐあい（かならずやる だけ／まいにちアプリは のぞく）
-   ここも 番号（段階）だけで かぞえる。カードの バーと 同じ ものさしに して
-   おかないと、保護者ページの「必須の宿題 ○%」だけ 数字が ずれて見える */
+/* しゅくだい ぜんたいの すすみぐあい（かならずやる だけ／まいにちアプリは のぞく）。
+   しあげを付けた課題は、マルつけ・なおしも2項目分として入れる。 */
 function overall(group){
   let done = 0, total = 0;
   config.tasks.filter(t => t.group === group && t.type !== 'daily').forEach(t=>{
-    const p = prog(t); done += p.done; total += p.total;
+    const p = prog(t); done += p.allDone; total += p.allTotal;
   });
   return { done, total, pct: total ? done/total*100 : 0 };
 }
@@ -2046,7 +2050,7 @@ function taskHTML(t){
   }else{
     // count と step は 同じ 見た目。ランプは 14/14 の すぐ よこに ならべる
     meter = `<div class="task-meter task-meter--bar">
-        <div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div>
+        <div class="bar"><div class="bar-fill" style="width:${p.allPct.toFixed(1)}%"></div></div>
         <span class="task-count">${esc(p.text)}</span>${wrapMarksHTML(t, p)}
       </div>`;
   }
@@ -2734,7 +2738,7 @@ function viewParent(){
     return `
       <tr class="${p.isDone ? 'is-done' : ''}">
         <th>${esc(t.name)}</th>
-        <td class="pg-bar"><div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div></td>
+        <td class="pg-bar"><div class="bar"><div class="bar-fill" style="width:${p.allPct.toFixed(1)}%"></div></div></td>
         <td class="pg-num">${esc(adultText(t, p))}</td>
         <td class="pg-next">${esc(next)}</td>
       </tr>`;
@@ -3457,7 +3461,7 @@ function openSheet(id, editBookId){
     <div class="field field-wrap" id="wrapField"${p.numDone ? '' : ' hidden'}>
       <span class="lab">さいごの しあげ</span>
       <p class="hint">ぜんぶ おわったね！ できた ところを おしてね。</p>
-      <div class="steps" id="wraps">${wrapsHTML(sheetWrap)}</div>
+      <div class="steps" id="wraps">${wrapsHTML(t, sheetWrap)}</div>
     </div>`;
   }
 
@@ -3811,10 +3815,8 @@ function stepsHTML(t, arr){
 }
 
 /* しあげの2段階。段階式（step）と おなじ 見た目・おなじ そうさに する */
-function wrapsHTML(arr){
-  /* ここは 幅が あるので、みじかい「マルつけ」ではなく
-     だれが やることか 分かる 言い方を つかう */
-  return WRAP_LABELS_FULL.map((s,i)=>
+function wrapsHTML(t, arr){
+  return wrapLabelsFull(t).map((s,i)=>
     `<button class="step${arr[i]?' on':''}" data-w="${i}" type="button">
        <span class="box">✓</span><span>${esc(s)}</span>
      </button>`).join('');
@@ -4254,7 +4256,10 @@ function taskEditorRow(t, i){
         <label class="set-field set-check"><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> 次の番号を①②で表示</label>` : `
         <label class="set-field set-field--wide"><span>段階（1行に1つ）</span>
           <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea></label>`}
-      <label class="set-field set-field--wide set-check"><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> 「丸付け・直し」の項目を表示</label>
+      <label class="set-field set-field--wide set-check"><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> 「マルつけ・なおし」の項目を表示</label>
+      ${t.wrapUp ? `<label class="set-field"><span>マルつけするのは</span><select data-f="wrapBy">
+        ${opt('adult',wrapMarkerBy(t),'おとな')}${opt('child',wrapMarkerBy(t),'こども')}
+      </select></label>` : ''}
       <label class="set-field set-field--wide"><span>記録するときの質問（任意）</span>
         <textarea data-f="questions" rows="3" placeholder="葉っぱの形や色は？">${esc((t.questions||[]).join('\n'))}</textarea></label>
       <label class="set-field set-field--wide"><span>メモ欄の見出し</span>
@@ -5409,7 +5414,12 @@ function bindConfig(){
     }
     if(f === 'numbered')        t.numbered = e.target.checked;
     // 外しても progress の wrap は 消さない。付けなおしたら 前の状態が また見える
-    else if(f === 'wrapUp')     t.wrapUp = e.target.checked;
+    else if(f === 'wrapUp'){
+      t.wrapUp = e.target.checked;
+      openConfigTaskId = t.id;
+      saveCfg(); render({ keepScroll:true }); return;
+    }
+    else if(f === 'wrapBy')     t.wrapBy = e.target.value;
     else if(f === 'total')      t.total = clamp(+e.target.value||1, 1, 200);
     else if(f === 'target')     t.target = clamp(+e.target.value||1, 1, 999);
     else if(f === 'steps')      t.steps = e.target.value.split('\n').map(s=>s.trim()).filter(Boolean);
@@ -5943,7 +5953,7 @@ document.addEventListener('click', e=>{
   if(wp){
     const i = +wp.dataset.w;
     sheetWrap[i] = !sheetWrap[i];
-    $('#wraps').innerHTML = wrapsHTML(sheetWrap);
+    $('#wraps').innerHTML = wrapsHTML(sheetTask, sheetWrap);
     return;
   }
   const ta = e.target.closest('#tally .tally-btn');

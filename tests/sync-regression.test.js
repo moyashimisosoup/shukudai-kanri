@@ -648,6 +648,31 @@ test('初期設定の選択肢は、選んだものだけ色とチェックが�
     '初期設定の入口は保護者にも読める通常の漢字表記にすること');
 });
 
+test('まるつけ・なおしは担当を選べ、宿題全体のノルマにも入る', ()=>{
+  const wrapFns = new Function('WRAP_LABELS', `
+    ${grab(APP, 'hasWrap')}
+    ${grab(APP, 'wrapOf')}
+    ${grab(APP, 'withWrap')}
+    return { withWrap };
+  `)(['マルつけ', 'なおし']);
+  const progress = wrapFns.withWrap(
+    {type:'count', wrapUp:true}, {wrap:[true, false]},
+    {done:5, total:5, pct:100, isDone:true}
+  );
+  assert.equal(progress.allDone, 6);
+  assert.equal(progress.allTotal, 7);
+  assert.equal(progress.allPct, 6 / 7 * 100);
+  assert.match(APP, /function wrapMarkerBy\(t\)\{ return t && t\.wrapBy === 'child' \? 'child' : 'adult'; \}/);
+  assert.match(APP, /function wrapLabelsFull\(t\)\{[\s\S]*マルつけする[\s\S]*マルつけして もらう/);
+  assert.match(APP, /data-f="wrapBy"[\s\S]*おとな[\s\S]*こども/);
+  assert.match(APP, /「マルつけ・なおし」の項目を表示/);
+  assert.match(grab(APP, 'withWrap'), /r\.allTotal\s*=\s*r\.total \+ r\.wrap\.length/);
+  assert.match(grab(APP, 'withWrap'), /r\.allPct\s*=\s*r\.allDone \/ r\.allTotal \* 100/);
+  assert.match(grab(APP, 'overall'), /done \+= p\.allDone; total \+= p\.allTotal/);
+  assert.match(grab(APP, 'taskHTML'), /p\.allPct\.toFixed\(1\)/);
+  assert.match(grab(APP, 'viewParent'), /p\.allPct\.toFixed\(1\)/);
+});
+
 test('月の日数クイズは30日までの月を正しくたずねる', ()=>{
   assert.match(DATA, /q:'1年の中で、30日までの月は いくつ？'/);
   assert.match(DATA, /a:'4つ。4月、6月、9月、11月だよ。2月は28日か29日、のこりは31日。'/);
@@ -2226,11 +2251,11 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   }
 });
 
-test('公開版番号v1.1をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.1';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.1">/);
-  assert.equal(PACKAGE.version, '1.1.0');
-  assert.match(UPDATES, /v1\.1/);
+test('公開版番号v1.2をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.2';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.2">/);
+  assert.equal(PACKAGE.version, '1.2.0');
+  assert.match(UPDATES, /2026年8月14日　v1\.2：[\s\S]*マルつけ・なおしの担当選択/);
   assert.match(UPDATES, /v1\.0/);
 });
 
