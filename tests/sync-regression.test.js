@@ -2441,6 +2441,9 @@ test('Cloudflare Web Analyticsの計測タグを公開HTMLへ一度だけ置く'
   assert.equal((INDEX.match(/static\.cloudflareinsights\.com\/beacon\.min\.js/g) || []).length, 1);
   assert.match(INDEX, /data-cf-beacon='\{"token": "4844611a6258456f866196574e92a9e3"\}'/);
   assert.match(INDEX, /<script type="module" src="https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js"[^>]*><\/script>\s*<\/body>/);
+  for(const html of [DOCS_INDEX, GUIDE, UPDATES]){
+    assert.equal((html.match(/static\.cloudflareinsights\.com\/beacon\.min\.js/g) || []).length, 1);
+  }
 });
 
 test('保護者ページの共有・ホーム画面追加の案内は、この端末だけで閉じられる', ()=>{
