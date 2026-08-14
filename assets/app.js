@@ -2854,6 +2854,20 @@ function inviteURLForCode(code){
          '&r=' + Date.now() +          // ためこんだ古い画面を 配らないための 印
          '&openExternalBrowser=1';
 }
+
+/* QRで既存の共有へ入ったあとにホーム画面へ追加するときも、追加された
+   アイコンはSafariと別の保存領域で開く。招待URLだけを一時的に残せば、
+   最初の起動で既存の applyJoinCode() が接続してからURLを消してくれる。
+   すでにホーム画面版で開いているときは、起動URLを書き換えられないため不要。 */
+function keepScannedInviteForHomeInstall(code){
+  if(isStandalone()) return;
+  const invite = inviteURLForCode(code);
+  if(!invite) return;
+  try{
+    const url = new URL(invite);
+    history.replaceState(null, '', url.pathname + url.search + location.hash);
+  }catch(e){}
+}
 function inviteURL(){
   const S = window.NatsuSync;
   return inviteURLForCode((S && S.getCode()) || '');
@@ -2913,6 +2927,7 @@ async function connectScannedInvite(){
     }
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
+    keepScannedInviteForHomeInstall(code);
     forgetConfigStampForNewHousehold(code);
     rememberChosenCode(code);
     setLocal(K_ONBOARD, 'done');

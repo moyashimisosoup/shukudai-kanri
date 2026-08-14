@@ -648,6 +648,25 @@ test('初期設定の選択肢は、選んだものだけ色とチェックが�
     '初期設定の入口は保護者にも読める通常の漢字表記にすること');
 });
 
+test('QRでつなぎ直した共有も、ホーム画面追加へ招待コードを渡す', ()=>{
+  const code = 'abcdefghjkmnpqrs';
+  const location = { origin:'https://example.test', pathname:'/app/', hash:'#home' };
+  const history = { current:'', replaceState:(_,__,url)=>{ history.current = url; } };
+  const api = new Function('location', 'history', 'cleanCode', 'isStandalone', `
+    const JOIN_PARAM='join';
+    ${grab(APP, 'inviteURLForCode')}
+    ${grab(APP, 'keepScannedInviteForHomeInstall')}
+    return keepScannedInviteForHomeInstall;
+  `)(location, history, value=>String(value || '').trim(), ()=>false);
+  api(code);
+  assert.match(history.current, /^\/app\/\?join=abcdefghjkmnpqrs&r=\d+&openExternalBrowser=1#home$/,
+    'Safariでホーム画面に追加するまで招待URLを残すこと');
+
+  const app = grab(APP, 'connectScannedInvite');
+  assert.match(app, /keepScannedInviteForHomeInstall\(code\);[\s\S]{0,180}S\.reconnect\(code, \{ joining:true \}\);/,
+    'QR接続の成功後、つなぎ直し前にホーム画面追加用のURLを用意すること');
+});
+
 test('まるつけ・なおしは担当を選べ、宿題全体のノルマにも入る', ()=>{
   const wrapFns = new Function('WRAP_LABELS', `
     ${grab(APP, 'hasWrap')}
