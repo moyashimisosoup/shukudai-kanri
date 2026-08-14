@@ -877,6 +877,9 @@ test('初期設定用の招待URLも、通常の招待URLと同じ引き継ぎ�
 });
 
 test('音声入力は古い終了イベントに新しい認識を消されず、エラー後も再開できる', ()=>{
+  assert.match(grab(APP, 'saveSheet'), /stopSR\(\);/, '記録する操作で音声入力を先に止める');
+  assert.match(APP, /onspeechend[\s\S]{0,100}setSRStatus\(btn, 'checking'\)/, '聞き取り後は確認中の表示へ切り替える');
+  assert.match(APP, /data-mic-status/, '音声入力の状態を各入力欄の近くに表示する');
   const sessions = [];
   class MockRecognition{
     constructor(){ sessions.push(this); }
@@ -896,28 +899,30 @@ test('音声入力は古い終了イベントに新しい認識を消されず�
     function $$(s){ return []; }
     function toast(s){ messages.push(s); }
     let sr=null;
+    ${grab(APP, 'srStatusText')}
+    ${grab(APP, 'setSRStatus')}
     ${grab(APP, 'finishSR')}
     ${grab(APP, 'srErrorMessage')}
     ${grab(APP, 'stopSR')}
     ${grab(APP, 'startSR')}
     return { startSR, stopSR, current:()=>sr };
   `)(MockRecognition, messages);
-  const target={ value:'', dispatchEvent(){} };
+  const target={ value:'まえ うしろ', selectionStart:3, selectionEnd:3, dispatchEvent(){}, setSelectionRange(a,b){ this.selectionStart=a; this.selectionEnd=b; } };
   const firstBtn=makeButton(), secondBtn=makeButton(), thirdBtn=makeButton();
-  harness.startSR(firstBtn, target);
+  harness.startSR(firstBtn, target, { start:3, end:3 });
   const first=sessions[0];
-  harness.startSR(secondBtn, target);
+  harness.startSR(secondBtn, target, { start:3, end:3 });
   const second=sessions[1];
   first.onend();
   assert.equal(harness.current(), second, '古いonendが新しいセッションを消さない');
   second.onerror({error:'not-allowed'});
   assert.equal(harness.current(), null, '権限エラー時も認識中の参照を解放する');
   assert.match(messages.at(-1), /マイク.*許可/, '権限エラーには設定方法を示す');
-  harness.startSR(thirdBtn, target);
+  harness.startSR(thirdBtn, target, { start:3, end:3 });
   assert.equal(harness.current(), sessions[2], 'エラー直後でも新しい認識を開始できる');
   sessions[2].onresult({results:[[{transcript:'できた'}]]});
   sessions[2].onend();
-  assert.equal(target.value, 'できた');
+  assert.equal(target.value, 'まえ できたうしろ', '音声結果は読み取り開始時のカーソル位置へ入れる');
   assert.equal(harness.current(), null);
 });
 
@@ -2270,11 +2275,11 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260814c',
+    'assets/style.css': '20260814d',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260814f',
+    'assets/app.js': '20260814g',
     'assets/sync.js': '20260813a'
   };
   for(const [file, version] of Object.entries(versions)){

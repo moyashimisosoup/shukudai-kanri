@@ -4051,6 +4051,10 @@ function closeSheet(){
 function saveSheet(){
   const t = sheetTask;
   if(!t) return;
+  /* 保存を押したあとに iPad の認識結果が届くと、閉じたシートへ遅れて
+     文字が入ったように見える。保存はその時点の文章を確定する操作なので、
+     先にマイクを止める。 */
+  stopSR();
   if(isBook(t)){ saveBookSheet(); return; }
   if(isFree(t)){ saveFreeSheet(); return; }
   const p = prog(t);
@@ -4158,11 +4162,36 @@ function micNoteHTML(){
 }
 function micBtn(id){
   if(!hasSR()) return '';
-  return `<button class="mic" data-mic="${id}" type="button" aria-label="こえで 入れる" aria-pressed="false">🎤</button>`;
+  return `<button class="mic" data-mic="${id}" type="button" aria-label="こえで 入れる" aria-pressed="false">🎤</button>`
+    + `<span class="mic-status" data-mic-status="${id}" role="status" aria-live="polite" hidden></span>`;
+}
+function srStatusText(phase){
+  const grade = typeof readingGrade === 'function' ? Number(readingGrade()) : 0;
+  const adult = (typeof isAdultTab === 'function' && typeof tab !== 'undefined' && isAdultTab(tab)) || grade === 9;
+  if(phase === 'listening'){
+    if(adult) return '聞き取り中…';
+    return grade >= 1 ? '聞きとり中…' : 'ききとり中…';
+  }
+  if(phase === 'checking'){
+    if(adult) return '確認中…';
+    return grade >= 1 ? 'かくにん中…' : 'かくにんちゅう…';
+  }
+  return '';
+}
+function setSRStatus(btn, phase){
+  const status = btn && btn._srStatus;
+  if(!status) return;
+  const text = srStatusText(phase);
+  status.textContent = text;
+  status.hidden = !text;
 }
 function finishSR(session, btn){
   if(sr === session) sr = null;
-  if(btn){ btn.classList.remove('rec'); btn.setAttribute('aria-pressed', 'false'); }
+  if(btn){
+    btn.classList.remove('rec');
+    btn.setAttribute('aria-pressed', 'false');
+    setSRStatus(btn, '');
+  }
 }
 function srErrorMessage(code){
   if(code === 'not-allowed' || code === 'service-not-allowed'){
@@ -4174,25 +4203,50 @@ function srErrorMessage(code){
   if(code === 'aborted') return '音声入力が中断されました。もう一度おすと再開できます。';
   return '音声入力を終えました。もう一度おすと再開できます。';
 }
-function startSR(btn, targetEl){
+function startSR(btn, targetEl, selection){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   stopSR();
   try{
     const session = new SR();
     let gotResult = false, hadError = false;
     session._manualStop = false;
+    session._button = btn;
+    const max = String(targetEl.value || '').length;
+    const start = Math.max(0, Math.min(max, Number(selection && selection.start)));
+    const end = Math.max(start, Math.min(max, Number(selection && selection.end)));
+    session._insertAt = {
+      start: Number.isFinite(start) ? start : max,
+      end: Number.isFinite(end) ? end : max
+    };
+    session._handledResults = 0;
     sr = session;
     session.lang = 'ja-JP'; session.interimResults = false; session.continuous = false;
     session.onstart = ()=>{
       if(sr !== session) return;
       btn.classList.add('rec');
       btn.setAttribute('aria-pressed', 'true');
+      setSRStatus(btn, 'listening');
+    };
+    session.onspeechend = ()=>{
+      if(sr === session) setSRStatus(btn, 'checking');
     };
     session.onresult = e=>{
       if(sr !== session) return;
-      const txt = Array.from(e.results).map(r=>r[0].transcript).join('');
+      setSRStatus(btn, 'checking');
+      const first = Number.isInteger(e.resultIndex) ? e.resultIndex : session._handledResults;
+      const txt = Array.from(e.results).slice(first).map(r=>r[0].transcript).join('');
+      session._handledResults = Math.max(session._handledResults, e.results.length);
       gotResult = !!txt;
-      targetEl.value = (targetEl.value ? targetEl.value + ' ' : '') + txt;
+      if(txt){
+        const at = session._insertAt || { start:targetEl.value.length, end:targetEl.value.length };
+        const before = targetEl.value.slice(0, at.start);
+        const after = targetEl.value.slice(at.end);
+        const space = before && !/\s$/.test(before) ? ' ' : '';
+        targetEl.value = before + space + txt + after;
+        const caret = (before + space + txt).length;
+        session._insertAt = { start:caret, end:caret };
+        try{ targetEl.setSelectionRange(caret, caret); }catch(err){}
+      }
       targetEl.dispatchEvent(new Event('input', { bubbles:true }));
     };
     session.onerror = e=>{
@@ -4212,6 +4266,7 @@ function startSR(btn, targetEl){
     session.start();
     btn.classList.add('rec');
     btn.setAttribute('aria-pressed', 'true');
+    setSRStatus(btn, 'listening');
   }catch(e){
     sr = null;
     btn.classList.remove('rec');
@@ -4225,6 +4280,7 @@ function stopSR(){
   if(active){
     active._manualStop = true;
     try{ typeof active.abort === 'function' ? active.abort() : active.stop(); }catch(e){}
+    finishSR(active, active._button);
   }
   $$('.mic.rec').forEach(b=>{ b.classList.remove('rec'); b.setAttribute('aria-pressed', 'false'); });
 }
@@ -5973,6 +6029,21 @@ document.addEventListener('change', e=>{
   if(count) count.textContent = '再検討 ' + reviewed + 'こ・OK ' + done + 'こ';
 });
 
+document.addEventListener('pointerdown', e=>{
+  const mic = e.target.closest && e.target.closest('[data-mic]');
+  if(!mic) return;
+  const id = mic.dataset.mic;
+  const el = /^q\d+$/.test(id) ? $('#sheetBody [data-q="'+id.slice(1)+'"]') : $('#'+id);
+  if(!el) return;
+  /* iPadではマイクを押した瞬間に入力欄がblurすることがあるため、clickまで
+     待たずに、まだ残っている選択範囲を記憶する。 */
+  const length = String(el.value || '').length;
+  const start = Number.isInteger(el.selectionStart) ? el.selectionStart : length;
+  const end = Number.isInteger(el.selectionEnd) ? el.selectionEnd : start;
+  mic._srSelection = { start, end };
+  mic._srStatus = mic.parentElement && mic.parentElement.querySelector('[data-mic-status]');
+}, true);
+
 document.addEventListener('click', e=>{
 
   if(e.target.closest('#todayLabel')){ openKinenbi(new Date()); return; }
@@ -6177,7 +6248,11 @@ document.addEventListener('click', e=>{
     const id = mic.dataset.mic;
     // 観察の質問は data-q、それ以外は同じ id の入力欄
     const el = /^q\d+$/.test(id) ? $('#sheetBody [data-q="'+id.slice(1)+'"]') : $('#'+id);
-    if(el){ if(mic.classList.contains('rec')) stopSR(); else startSR(mic, el); }
+    if(el){
+      mic._srStatus = mic.parentElement && mic.parentElement.querySelector('[data-mic-status]');
+      if(mic.classList.contains('rec')) stopSR();
+      else startSR(mic, el, mic._srSelection);
+    }
     return;
   }
 });

@@ -1124,7 +1124,7 @@ input[type=date], input[type=datetime-local]{
   min-height:52px; line-height:1.2; display:block;
 }
 textarea{ min-height:88px; resize:vertical; line-height:1.6; }
-.mic-row{ display:flex; gap:10px; align-items:flex-start; }
+.mic-row{ display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
 .mic-row textarea{ flex:1; }
 .mic{
   flex:none; width:60px; height:60px; border-radius:50%;
@@ -1133,6 +1133,10 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 }
 .mic.rec{ background:var(--suika); animation:pulse 1s infinite; }
 @keyframes pulse{ 50%{ transform:scale(1.08) } }
+.mic-status{
+  flex:0 0 100%; order:3; margin-top:-3px;
+  font-size:15px; font-weight:900; color:var(--ai-usu);
+}
 .mic-note{ font-size:15px; font-weight:700; color:var(--ai-usu); margin-top:8px; }
 .mic-permission-help{ display:block; margin-top:6px; font-size:13px; line-height:1.55; }
 
