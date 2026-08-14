@@ -1548,6 +1548,7 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
         <label class="lab">共有中の合言葉
           <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="合言葉を入力"></label>
         <p class="set-note">合言葉を作った保護者から受け取り、同じグループの宿題・設定・記録を読み込みます。</p>
+        <div class="set-actions qr-scan-entry"><button class="btn btn-sm btn-ghost" type="button" data-qr-invite-scan>QRコードを読み取る</button></div>
         ${welcomeJoinCheckHTML('parent')}
         ${inAppBrowserNoteHTML()}`);
       const settings = `<div id="welcomeJoinSettings" hidden>${welcomeStepHTML(start + 1, '保護者の設定', `${settingsBody}
@@ -1594,6 +1595,7 @@ function welcomeFormHTML(role, sharing, firstStep, parentShareMode){
     ${syncReady ? `<label class="lab">おうちの人から もらった あいことば
       <input id="welcomeCode" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="あいことばを 入れる"></label>
       <p class="set-note">つながると、おうちの人が決めた宿題と記録を使えます。</p>
+      <div class="set-actions qr-scan-entry"><button class="btn btn-sm btn-ghost" type="button" data-qr-invite-scan>QRコードを よみとる</button></div>
       ${welcomeJoinCheckHTML('child')}
       ${inAppBrowserNoteHTML()}
       ${deviceLabelFieldHTML('child')}
@@ -2856,6 +2858,150 @@ function inviteURL(){
   const S = window.NatsuSync;
   return inviteURLForCode((S && S.getCode()) || '');
 }
+
+/* QRの中身は招待URLだけを受け取る。合言葉だけのQRや、別サイトのURLを
+   そのまま接続に使うと、意図しない共有へ入る入口になるため受け付けない。 */
+function inviteCodeFromQR(value){
+  try{
+    const url = new URL(String(value || ''));
+    if(url.origin !== location.origin || url.pathname !== location.pathname) return '';
+    const code = cleanCode(url.searchParams.get(JOIN_PARAM) || '');
+    return code.length >= 8 ? code : '';
+  }catch(e){ return ''; }
+}
+
+let qrScanStream = null;
+let qrScanFrame = 0;
+let qrScanCode = '';
+let qrScanBusy = false;
+
+function stopInviteScanner(){
+  if(qrScanFrame) cancelAnimationFrame(qrScanFrame);
+  qrScanFrame = 0;
+  if(qrScanStream) qrScanStream.getTracks().forEach(track=>track.stop());
+  qrScanStream = null;
+  const video = $('#qrScanVideo');
+  if(video) video.srcObject = null;
+}
+
+function closeInviteScanner(){
+  stopInviteScanner();
+  const dialog = $('#qrScanDialog');
+  if(!dialog || !dialog.open) return;
+  if(typeof dialog.close === 'function') dialog.close();
+  else dialog.removeAttribute('open');
+}
+
+async function connectScannedInvite(){
+  const S = window.NatsuSync;
+  const status = $('#qrScanStatus');
+  const connect = $('#qrScanConnect');
+  const code = qrScanCode;
+  if(!S || !S.configured() || !code) return;
+  qrScanBusy = true;
+  if(connect) connect.disabled = true;
+  if(status) status.textContent = '共有を確認しています…';
+  try{
+    const result = await S.verifyHousehold(code);
+    if(!result || !result.found){
+      if(status) status.textContent = 'この共有は見つかりませんでした。QRコードを出し直してもう一度読み取ってください。';
+      return;
+    }
+    if(result.unreadable){
+      if(status) status.textContent = unreadableJoinText();
+      return;
+    }
+    if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
+    try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
+    forgetConfigStampForNewHousehold(code);
+    rememberChosenCode(code);
+    setLocal(K_ONBOARD, 'done');
+    S.reconnect(code, { joining:true });
+    closeInviteScanner();
+    if(tab === 'welcome'){
+      tab = 'home';
+      if(location.hash !== '#home') location.hash = 'home';
+    }
+    render({ keepScroll:true });
+    toast('共有に接続しています…');
+  }catch(e){
+    if(status) status.textContent = '接続を確認できませんでした。通信を確認して、もう一度試してください。';
+  }finally{
+    qrScanBusy = false;
+    if(connect) connect.disabled = false;
+  }
+}
+
+async function openInviteScanner(){
+  const dialog = $('#qrScanDialog');
+  const video = $('#qrScanVideo');
+  const canvas = $('#qrScanCanvas');
+  const status = $('#qrScanStatus');
+  const connect = $('#qrScanConnect');
+  if(!dialog || !video || !canvas) return;
+  qrScanCode = '';
+  if(connect){ connect.hidden = true; connect.disabled = false; }
+  if(status) status.textContent = '';
+  if(typeof window.jsQR !== 'function'){
+    if(status) status.textContent = 'QRコードを読み取る準備ができませんでした。ページを更新してください。';
+    return;
+  }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    if(status) status.textContent = 'このブラウザではカメラを使えません。招待リンクを開くか、合言葉を入力してください。';
+    if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+    return;
+  }
+  if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+  if(status) status.textContent = 'カメラの使用を許可してください。';
+  try{
+    qrScanStream = await navigator.mediaDevices.getUserMedia({
+      audio:false,
+      video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1280 }, height:{ ideal:720 } }
+    });
+    video.srcObject = qrScanStream;
+    await video.play();
+    if(status) status.textContent = 'QRコードを枠の中に入れてください。';
+    const context = canvas.getContext('2d', { willReadFrequently:true });
+    const scan = ()=>{
+      if(!qrScanStream || qrScanCode || !context) return;
+      if(video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth && video.videoHeight){
+        const width = Math.min(video.videoWidth, 960);
+        const height = Math.round(video.videoHeight * width / video.videoWidth);
+        canvas.width = width; canvas.height = height;
+        context.drawImage(video, 0, 0, width, height);
+        const found = window.jsQR(context.getImageData(0, 0, width, height).data, width, height, { inversionAttempts:'dontInvert' });
+        const code = found && inviteCodeFromQR(found.data);
+        if(code){
+          qrScanCode = code;
+          stopInviteScanner();
+          if(status) status.textContent = '招待QRを読み取りました。接続先を確認してから進みます。';
+          if(connect){ connect.hidden = false; connect.focus(); }
+          return;
+        }
+      }
+      qrScanFrame = requestAnimationFrame(scan);
+    };
+    scan();
+  }catch(e){
+    stopInviteScanner();
+    if(status) status.textContent = 'カメラを使えませんでした。許可を確認するか、合言葉を入力してください。';
+  }
+}
+
+function bindInviteScanButtons(root){
+  $$('[data-qr-invite-scan]', root || document).forEach(button=>{
+    if(button.dataset.qrScanBound) return;
+    button.dataset.qrScanBound = '1';
+    button.addEventListener('click', openInviteScanner);
+  });
+}
+
+const qrScanDialog = $('#qrScanDialog');
+if(qrScanDialog) qrScanDialog.addEventListener('close', stopInviteScanner);
+on('#qrScanClose', 'click', closeInviteScanner);
+on('#qrScanCancel', 'click', closeInviteScanner);
+on('#qrScanConnect', 'click', ()=>{ if(!qrScanBusy) connectScannedInvite(); });
+
 /* まねきリンクを そのまま QR にする。
    となりに いる 人に わたすときは、リンクを 送るより カメラで 読む ほうが 早い。
 
@@ -3208,6 +3354,7 @@ function syncSectionHTML(opts){
           <div class="set-row"><span class="lab">つなぎ直す合言葉</span>
             <input type="text" id="syncRejoinCode" value="" spellcheck="false"
                    autocapitalize="off" autocorrect="off" placeholder="受け取った合言葉"></div>
+          <div class="set-actions qr-scan-entry"><button class="btn btn-sm btn-ghost" type="button" data-qr-invite-scan>QRコードを読み取る</button></div>
           <div class="set-actions">
             <button class="btn btn-sm" id="syncSave" type="button">入力した合言葉につなぎ直す</button>
           </div>
@@ -3244,6 +3391,7 @@ function syncSectionHTML(opts){
         <div class="set-row"><span class="lab">合言葉</span>
           <input type="text" id="syncCode" value="" spellcheck="false"
                  autocapitalize="off" autocorrect="off" placeholder="受け取った合言葉"></div>
+        <div class="set-actions qr-scan-entry"><button class="btn btn-sm btn-ghost" type="button" data-qr-invite-scan>QRコードを読み取る</button></div>
         <div class="set-actions">
           <button class="btn btn-sm" id="syncVerify" type="button">接続を確認</button>
         </div>
@@ -4663,6 +4811,7 @@ function bindWelcomeParentShare(root, step){
 
 function bindWelcomeStart(){
   const form = $('#welcomeForm');
+  bindInviteScanButtons(form);
   $$('input[name="welcomeTheme"]', form).forEach(input=>{
     if(input.dataset.welcomeBound) return;
     input.dataset.welcomeBound = '1';
@@ -5111,6 +5260,7 @@ function bindParent(){
 function bindSync(){
   const S = window.NatsuSync;
   if(!S || !S.configured()) return;
+  bindInviteScanButtons(document);
 
   /* この端末が こども用か おうちの人用か。記録に そえる 名前に つかう。
      端末ごとの 設定なので 同期しない（同期すると 全部の端末が 同じに なる） */

@@ -18,6 +18,8 @@ https://github.com/moyashimisosoup/shukudai-notebook
 
   - qrcode-generator 2.0.4 / Kazuhiko Arase / MIT License
     ※ ライセンス全文は assets/vendor/qrcode.js の冒頭を参照してください。
+  - jsQR 1.4.0 / cozmo / Apache License, Version 2.0
+    ※ QRコードを端末内で読み取るために assets/vendor/jsqr.js を同梱しています。
   - @codexteam/icons 0.3.3 / CodeX / MIT License
     ※ assets/codex-icons.js に、使用するアイコンの SVG だけを取り込んでいます。
        ライセンス全文は assets/vendor/codex-icons-LICENSE.txt を参照してください。

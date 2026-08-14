@@ -2241,6 +2241,47 @@ input.is-need, textarea.is-need{
 .invite .set-row{ display:block; }
 .invite #inviteUrl{ width:100%; box-sizing:border-box; }
 
+/* Hallmark · component: QR invitation scanner · genre: playful editorial · theme: existing study-notebook
+ * states: default · hover · focus · active · disabled · loading · error · success
+ * contrast: pass (existing palette)
+ */
+/* QRは「共有に参加する」欄の入力方法。画面を増やさず、必要な人だけが開く。 */
+.qr-scan-entry{ margin-top:8px; }
+.qr-scan-entry .btn{ width:100%; }
+.qr-scan-dialog{
+  position:fixed; inset:0; width:min(calc(100% - 32px), 520px); height:fit-content;
+  margin:auto; padding:0; color:var(--ai); background:var(--kami);
+  border:var(--line) solid var(--ai); border-radius:var(--r); box-shadow:var(--shadow-lift);
+  overflow:hidden; animation:qr-scan-open var(--dur-med) var(--ease-out);
+}
+.qr-scan-dialog::backdrop{ background:var(--modal-backdrop); }
+.qr-scan-head{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-sm); padding:var(--space-md) var(--space-lg); background:var(--surface-soft); border-bottom:2px dashed var(--hougan); }
+.qr-scan-head h2{ min-width:0; overflow-wrap:anywhere; margin:0; font-size:clamp(20px, 5.5vw, 26px); line-height:1.25; font-style:normal; }
+.qr-scan-close{ flex:0 0 44px; min-height:44px; padding:0; color:var(--ai); background:var(--kami); border:2px solid var(--ai); border-radius:var(--r-button); font:inherit; font-size:28px; font-weight:700; line-height:1; cursor:pointer; }
+.qr-scan-close:hover,.qr-scan-close.is-hover{ background:var(--sora); }
+.qr-scan-close:focus-visible,.qr-scan-close.is-focus{ outline:3px solid var(--focus); outline-offset:2px; }
+.qr-scan-close:active,.qr-scan-close.is-active{ transform:translateY(2px); }
+.qr-scan-view{ position:relative; aspect-ratio:4/3; margin:var(--space-lg) var(--space-lg) var(--space-sm); overflow:hidden; background:var(--ai); border:2px solid var(--hougan); border-radius:var(--r-s); }
+.qr-scan-view video{ display:block; width:100%; height:100%; object-fit:cover; }
+.qr-scan-frame{ position:absolute; inset:18% 22%; border:3px solid var(--kami); border-radius:var(--r-s); box-shadow:0 0 0 999px var(--modal-backdrop); pointer-events:none; }
+.qr-scan-note,.qr-scan-status{ margin:0 var(--space-lg); font-size:var(--text-sm); font-weight:700; line-height:1.6; }
+.qr-scan-status{ min-height:1.6em; margin-top:var(--space-xs); color:var(--ai-usu); }
+.qr-scan-actions{ display:flex; justify-content:flex-end; gap:var(--space-sm); padding:var(--space-md) var(--space-lg) var(--space-lg); }
+.qr-scan-actions .btn{ white-space:nowrap; }
+.qr-scan-actions .btn:disabled{ opacity:.62; cursor:wait; box-shadow:none; transform:none; }
+.qr-scan-dialog[data-state="error"] .qr-scan-status{ color:var(--suika); }
+.qr-scan-dialog[data-state="success"] .qr-scan-status{ color:var(--wakaba); }
+@keyframes qr-scan-open{ from{ opacity:0; transform:scale(.96) } to{ opacity:1; transform:none } }
+@media (max-width:360px){
+  .qr-scan-dialog{ width:calc(100% - 24px); }
+  .qr-scan-head,.qr-scan-actions{ padding-inline:var(--space-md); }
+  .qr-scan-view{ margin-inline:var(--space-md); }
+  .qr-scan-note,.qr-scan-status{ margin-inline:var(--space-md); }
+  .qr-scan-actions{ display:grid; grid-template-columns:minmax(0,1fr); }
+  .qr-scan-actions .btn{ width:100%; }
+}
+@media (prefers-reduced-motion:reduce){ .qr-scan-dialog{ animation:kinenbi-open-reduced var(--dur-short) linear; } }
+
 /* 毎日の回数は、よく使う 0〜5 を押せるままにし、6回以上だけ数で記録する。 */
 .daily-more{
   display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); align-items:center; gap:10px;

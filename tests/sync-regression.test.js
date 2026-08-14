@@ -613,7 +613,7 @@ test('ちがうあいことばにつなぐとき、設定の保存時刻を0に�
 /* つなぎ直しの入口すべてで、時刻を戻してから reconnect すること */
 test('つなぎ直しの入口すべてで、設定の保存時刻を戻してから接続する', ()=>{
   const calls = [...APP.matchAll(/S\.reconnect\(/g)];
-  assert.equal(calls.length, 4, 'reconnect の呼び出しは4か所（初期設定・招待URL・参加・作成）');
+  assert.equal(calls.length, 5, 'reconnect の呼び出しは5か所（初期設定・招待URL・QR・参加・作成）');
   for(const m of calls){
     const before = APP.slice(Math.max(0, m.index - 400), m.index);
     assert.match(before, /forgetConfigStampForNewHousehold\(/,
@@ -1546,8 +1546,8 @@ test('起動URLの古い招待より、人がえらんだ合言葉を優先す�
   assert.match(apply, /const chosen = getLocal\(K_CODE_CHOSEN\);[\s\S]{0,80}if\(chosen && chosen !== code\) return;/,
     'えらんだ合言葉と違う招待では、つなぎ直さないこと');
   /* えらんだ場面すべてでおぼえること。1か所でも抜けると引き戻される */
-  assert.equal((APP.match(/rememberChosenCode\(/g) || []).length, 7,
-    '定義1つと、作成・参加・招待・初期設定・解除・削除処理中の6か所');
+  assert.equal((APP.match(/rememberChosenCode\(/g) || []).length, 8,
+    '定義1つと、作成・参加・招待・QR・初期設定・解除・削除処理中の7か所');
   const bind = grab(APP, 'bindSync');
   assert.match(bind, /rememberChosenCode\('none'\)[\s\S]{0,120}S\.setCode\(''\)/,
     '解除したら「どこにもつながらない」をおぼえること');
@@ -2252,16 +2252,27 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260813a',
+    'assets/style.css': '20260814c',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814a',
-    'assets/app.js': '20260814b',
+    'assets/app.js': '20260814c',
     'assets/sync.js': '20260813a'
   };
   for(const [file, version] of Object.entries(versions)){
     assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=' + version));
   }
+});
+
+test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す', ()=>{
+  assert.match(INDEX, /assets\/vendor\/jsqr\.js\?v=1\.4\.0/);
+  assert.match(APP, /function inviteCodeFromQR\(value\)/);
+  assert.match(APP, /url\.origin !== location\.origin \|\| url\.pathname !== location\.pathname/);
+  assert.match(APP, /const code = cleanCode\(url\.searchParams\.get\(JOIN_PARAM\) \|\| ''\)/);
+  assert.match(APP, /S\.verifyHousehold\(code\)/);
+  assert.match(APP, /data-qr-invite-scan/);
+  assert.match(STYLE, /\.qr-scan-dialog\{/);
+  assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
 test('公開版番号v1.2をアプリ・HTML・package・変更履歴でそろえる', ()=>{
