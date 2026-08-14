@@ -7,6 +7,7 @@
 > できること、実際の画面、使い始め方をまとめています。
 > 詳しい操作は [つかいかた（画面写真つき）](https://moyashimisosoup.github.io/shukudai-notebook/start/getting-started.html) にあります。
 > アプリ版ごとの訂正は [変更履歴](https://moyashimisosoup.github.io/shukudai-notebook/start/updates.html) にあります。
+> 公開版番号の付け方は [`VERSIONING.md`](VERSIONING.md) に記録しています。
 > 制作・説明の検収基準は [`docs/PRODUCT_POLICY.md`](docs/PRODUCT_POLICY.md) に記録しています。
 > FAQだけでは答えを確定できない論点は [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md) に分離しています。
 > ファイルは [`start/index.html`](start/index.html)、[`start/getting-started.html`](start/getting-started.html)、[`start/updates.html`](start/updates.html)。

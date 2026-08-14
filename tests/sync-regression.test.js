@@ -18,6 +18,7 @@ const UPDATES = fs.readFileSync(path.join(ROOT, 'start', 'updates.html'), 'utf8'
 const PRODUCT_POLICY = fs.readFileSync(path.join(ROOT, 'docs', 'PRODUCT_POLICY.md'), 'utf8');
 const DOCS_STYLE = fs.readFileSync(path.join(ROOT, 'start', 'site.css'), 'utf8');
 const PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+const PACKAGE_LOCK = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 
 function grab(src, name){
@@ -2279,7 +2280,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260814g',
+    'assets/app.js': '20260814h',
     'assets/sync.js': '20260813a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2302,12 +2303,16 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.2をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.2';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.2">/);
-  assert.equal(PACKAGE.version, '1.2.0');
-  assert.match(UPDATES, /2026年8月14日　v1\.2：[\s\S]*マルつけ・なおしの担当選択/);
-  assert.match(UPDATES, /v1\.0/);
+test('公開版番号v1.3.2をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.2';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.2">/);
+  assert.equal(PACKAGE.version, '1.3.2');
+  assert.equal(PACKAGE_LOCK.version, '1.3.2');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.2');
+  assert.match(UPDATES, /2026年8月14日　v1\.3\.2：[\s\S]*iPadの音声入力/);
+  assert.match(UPDATES, /v1\.0\.0/);
+  assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
+    'アプリ情報では公開版と内部配信番号の意味を分ける');
 });
 
 test('公開説明はPV解析と宿題データを分け、学校との関係を断定しない', ()=>{
@@ -2330,8 +2335,12 @@ test('90日保持を自動削除と誤記せず、予告と対象範囲も説明
 });
 
 test('変更履歴は公開版と内部配信版の事実だけを短く並べる', ()=>{
-  assert.match(UPDATES, /2026年8月13日　v1\.1/);
-  assert.match(UPDATES, /2026年8月13日　v1\.0/);
+  assert.match(UPDATES, /2026年8月14日　v1\.3\.1/);
+  assert.match(UPDATES, /2026年8月14日　v1\.3\.0/);
+  assert.match(UPDATES, /2026年8月13日　v1\.1\.0/);
+  assert.match(UPDATES, /2026年8月13日　v1\.0\.0/);
+  assert.match(UPDATES, /大きな互換変更[\s\S]*機能追加[\s\S]*修正/,
+    '3桁のバージョン番号の意味を公開ページで説明する');
   assert.match(UPDATES, /20260812a–l/);
   assert.match(UPDATES, /20260811a–af/);
   assert.match(UPDATES, /20260810a–aw/);

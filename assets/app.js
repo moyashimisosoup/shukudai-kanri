@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.2';
+const RELEASE_VERSION = '1.3.2';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -4755,9 +4755,9 @@ function viewConfig(){
   ${syncSectionHTML({ openDetails:openShareSettings })}
 
   <section class="sec config-sec"><div class="sec-head"><h2>アプリ情報</h2>
-    <span class="sec-note">${appVersionHTML(APP_VER)}</span></div>
+    <span class="sec-note">v${esc(RELEASE_VERSION)}</span></div>
     <div class="paper">
-      <p class="set-note">この端末は <b>ver ${esc(APP_VER)}</b> を動かしています。
+      <p class="set-note">この端末は <b>v${esc(RELEASE_VERSION)}</b>（配信 ${appVersionHTML(APP_VER)}）を動かしています。
       同期の仕組みはバージョンによって変わるため、<b>共有しているすべての端末を同じバージョンに揃えてください</b>。
       片方が古いままだと、訂正が相手の端末から元に戻されることがあります。</p>
       <div class="set-actions">
