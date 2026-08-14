@@ -113,7 +113,7 @@ function isBook(t){ return t && t.type === 'count' && t.recordStyle === 'book'; 
 function isFree(t){ return t && t.type === 'daily' && t.recordStyle === 'free'; }
 /* 「文章で記録」の 既定の 呼びかけ。何も 決めていない 項目に つかう。
    白い 欄だけ 出されると 子どもの 手が 止まるので、例を ならべておく */
-const FREE_HINT_DEFAULT = '今日のはっけん、今おもっていること、わかったこと、おぼえたこと、あそび、かぞく、ゲーム…なんでも書いてみよう。';
+const FREE_HINT_DEFAULT = '今日のはっけん、今おもっていること、わかったこと、おぼえたこと、あそび、かぞく、ゲーム…なんでもかいてみよう。';
 function bookFields(t){
   return Object.assign({ author:false, publisher:false, rating:true }, (t && t.bookFields) || {});
 }

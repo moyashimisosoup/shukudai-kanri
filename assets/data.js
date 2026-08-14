@@ -125,7 +125,7 @@ const DEFAULT_CONFIG = {
     { id:'nandemo', group:'daily', type:'daily', recordStyle:'free',
       name:'なんでもきろく',
       memoLabel:'きょうは なにを した？',
-      freeHint:'今日のはっけん、今おもっていること、わかったこと、おぼえたこと、あそび、かぞく、ゲーム…なんでも書いてみよう。' },
+      freeHint:'今日のはっけん、今おもっていること、わかったこと、おぼえたこと、あそび、かぞく、ゲーム…なんでもかいてみよう。' },
     { id:'otetsudai', group:'daily', type:'daily',
       name:'おてつだい', target:1, targetUnit:'かい' }
   ]

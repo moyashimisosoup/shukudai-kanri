@@ -2273,7 +2273,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'assets/style.css': '20260814c',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
-    'assets/data.js': '20260814a',
+    'assets/data.js': '20260814b',
     'assets/app.js': '20260814f',
     'assets/sync.js': '20260813a'
   };
