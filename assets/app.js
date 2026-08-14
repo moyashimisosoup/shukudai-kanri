@@ -2846,13 +2846,17 @@ function viewParent(){
    ふだんの ブラウザで 開かせる。ほかの アプリでは ただ 無視される。
    これが ないと、LINE の中で 設定して しまい、あとで Safari で 開いたときに
    また 設定が 必要に なる。 */
-function inviteURLForCode(code){
+function inviteURLForCode(code, sender){
   code = cleanCode(code || '');
   if(!code) return '';
+  const label = String(sender && sender.label || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 12);
+  const role = sender && (sender.role === 'parent' || sender.role === 'child') ? sender.role : '';
   return location.origin + location.pathname +
          '?' + JOIN_PARAM + '=' + encodeURIComponent(code) +
          '&r=' + Date.now() +          // ためこんだ古い画面を 配らないための 印
-         '&openExternalBrowser=1';
+         '&openExternalBrowser=1' +
+         (label ? '&from=' + encodeURIComponent(label) : '') +
+         (role ? '&fromRole=' + role : '');
 }
 
 /* QRで既存の共有へ入ったあとにホーム画面へ追加するときも、追加された
@@ -2861,9 +2865,9 @@ function inviteURLForCode(code){
    招待URLへ実際に移動してから追加してもらう。最初の起動で既存の
    applyJoinCode() が接続してからURLを消してくれる。
    すでにホーム画面版で開いているときは、起動URLを書き換えられないため不要。 */
-function keepScannedInviteForHomeInstall(code){
+function keepScannedInviteForHomeInstall(code, sender){
   if(isStandalone()) return false;
-  const invite = inviteURLForCode(code);
+  const invite = inviteURLForCode(code, sender);
   if(!invite) return false;
   try{
     location.replace(invite + (location.hash || '#home'));
@@ -2872,23 +2876,43 @@ function keepScannedInviteForHomeInstall(code){
 }
 function inviteURL(){
   const S = window.NatsuSync;
-  return inviteURLForCode((S && S.getCode()) || '');
+  const info = window.NatsuApp && typeof window.NatsuApp.deviceInfo === 'function'
+    ? window.NatsuApp.deviceInfo() : {};
+  return inviteURLForCode((S && S.getCode()) || '', info);
 }
 
 /* QRの中身は招待URLだけを受け取る。合言葉だけのQRや、別サイトのURLを
    そのまま接続に使うと、意図しない共有へ入る入口になるため受け付けない。 */
-function inviteCodeFromQR(value){
+function inviteInfoFromQR(value){
   try{
     const url = new URL(String(value || ''));
-    if(url.origin !== location.origin || url.pathname !== location.pathname) return '';
+    if(url.origin !== location.origin || url.pathname !== location.pathname) return { code:'', sender:null };
     const code = cleanCode(url.searchParams.get(JOIN_PARAM) || '');
-    return code.length >= 8 ? code : '';
-  }catch(e){ return ''; }
+    if(code.length < 8) return { code:'', sender:null };
+    const label = String(url.searchParams.get('from') || '').replace(/[\u0000-\u001f]/g, '').trim().slice(0, 12);
+    const role = url.searchParams.get('fromRole') === 'parent' ? 'parent'
+      : url.searchParams.get('fromRole') === 'child' ? 'child' : '';
+    return { code, sender:(label || role) ? { label, role } : null };
+  }catch(e){ return { code:'', sender:null }; }
+}
+function inviteCodeFromQR(value){
+  return inviteInfoFromQR(value).code;
+}
+function qrSenderLabel(sender){
+  const role = sender && sender.role === 'parent' ? '保護者'
+    : sender && sender.role === 'child' ? '子ども' : '';
+  const label = String(sender && sender.label || '').trim();
+  if(label && role) return label + '（' + role + '）';
+  if(label) return label;
+  if(role) return 'このQRを表示した端末（' + role + '）';
+  return 'このQRを表示した端末';
 }
 
 let qrScanStream = null;
 let qrScanFrame = 0;
 let qrScanCode = '';
+let qrScanSender = null;
+let qrScanVerified = null;
 let qrScanBusy = false;
 
 function stopInviteScanner(){
@@ -2916,17 +2940,24 @@ async function connectScannedInvite(){
   if(!S || !S.configured() || !code) return;
   qrScanBusy = true;
   if(connect) connect.disabled = true;
-  if(status) status.textContent = '共有を確認しています…';
   try{
-    const result = await S.verifyHousehold(code);
-    if(!result || !result.found){
-      if(status) status.textContent = 'この共有は見つかりませんでした。QRコードを出し直してもう一度読み取ってください。';
+    if(!qrScanVerified || qrScanVerified.code !== code){
+      if(status) status.textContent = '接続先を確認しています…';
+      const result = await S.verifyHousehold(code);
+      if(!result || !result.found){
+        if(status) status.textContent = 'この共有は見つかりませんでした。QRコードを出し直してもう一度読み取ってください。';
+        return;
+      }
+      if(result.unreadable){
+        if(status) status.textContent = unreadableJoinText();
+        return;
+      }
+      qrScanVerified = { code };
+      if(status) status.textContent = '確認OK：' + qrSenderLabel(qrScanSender) + 'と同じグループに接続します。';
+      if(connect){ connect.textContent = '確定して続ける'; connect.hidden = false; connect.focus(); }
       return;
     }
-    if(result.unreadable){
-      if(status) status.textContent = unreadableJoinText();
-      return;
-    }
+    if(status) status.textContent = qrSenderLabel(qrScanSender) + 'と同じグループに接続しています…';
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
     forgetConfigStampForNewHousehold(code);
@@ -2935,7 +2966,7 @@ async function connectScannedInvite(){
     S.reconnect(code, { joining:true });
     /* Safariでは、実URLのままホーム画面へ追加して初めて別の保存領域へ
        合言葉を渡せる。移動すると以下の描画は新しいページで行われる。 */
-    if(keepScannedInviteForHomeInstall(code)) return;
+    if(keepScannedInviteForHomeInstall(code, qrScanSender)) return;
     closeInviteScanner();
     if(tab === 'welcome'){
       tab = 'home';
@@ -2959,7 +2990,9 @@ async function openInviteScanner(){
   const connect = $('#qrScanConnect');
   if(!dialog || !video || !canvas) return;
   qrScanCode = '';
-  if(connect){ connect.hidden = true; connect.disabled = false; }
+  qrScanSender = null;
+  qrScanVerified = null;
+  if(connect){ connect.hidden = true; connect.disabled = false; connect.textContent = '接続先を確認する'; }
   if(status) status.textContent = '';
   if(typeof window.jsQR !== 'function'){
     if(status) status.textContent = 'QRコードを読み取る準備ができませんでした。ページを更新してください。';
@@ -2989,12 +3022,13 @@ async function openInviteScanner(){
         canvas.width = width; canvas.height = height;
         context.drawImage(video, 0, 0, width, height);
         const found = window.jsQR(context.getImageData(0, 0, width, height).data, width, height, { inversionAttempts:'dontInvert' });
-        const code = found && inviteCodeFromQR(found.data);
-        if(code){
-          qrScanCode = code;
+        const invite = found ? inviteInfoFromQR(found.data) : null;
+        if(invite && invite.code){
+          qrScanCode = invite.code;
+          qrScanSender = invite.sender;
           stopInviteScanner();
-          if(status) status.textContent = '招待QRを読み取りました。接続先を確認してから進みます。';
-          if(connect){ connect.hidden = false; connect.focus(); }
+          if(status) status.textContent = '招待QRを読み取りました。次に、グループが実在し中身を読めることを確認します。';
+          if(connect){ connect.textContent = '接続先を確認する'; connect.hidden = false; connect.focus(); }
           return;
         }
       }

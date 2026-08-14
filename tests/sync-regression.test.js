@@ -662,7 +662,7 @@ test('QRでつなぎ直した共有も、ホーム画面追加へ招待コード
     'Safariでホーム画面に追加する前に、実際の招待URLへ移動すること');
 
   const app = grab(APP, 'connectScannedInvite');
-  assert.match(app, /S\.reconnect\(code, \{ joining:true \}\);[\s\S]{0,180}if\(keepScannedInviteForHomeInstall\(code\)\) return;/,
+  assert.match(app, /S\.reconnect\(code, \{ joining:true \}\);[\s\S]{0,180}if\(keepScannedInviteForHomeInstall\(code, qrScanSender\)\) return;/,
     'QR接続を始めてから、ホーム画面追加用の招待URLへ移動すること');
 });
 
@@ -2274,7 +2274,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814a',
-    'assets/app.js': '20260814e',
+    'assets/app.js': '20260814f',
     'assets/sync.js': '20260813a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2287,7 +2287,11 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(APP, /function inviteCodeFromQR\(value\)/);
   assert.match(APP, /url\.origin !== location\.origin \|\| url\.pathname !== location\.pathname/);
   assert.match(APP, /const code = cleanCode\(url\.searchParams\.get\(JOIN_PARAM\) \|\| ''\)/);
+  assert.match(APP, /url\.searchParams\.get\('fromRole'\) === 'parent'[\s\S]{0,120}url\.searchParams\.get\('fromRole'\) === 'child'/, 'QRには表示元の端末名・役割を必要な範囲で入れる');
   assert.match(APP, /S\.verifyHousehold\(code\)/);
+  assert.match(APP, /グループが実在し中身を読めることを確認します/, '読み取り後に確認内容を説明する');
+  assert.match(APP, /確認OK：.*と同じグループに接続します/, '確認できた共有先を明示する');
+  assert.match(APP, /確定して続ける/, '確認後の確定操作を明確にする');
   assert.match(APP, /data-qr-invite-scan/);
   assert.match(STYLE, /\.qr-scan-dialog\{/);
   assert.match(STYLE, /@media \(max-width:360px\)/);
