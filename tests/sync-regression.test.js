@@ -12,11 +12,11 @@ const SYNC = fs.readFileSync(path.join(ROOT, 'assets', 'sync.js'), 'utf8');
 const RULES = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
 const DATA = fs.readFileSync(path.join(ROOT, 'assets', 'data.js'), 'utf8');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-const DOCS_INDEX = fs.readFileSync(path.join(ROOT, 'docs', 'index.html'), 'utf8');
-const GUIDE = fs.readFileSync(path.join(ROOT, 'docs', 'getting-started.html'), 'utf8');
-const UPDATES = fs.readFileSync(path.join(ROOT, 'docs', 'updates.html'), 'utf8');
+const DOCS_INDEX = fs.readFileSync(path.join(ROOT, 'start', 'index.html'), 'utf8');
+const GUIDE = fs.readFileSync(path.join(ROOT, 'start', 'getting-started.html'), 'utf8');
+const UPDATES = fs.readFileSync(path.join(ROOT, 'start', 'updates.html'), 'utf8');
 const PRODUCT_POLICY = fs.readFileSync(path.join(ROOT, 'docs', 'PRODUCT_POLICY.md'), 'utf8');
-const DOCS_STYLE = fs.readFileSync(path.join(ROOT, 'docs', 'site.css'), 'utf8');
+const DOCS_STYLE = fs.readFileSync(path.join(ROOT, 'start', 'site.css'), 'utf8');
 const PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 
@@ -2251,8 +2251,16 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
 });
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
-  for(const file of ['assets/style.css','tokens.css','assets/kanji.js','assets/data.js','assets/app.js','assets/sync.js']){
-  assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=20260813a'));
+  const versions = {
+    'assets/style.css': '20260813a',
+    'tokens.css': '20260813a',
+    'assets/kanji.js': '20260813a',
+    'assets/data.js': '20260814a',
+    'assets/app.js': '20260814b',
+    'assets/sync.js': '20260813a'
+  };
+  for(const [file, version] of Object.entries(versions)){
+    assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=' + version));
   }
 });
 
@@ -2318,7 +2326,7 @@ test('紹介ページの実画面画像を装飾目的で傾けない', ()=>{
 });
 
 test('変更履歴と制作・説明方針へ主要ページから到達できる', ()=>{
-  assert.match(APP, /docs\/updates\.html/);
+  assert.match(APP, /start\/updates\.html/);
   assert.match(DOCS_INDEX, /href="updates\.html"/);
   assert.match(GUIDE, /href="updates\.html"/);
   assert.match(PRODUCT_POLICY, /大きな仕様変更は、実装前に裁定を挟む/);

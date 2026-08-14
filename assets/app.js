@@ -1631,7 +1631,7 @@ function creditHTML(){
   <p class="credit">
     <span class="credit-part"><span class="credit-name">${esc(CREDIT.title)}</span> &copy; ${esc(CREDIT.year)} ${esc(CREDIT.author)}</span>
     <br><span class="credit-part"><a href="${CREDIT.url}" target="_blank" rel="noopener">ライセンス</a></span>
-    <span class="credit-part"><a href="docs/updates.html">変更履歴</a></span>
+    <span class="credit-part"><a href="start/updates.html">変更履歴</a></span>
     <span class="credit-part">v${esc(RELEASE_VERSION)}</span>
     <span class="credit-part">配信 ${esc(APP_VER)}</span>
   </p>`;

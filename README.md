@@ -3,13 +3,13 @@
 小学2年生が自分で使える、夏休みの宿題の進捗管理アプリ。
 静的ファイルのみで動作し、GitHub Pages に置けば iPad の Safari から使えます。
 
-> **はじめて知った方は [しゅくだいノートの紹介](https://moyashimisosoup.github.io/shukudai-notebook/docs/) をどうぞ。**
+> **はじめて知った方は [しゅくだいノートの紹介](https://moyashimisosoup.github.io/shukudai-notebook/start/) をどうぞ。**
 > できること、実際の画面、使い始め方をまとめています。
-> 詳しい操作は [つかいかた（画面写真つき）](https://moyashimisosoup.github.io/shukudai-notebook/docs/getting-started.html) にあります。
-> アプリ版ごとの訂正は [変更履歴](https://moyashimisosoup.github.io/shukudai-notebook/docs/updates.html) にあります。
+> 詳しい操作は [つかいかた（画面写真つき）](https://moyashimisosoup.github.io/shukudai-notebook/start/getting-started.html) にあります。
+> アプリ版ごとの訂正は [変更履歴](https://moyashimisosoup.github.io/shukudai-notebook/start/updates.html) にあります。
 > 制作・説明の検収基準は [`docs/PRODUCT_POLICY.md`](docs/PRODUCT_POLICY.md) に記録しています。
 > FAQだけでは答えを確定できない論点は [`docs/OPEN_QUESTIONS.md`](docs/OPEN_QUESTIONS.md) に分離しています。
-> ファイルは [`docs/index.html`](docs/index.html)、[`docs/getting-started.html`](docs/getting-started.html)、[`docs/updates.html`](docs/updates.html)。
+> ファイルは [`start/index.html`](start/index.html)、[`start/getting-started.html`](start/getting-started.html)、[`start/updates.html`](start/updates.html)。
 > このREADMEは、全機能と運用・配布のための詳しい資料です。
 
 ## URL
