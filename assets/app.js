@@ -2856,17 +2856,19 @@ function inviteURLForCode(code){
 }
 
 /* QRで既存の共有へ入ったあとにホーム画面へ追加するときも、追加された
-   アイコンはSafariと別の保存領域で開く。招待URLだけを一時的に残せば、
-   最初の起動で既存の applyJoinCode() が接続してからURLを消してくれる。
+   アイコンはSafariと別の保存領域で開く。iOSの「ホーム画面に追加」は
+   history.replaceState()だけで変えたURLを引き継がないことがあるため、
+   招待URLへ実際に移動してから追加してもらう。最初の起動で既存の
+   applyJoinCode() が接続してからURLを消してくれる。
    すでにホーム画面版で開いているときは、起動URLを書き換えられないため不要。 */
 function keepScannedInviteForHomeInstall(code){
-  if(isStandalone()) return;
+  if(isStandalone()) return false;
   const invite = inviteURLForCode(code);
-  if(!invite) return;
+  if(!invite) return false;
   try{
-    const url = new URL(invite);
-    history.replaceState(null, '', url.pathname + url.search + location.hash);
-  }catch(e){}
+    location.replace(invite + (location.hash || '#home'));
+    return true;
+  }catch(e){ return false; }
 }
 function inviteURL(){
   const S = window.NatsuSync;
@@ -2927,11 +2929,13 @@ async function connectScannedInvite(){
     }
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
-    keepScannedInviteForHomeInstall(code);
     forgetConfigStampForNewHousehold(code);
     rememberChosenCode(code);
     setLocal(K_ONBOARD, 'done');
     S.reconnect(code, { joining:true });
+    /* Safariでは、実URLのままホーム画面へ追加して初めて別の保存領域へ
+       合言葉を渡せる。移動すると以下の描画は新しいページで行われる。 */
+    if(keepScannedInviteForHomeInstall(code)) return;
     closeInviteScanner();
     if(tab === 'welcome'){
       tab = 'home';

@@ -650,21 +650,20 @@ test('初期設定の選択肢は、選んだものだけ色とチェックが�
 
 test('QRでつなぎ直した共有も、ホーム画面追加へ招待コードを渡す', ()=>{
   const code = 'abcdefghjkmnpqrs';
-  const location = { origin:'https://example.test', pathname:'/app/', hash:'#home' };
-  const history = { current:'', replaceState:(_,__,url)=>{ history.current = url; } };
-  const api = new Function('location', 'history', 'cleanCode', 'isStandalone', `
+  const location = { origin:'https://example.test', pathname:'/app/', hash:'#home', moved:'', replace:url=>{ location.moved = url; } };
+  const api = new Function('location', 'cleanCode', 'isStandalone', `
     const JOIN_PARAM='join';
     ${grab(APP, 'inviteURLForCode')}
     ${grab(APP, 'keepScannedInviteForHomeInstall')}
     return keepScannedInviteForHomeInstall;
-  `)(location, history, value=>String(value || '').trim(), ()=>false);
-  api(code);
-  assert.match(history.current, /^\/app\/\?join=abcdefghjkmnpqrs&r=\d+&openExternalBrowser=1#home$/,
-    'Safariでホーム画面に追加するまで招待URLを残すこと');
+  `)(location, value=>String(value || '').trim(), ()=>false);
+  assert.equal(api(code), true);
+  assert.match(location.moved, /^https:\/\/example\.test\/app\/\?join=abcdefghjkmnpqrs&r=\d+&openExternalBrowser=1#home$/,
+    'Safariでホーム画面に追加する前に、実際の招待URLへ移動すること');
 
   const app = grab(APP, 'connectScannedInvite');
-  assert.match(app, /keepScannedInviteForHomeInstall\(code\);[\s\S]{0,180}S\.reconnect\(code, \{ joining:true \}\);/,
-    'QR接続の成功後、つなぎ直し前にホーム画面追加用のURLを用意すること');
+  assert.match(app, /S\.reconnect\(code, \{ joining:true \}\);[\s\S]{0,180}if\(keepScannedInviteForHomeInstall\(code\)\) return;/,
+    'QR接続を始めてから、ホーム画面追加用の招待URLへ移動すること');
 });
 
 test('まるつけ・なおしは担当を選べ、宿題全体のノルマにも入る', ()=>{
@@ -2275,7 +2274,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814a',
-    'assets/app.js': '20260814d',
+    'assets/app.js': '20260814e',
     'assets/sync.js': '20260813a'
   };
   for(const [file, version] of Object.entries(versions)){
