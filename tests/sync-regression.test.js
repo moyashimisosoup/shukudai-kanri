@@ -2285,7 +2285,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260815a',
+    'assets/app.js': '20260815b',
     'assets/sync.js': '20260813a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2308,13 +2308,13 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.3をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.3';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.3">/);
-  assert.equal(PACKAGE.version, '1.3.3');
-  assert.equal(PACKAGE_LOCK.version, '1.3.3');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.3');
-  assert.match(UPDATES, /2026年8月15日　v1\.3\.3：[\s\S]*招待QR・招待コード/);
+test('公開版番号v1.3.4をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.4';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.4">/);
+  assert.equal(PACKAGE.version, '1.3.4');
+  assert.equal(PACKAGE_LOCK.version, '1.3.4');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.4');
+  assert.match(UPDATES, /2026年8月15日　v1\.3\.4：[\s\S]*紹介ページの見出し/);
   assert.match(UPDATES, /v1\.0\.0/);
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');
@@ -2386,7 +2386,7 @@ test('変更履歴と制作・説明方針へ主要ページから到達でき�
 
 test('紹介ページは意味のまとまりで見出しを組み、開発者本人の説明を載せる', ()=>{
   assert.match(DOCS_INDEX, /個人で作っているWebアプリですが、便利だと思うので公開しています/);
-  assert.match(DOCS_INDEX, /<span class="title-line">宿題の残りを、<\/span><span class="title-line">子どもが自分で<\/span>/);
+  assert.match(DOCS_INDEX, /<span class="title-line">「あとどれくらい？」が<\/span><span class="title-line">自分でわかる<\/span>/);
   assert.match(DOCS_INDEX, /Claude CodeおよびCodex/);
   assert.match(DOCS_INDEX, /小２息子の夏休みの宿題管理に疲れた/);
   assert.doesNotMatch(DOCS_INDEX, /宿題管理に疲れた等/);
