@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.2';
+const RELEASE_VERSION = '1.3.3';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -6413,6 +6413,20 @@ function routeFromHash(){
   if(!location.hash && isStandalone() && getLocal(K_ROLE) === 'parent') return 'settings';
   return requested;
 }
+
+/* iOS / iPadOS は「ホーム画面に追加」した瞬間の URL（#config などを含む）を
+   起動 URL として残す。これは画面内の移動には必要だが、次にアイコンから開く
+   ときまで引き継ぐべきではない。起動時だけ端末の役割を優先し、以後の
+   hashchange は routeFromHash() に任せることで、保護者の「子ども画面へ」など
+   通常の画面移動はそのまま使える。 */
+function launchRoute(){
+  const requested = routeFromHash();
+  if(requested === 'welcome' || !isStandalone()) return requested;
+  const role = getLocal(K_ROLE);
+  if(role === 'parent') return 'settings';
+  if(role === 'child') return 'home';
+  return requested;
+}
 window.addEventListener('hashchange', ()=>{
   const t = routeFromHash();
   /* writes は 同じタブのまま 課題だけ かわることが あるので、
@@ -6564,7 +6578,7 @@ window.addEventListener('appinstalled', ()=>{
    --------------------------------------------------------- */
 loadAll();
 if(typeof setReadingGrade === 'function') setReadingGrade(readingGrade());
-tab = routeFromHash();
+tab = launchRoute();
 if(typeof window.natsuBootProgress === 'function') window.natsuBootProgress(100, '表示します');
 render();
 

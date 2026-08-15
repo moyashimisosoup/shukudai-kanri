@@ -1672,7 +1672,7 @@ test('せまい画面では、帯をつめてタイトルの場所を作る', ()
 /* iOS の「ホーム画面に追加」がおぼえるのは追加時のURL。そこに # が残るかは
    こちらから決められない。残らないと子ども画面が開くため、保護者が
    「親端末」を選んで追加しても子ども画面になり、開き直すたびに戻った。 */
-test('ホーム画面から開いたとき、保護者の端末は保護者ページを出す', ()=>{
+test('ホーム画面から開いたとき、端末の役割に合う開始画面を出す', ()=>{
   const f = grab(APP, 'routeFromHash');
   assert.match(f, /if\(!location\.hash && isStandalone\(\) && getLocal\(K_ROLE\) === 'parent'\) return 'settings';/);
   /* 初期設定より後に置くこと。順番を逆にすると、まっさらな端末が
@@ -1681,7 +1681,7 @@ test('ホーム画面から開いたとき、保護者の端末は保護者ペ�
   const roleIdx = f.indexOf("=== 'parent') return 'settings';");
   assert.ok(onboardIdx > -1 && roleIdx > onboardIdx,
     '初期設定の判定を先に通すこと');
-  /* # が付いているときはさわらない。「子ども画面へ」は #home を付ける */
+  /* 画面内の移動では # を尊重する。「子ども画面へ」は #home を付ける */
   assert.match(f, /!location\.hash &&/);
   /* 子どもの端末では立たない値なので、5回タップ・長押しは唯一の道のまま */
   assert.match(APP, /setLocal\(K_ROLE, role\)/);
@@ -1691,7 +1691,8 @@ test('ホーム画面から開いたとき、保護者の端末は保護者ペ�
     'location', 'isStandalone', 'getLocal', 'isStatsURL', 'TABS',
     'K_CFG', 'K_ST', 'K_ONBOARD', 'K_ROLE', 'TEST_MODE', 'writesTaskId', `
     ${grab(APP, 'routeFromHash')}
-    return routeFromHash();
+    ${grab(APP, 'launchRoute')}
+    return launchRoute();
   `)(
     { hash }, ()=> standalone,
     k => ({ role, onboard: onboarded ? 'done' : '', cfg:'' })[
@@ -1711,8 +1712,12 @@ test('ホーム画面から開いたとき、保護者の端末は保護者ペ�
     '役割が未選択なら子ども画面のまま');
   assert.equal(route('', false, 'parent', true), 'home',
     'ふつうのブラウザのタブでは子ども画面（アドレスを開いた人が親とは限らない）');
-  assert.equal(route('#home', true, 'parent', true), 'home',
-    '「子ども画面へ」で付けた #home は尊重する');
+  assert.equal(route('#config', true, 'parent', true), 'settings',
+    '保護者端末は #config から追加しても、次回のアイコン起動では保護者ページ');
+  assert.equal(route('#config', true, 'child', true), 'home',
+    '子ども端末は #config から追加しても、次回のアイコン起動では子ども画面');
+  assert.equal(route('#home', true, 'parent', true), 'settings',
+    '保護者端末はどのページから追加しても、アイコン起動では保護者ページ');
   assert.equal(route('', true, 'parent', false), 'welcome',
     'まっさらな端末は、まず初期設定');
   assert.match(f, /const hasExistingConfig = !!getLocal\(K_CFG\);/,
@@ -2280,7 +2285,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260814h',
+    'assets/app.js': '20260815a',
     'assets/sync.js': '20260813a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2303,13 +2308,13 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.2をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.2';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.2">/);
-  assert.equal(PACKAGE.version, '1.3.2');
-  assert.equal(PACKAGE_LOCK.version, '1.3.2');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.2');
-  assert.match(UPDATES, /2026年8月14日　v1\.3\.2：[\s\S]*iPadの音声入力/);
+test('公開版番号v1.3.3をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.3';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.3">/);
+  assert.equal(PACKAGE.version, '1.3.3');
+  assert.equal(PACKAGE_LOCK.version, '1.3.3');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.3');
+  assert.match(UPDATES, /2026年8月15日　v1\.3\.3：[\s\S]*招待QR・招待コード/);
   assert.match(UPDATES, /v1\.0\.0/);
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');
