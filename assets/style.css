@@ -536,6 +536,20 @@ button{ font:inherit; color:inherit; }
 .sec-daily .sec-head{ background:var(--asagao);   color:var(--kami); }
 .sec-daily .sec-head .sec-note{ color:var(--on-daily-muted); }
 
+/* 必須・任意の欄を完走した印。区分色は残し、紙に押した大きな緑の
+   スタンプだけを足すことで、欄の意味と「全部終わった」を両立する。 */
+.sec-complete-mark{
+  margin-inline-start:auto; display:inline-flex; align-items:center; gap:7px;
+  padding:5px 13px; color:var(--wakaba); background:var(--kami);
+  border:3px solid var(--wakaba); border-radius:var(--r-pill);
+  box-shadow:2px 2px 0 var(--ai); font-size:18px; font-weight:900;
+  line-height:1.15; white-space:nowrap; transform:rotate(-1.5deg);
+}
+.sec-complete-mark > span{
+  display:grid; place-items:center; width:22px; height:22px;
+  color:var(--kami); background:var(--wakaba); border-radius:50%;
+}
+
 /* 「きょう やったこと」は記録のまとまりなので、保護者ページの
    「今日の記録」と同じ濃色の紙帯に白抜きでそろえる。 */
 .sec-today .sec-head{ background:var(--ai); color:var(--kami); }
@@ -870,13 +884,13 @@ button{ font:inherit; color:inherit; }
 .btn,.set-task-actions button,.set-actions button{ white-space:nowrap; }
 select{ appearance:auto; -webkit-appearance:menulist; }
 :focus-visible{ outline-color:var(--focus); }
-.task-meter--daily .streak{ margin-inline-start:auto; }
-/* 「きのう できたね」は 8文字あり、丸みと 余白で 150px ちかく なる。
-   .task-meter は 折り返す ので、バーに 下限を 決めておけば、
-   入りきらない ときだけ そえ書きが 下の行へ 落ちる。
-   決めておかないと iPad の 2つ並びカードで バーが つぶれた */
+/* まいにちのバーは、右側の数だけを横に置く。連続表示はカード下部の
+   専用行へ分け、タイトルの行数やバーの幅に位置を左右されないようにする。 */
 .task-meter--daily .bar{ flex:1 1 200px; min-width:150px; }
-.task-meter--daily .streak{ flex:0 0 auto; }
+.task-streak-row{
+  min-height:30px; display:flex; align-items:center; justify-content:flex-end;
+}
+.task-streak-row .streak{ min-width:150px; max-width:100%; text-align:center; }
 
 @media (hover:hover) and (pointer:fine){
   .set-task-summary:hover,.theme-choice:hover{ background:var(--surface-soft); }
@@ -910,9 +924,12 @@ select{ appearance:auto; -webkit-appearance:menulist; }
   .theme-name,.theme-choice small{ grid-column:1; }
 }
 .task-name{
-  grid-column:1; font-size:25px; font-weight:900; line-height:1.35;
+  grid-column:1; display:grid; grid-template-columns:minmax(0,1fr) auto;
+  align-items:start; gap:8px 10px;
+  font-size:25px; font-weight:900; line-height:1.35;
 }
-[data-theme="cat"] .task-name::before{
+.task-name-text{ min-width:0; overflow-wrap:anywhere; }
+[data-theme="cat"] .task-name-text::before{
   content:""; display:inline-block; width:24px; height:24px;
   margin-inline-end:8px; vertical-align:-4px; background:var(--suika);
   -webkit-mask:url("paw.svg?v=20260811q") center / contain no-repeat;
@@ -959,13 +976,11 @@ select{ appearance:auto; -webkit-appearance:menulist; }
 
 /* できあがったカード */
 .task.is-done{ background:var(--wakaba-usu); }
-.task.is-done .task-name::after{
-  content:"できた！"; margin-left:10px;
+.task-state{
   font-size:16px; font-weight:900; color:var(--kami);
   background:var(--ai); border-radius:999px;
-  padding:3px 12px; vertical-align:middle; white-space:nowrap;
+  padding:3px 12px; white-space:nowrap;
 }
-.task.is-done.task-whole .task-name::after{ content:"ぜんぶできた！"; }
 
 /* まいにちアプリの ハート */
 .hearts{ display:flex; gap:6px; font-size:28px; line-height:1; }
@@ -2139,11 +2154,9 @@ input.is-need, textarea.is-need{
 /* 番号は ぜんぶ 終えたのに バッジが 何も 出ないと、終わったのか
    まだなのか 分からない。あと ひといき だと 分かるように 出す */
 .task.is-almost{ background:var(--himawari-usu); }
-.task.is-almost .task-name::after{
-  content:"あとすこし！"; margin-left:10px;
-  font-size:16px; font-weight:900; color:#7A5405;
+.task.is-almost .task-state{
+  color:#7A5405;
   background:var(--himawari); border-radius:999px;
-  padding:3px 12px; vertical-align:middle; white-space:nowrap;
 }
 
 /* =========================================================

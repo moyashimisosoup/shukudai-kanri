@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.4';
+const RELEASE_VERSION = '1.3.5';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -1750,7 +1750,8 @@ function viewHome(){
   const opt   = config.tasks.filter(t=>t.group==='option');
   const daily = config.showDaily ? config.tasks.filter(t=>t.group==='daily') : [];
   const o = overall('must');
-  const nokori = must.filter(t=>!prog(t).isDone).length;
+  const mustLeft = must.filter(t=>!prog(t).isDone).length;
+  const optLeft = opt.filter(t=>!prog(t).isDone).length;
 
   // 今日のぶんが終わっていれば、まいにちの欄は下へ下がって邪魔をしない
   const dailyAllDone = daily.length > 0 && daily.every(t => prog(t).isDone);
@@ -1773,8 +1774,8 @@ function viewHome(){
   ${joinInstallTransferHTML()}
 
   ${dailyAllDone ? '' : dailySec}
-  ${sectionHTML('must','かならず やる', nokori>0 ? 'のこり '+nokori+'しゅるい' : 'ぜんぶ できた！', must)}
-  ${opt.length   ? sectionHTML('opt','つぎに やる','かならず やるが すんだら、ここから えらぼう', opt) : ''}
+  ${sectionHTML('must','かならず やる','のこり '+mustLeft+'しゅるい', must)}
+  ${opt.length   ? sectionHTML('opt','つぎに やる','のこり '+optLeft+'しゅるい', opt) : ''}
 
   <section class="sec sec-today">
     <div class="sec-head"><h2>きょう やったこと</h2><span class="sec-note">${fmtDate(new Date())}</span></div>
@@ -2005,9 +2006,12 @@ function paceHTML(o){
 }
 
 function sectionHTML(kind, title, note, tasks){
+  const allDone = (kind === 'must' || kind === 'opt')
+    && tasks.length > 0 && tasks.every(t=>prog(t).isDone);
   return `
-  <section class="sec sec-${kind}">
-    <div class="sec-head"><h2>${esc(title)}</h2><span class="sec-note">${esc(note)}</span></div>
+  <section class="sec sec-${kind}${allDone ? ' is-all-done' : ''}">
+    <div class="sec-head"><h2>${esc(title)}</h2><span class="sec-note">${esc(note)}</span>${allDone ? `
+      <span class="sec-complete-mark"><span aria-hidden="true">✓</span>ぜんぶできた！</span>` : ''}</div>
     <div class="task-list${kind==='daily' ? ' task-list--2up' : ''}">${tasks.map(taskHTML).join('')}</div>
   </section>`;
 }
@@ -2024,6 +2028,10 @@ function wrapMarksHTML(t, p){
 function taskHTML(t){
   const p = prog(t);
   const nx = nextLabel(t);
+  const streak = t.type === 'daily' ? streakLabel(p) : '';
+  const stateLabel = p.isDone
+    ? (t.group === 'must' || t.group === 'option' ? 'ぜんぶできた！' : 'できた！')
+    : (p.numDone && hasWrap(t) ? 'あとすこし！' : '');
 
   let meter;
   if(isFree(t)){
@@ -2039,14 +2047,11 @@ function taskHTML(t){
       const n = Math.max(p.total, p.done);
       let hearts = '';
       for(let i=1;i<=n;i++) hearts += `<span class="heart${i<=p.done?' on':''}">❤️</span>`;
-      meter = `<div class="task-meter"><div class="hearts">${hearts}</div>
-        ${streakLabel(p) ? `<span class="streak">${streakLabel(p)}</span>` : ''}
-      </div>`;
+      meter = `<div class="task-meter"><div class="hearts">${hearts}</div></div>`;
     }else{
       meter = `<div class="task-meter task-meter--bar task-meter--daily">
         <div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div>
         <span class="task-count">${esc(p.text)}</span>
-        ${streakLabel(p) ? `<span class="streak">${streakLabel(p)}</span>` : ''}
       </div>`;
     }
   }else{
@@ -2061,10 +2066,13 @@ function taskHTML(t){
   <article class="task${p.isDone?' is-done':''}${
     (!p.isDone && p.numDone && hasWrap(t))?' is-almost':''}${isFree(t)?' task-free':''}${
     t.group === 'must' || t.group === 'option' ? ' task-whole' : ''}">
-    <h3 class="task-name">${esc(t.name)}</h3>
+    <h3 class="task-name"><span class="task-name-text">${esc(t.name)}</span>${stateLabel
+      ? `<span class="task-state">${esc(stateLabel)}</span>` : ''}</h3>
     ${nx && !isFree(t) ? `<p class="task-next"><span class="next-lead">${esc(nx.lead)}</span>
         ${nx.num ? `<span class="next-num">${esc(nx.num)}</span>` : ''}<span class="next-tail">${esc(nx.tail)}</span></p>` : ''}
     ${meter}
+    ${t.type === 'daily' ? `<div class="task-streak-row">${streak
+      ? `<span class="streak">${esc(streak)}</span>` : ''}</div>` : ''}
     <div class="task-act">
       <button class="btn ${p.isDone?'btn-ghost':'btn-do'}" data-open="${esc(t.id)}" type="button">
         ${isFree(t) ? (p.isDone ? 'また かく' : 'かく') : (p.isDone ? 'ついか／なおす' : 'やった！')}

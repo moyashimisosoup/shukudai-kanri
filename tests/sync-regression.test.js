@@ -1815,11 +1815,11 @@ test('ネコは見出しの色みもテーマに合わせる', ()=>{
 });
 
 /* iPad の2つ並びカードで「きのう できたね」がバーを押しつぶした。
-   そえ書きは8文字あり、丸みと余白で150pxちかくになる。 */
-test('まいにちのそえ書きは、バーをつぶさず下の行へ落ちる', ()=>{
+   バーとは別の固定行へ置き、カード間でも位置をそろえる。 */
+test('まいにちのそえ書きは、バーと分けた固定行へ置く', ()=>{
   assert.match(STYLE, /\.task-meter--daily \.bar\{ flex:1 1 200px; min-width:150px; \}/);
-  assert.match(STYLE, /\.task-meter--daily \.streak\{ flex:0 0 auto; \}/);
-  assert.match(STYLE, /\.task-meter\{ flex-wrap:wrap;/, '折り返せること');
+  assert.match(STYLE, /\.task-streak-row\{[\s\S]{0,140}justify-content:flex-end/);
+  assert.match(STYLE, /\.task-streak-row \.streak\{[^}]*min-width:150px/);
 });
 
 /* 1本の長い文だと、せまい画面で「© 2026」と名前のあいだなど、
@@ -2139,7 +2139,7 @@ test('保護者ページは縦の余白を節約する表示になっている',
     '次の番号は案内・大きい数字・単位を同じ構造で組む');
   assert.match(STYLE, /\.task-next\{[\s\S]{0,120}align-items:baseline/,
     '大きい数字と単位は文字の下端が自然にそろうベースライン配置にする');
-  assert.match(STYLE, /\.task\.is-done \.task-name::after\{[\s\S]{0,180}background:var\(--ai\)/,
+  assert.match(STYLE, /\.task-state\{[\s\S]{0,180}background:var\(--ai\)/,
     '完了状態の印は丸つけ・なおしの緑と区別してテーマ色にする');
   assert.match(STYLE, /\.wrapmark\.is-on\{[\s\S]{0,160}background:var\(--wakaba\)/,
     '丸つけ・なおしの完了色はこれまでどおり緑を保つ');
@@ -2274,18 +2274,42 @@ test('必須・任意・読書の完了カードは「ぜんぶできた！」�
   const card = grab(APP, 'taskHTML');
   assert.match(card, /t\.group === 'must' \|\| t\.group === 'option' \? ' task-whole' : ''/,
     '必須・任意と、そのどちらかに属する読書だけへ完了用クラスを付けること');
-  assert.match(STYLE, /\.task\.is-done\.task-whole \.task-name::after\{ content:"ぜんぶできた！"; \}/);
-  assert.match(STYLE, /\.task\.is-done \.task-name::after\{\s*content:"できた！"/,
+  assert.match(card, /t\.group === 'must' \|\| t\.group === 'option' \? 'ぜんぶできた！' : 'できた！'/);
+  assert.match(card, /class="task-state">\$\{esc\(stateLabel\)\}/,
+    '完了印はタイトル本文とは別の固定枠へ置くこと');
+  assert.match(STYLE, /\.task-name\{[\s\S]{0,180}grid-template-columns:minmax\(0,1fr\) auto/,
+    'タイトルの長さにかかわらず完了印を右端へ置くこと');
+  assert.match(card, /: 'できた！'\)/,
     '毎日の項目は従来の「できた！」を保つこと');
+});
+
+test('残り種類・区分完了・毎日の連続表示を共通の位置にそろえる', ()=>{
+  const home = grab(APP, 'viewHome');
+  const section = grab(APP, 'sectionHTML');
+  const card = grab(APP, 'taskHTML');
+
+  assert.match(home, /const optLeft = opt\.filter\(t=>!prog\(t\)\.isDone\)\.length/);
+  assert.match(home, /sectionHTML\('opt','つぎに やる','のこり '\+optLeft\+'しゅるい'/,
+    'つぎにやるにも残り種類数を表示すること');
+  assert.match(section, /tasks\.length > 0 && tasks\.every\(t=>prog\(t\)\.isDone\)/);
+  assert.match(section, /class="sec-complete-mark"/,
+    '必須・任意の全項目完了時は区分全体の完了スタンプを出すこと');
+  assert.match(card, /const streak = t\.type === 'daily' \? streakLabel\(p\) : ''/);
+  assert.match(card, /class="task-streak-row"/,
+    'なんでもきろくを含む全ての毎日項目で共通の連続表示枠を使うこと');
+  assert.doesNotMatch(card, /task-meter[^`]*streakLabel\(p\)/,
+    'バーの幅やタイトルの行数で連続表示の位置を決めないこと');
+  assert.match(STYLE, /\.task-streak-row\{[\s\S]{0,140}justify-content:flex-end/);
+  assert.match(STYLE, /\.task-streak-row \.streak\{[^}]*min-width:150px/);
 });
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260814d',
+    'assets/style.css': '20260815a',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260815b',
+    'assets/app.js': '20260815c',
     'assets/sync.js': '20260813a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2308,13 +2332,13 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.4をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.4';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.4">/);
-  assert.equal(PACKAGE.version, '1.3.4');
-  assert.equal(PACKAGE_LOCK.version, '1.3.4');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.4');
-  assert.match(UPDATES, /2026年8月15日　v1\.3\.4：[\s\S]*紹介ページの見出し/);
+test('公開版番号v1.3.5をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.5';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.5">/);
+  assert.equal(PACKAGE.version, '1.3.5');
+  assert.equal(PACKAGE_LOCK.version, '1.3.5');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.5');
+  assert.match(UPDATES, /2026年8月15日　v1\.3\.5：[\s\S]*区分ごとの全完了スタンプ/);
   assert.match(UPDATES, /v1\.0\.0/);
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');
