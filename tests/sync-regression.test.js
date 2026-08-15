@@ -879,12 +879,21 @@ test('初期設定用の招待URLも、通常の招待URLと同じ引き継ぎ�
 
 test('音声入力は古い終了イベントに新しい認識を消されず、エラー後も再開できる', ()=>{
   assert.match(grab(APP, 'saveSheet'), /stopSR\(\);/, '記録する操作で音声入力を先に止める');
+  assert.match(grab(APP, 'closeSheet'), /stopSR\(\);/, 'シートを閉じる操作でも音声入力を止める');
+  assert.match(grab(APP, 'render'), /stopSR\(\);/, '別画面へ移る前にも音声入力を止める');
+  assert.match(grab(APP, 'stopSR'), /active\.stop\(\)/, 'iPad Safariではstopを優先してマイクを終了する');
+  assert.match(grab(APP, 'stopSR'), /document\.activeElement[\s\S]*editor\.blur\(\)/,
+    'iPadのキーボード音声入力は入力欄のフォーカスを外して終了する');
+  assert.match(APP, /visibilitychange[\s\S]{0,100}document\.hidden\)\{ stopSR\(\); return; \}/,
+    'アプリを閉じたり別画面へ移ったときにも音声入力を止める');
+  assert.match(APP, /pagehide', stopSR/);
   assert.match(APP, /onspeechend[\s\S]{0,100}setSRStatus\(btn, 'checking'\)/, '聞き取り後は確認中の表示へ切り替える');
   assert.match(APP, /data-mic-status/, '音声入力の状態を各入力欄の近くに表示する');
   const sessions = [];
   class MockRecognition{
     constructor(){ sessions.push(this); }
     start(){ if(this.onstart) this.onstart(); }
+    stop(){ this.stopped = true; }
     abort(){ this.aborted = true; }
   }
   const messages = [];
@@ -909,7 +918,7 @@ test('音声入力は古い終了イベントに新しい認識を消されず�
     return { startSR, stopSR, current:()=>sr };
   `)(MockRecognition, messages);
   const target={ value:'まえ うしろ', selectionStart:3, selectionEnd:3, dispatchEvent(){}, setSelectionRange(a,b){ this.selectionStart=a; this.selectionEnd=b; } };
-  const firstBtn=makeButton(), secondBtn=makeButton(), thirdBtn=makeButton();
+  const firstBtn=makeButton(), secondBtn=makeButton(), thirdBtn=makeButton(), fourthBtn=makeButton();
   harness.startSR(firstBtn, target, { start:3, end:3 });
   const first=sessions[0];
   harness.startSR(secondBtn, target, { start:3, end:3 });
@@ -924,6 +933,10 @@ test('音声入力は古い終了イベントに新しい認識を消されず�
   sessions[2].onresult({results:[[{transcript:'できた'}]]});
   sessions[2].onend();
   assert.equal(target.value, 'まえ できたうしろ', '音声結果は読み取り開始時のカーソル位置へ入れる');
+  assert.equal(harness.current(), null);
+  harness.startSR(fourthBtn, target, { start:target.value.length, end:target.value.length });
+  harness.stopSR();
+  assert.equal(sessions[3].stopped, true, '手動終了はstopを呼び、iPadのマイクを終了する');
   assert.equal(harness.current(), null);
 });
 
@@ -2309,7 +2322,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260815c',
+    'assets/app.js': '20260815d',
     'assets/sync.js': '20260813a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2332,13 +2345,13 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.5をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.5';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.5">/);
-  assert.equal(PACKAGE.version, '1.3.5');
-  assert.equal(PACKAGE_LOCK.version, '1.3.5');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.5');
-  assert.match(UPDATES, /2026年8月15日　v1\.3\.5：[\s\S]*区分ごとの全完了スタンプ/);
+test('公開版番号v1.3.6をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.6';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.6">/);
+  assert.equal(PACKAGE.version, '1.3.6');
+  assert.equal(PACKAGE_LOCK.version, '1.3.6');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.6');
+  assert.match(UPDATES, /2026年8月15日　v1\.3\.6：[\s\S]*PC表示で画面画像と重なる問題を修正/);
   assert.match(UPDATES, /v1\.0\.0/);
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');
@@ -2410,7 +2423,8 @@ test('変更履歴と制作・説明方針へ主要ページから到達でき�
 
 test('紹介ページは意味のまとまりで見出しを組み、開発者本人の説明を載せる', ()=>{
   assert.match(DOCS_INDEX, /個人で作っているWebアプリですが、便利だと思うので公開しています/);
-  assert.match(DOCS_INDEX, /<span class="title-line">「あとどれくらい？」が<\/span><span class="title-line">自分でわかる<\/span>/);
+  assert.match(DOCS_INDEX, /<title>しゅくだいノート｜あとどれくらい？が自分でわかる<\/title>/);
+  assert.match(DOCS_INDEX, /<span class="title-line">宿題の残りを、<\/span><span class="title-line">子どもが自分で<\/span><span class="title-line">確かめられる。<\/span>/);
   assert.match(DOCS_INDEX, /Claude CodeおよびCodex/);
   assert.match(DOCS_INDEX, /小２息子の夏休みの宿題管理に疲れた/);
   assert.doesNotMatch(DOCS_INDEX, /宿題管理に疲れた等/);

@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.5';
+const RELEASE_VERSION = '1.3.6';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -4287,10 +4287,25 @@ function stopSR(){
   sr = null;
   if(active){
     active._manualStop = true;
-    try{ typeof active.abort === 'function' ? active.abort() : active.stop(); }catch(e){}
+    /* iPad Safari は abort() だけではマイク表示が残ることがある。
+       stop() で終了を確定し、未対応の実装だけ abort() へ戻す。 */
+    try{
+      if(typeof active.stop === 'function') active.stop();
+      else if(typeof active.abort === 'function') active.abort();
+    }catch(e){
+      try{ if(typeof active.abort === 'function') active.abort(); }catch(err){}
+    }
     finishSR(active, active._button);
   }
   $$('.mic.rec').forEach(b=>{ b.classList.remove('rec'); b.setAttribute('aria-pressed', 'false'); });
+  /* iPadのキーボード側の音声入力は Web Speech API とは別物。
+     入力欄のフォーカスを外すことで、保存・閉じる・画面移動でも終了させる。 */
+  const editor = typeof document !== 'undefined' ? document.activeElement : null;
+  if(editor && typeof editor.matches === 'function'
+    && editor.matches('input, textarea, [contenteditable="true"]')
+    && typeof editor.blur === 'function'){
+    try{ editor.blur(); }catch(e){}
+  }
 }
 
 /* ---------------------------------------------------------
@@ -4302,6 +4317,8 @@ function scrollBox(){ return $('#scroll') || document.scrollingElement || docume
 
 /* keepScroll: 今の位置のまま描き直す。タブを変えたときだけ先頭に戻す */
 function render(opts){
+  /* 描き直しで入力欄が消える前に、アプリ側・キーボード側の音声入力を止める。 */
+  stopSR();
   const keepScroll = !!(opts && opts.keepScroll);
   const y = scrollBox().scrollTop;
   /* 同期の到着などで画面を描き直しても、保護者が入力途中の内容を
@@ -6272,10 +6289,11 @@ document.addEventListener('keydown', e=>{
 
 // タブを もどってきたら、どの画面でも上帯の日づけを更新する。
 document.addEventListener('visibilitychange', ()=>{
-  if(document.hidden) return;
+  if(document.hidden){ stopSR(); return; }
   renderKinenbiButton(new Date());
   if(tab === 'home') render();
 });
+window.addEventListener('pagehide', stopSR);
 /* 前景のまま日をまたいだ場合も、表示日と開く内容を食い違わせない。
    1分ごとに日付キーだけを比べ、日が変わったときだけDOMを更新する。 */
 setInterval(()=>{
