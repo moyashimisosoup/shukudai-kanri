@@ -1291,9 +1291,22 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 /* 保護者ページの記録名は、その下の宿題一覧と同じ文字階層にする。 */
 .parent-today-logs .ti-name{ font-size:17px; }
 .ti-what{ font-size:17px; font-weight:700; color:var(--wakaba); }
+.ti-date{ font-size:14px; font-weight:700; color:var(--ai-usu); }
 .ti-memo{
   font-size:16px; font-weight:500; color:var(--ai-usu);
   margin-top:4px; white-space:pre-wrap; word-break:break-word;
+}
+/* 「これまでの きろく」の折りたたみ。全件を開いた状態でレイアウトすると
+   毎日型の課題で件数がふくらんだときに重くなるため、閉じたまま出す */
+.recent-more{ margin-top:8px; }
+.recent-more > summary{
+  cursor:pointer; padding:10px 4px; font-size:16px; font-weight:700;
+  color:var(--ai-usu); list-style-position:inside;
+}
+.recent-more > summary::-webkit-details-marker{ display:none; }
+.recent-over{
+  padding:14px 16px; text-align:center;
+  font-size:15px; font-weight:700; color:var(--ai-usu);
 }
 .day-head{
   display:flex; align-items:center; gap:10px;
