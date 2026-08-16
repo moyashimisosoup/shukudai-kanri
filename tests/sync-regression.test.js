@@ -2772,3 +2772,114 @@ test('消すボタンは枠なしの自前ゴミ箱アイコンにそろえる',
   assert.match(STYLE, /\.icon-btn\.del:focus-visible\{ outline:/,
     '枠が無いぶん、キーボードの位置は必ず見せること');
 });
+
+/* recentLogsHTML は state.logs を直接参照するクロージャなので、
+   fmtDate / fmtTime とともに切り出し、呼び出しのたびに state を差し替えられるようにする。
+   esc() は grab() で切り出せない（内部の正規表現リテラルに '/" を含み、
+   grab() の引用符トラッキングが誤作動して以降の関数まで巻き込む）ため、
+   実装と同じ内容をここに書き写す */
+function buildRecentLogsHTML(){
+  return new Function(`
+    function esc(s){
+      return String(s == null ? '' : s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    ${grab(APP, 'pad2')}
+    const WD = ['日','月','火','水','木','金','土'];
+    ${grab(APP, 'fmtDate')}
+    ${grab(APP, 'fmtTime')}
+    let state;
+    ${grab(APP, 'recentLogsHTML')}
+    return function(s, t){ state = s; return recentLogsHTML(t); };
+  `)();
+}
+
+test('メモ欄の直下は直近3件を常時表示し、4件目以降を折りたたみに入れる', ()=>{
+  // buildRecentLogsHTML に手書きした esc() が本体とずれていないことを見張る
+  assert.match(APP, /function esc\(s\)\{\s*return String\(s == null \? '' : s\)\s*\.replace\(\/&\/g,'&amp;'\)\.replace\(\/<\/g,'&lt;'\)\.replace\(\/>\/g,'&gt;'\)\s*\.replace\(\/"\/g,'&quot;'\)\.replace\(\/'\/g,'&#39;'\);\s*\}/,
+    'esc() の実装が変わったら buildRecentLogsHTML の手書き版も合わせて直すこと');
+
+  const recentLogsHTML = buildRecentLogsHTML();
+  const base = Date.parse('2026-08-10T09:00:00');
+  const logs = [0,1,2,3,4].map(i=> ({
+    taskId:'t1', memo:'メモ' + i, at: new Date(base - i*60000).toISOString()
+  }));
+  const html = recentLogsHTML({ logs }, { id:'t1' });
+
+  assert.match(html, /これまでの きろく/, '見出しを出すこと');
+  const foldIdx = html.indexOf('<details');
+  assert.ok(foldIdx > 0, '折りたたみを持つこと');
+  for(const i of [0,1,2]){
+    const idx = html.indexOf('メモ' + i);
+    assert.ok(idx > -1 && idx < foldIdx, '直近3件（メモ' + i + '）は折りたたみの外に常時出ること');
+  }
+  for(const i of [3,4]){
+    const idx = html.indexOf('メモ' + i);
+    assert.ok(idx > foldIdx, '4件目以降（メモ' + i + '）は折りたたみの中に入ること');
+  }
+  assert.match(html, /もっと 見る/, '折りたたみを開くラベルを出すこと');
+});
+
+test('メモが空の記録は「これまでの きろく」の一覧に出ない', ()=>{
+  const recentLogsHTML = buildRecentLogsHTML();
+  const logs = [
+    { taskId:'t1', memo:'', at:'2026-08-10T09:00:00.000Z' },
+    { taskId:'t1', memo:'   ', at:'2026-08-10T09:01:00.000Z' },
+    { taskId:'t1', memo:'かいたよ', at:'2026-08-10T09:02:00.000Z' }
+  ];
+  const html = recentLogsHTML({ logs }, { id:'t1' });
+
+  assert.match(html, /かいたよ/, 'メモがある記録は出すこと');
+  assert.equal((html.match(/class="today-item"/g) || []).length, 1,
+    '進捗だけの空メモの記録は一覧に含めないこと');
+});
+
+test('該当する記録が1件も無ければ「これまでの きろく」のブロックごと出さない', ()=>{
+  const recentLogsHTML = buildRecentLogsHTML();
+  assert.equal(recentLogsHTML({ logs: [] }, { id:'t1' }), '',
+    '記録が1件も無いときは空文字を返すこと');
+  assert.equal(recentLogsHTML({ logs: undefined }, { id:'t1' }), '',
+    'state.logs が未定義でも空として扱うこと');
+  assert.equal(recentLogsHTML({ logs: 'not-array' }, { id:'t1' }), '',
+    'state.logs が配列でなくても空として扱うこと');
+  const otherTask = recentLogsHTML(
+    { logs: [{ taskId:'other', memo:'よそのきろく', at:'2026-08-10T09:00:00.000Z' }] },
+    { id:'t1' });
+  assert.equal(otherTask, '', 'ほかの課題の記録しか無いときも出さないこと');
+});
+
+test('折りたたみの中は最大50件で打ち切り、はみ出た分は案内文に置きかえる', ()=>{
+  const recentLogsHTML = buildRecentLogsHTML();
+  const base = Date.parse('2026-08-10T09:00:00');
+  const logs = Array.from({length:60}, (_,i)=> ({
+    taskId:'t1', memo:'メモ' + i, at: new Date(base - i*60000).toISOString()
+  }));
+  const html = recentLogsHTML({ logs }, { id:'t1' });
+
+  assert.equal((html.match(/class="today-item"/g) || []).length, 50,
+    '常時表示3件＋折りたたみ47件の合計50件までしかレイアウトしないこと');
+  assert.match(html, /メモ49/, '50件目（先頭から数えて）までは出すこと');
+  assert.doesNotMatch(html, /メモ50/, '51件目以降は出さないこと');
+  assert.match(html, /ふるい きろくは『やったこと』で 見てね/,
+    '打ち切った分は「やったこと」への案内文で置きかえること');
+});
+
+test('不正な日付の記録は日時を出さずメモ本文だけを出す', ()=>{
+  const recentLogsHTML = buildRecentLogsHTML();
+  const logs = [{ taskId:'t1', memo:'こわれた日づけ', at:'not-a-date' }];
+  const html = recentLogsHTML({ logs }, { id:'t1' });
+
+  assert.match(html, /こわれた日づけ/, 'メモ本文そのものは隠さないこと');
+  assert.doesNotMatch(html, /class="ti-time"/, '不正な日時は時刻を出さないこと');
+  assert.doesNotMatch(html, /class="ti-date"/, '不正な日時は日付も出さないこと');
+});
+
+test('自由記録シートも通常シートと同じ「これまでの きろく」部品を使う', ()=>{
+  assert.doesNotMatch(APP, /freeTodayHTML/,
+    '自由記録専用だった今日だけの一覧は残さないこと');
+  assert.match(grab(APP, 'openFreeSheet'), /\$\{recentLogsHTML\(t\)\}/,
+    '自由記録シートも recentLogsHTML を使うこと');
+  assert.match(grab(APP, 'openSheet'), /body \+= recentLogsHTML\(t\);/,
+    '通常シートはメモ欄の直後で recentLogsHTML を差し込むこと');
+});

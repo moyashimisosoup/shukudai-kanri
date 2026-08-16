@@ -3938,6 +3938,7 @@ function openSheet(id, editBookId){
     </div>
     <p class="mic-note">${micNoteHTML()}</p>
   </div>`;
+  body += recentLogsHTML(t);
 
   $('#sheetTitle').textContent = t.name;
   $('#sheetBody').innerHTML = body;
@@ -4058,26 +4059,55 @@ function openFreeSheet(t){
       </div>
       <p class="mic-note">${micNoteHTML()}</p>
     </div>
-    ${freeTodayHTML(t)}`;
+    ${recentLogsHTML(t)}`;
   $('#sheetSave').textContent = 'かけた！';
   $('#sheetBody').scrollTop = 0;
   showSheet();
   applyReadingDisplay($('#sheetWrap'));
 }
 
-/* 今日すでに書いたぶんを見せる。1日に何回でも書き足せる */
-function freeTodayHTML(t){
-  const today = state.logs.filter(l =>
-    l.taskId === t.id && dayKey(new Date(l.at)) === dayKey(new Date()));
-  if(!today.length) return '';
+/* メモ欄の直下に過去のメモを新しい順に並べる。上の質問欄（questionAnswerRow）は
+   答えが1つだけ残るのに対し、ここは書くたびに積まれる。この形の違いを見せることで、
+   ラベルの説明文を増やさずに2つの入力欄の性質の違いを伝える */
+function recentLogsHTML(t){
+  const logs = Array.isArray(state.logs) ? state.logs : [];
+  const rows = logs
+    .filter(l => l.taskId === t.id && String(l.memo || '').trim())
+    .slice()
+    .sort((a,b)=> new Date(b.at) - new Date(a.at));
+  if(!rows.length) return '';
+
+  // 3000件までためられる記録を折りたたみの中まで全部レイアウトすると重いので、
+  // 開かないと見えない側にも上限を設けて最悪ケースの負荷を抑える
+  const FOLD_MAX = 50;
+  const head = rows.slice(0, 3);
+  const rest = rows.slice(3, FOLD_MAX);
+  const over = rows.length > FOLD_MAX;
+
+  const itemHTML = l => {
+    const d = new Date(l.at);
+    const valid = !isNaN(d.getTime());
+    // 壊れた時刻でもメモそのものは隠さない。日時だけ出さずに残す
+    return `
+        <div class="today-item">
+          ${valid ? `<span class="ti-time">${esc(fmtTime(d))}</span>` : ''}
+          <div class="ti-body">
+            ${valid ? `<div class="ti-date">${esc(fmtDate(d))}</div>` : ''}
+            <div class="ti-memo"${valid ? '' : ' style="margin-top:0"'}>${esc(l.memo)}</div>
+          </div>
+        </div>`;
+  };
+
   return `
     <div class="field">
-      <span class="lab">きょう かいたこと</span>
-      <div class="paper today-list">${today.slice().reverse().map(l=>`
-        <div class="today-item">
-          <span class="ti-time">${fmtTime(new Date(l.at))}</span>
-          <div class="ti-body"><div class="ti-memo" style="margin-top:0">${esc(l.memo)}</div></div>
-        </div>`).join('')}</div>
+      <span class="lab">これまでの きろく</span>
+      <div class="paper today-list">${head.map(itemHTML).join('')}</div>
+      ${rest.length ? `
+      <details class="recent-more">
+        <summary>もっと 見る</summary>
+        <div class="paper today-list">${rest.map(itemHTML).join('')}</div>
+        ${over ? `<p class="recent-over">ふるい きろくは『やったこと』で 見てね</p>` : ''}
+      </details>` : ''}
     </div>`;
 }
 
