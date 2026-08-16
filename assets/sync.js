@@ -62,6 +62,7 @@ let db = null;
 let docRef = null;
 let activeHouseId = '';
 let unsub = null;
+let receiveHouseholdSnapshot = null;
 let tombstoneUnsub = null;
 let retiredCode = '';
 /* つなぎ直してから、おうちの中身を 1回でも 受け取ったか。
@@ -388,8 +389,7 @@ function watchHousehold(fs, ref, code){
   docRef = ref;
   activeHouseId = ref.id;
   watchTombstone(fs, ref.id, code);
-  unsub = fs.onSnapshot(ref,
-    async snap => {
+  const receiveSnapshot = async snap => {
       if(docRef !== ref || snap.metadata.hasPendingWrites) return;
       setStatus(snap.metadata.fromCache ? 'offline' : 'online',
                 snap.metadata.fromCache ? 'オフライン（この端末に ためています）' : 'つながっています');
@@ -489,9 +489,31 @@ function watchHousehold(fs, ref, code){
       }
       /* 接続前に端末内へ保存されていた変更を、まず相手と合流してから送る。 */
       flushPendingSoon();
-    },
-    err => setStatus('error', 'つながりません：' + (err && err.code || err))
-  );
+  };
+  receiveHouseholdSnapshot = receiveSnapshot;
+  unsub = fs.onSnapshot(ref, receiveSnapshot,
+    err => setStatus('error', 'つながりません：' + (err && err.code || err)));
+  /* 起動直後の listener は、端末に残った Firestore キャッシュを先に返す。
+     子ども端末が通信できる場合はサーバーを一度直接読み、親端末がその後オフラインに
+     なっても、すでにクラウドへ届いた最新 state を必ず取り込む。完全にオフラインなら
+     失敗を黙って無視し、従来どおり端末内キャッシュで起動する。 */
+  refreshFromServer();
+}
+
+/* キャッシュから先に起動しても、通信できるときはサーバーの確定データを読む。
+   保護者ページの更新ボタンも同じ入口を使うので、listener の再接続待ちに
+   ならず、その場で最新の共有 state を取り込める。 */
+async function refreshFromServer(){
+  const fs = Sync._fs;
+  const ref = docRef;
+  const receive = receiveHouseholdSnapshot;
+  if(!fs || !ref || !receive || typeof fs.getDocFromServer !== 'function') return false;
+  try{
+    const snap = await fs.getDocFromServer(ref);
+    if(docRef !== ref || receiveHouseholdSnapshot !== receive) return false;
+    await receive(snap);
+    return true;
+  }catch(e){ return false; }
 }
 
 async function connect(){
@@ -652,6 +674,7 @@ function revokedForMe(devices){
 
 function disconnect(){
   if(unsub){ unsub(); unsub = null; }
+  receiveHouseholdSnapshot = null;
   if(tombstoneUnsub){ tombstoneUnsub(); tombstoneUnsub = null; }
   retiredCode = '';
   gotSnapshot = false;
@@ -815,6 +838,7 @@ const Sync = {
   refreshDevice,
   push,
   pushAll,
+  refresh: refreshFromServer,
   connect,
   disconnect,
   verifyHousehold,

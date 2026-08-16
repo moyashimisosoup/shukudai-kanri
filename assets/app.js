@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.6';
+const RELEASE_VERSION = '1.3.7';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -1322,7 +1322,8 @@ function viewWelcome(){
    丸みで やわらかく 見えるように している。
    色は currentColor なので、ボタン側の color が そのまま つかわれる。 */
 const APP_ICONS = {
-  trash:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M9.8 2.4h4.4A1.6 1.6 0 0 1 15.8 4v1.2H8.2V4a1.6 1.6 0 0 1 1.6-1.6Z"/><rect x="2.8" y="5.1" width="18.4" height="3" rx="1.5" fill="currentColor"/><path fill="currentColor" fill-rule="evenodd" d="M5.4 9.6h13.2l-.6 8.6a3.2 3.2 0 0 1-3.2 3H9.2a3.2 3.2 0 0 1-3.2-3L5.4 9.6Zm4.3 2.6a1.05 1.05 0 0 0-1.05 1.05v4.2a1.05 1.05 0 1 0 2.1 0v-4.2A1.05 1.05 0 0 0 9.7 12.2Zm4.6 0a1.05 1.05 0 0 0-1.05 1.05v4.2a1.05 1.05 0 1 0 2.1 0v-4.2a1.05 1.05 0 0 0-1.05-1.05Z"/></svg>'
+  trash:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M9.8 2.4h4.4A1.6 1.6 0 0 1 15.8 4v1.2H8.2V4a1.6 1.6 0 0 1 1.6-1.6Z"/><rect x="2.8" y="5.1" width="18.4" height="3" rx="1.5" fill="currentColor"/><path fill="currentColor" fill-rule="evenodd" d="M5.4 9.6h13.2l-.6 8.6a3.2 3.2 0 0 1-3.2 3H9.2a3.2 3.2 0 0 1-3.2-3L5.4 9.6Zm4.3 2.6a1.05 1.05 0 0 0-1.05 1.05v4.2a1.05 1.05 0 1 0 2.1 0v-4.2A1.05 1.05 0 0 0 9.7 12.2Zm4.6 0a1.05 1.05 0 0 0-1.05 1.05v4.2a1.05 1.05 0 1 0 2.1 0v-4.2a1.05 1.05 0 0 0-1.05-1.05Z"/></svg>',
+  refresh:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M20 11a8 8 0 0 0-14.4-4.8L4 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 4v4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 13a8 8 0 0 0 14.4 4.8L20 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 20v-4h-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 /* 自前のものを 先に 見る。同じ名前が codex 側に あっても こちらが 勝つ */
 function icon(name){
@@ -1349,12 +1350,27 @@ function parentSenderLabel(value){
    これが 無いと 相手の端末から また 出てくる。
    --------------------------------------------------------- */
 const MESSAGES_MAX = 3;
+/* メッセージを読んだかどうかは、この端末だけの表示状態。共有 state に入れると
+   だれか1人が見ただけで子どもの端末の印まで消えてしまう。 */
+const K_MESSAGES_SEEN = 'natsu.messages.seen.v1';
+let shownNewMessageIds = new Set();
+function seenMessageIds(){
+  try{
+    const value = JSON.parse(getLocal(K_MESSAGES_SEEN) || '[]');
+    return Array.isArray(value) ? value.filter(id=> typeof id === 'string').slice(-50) : [];
+  }catch(e){ return []; }
+}
+function rememberSeenMessages(rows){
+  const ids = new Set(seenMessageIds());
+  (rows || []).forEach(m=>{ if(m && m.id) ids.add(m.id); });
+  setLocal(K_MESSAGES_SEEN, JSON.stringify(Array.from(ids).slice(-50)));
+}
 function messages(){
   const gone = new Set((state.gone || []).map(g=> g.id));
   return (state.messages || [])
     .filter(m => m && m.id && m.text && !gone.has(m.id))
-    .sort((a,b)=> String(a.at||'').localeCompare(String(b.at||'')))
-    .slice(-MESSAGES_MAX);
+    .sort((a,b)=> String(b.at||'').localeCompare(String(a.at||'')))
+    .slice(0, MESSAGES_MAX);
 }
 function messageHeading(m){
   if(!m) return '';
@@ -1840,12 +1856,15 @@ function contentReviewText(){
 function parentMessageHTML(){
   const rows = messages();
   if(!rows.length) return '';
+  const seen = new Set(seenMessageIds());
+  rows.filter(m=> !seen.has(m.id)).forEach(m=> shownNewMessageIds.add(m.id));
+  rememberSeenMessages(rows);
   return `
   <section class="home-parent-message" aria-label="おうちの人からの メッセージ">
     <div class="paper parent-message-stack">
     ${rows.map(m=>`
-    <div class="parent-message-note">
-      <strong>${esc(messageHeading(m))}</strong>
+    <div class="parent-message-note${shownNewMessageIds.has(m.id) ? ' is-new' : ''}">
+      <strong>${shownNewMessageIds.has(m.id) ? '<span class="message-new-dot" aria-label="新しいメッセージ"></span>' : ''}${esc(messageHeading(m))}</strong>
       <p>${esc(m.text)}</p>
     </div>`).join('')}
     </div>
@@ -2742,6 +2761,8 @@ function viewParent(){
   const allDone  = s.done + so.done;
   const allTotal = s.total + so.total;
   const forecast = completionForecast(allDone, allTotal, config.startAt, now);
+  const sync = window.NatsuSync;
+  const canRefreshShared = !!(sync && sync.configured && sync.configured() && sync.getCode().length >= 8);
 
   const row = t=>{
     const p = prog(t);
@@ -2788,6 +2809,7 @@ function viewParent(){
 
   <section class="paper pstat">
     <div class="pstat-left">
+      ${canRefreshShared ? `<button class="icon-btn pstat-refresh" id="parentSyncRefresh" type="button" title="共有データを更新" aria-label="共有データを更新">${icon('refresh')}</button>` : ''}
       <span class="pstat-lab">夏休みの残り</span>
       <span class="pstat-val">${ms > 0
         ? `<span class="pstat-num">${Math.floor(ms/86400000)}</span><small class="pstat-unit">日</small><span class="pstat-num">${Math.floor(ms/3600000)%24}</span><small class="pstat-unit">時間</small>`
@@ -3120,12 +3142,15 @@ function inAppBrowserNoteHTML(){
 function messageListHTML(){
   const rows = messages();
   if(!rows.length) return '<p class="msg-empty">送信後、ここに表示されます。</p>';
+  const seen = new Set(seenMessageIds());
+  rows.filter(m=> !seen.has(m.id)).forEach(m=> shownNewMessageIds.add(m.id));
+  rememberSeenMessages(rows);
   return `
   <div class="msg-list">
     ${rows.map(m=>`
-      <div class="msg-row">
+      <div class="msg-row${shownNewMessageIds.has(m.id) ? ' is-new' : ''}">
         <div class="msg-main">
-          <span class="msg-from">${esc(messageHeading(m))}</span>
+          <span class="msg-from">${shownNewMessageIds.has(m.id) ? '<span class="message-new-dot" aria-label="新しいメッセージ"></span>' : ''}${esc(messageHeading(m))}</span>
           <span class="msg-text">${esc(m.text)}</span>
         </div>
         <button class="icon-btn del" data-delmsg="${esc(m.id)}" type="button"
@@ -3728,7 +3753,7 @@ function openBookSheet(t, p, editBookId){
   const body = `
   <p class="book-nth"><strong>${bookOrdinal(nth)}の本</strong></p>
 
-  <div class="field">
+  <div class="field book-entry-field">
     <span class="lab">本の なまえ<span class="need-mark">かならず 入れてね</span></span>
     <div class="mic-row">
       <input type="text" id="bkTitle" value="${val('title')}" placeholder="れい：あばれネコ">
@@ -3755,7 +3780,7 @@ function openBookSheet(t, p, editBookId){
     </div>
   </div>` : ''}
 
-  <div class="field">
+  <div class="field book-entry-field">
     <span class="lab">よんだ日</span>
     <input type="date" id="bkDate" value="${esc(b ? b.date : dayKey(new Date()))}">
   </div>
@@ -4048,9 +4073,11 @@ function syncWrapField(){
 }
 
 function closeSheet(){
+  /* シートを隠す前に止める。iPad のキーボード音声入力は、入力欄が見えている
+     うちに focus を外すことで確実に終了する。 */
+  stopSR();
   $('#sheetWrap').hidden = true;
   document.body.style.overflow = '';
-  stopSR();
   sheetTask = null; sheetSel = null; sheetSteps = null; sheetWrap = null;
   sheetRating = 0; sheetBookId = null;
   $('#sheetSave').textContent = 'きろくする';
@@ -4287,11 +4314,12 @@ function stopSR(){
   sr = null;
   if(active){
     active._manualStop = true;
-    /* iPad Safari は abort() だけではマイク表示が残ることがある。
-       stop() で終了を確定し、未対応の実装だけ abort() へ戻す。 */
+    /* stop() は結果の確定を待つ実装がある。見た目を黄色へ戻した時点で
+       聞き取りも終えるため、stop の直後に abort も試す。iPad Safari は
+       stop を先に呼ぶことで、abort だけでは残るマイク表示も消える。 */
     try{
       if(typeof active.stop === 'function') active.stop();
-      else if(typeof active.abort === 'function') active.abort();
+      if(typeof active.abort === 'function') active.abort();
     }catch(e){
       try{ if(typeof active.abort === 'function') active.abort(); }catch(err){}
     }
@@ -5270,6 +5298,14 @@ function bindAdultNav(){
   if(sampleKeep) sampleKeep.addEventListener('click', ()=>{
     setLocal(K_SAMPLE_PARENT, 'done');
     render({ keepScroll:true });
+  });
+  const syncRefresh = $('#parentSyncRefresh');
+  if(syncRefresh) syncRefresh.addEventListener('click', async ()=>{
+    const S = window.NatsuSync;
+    syncRefresh.disabled = true;
+    const ok = !!(S && typeof S.refresh === 'function' && await S.refresh());
+    syncRefresh.disabled = false;
+    toast(ok ? '共有データを更新しました' : '更新できませんでした。通信を確認してください');
   });
 }
 

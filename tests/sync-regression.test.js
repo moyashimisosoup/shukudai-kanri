@@ -21,6 +21,35 @@ const PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf
 const PACKAGE_LOCK = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 
+test('メッセージは両画面で新しい順に表示し、初回表示では新着印を付ける', ()=>{
+  const messagesSource = grab(APP, 'messages');
+  assert.match(messagesSource, /String\(b\.at\|\|''\)\.localeCompare\(String\(a\.at\|\|''\)\)/,
+    '新しい時刻から並べること');
+  assert.match(messagesSource, /\.slice\(0, MESSAGES_MAX\)/,
+    '新しい3件を残すこと');
+  assert.match(grab(APP, 'messageListHTML'), /message-new-dot/,
+    '保護者画面にも新着印を出すこと');
+  assert.match(grab(APP, 'parentMessageHTML'), /message-new-dot/,
+    '子ども画面にも新着印を出すこと');
+});
+
+test('共有の起動時はキャッシュだけで止まらずサーバーも確認する', ()=>{
+  const watch = grab(SYNC, 'watchHousehold');
+  assert.match(watch, /refreshFromServer\(\)/,
+    '起動時にサーバーの最新 state を読むこと');
+  const refresh = grab(SYNC, 'refreshFromServer');
+  assert.match(refresh, /getDocFromServer\(ref\)/,
+    '通信できる端末はサーバーの確定データを読むこと');
+  assert.match(refresh, /catch\(e\)\{ return false; \}/,
+    '完全オフライン時はキャッシュ起動を妨げないこと');
+});
+
+test('保護者トップから共有データを手動で更新できる', ()=>{
+  assert.match(grab(APP, 'viewParent'), /id="parentSyncRefresh"/);
+  assert.match(grab(APP, 'bindAdultNav'), /S\.refresh\(\)/);
+  assert.match(SYNC, /refresh: refreshFromServer/);
+});
+
 function grab(src, name){
   const re = new RegExp('(?:async\\s+)?function\\s+' + name + '\\s*\\(');
   const match = re.exec(src);
@@ -882,6 +911,7 @@ test('音声入力は古い終了イベントに新しい認識を消されず�
   assert.match(grab(APP, 'closeSheet'), /stopSR\(\);/, 'シートを閉じる操作でも音声入力を止める');
   assert.match(grab(APP, 'render'), /stopSR\(\);/, '別画面へ移る前にも音声入力を止める');
   assert.match(grab(APP, 'stopSR'), /active\.stop\(\)/, 'iPad Safariではstopを優先してマイクを終了する');
+  assert.match(grab(APP, 'stopSR'), /active\.abort\(\)/, '表示を戻した時点で聞き取りも中断する');
   assert.match(grab(APP, 'stopSR'), /document\.activeElement[\s\S]*editor\.blur\(\)/,
     'iPadのキーボード音声入力は入力欄のフォーカスを外して終了する');
   assert.match(APP, /visibilitychange[\s\S]{0,100}document\.hidden\)\{ stopSR\(\); return; \}/,
@@ -937,7 +967,21 @@ test('音声入力は古い終了イベントに新しい認識を消されず�
   harness.startSR(fourthBtn, target, { start:target.value.length, end:target.value.length });
   harness.stopSR();
   assert.equal(sessions[3].stopped, true, '手動終了はstopを呼び、iPadのマイクを終了する');
+  assert.equal(sessions[3].aborted, true, '手動終了はabortも呼び、聞き取りを即時中断する');
   assert.equal(harness.current(), null);
+});
+
+test('読書記録の基本入力はマイクを折り返さず、戻る前に音声入力を止める', ()=>{
+  const book = grab(APP, 'openBookSheet');
+  assert.match(book, /class="field book-entry-field"[\s\S]{0,500}mic-row/,
+    '本の名前は見出し・入力欄・マイクを同じ行に置くこと');
+  assert.match(book, /class="field book-entry-field"[\s\S]{0,220}id="bkDate"/,
+    '読んだ日は見出しと入力欄を同じ行に置くこと');
+  assert.match(STYLE, /\.mic-row > input\[type=text\][\s\S]{0,120}flex:1 1 0/,
+    '入力欄がマイクの横幅を譲ること');
+  const close = grab(APP, 'closeSheet');
+  assert.ok(close.indexOf('stopSR();') < close.indexOf("$('#sheetWrap').hidden = true"),
+    '戻る操作ではシートを隠す前にマイクを止めること');
 });
 
 /* QRで入った端末だけ デザインが 初期値の まま だった。
@@ -2318,12 +2362,12 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260815a',
+    'assets/style.css': '20260816c',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260815d',
-    'assets/sync.js': '20260813a'
+    'assets/app.js': '20260816c',
+    'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
     assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=' + version));
@@ -2345,13 +2389,13 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.6をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.6';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.6">/);
-  assert.equal(PACKAGE.version, '1.3.6');
-  assert.equal(PACKAGE_LOCK.version, '1.3.6');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.6');
-  assert.match(UPDATES, /2026年8月15日　v1\.3\.6：[\s\S]*PC表示で画面画像と重なる問題を修正/);
+test('公開版番号v1.3.7をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.7';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.7">/);
+  assert.equal(PACKAGE.version, '1.3.7');
+  assert.equal(PACKAGE_LOCK.version, '1.3.7');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.7');
+  assert.match(UPDATES, /2026年8月16日　v1\.3\.7：[\s\S]*保護者ページの更新ボタン/);
   assert.match(UPDATES, /v1\.0\.0/);
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');

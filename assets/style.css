@@ -1139,8 +1139,10 @@ input[type=date], input[type=datetime-local]{
   min-height:52px; line-height:1.2; display:block;
 }
 textarea{ min-height:88px; resize:vertical; line-height:1.6; }
-.mic-row{ display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; }
-.mic-row textarea{ flex:1; }
+.mic-row{ display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; min-width:0; }
+.mic-row textarea,
+.mic-row > input[type=text],
+.mic-row > input[type=date]{ flex:1 1 0; width:auto; min-width:0; }
 .mic{
   flex:none; width:60px; height:60px; border-radius:50%;
   border:var(--line) solid var(--ai); background:var(--himawari);
@@ -1154,6 +1156,15 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 }
 .mic-note{ font-size:15px; font-weight:700; color:var(--ai-usu); margin-top:8px; }
 .mic-permission-help{ display:block; margin-top:6px; font-size:13px; line-height:1.55; }
+/* 読書記録の基本2項目は、見出しと入力欄を同じ行に置く。
+   入力欄の中ではマイクを折り返さず、下の状態文だけを次行へ送る。 */
+.book-entry-field{
+  display:grid; grid-template-columns:minmax(6.5em,auto) minmax(0,1fr);
+  gap:8px 12px; align-items:start;
+}
+.book-entry-field > .lab{ margin-top:13px; }
+.book-entry-field > .mic-row{ min-width:0; }
+.book-entry-field > .need-msg{ grid-column:2; margin-top:0; }
 
 /* まいにちアプリの入力 */
 .tally{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
@@ -1544,6 +1555,12 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   color:var(--ai-usu);
   font-size:14px;
 }
+.message-new-dot{
+  display:inline-block; width:9px; height:9px; margin-right:5px;
+  border-radius:50%; background:var(--suika); vertical-align:1px;
+  box-shadow:0 0 0 2px var(--kami);
+}
+.parent-message-note.is-new{ background:color-mix(in srgb, var(--suika-usu) 55%, transparent); }
 .parent-message-note p{
   font-size:17px;
   font-weight:900;
@@ -1581,6 +1598,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   white-space:pre-wrap; overflow-wrap:anywhere;
 }
 .msg-row .icon-btn{ flex:none; }
+.msg-row.is-new{ border-color:var(--suika); }
 
 .parent-message-form{ padding:14px 16px; }
 .parent-message-fields{
@@ -1678,9 +1696,18 @@ body.no-tabbar{ padding-bottom:0; }
    数字を ならべるより、子ども画面と 同じ バーで 見せた ほうが くらべやすい */
 .pstat{ display:grid; gap:14px; }
 .pstat-left{
+  position:relative;
   padding:12px 14px; background:var(--surface-soft);
   border:2px solid var(--hougan); border-radius:var(--r-s); text-align:center;
 }
+.pstat-refresh{
+  position:absolute; top:6px; right:6px;
+  width:36px; height:36px; padding:5px;
+  color:var(--ai-usu); border-color:transparent; box-shadow:none;
+}
+.pstat-refresh .codex-icon{ width:22px; height:22px; }
+.pstat-refresh:disabled{ opacity:.55; cursor:wait; }
+@media (hover:hover){ .pstat-refresh:hover{ background:var(--kami); border-color:var(--hougan); } }
 .pstat-forecast{
   display:inline-flex; align-items:center; justify-content:center;
   max-width:100%; margin-top:8px; padding:3px 10px;
