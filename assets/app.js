@@ -7016,7 +7016,6 @@ window.addEventListener('appinstalled', ()=>{
    利用者に更新を選ばせると、共有端末どうしで判断がずれてしまうため、
    問いかけずに自動で読み直す。読み直せない事情があるときだけ、
    保護者ページに事実を一言そえるにとどめる。 */
-const APP_BOOT_AT = Date.now();
 function parseVersionFromIndexHTML(html){
   /* " と ' は " と ' のこと。生の引用符を並べて書かないのは好みではなく、
      テスト側の「ソースを関数単位で切り出す」簡易ツールが、文字クラス中の引用符を
@@ -7048,8 +7047,11 @@ function applyVersionCheck(remote){
   }
   adoptNewVersionIfSafe(remote);
 }
+/* 起動からの 経過時間で 止めては いけない。確認は 起動した 直後に 走るので、
+   時間で 縛ると いちばん 大事な 継ぎ目（開いた とき）で 一度も 取り込めず、
+   毎日 開き直す 使い方では 永久に 古いままに なる。
+   読み直しの 連鎖は、下の「同じ版へは 二度 読み直さない」記録で 止まる。 */
 function adoptNewVersionIfSafe(remote){
-  if(Date.now() - APP_BOOT_AT < 60000) return; // 読み直し直後の連鎖を防ぐ
   const wrap = $('#sheetWrap');
   if(wrap && !wrap.hidden) return; // 記録シートを開いている間は割り込まない
   if(tab === 'welcome') return; // 初期設定の最中は割り込まない

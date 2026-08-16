@@ -3073,11 +3073,10 @@ function makeAdoptHarness(overrides){
     locals: {},
     sheetWrapHidden: true,
     hasSheetWrap: true,
-    tab: 'home',
-    bootAgoMs: 120000 // 既定では起動から60秒以上たっていることにする
+    tab: 'home'
   }, overrides || {});
   const fn = new Function('location', 'getLocal', 'setLocal', '$', 'tab', 'cacheBustURL',
-    'APP_BOOT_AT', 'K_UPDATE_RELOADED_FOR', `
+    'K_UPDATE_RELOADED_FOR', `
     ${grab(APP, 'adoptNewVersionIfSafe')}
     return adoptNewVersionIfSafe;
   `)(
@@ -3090,7 +3089,6 @@ function makeAdoptHarness(overrides){
     (sel)=> (sel === '#sheetWrap' && state.hasSheetWrap) ? { hidden: state.sheetWrapHidden } : null,
     state.tab,
     appFns.cacheBustURL,
-    Date.now() - state.bootAgoMs,
     'natsu.update.reloaded.v1'
   );
   return { adopt: fn, state };
@@ -3119,10 +3117,16 @@ test('初期設定（welcome）を出している間は読み直さない', ()=>
   assert.equal(state.hrefReplace, null);
 });
 
-test('起動から60秒以内は、連鎖を防ぐため読み直さない', ()=>{
-  const { adopt, state } = makeAdoptHarness({ bootAgoMs: 1000 });
+/* 確認は起動した直後に走る。経過時間で止めると、いちばん大事な継ぎ目
+   （アプリを開いたとき）で一度も取り込めず、毎日開き直す使い方では
+   永久に古いままになる。連鎖は「同じ版へは二度読み直さない」記録で止める。 */
+test('起動した直後でも、安全なら新しい版を取り込む', ()=>{
+  const { adopt, state } = makeAdoptHarness();
   adopt('9.9.9');
-  assert.equal(state.hrefReplace, null);
+  assert.match(String(state.hrefReplace), /r=\d+/,
+    '開いた直後の継ぎ目でこそ静かに読み直すこと');
+  assert.doesNotMatch(grab(APP, 'adoptNewVersionIfSafe'), /APP_BOOT_AT/,
+    '起動からの経過時間で取り込みを止めないこと');
 });
 
 test('同じ版へは二度読み直さない歯止めがある', ()=>{
