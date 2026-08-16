@@ -815,6 +815,15 @@ button{ font:inherit; color:inherit; }
 .set-checks legend{ margin-bottom:6px; }
 .set-checks label{ display:inline-flex; align-items:center; gap:6px; margin:0 16px 8px 0; }
 .set-help{ color:var(--ai-usu); font-size:14px; font-weight:700; line-height:1.65; }
+/* 変えた 欄にだけ 出す「変更しました」「元に戻す」。見出しの太字より
+   ひかえめに、けれど 押す方は ほかの ボタンと 同じ 44px の 当たり判定を 確保する */
+.set-changed{ display:inline-block; margin-inline-start:6px; color:var(--ai-usu); font-size:12px; font-weight:700; font-style:normal; vertical-align:middle; }
+.set-revert{
+  display:inline-flex; align-items:center; margin-inline-start:6px; min-height:44px; padding:0 2px;
+  appearance:none; background:none; border:0; font:inherit; color:var(--asagao); font-size:13px; font-weight:900;
+  text-decoration:underline; text-underline-offset:3px; cursor:pointer; vertical-align:middle;
+}
+.set-revert:hover{ text-decoration-thickness:2px; }
 .set-task-actions{ display:flex; align-items:center; gap:8px; padding-top:16px; }
 .set-task-actions .btn:last-child{ margin-inline-start:auto; }
 .set-empty{ padding:22px 16px; color:var(--ai-usu); font-size:15px; font-weight:700; }

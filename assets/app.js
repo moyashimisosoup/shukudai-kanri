@@ -146,6 +146,59 @@ function taskKind(t){ return t && t.group === 'daily' ? 'daily' : (isBook(t) ? '
    またいで動かすと、子ども画面での順番が分かりにくくなるため分けておく。 */
 function taskOrderBucket(t){ return t && (t.group === 'daily' ? 'daily' : (isBook(t) ? 'book' : t.group)); }
 function dailyUnitPreset(unit){ return DAILY_UNIT_PRESETS.includes(unit) ? unit : 'custom'; }
+/* 「宿題を決める」の 画面の欄 と、その欄が 書きかえる 設定のキーの 対応。
+   recordStyle は bookFields も 連動して 決めるので、戻すときは まとめて 戻す。
+   targetUnitPreset / targetUnitCustom は どちらも targetUnit を 書く、
+   一つの値の 見せ方ちがい（同時には 出ない） */
+const TASK_FIELD_KEYS = {
+  name:['name'], group:['group'], type:['type'], total:['total'], unit:['unit'],
+  numbered:['numbered'], steps:['steps'], wrapUp:['wrapUp'], wrapBy:['wrapBy'],
+  questions:['questions'], memoLabel:['memoLabel'], freeHint:['freeHint'], target:['target'],
+  targetUnitPreset:['targetUnit'], targetUnitCustom:['targetUnit'],
+  recordStyle:['recordStyle','bookFields'], bookFields:['bookFields']
+};
+/* いま その課題で 画面に出ている欄の 名前一覧。taskEditorRow の
+   分岐と そろえてある。「何か所 変えたか」を 数えるときに使う
+   ―― targetUnitPreset と targetUnitCustom のように 同じキーを持つ欄が
+   あるので、実際に 出ている 欄だけを 数えないと 二重に数えてしまう */
+function taskEditorFieldNames(t){
+  const kind = taskKind(t);
+  const names = ['name'];
+  if(kind === 'book'){
+    names.push('group','total','bookFields');
+  }else if(kind === 'daily'){
+    names.push('recordStyle');
+    if(!isFree(t)){
+      names.push('target', dailyUnitPreset(t.targetUnit||'') === 'custom' ? 'targetUnitCustom' : 'targetUnitPreset');
+    }else{
+      names.push('freeHint');
+    }
+    names.push('memoLabel');
+  }else{
+    names.push('group','type');
+    if(t.type === 'count') names.push('total','unit','numbered');
+    else names.push('steps');
+    names.push('wrapUp');
+    if(t.wrapUp) names.push('wrapBy');
+    names.push('questions','memoLabel');
+  }
+  return names;
+}
+/* base（変える前の 控え）と 今の t を、名前の欄1つぶんずつ 見くらべる */
+function changedTaskFieldNames(t, base){
+  if(!base) return [];
+  return taskEditorFieldNames(t).filter(name=>
+    TASK_FIELD_KEYS[name].some(k => JSON.stringify(base[k]) !== JSON.stringify(t[k]))
+  );
+}
+/* 行を 閉じた ときが「ひと区切り」。基準が この課題の ものなら、
+   変えた 欄の 数を まとめて 知らせ、基準を 手放す（＝ここから 先が
+   次の 基準）。触っていなければ 何も出さない */
+function noticeTaskRowClosed(t){
+  if(!configTaskBase || configTaskBase.id !== t.id) return;
+  const n = changedTaskFieldNames(t, configTaskBase.snap).length;
+  if(n > 0){ toast(n + 'か所 変更しました'); configTaskBase = null; }
+}
 function applyTheme(theme){
   const id = THEME_IDS.includes(theme) ? theme : 'notebook';
   document.documentElement.dataset.theme = id;
@@ -168,6 +221,10 @@ let funIdx = 0, funOpen = false;
 let calMonth = null;
 let calDay = null;
 let openConfigTaskId = null;
+/* 「宿題を決める」で いま 変えている 課題の 基準（もどり先）。
+   最初の 変更の 直前の スナップショットを 1課題ぶんだけ 持つ。
+   別の課題を いじったら、そちらに 置きかわる（1課題ぶんで 足りる） */
+let configTaskBase = null;
 /* index.html を確認して見つけた新しい版。取り込みは静かに行うため、
    保護者の「アプリ情報」に事実として一言そえる以外には使わない。 */
 let newVersionAvailable = false;
@@ -4859,16 +4916,25 @@ function taskEditorRow(t, i){
   const kind = taskKind(t);
   const unitMode = dailyUnitPreset(t.targetUnit||'');
   const bf = bookFields(t);
+  /* この課題に 基準（変える前の 控え）が あれば、欄ごとに 見くらべて
+     「変更しました」と「元に戻す」を 出す。基準が 無い＝まだ 何も
+     変えていない課題なら、何も 比べず 何も 出さない（平常時は 何も足さない） */
+  const base = (configTaskBase && configTaskBase.id === t.id) ? configTaskBase.snap : null;
+  const mark = name => {
+    if(!base) return '';
+    const changed = TASK_FIELD_KEYS[name].some(k => JSON.stringify(base[k]) !== JSON.stringify(t[k]));
+    return changed ? ` <em class="set-changed">変更しました</em><button class="set-revert" data-revert="${name}" type="button">元に戻す</button>` : '';
+  };
   const groupField = kind === 'daily' ? '' : `
-    <label class="set-field"><span>表示する場所</span><select data-f="group">
+    <label class="set-field"><span>表示する場所${mark('group')}</span><select data-f="group">
       ${opt('must',t.group,'必ず行う')}${opt('option',t.group,'次に行う')}
     </select></label>`;
 
   let fields = '';
   if(kind === 'book'){
     fields = `${groupField}
-      <label class="set-field"><span>目標の冊数</span><span class="set-inline"><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"><b>冊</b></span></label>
-      <fieldset class="set-field set-field--wide set-checks"><legend>本ごとに残す項目</legend>
+      <label class="set-field"><span>目標の冊数${mark('total')}</span><span class="set-inline"><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"><b>冊</b></span></label>
+      <fieldset class="set-field set-field--wide set-checks"><legend>本ごとに残す項目${mark('bookFields')}</legend>
         <label><input type="checkbox" data-bf="author"${bf.author?' checked':''}> 作者</label>
         <label><input type="checkbox" data-bf="publisher"${bf.publisher?' checked':''}> 出版社</label>
         <label><input type="checkbox" data-bf="rating"${bf.rating?' checked':''}> おすすめ度</label>
@@ -4876,38 +4942,38 @@ function taskEditorRow(t, i){
       <p class="set-help set-field--wide">本の名前・読んだ日・一言を1冊ずつ残します。</p>`;
   }else if(kind === 'daily'){
     fields = `
-      <label class="set-field"><span>記録方法</span><select data-f="recordStyle">
+      <label class="set-field"><span>記録方法${mark('recordStyle')}</span><select data-f="recordStyle">
         ${opt('',t.recordStyle||'','数で記録')}${opt('free',t.recordStyle||'','文章で記録')}
       </select></label>
       ${!isFree(t) ? `
-        <label class="set-field"><span>1日の目標</span><input type="number" data-f="target" min="1" max="999" value="${t.target|0}"></label>
-        <label class="set-field"><span>単位</span><select data-f="targetUnitPreset">
+        <label class="set-field"><span>1日の目標${mark('target')}</span><input type="number" data-f="target" min="1" max="999" value="${t.target|0}"></label>
+        <label class="set-field"><span>単位${mark('targetUnitPreset')}</span><select data-f="targetUnitPreset">
           ${DAILY_UNIT_PRESETS.map(u=>opt(u,unitMode,u)).join('')}${opt('custom',unitMode,'そのほか（自由）')}
         </select></label>
-        ${unitMode==='custom' ? `<label class="set-field"><span>単位を入力</span><input type="text" data-f="targetUnitCustom" maxlength="8" value="${esc(t.targetUnit||'')}"></label>` : ''}
+        ${unitMode==='custom' ? `<label class="set-field"><span>単位を入力${mark('targetUnitCustom')}</span><input type="text" data-f="targetUnitCustom" maxlength="8" value="${esc(t.targetUnit||'')}"></label>` : ''}
       ` : `
-        <label class="set-field set-field--wide"><span>子どもへの呼びかけ</span>
+        <label class="set-field set-field--wide"><span>子どもへの呼びかけ${mark('freeHint')}</span>
           <input type="text" data-f="freeHint" value="${esc(t.freeHint||'')}" placeholder="${esc(FREE_HINT_DEFAULT)}"></label>`}
-      <label class="set-field set-field--wide"><span>${isFree(t)?'見出し':'メモ欄の見出し'}</span>
+      <label class="set-field set-field--wide"><span>${isFree(t)?'見出し':'メモ欄の見出し'}${mark('memoLabel')}</span>
         <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを書く"></label>`;
   }else{
     fields = `${groupField}
-      <label class="set-field"><span>進め方</span><select data-f="type">
+      <label class="set-field"><span>進め方${mark('type')}</span><select data-f="type">
         ${opt('count',t.type,'回数・ページで進める')}${opt('step',t.type,'段階をクリア')}
       </select></label>
       ${t.type==='count' ? `
-        <label class="set-field"><span>合計</span><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
-        <label class="set-field"><span>単位</span><input type="text" data-f="unit" maxlength="8" value="${esc(t.unit||'')}"></label>
-        <label class="set-field set-check"><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> 次の番号を①②で表示</label>` : `
-        <label class="set-field set-field--wide"><span>段階（1行に1つ）</span>
+        <label class="set-field"><span>合計${mark('total')}</span><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
+        <label class="set-field"><span>単位${mark('unit')}</span><input type="text" data-f="unit" maxlength="8" value="${esc(t.unit||'')}"></label>
+        <label class="set-field set-check"><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> 次の番号を①②で表示${mark('numbered')}</label>` : `
+        <label class="set-field set-field--wide"><span>段階（1行に1つ）${mark('steps')}</span>
           <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea></label>`}
-      <label class="set-field set-field--wide set-check"><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> 「マルつけ・なおし」の項目を表示</label>
-      ${t.wrapUp ? `<label class="set-field"><span>マルつけするのは</span><select data-f="wrapBy">
+      <label class="set-field set-field--wide set-check"><input type="checkbox" data-f="wrapUp"${t.wrapUp?' checked':''}> 「マルつけ・なおし」の項目を表示${mark('wrapUp')}</label>
+      ${t.wrapUp ? `<label class="set-field"><span>マルつけするのは${mark('wrapBy')}</span><select data-f="wrapBy">
         ${opt('adult',wrapMarkerBy(t),'おとな')}${opt('child',wrapMarkerBy(t),'こども')}
       </select></label>` : ''}
-      <label class="set-field set-field--wide"><span>記録するときの質問（任意）</span>
+      <label class="set-field set-field--wide"><span>記録するときの質問（任意）${mark('questions')}</span>
         <textarea data-f="questions" rows="3" placeholder="葉っぱの形や色は？">${esc((t.questions||[]).join('\n'))}</textarea></label>
-      <label class="set-field set-field--wide"><span>メモ欄の見出し</span>
+      <label class="set-field set-field--wide"><span>メモ欄の見出し${mark('memoLabel')}</span>
         <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを書く"></label>`;
   }
 
@@ -4920,7 +4986,7 @@ function taskEditorRow(t, i){
         <button class="set-task-move-btn" data-move="1" type="button" aria-label="${esc(t.name)}を下へ移動">▼</button>
       </span></summary>
     <div class="set-task-body">
-      <label class="set-field set-field--wide"><span>項目の名前</span><input type="text" data-f="name" maxlength="60" value="${esc(t.name)}"></label>
+      <label class="set-field set-field--wide"><span>項目の名前${mark('name')}</span><input type="text" data-f="name" maxlength="60" value="${esc(t.name)}"></label>
       <div class="set-grid">${fields}</div>
       <div class="set-task-actions">
         <button class="btn btn-sm btn-danger btn-icon-text" data-del="1" type="button" aria-label="${esc(t.name)}を削除">${icon('trash')}<span>削除</span></button>
@@ -6046,12 +6112,21 @@ function bindConfig(){
     if(!row) return;
     const t = config.tasks[+row.dataset.i]; if(!t) return;
     if(row.open) openConfigTaskId = t.id;
-    else if(openConfigTaskId === t.id) openConfigTaskId = null;
+    else{
+      if(openConfigTaskId === t.id) openConfigTaskId = null;
+      noticeTaskRowClosed(t);
+    }
   }, true);
 
   ed.addEventListener('change', e=>{
     const row = e.target.closest('.set-task'); if(!row) return;
     const t = config.tasks[+row.dataset.i]; if(!t) return;
+
+    /* この課題の 基準が まだ 無ければ、変える 直前の 姿を ここで 控える。
+       open った 瞬間（toggle）に 控えると、render() が <details open> を
+       属性で 復元しても toggle は 発火しない ぶん 取りこぼす。最初の
+       変更の 直前に 控えるのが 確実で、利用者の 思う「元」とも 合う */
+    if(!configTaskBase || configTaskBase.id !== t.id) configTaskBase = { id: t.id, snap: deepCopy(t) };
 
     const bf = e.target.dataset.bf;
     if(bf){
@@ -6135,6 +6210,24 @@ function bindConfig(){
         openConfigTaskId = null;
         config.tasks.splice(i,1); saveCfg(); render({ keepScroll:true });
       }
+      return;
+    }
+    const rv = e.target.closest('[data-revert]');
+    if(rv){
+      const t = config.tasks[i];
+      /* 基準が この課題の ものでなければ（すでに 閉じて 手放した あとなど）
+         押しても 何も 起きない。ボタンは 基準が ある間しか 出ないので、
+         ふつうは 必ず 一致する */
+      if(configTaskBase && configTaskBase.id === t.id){
+        const snap = configTaskBase.snap;
+        TASK_FIELD_KEYS[rv.dataset.revert].forEach(k=>{
+          if(Object.prototype.hasOwnProperty.call(snap, k)) t[k] = deepCopy(snap[k]);
+          else delete t[k];
+        });
+        openConfigTaskId = t.id;
+        saveCfg(); render({ keepScroll:true });
+      }
+      return;
     }
   });
   }

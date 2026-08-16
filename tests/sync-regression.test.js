@@ -246,6 +246,31 @@ function grab(src, name){
   throw new Error('閉じ括弧が見つかりません: ' + name);
 }
 
+/* grab は function 用。トップレベルの const 宣言（オブジェクト・配列・文字列）を
+   そのまま切り出すのに使う。手で値を写すと 本物の設定（TASK_FIELD_KEYS など）と
+   ずれた ままテストが 通ってしまうため、必ず ソースから 取ること */
+function grabConst(src, name){
+  const re = new RegExp('const\\s+' + name + '\\s*=\\s*');
+  const m = re.exec(src);
+  if(!m) throw new Error('定数が見つかりません: ' + name);
+  const start = m.index;
+  let i = m.index + m[0].length, depth = 0, quote = '', escape = false;
+  for(; i<src.length; i++){
+    const ch = src[i];
+    if(quote){
+      if(escape){ escape = false; continue; }
+      if(ch === '\\'){ escape = true; continue; }
+      if(ch === quote) quote = '';
+      continue;
+    }
+    if(ch === "'" || ch === '"' || ch === '`'){ quote = ch; continue; }
+    if(ch === '{' || ch === '[') depth++;
+    if(ch === '}' || ch === ']') depth--;
+    if(ch === ';' && depth === 0){ i++; break; }
+  }
+  return src.slice(start, i);
+}
+
 const APP_NAMES = [
   'emptyState', 'normalizeState', 'ms', 'deepCopy', 'mergeById',
   'pickStamped', 'mergeProgress', 'mergeState', 'resetState',
@@ -3219,4 +3244,191 @@ test('子ども画面には、新しい版の知らせを一切出さない', ()
     assert.doesNotMatch(src, /newVersionAvailable/, name + ' に更新の知らせを混ぜないこと');
     assert.doesNotMatch(src, /あたらしい版/, name + ' に更新の知らせを混ぜないこと');
   }
+});
+
+/* ---------------------------------------------------------
+   「宿題を決める」編集画面の 変更の手ごたえ・取り消し
+
+   .set-task の 各欄を 変えたときだけ「変更しました」と「元に戻す」を
+   出す。平常時（何も変えていない）画面には 何も足さない。
+   --------------------------------------------------------- */
+function makeTaskEditorRowHarness(){
+  // esc() は正規表現リテラル /'/g の中に クォートを1つだけ持つため、
+  // grab() の 素朴な 引用符あつかいでは 閉じ位置を 見失う。中身は
+  // ただの HTML エスケープなので、ここだけ 手で 同じものを 用意する
+  const esc = `function esc(s){
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }`;
+  return new Function('configTaskBase', 'openConfigTaskId', `
+    ${grabConst(APP, 'APP_ICONS')}
+    ${grab(APP, 'icon')}
+    ${esc}
+    ${grabConst(APP, 'ADULT_UNIT')}
+    ${grab(APP, 'unitAdult')}
+    ${grab(APP, 'isBook')}
+    ${grab(APP, 'isFree')}
+    ${grabConst(APP, 'FREE_HINT_DEFAULT')}
+    ${grab(APP, 'bookFields')}
+    ${grab(APP, 'taskKind')}
+    ${grabConst(APP, 'DAILY_UNIT_PRESETS')}
+    ${grab(APP, 'dailyUnitPreset')}
+    ${grabConst(APP, 'TASK_FIELD_KEYS')}
+    ${grab(APP, 'wrapMarkerBy')}
+    ${grab(APP, 'taskSummary')}
+    ${grab(APP, 'taskEditorRow')}
+    return taskEditorRow;
+  `);
+}
+
+test('変更していない欄には「元に戻す」を出さず、変更した欄にだけ出す', ()=>{
+  const base = {
+    id:'t1', group:'must', type:'count', name:'かん字れんしゅう',
+    total:10, unit:'ばん', numbered:true, wrapUp:false, memoLabel:'', questions:[]
+  };
+  const changed = Object.assign({}, base, { total:20 });
+  const taskEditorRow = makeTaskEditorRowHarness()({ id:'t1', snap:base }, 't1');
+  const html = taskEditorRow(changed, 0);
+
+  assert.match(html, /合計\s*<em class="set-changed">変更しました<\/em><button class="set-revert" data-revert="total" type="button">元に戻す<\/button>/,
+    '変えた「合計」欄には出すこと');
+  assert.equal((html.match(/data-revert="/g) || []).length, 1,
+    '変えていない欄には出さないので、ボタンは1つだけのこと');
+  assert.doesNotMatch(html, /data-revert="name"/, '変えていない「項目の名前」には出さないこと');
+  assert.doesNotMatch(html, /data-revert="unit"/, '変えていない「単位」には出さないこと');
+  assert.doesNotMatch(html, /data-revert="numbered"/, '変えていない「番号」には出さないこと');
+});
+
+test('基準（configTaskBase）が無い課題には、何も変えていなくても印を出さない', ()=>{
+  const t = { id:'t1', group:'must', type:'count', name:'かん字れんしゅう', total:10, unit:'ばん' };
+  const taskEditorRow = makeTaskEditorRowHarness()(null, null);
+  const html = taskEditorRow(t, 0);
+  assert.doesNotMatch(html, /set-changed/, '基準が無ければ 比べようが無いので 何も出さないこと');
+  assert.doesNotMatch(html, /data-revert=/);
+});
+
+test('本の課題では、著者などのチェックが変わると凡例に1つだけ印を出す', ()=>{
+  const base = { id:'b1', group:'must', type:'count', recordStyle:'book', name:'どくしょ', total:5, bookFields:{ author:false, publisher:false, rating:true } };
+  const changed = Object.assign({}, base, { bookFields:{ author:true, publisher:false, rating:true } });
+  const taskEditorRow = makeTaskEditorRowHarness()({ id:'b1', snap:base }, 'b1');
+  const html = taskEditorRow(changed, 0);
+  assert.match(html, /本ごとに残す項目\s*<em class="set-changed">/, '凡例に1つ出すこと');
+  assert.equal((html.match(/data-revert="bookFields"/g) || []).length, 1,
+    'チェックは3つあっても、まとめて1つの印にすること');
+});
+
+/* recordStyle を変えると bookFields も連動して決まる欄なので、戻すときも
+   まとめて戻す。中途半端な状態（片方だけ戻る）を 残さないため。
+   click 委譲の中の 生の処理を そのまま 取り出して 動かし、本物のコードで
+   確かめる（書き写すと 実装とずれたまま テストが 通ってしまうため） */
+test('recordStyleを元に戻すとbookFieldsもまとめて元に戻る', ()=>{
+  const bind = grab(APP, 'bindConfig');
+  const startMarker = 'TASK_FIELD_KEYS[rv.dataset.revert].forEach(k=>{';
+  const start = bind.indexOf(startMarker);
+  assert.ok(start >= 0, '取り消しの復元処理が見つかること');
+  const end = bind.indexOf('});', start) + 3;
+  const restoreSnippet = bind.slice(start, end);
+
+  const taskFieldKeysFn = new Function(`${grabConst(APP, 'TASK_FIELD_KEYS')} return TASK_FIELD_KEYS;`);
+  const TASK_FIELD_KEYS = taskFieldKeysFn();
+  assert.deepEqual(TASK_FIELD_KEYS.recordStyle, ['recordStyle', 'bookFields'],
+    'recordStyle 欄は recordStyle と bookFields の両方を持つこと');
+
+  const deepCopyFn = new Function(`${grab(APP, 'deepCopy')} return deepCopy;`)();
+  const restore = new Function('TASK_FIELD_KEYS', 'rv', 't', 'snap', 'deepCopy', restoreSnippet);
+
+  // 「文章で記録」に変えたあと（recordStyle・bookFields とも 元と ちがう）に、元に戻す
+  const snap = { id:'d1', target:1, targetUnit:'かい', memoLabel:'' }; // recordStyle も bookFields も 持たない
+  const t = { id:'d1', recordStyle:'free', target:1, targetUnit:'かい', memoLabel:'きょうは なにを した？', bookFields:{ author:true, publisher:false, rating:true } };
+  restore(TASK_FIELD_KEYS, { dataset:{ revert:'recordStyle' } }, t, snap, deepCopyFn);
+
+  assert.equal('recordStyle' in t, false, 'recordStyle を 持たない状態に 戻ること');
+  assert.equal('bookFields' in t, false, '連動していた bookFields も まとめて 戻ること');
+});
+
+test('基準は最初の変更の直前に控え、行を開いた（toggle）ときには控えない', ()=>{
+  const bind = grab(APP, 'bindConfig');
+  const toggleHandler = bind.slice(bind.indexOf("addEventListener('toggle'"), bind.indexOf("}, true);") + 9);
+  assert.doesNotMatch(toggleHandler, /configTaskBase\s*=/,
+    'toggle では 基準を 控えないこと（render() の open 復元では 発火しないため 取りこぼす）');
+
+  const changeHandler = bind.slice(bind.indexOf("addEventListener('change'"), bind.indexOf("ed.addEventListener('click'"));
+  assert.match(changeHandler, /if\(!configTaskBase \|\| configTaskBase\.id !== t\.id\) configTaskBase = \{ id: t\.id, snap: deepCopy\(t\) \};/,
+    'change の中で 基準を 控えること（deepCopy を使うこと）');
+  // 控える行が、値を書きかえる どの分岐よりも 先に あること
+  const captureIdx = changeHandler.indexOf('configTaskBase = { id: t.id, snap: deepCopy(t) }');
+  const firstWriteIdx = changeHandler.indexOf('t.bookFields = Object.assign');
+  assert.ok(captureIdx >= 0 && firstWriteIdx > captureIdx,
+    '変更を適用する前に 控えること（あとに 控えると 変えたあとの姿を 控えてしまう）');
+});
+
+test('行を閉じたときに変えた箇所の数を知らせ、変更が無ければ何も出さない', ()=>{
+  function makeNoticeHarness(onToast){
+    return new Function('toast', `
+      let configTaskBase = null;
+      ${grab(APP, 'isBook')}
+      ${grab(APP, 'isFree')}
+      ${grab(APP, 'taskKind')}
+      ${grabConst(APP, 'DAILY_UNIT_PRESETS')}
+      ${grab(APP, 'dailyUnitPreset')}
+      ${grabConst(APP, 'TASK_FIELD_KEYS')}
+      ${grab(APP, 'taskEditorFieldNames')}
+      ${grab(APP, 'changedTaskFieldNames')}
+      ${grab(APP, 'noticeTaskRowClosed')}
+      return function(base, t){
+        configTaskBase = base;
+        noticeTaskRowClosed(t);
+        return configTaskBase;
+      };
+    `)(onToast);
+  }
+
+  // 1) 合計だけ 変えて 閉じる → 1か所
+  {
+    const calls = [];
+    const run = makeNoticeHarness(msg=>calls.push(msg));
+    const base = { id:'t1', group:'must', type:'count', total:10, unit:'ばん', wrapUp:false, name:'x', memoLabel:'', questions:[] };
+    const t = Object.assign({}, base, { total:20 });
+    const remain = run({ id:'t1', snap:base }, t);
+    assert.deepEqual(calls, ['1か所 変更しました']);
+    assert.equal(remain, null, '知らせたあとは 基準を 手放すこと');
+  }
+
+  // 2) recordStyle と bookFields が 両方ちがっても 1か所
+  {
+    const calls = [];
+    const run = makeNoticeHarness(msg=>calls.push(msg));
+    const base = { id:'d1', group:'daily', type:'daily', recordStyle:'', target:1, targetUnit:'かい', memoLabel:'' };
+    const t = Object.assign({}, base, { recordStyle:'free', bookFields:{ author:true } });
+    const remain = run({ id:'d1', snap:base }, t);
+    assert.deepEqual(calls, ['1か所 変更しました'],
+      'recordStyle と bookFields が両方ちがっても、画面の欄としては1か所と数えること');
+    assert.equal(remain, null);
+  }
+
+  // 3) 何も変えずに 閉じる → 何も出さない、基準もそのまま
+  {
+    const calls = [];
+    const run = makeNoticeHarness(msg=>calls.push(msg));
+    const base = { id:'t1', group:'must', type:'count', total:10, unit:'ばん', wrapUp:false, name:'x', memoLabel:'', questions:[] };
+    const t = Object.assign({}, base);
+    const remain = run({ id:'t1', snap:base }, t);
+    assert.deepEqual(calls, [], '変更が無ければ 知らせないこと');
+    assert.notEqual(remain, null, '変更が無ければ 基準は 手放さなくてよいこと');
+  }
+});
+
+test('取り消しの仕組みは確認ダイアログを足さない', ()=>{
+  assert.doesNotMatch(grab(APP, 'taskEditorRow'), /confirm\(/);
+  assert.doesNotMatch(grab(APP, 'noticeTaskRowClosed'), /confirm\(/);
+  const bind = grab(APP, 'bindConfig');
+  const revertBlock = bind.slice(bind.indexOf('[data-revert]'), bind.indexOf('function addNormalTask'));
+  assert.doesNotMatch(revertBlock, /confirm\(/,
+    '取り消しは事実を言い切るだけにし、確認は挟まないこと');
+});
+
+test('「元に戻す」ボタンは44pxのタップ領域を持つ', ()=>{
+  assert.match(STYLE, /\.set-revert\{[\s\S]{0,220}min-height:44px/,
+    'ほかの押せるボタンと同じ44pxの当たり判定を確保すること');
 });
