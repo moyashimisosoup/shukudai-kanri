@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.13';
+const RELEASE_VERSION = '1.3.14';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -3694,12 +3694,39 @@ function showSheet(){
   document.body.classList.add('sheet-open');
   document.body.style.overflow = 'hidden';
 }
+/* v1.3.11 までは任意質問の答えを専用欄へ残さず、
+   「・質問\n　→ 答え」という形で通常の記録本文へ混ぜていた。
+   その時代に「きろくする」を押した回答は、最新の記録から読み直して
+   入力欄へ出す。まだ専用欄へは書き戻さず、本人が確認して保存したときだけ
+   新しい形式へ移すため、昔の記録本文を勝手に変えない。 */
+function legacyQuestionAnswers(t){
+  const answers = [];
+  const logs = (state.logs || []).filter(l=>l && l.taskId === t.id && l.memo)
+    .slice().sort((a,b)=>String(b.at || '').localeCompare(String(a.at || '')));
+  for(const log of logs){
+    const memo = String(log.memo || '');
+    (t.questions || []).forEach((q, i)=>{
+      if(answers[i]) return;
+      const marker = '・' + q + '\n　→ ';
+      const start = memo.indexOf(marker);
+      if(start < 0) return;
+      const from = start + marker.length;
+      const next = memo.indexOf('\n・', from);
+      const value = memo.slice(from, next < 0 ? memo.length : next).trim();
+      if(value) answers[i] = value;
+    });
+    if(answers.length >= (t.questions || []).length) break;
+  }
+  return answers;
+}
 function questionAnswerRow(t){
   const shared = state.questionAnswers && state.questionAnswers[t.id];
   let local = null;
   try{ local = JSON.parse(getLocal(K_QUESTION_ANSWERS) || '{}')[t.id]; }catch(e){}
   const pick = !shared || (local && ms(local.at) > ms(shared.at)) ? local : shared;
-  return pick && Array.isArray(pick.answers) ? pick : { answers:[], at:0 };
+  return pick && Array.isArray(pick.answers)
+    ? pick
+    : { answers:legacyQuestionAnswers(t), at:0 };
 }
 function saveQuestionAnswerRow(t, answers){
   const row = { answers, at:Date.now() };

@@ -103,6 +103,15 @@ test('任意質問は回答ごとに保存・再表示し、シート外では�
     '長い記録はシート内でスクロールできること');
 });
 
+test('旧版で記録した任意質問の答えを記録本文から再表示する', ()=>{
+  const legacy = new Function('state', `${grab(APP, 'legacyQuestionAnswers')} return legacyQuestionAnswers;`)({
+    logs:[{ taskId:'observe', at:'2026-08-16T10:00:00.000Z', memo:'・色はどうだった？\n　→ あかかった\n・形は？\n　→ まるかった' }]
+  });
+  assert.deepEqual(legacy({ id:'observe', questions:['色はどうだった？', '形は？'] }), ['あかかった', 'まるかった']);
+  assert.match(grab(APP, 'questionAnswerRow'), /legacyQuestionAnswers\(t\)/,
+    '専用保存前の記録も入力欄へ出すこと');
+});
+
 function grab(src, name){
   const re = new RegExp('(?:async\\s+)?function\\s+' + name + '\\s*\\(');
   const match = re.exec(src);
@@ -2415,11 +2424,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260816i',
+    'assets/style.css': '20260816j',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260816i',
+    'assets/app.js': '20260816j',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2442,13 +2451,13 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.13をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.13';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.13">/);
-  assert.equal(PACKAGE.version, '1.3.13');
-  assert.equal(PACKAGE_LOCK.version, '1.3.13');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.13');
-  assert.match(UPDATES, /2026年8月16日　v1\.3\.13：[\s\S]*保存済み回答.*表示されない/);
+test('公開版番号v1.3.14をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.14';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.14">/);
+  assert.equal(PACKAGE.version, '1.3.14');
+  assert.equal(PACKAGE_LOCK.version, '1.3.14');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.14');
+  assert.match(UPDATES, /2026年8月16日　v1\.3\.14：[\s\S]*v1\.3\.11以前.*入力欄へ表示/);
   assert.match(UPDATES, /v1\.0\.0/);
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');
