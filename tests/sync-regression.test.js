@@ -75,7 +75,7 @@ test('子どもの最終記録時刻は親の同期確認と混ざらず、新�
     '更新の印だけは小さくすること');
   assert.match(grab(APP, 'viewParent'), /<div class="pstat-wrap">[\s\S]*<section class="paper pstat">[\s\S]*<\/section>[\s\S]*pstat-child-updated[\s\S]*<\/div>[\s\S]*\$\{parentMessageEditorHTML\(\)\}/,
     '子どもの最終記録は進捗枠の外側、メッセージ見出しの直前に置くこと');
-  assert.match(STYLE, /\.pstat-child-updated\{[\s\S]{0,100}position:absolute; right:8px; bottom:-10px[\s\S]{0,100}font-size:8px/);
+  assert.match(STYLE, /\.pstat-child-updated\{[\s\S]{0,100}position:absolute; right:8px; bottom:-13px[\s\S]{0,100}font-size:8px/);
 });
 
 function grab(src, name){
@@ -2390,11 +2390,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260816f',
+    'assets/style.css': '20260816g',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260816f',
+    'assets/app.js': '20260816g',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2417,13 +2417,13 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.10をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.10';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.10">/);
-  assert.equal(PACKAGE.version, '1.3.10');
-  assert.equal(PACKAGE_LOCK.version, '1.3.10');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.10');
-  assert.match(UPDATES, /2026年8月16日　v1\.3\.10：[\s\S]*メッセージ.*余白/);
+test('公開版番号v1.3.11をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.11';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.11">/);
+  assert.equal(PACKAGE.version, '1.3.11');
+  assert.equal(PACKAGE_LOCK.version, '1.3.11');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.11');
+  assert.match(UPDATES, /2026年8月16日　v1\.3\.11：[\s\S]*上側の余白/);
   assert.match(UPDATES, /v1\.0\.0/);
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');

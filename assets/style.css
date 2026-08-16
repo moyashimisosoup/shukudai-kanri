@@ -1711,7 +1711,7 @@ body.no-tabbar{ padding-bottom:0; }
 .icon-btn.pstat-refresh:disabled{ opacity:.55; cursor:wait; }
 .icon-btn.pstat-refresh:hover,.icon-btn.pstat-refresh:active{ background:transparent; border:0; box-shadow:none; }
 .pstat-child-updated{
-  position:absolute; right:8px; bottom:-10px;
+  position:absolute; right:8px; bottom:-13px;
   color:var(--ai-usu); font-size:8px; font-weight:700; line-height:1.15;
   font-variant-numeric:tabular-nums; pointer-events:none;
 }
