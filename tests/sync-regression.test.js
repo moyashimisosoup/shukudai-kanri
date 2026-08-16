@@ -2997,3 +2997,42 @@ test('タリーのクリックと6以上の欄への入力の両方でボタン�
   assert.match(grab(APP, 'closeSheet'), /sheetDailyToday = 0;[\s\S]{0,80}textContent = 'きろくする';/,
     'シートを閉じるときはボタンの文字を「きろくする」へ戻すこと');
 });
+
+test('画面のはしをなぞって戻るときも、書きかけを守る', ()=>{
+  const show = grab(APP, 'showSheet');
+  assert.match(show, /history\.pushState\(\{ natsuSheet:true \}/,
+    'シートを開くときに履歴を1つ足しておくこと');
+  assert.match(show, /sheetInputBase = sheetInputSnapshot\(\);/,
+    '開いたときの入力を控えること');
+  assert.match(APP, /window\.addEventListener\('popstate'[\s\S]{0,420}confirmLeaveSheet\(\)/,
+    '戻る操作を受けとめて確認すること');
+  assert.match(APP, /window\.addEventListener\('popstate'[\s\S]{0,420}history\.pushState\(\{ natsuSheet:true \}/,
+    'とどまるときは履歴を足し直すこと');
+  assert.match(grab(APP, 'closeSheet'), /if\(sheetNavPushed\)\{ sheetNavPushed = false; history\.back\(\); \}/,
+    '閉じたら足した履歴をかたづけること');
+});
+
+test('メモや本のなまえの書きかけも、とじる前に知らせる', ()=>{
+  const leave = grab(APP, 'confirmLeaveSheet');
+  assert.match(leave, /if\(sheetInputsChanged\(\)\) return confirm\('かきかけが あるよ。のこさずに とじても いい？'\)/,
+    '答え以外の書きかけもまとめて聞くこと');
+  const changed = new Function('sheetInputBase', 'sheetInputSnapshot',
+    `${grab(APP, 'sheetInputsChanged')} return sheetInputsChanged;`);
+
+  assert.equal(changed(null, ()=> ['あ'])(), false,
+    '控えが無いうちは書きかけとしないこと');
+  assert.equal(changed(['ほん', ''], ()=> ['ほん', ''])(), false,
+    '開いたときのままなら書きかけとしないこと');
+  assert.equal(changed(['ほん', ''], ()=> ['ほん', 'かんそう'])(), true,
+    '足した文字は書きかけとすること');
+  assert.equal(changed(['ほん'], ()=> ['べつの本'])(), true,
+    'もとから入っていた文字を直したのも書きかけとすること');
+  assert.match(grab(APP, 'sheetInputSnapshot'), /input\[type="text"\][\s\S]{0,60}input\[type="number"\]/,
+    'テキストと数の欄も控えの対象にすること');
+});
+
+test('きょうの記録が無いまいにちの課題は、数をえらばせてから記録する', ()=>{
+  assert.match(grab(APP, 'saveSheet'),
+    /if\(t\.type === 'daily' && !dailySelection && !sheetDailyToday\)\{\s*\n\s*toast\('どのくらい できたか えらんでね'\);/,
+    '0のボタンを出していないので、えらばずに「やらなかった」を残さないこと');
+});

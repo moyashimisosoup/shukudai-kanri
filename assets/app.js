@@ -3691,13 +3691,39 @@ let sheetDailyToday = 0;
 /* 開いたときの 答えと、それが 専用欄に 入っているか。
    いまの 入力と くらべて「ほぞんずみ／まだ」を 出しわける */
 let sheetQBase = null, sheetQStored = null;
+/* 開いたときの 入力らんの ひかえと、シートのために 足した 履歴が あるか */
+let sheetInputBase = null, sheetNavPushed = false;
 
+/* シートの 入力らんを ぜんぶ 控える。本の 訂正のように 最初から
+   文字が 入っている ものも あるので、「空かどうか」ではなく
+   「開いたときから 変わったか」で 書きかけを 見わける。 */
+function sheetInputSnapshot(){
+  return $$('#sheetBody textarea, #sheetBody input[type="text"], #sheetBody input[type="number"]')
+    .map(el=> String(el.value || '').trim());
+}
+function sheetInputsChanged(){
+  if(!sheetInputBase) return false;
+  const now = sheetInputSnapshot();
+  return now.length !== sheetInputBase.length
+    || now.some((v, i)=> v !== String(sheetInputBase[i] || ''));
+}
 function showSheet(){
   $('#sheetWrap').hidden = false;
   /* シートが開いている間は、背後の #scroll を動かさない。
      長い入力は .sheet-body だけでスクロールできる。 */
   document.body.classList.add('sheet-open');
   document.body.style.overflow = 'hidden';
+  sheetInputBase = sheetInputSnapshot();
+  /* iPad は 画面の 左右の はしから なぞると、Safari の 戻る/進むが 動く。
+     これは ページの 中の スクロールでは ないので touch-action では 止まらず、
+     beforeunload も iOS では あてに ならない。
+     シートを 開くときに 履歴を 1つ 足しておくと、その なぞりは
+     ページを 出るのではなく この 履歴を 戻すだけで すむ。
+     popstate で 受けとめて、書きかけを 守る。 */
+  if(!sheetNavPushed){
+    sheetNavPushed = true;
+    history.pushState({ natsuSheet:true }, '', location.href);
+  }
 }
 /* v1.3.11 までは任意質問の答えを専用欄へ残さず、
    「・質問\n　→ 答え」という形で通常の記録本文へ混ぜていた。
@@ -3843,8 +3869,13 @@ function markQuestionSaved(i, value){
    保存するので、聞く 必要が ない。 */
 function confirmLeaveSheet(){
   const rest = unsavedQuestions();
-  if(!rest.length) return true;
-  return confirm('ほぞんして いない 答え（しつもん ' + rest.map(i=> i + 1).join('・') + '）が あるよ。とじても いい？');
+  if(rest.length){
+    return confirm('ほぞんして いない 答え（しつもん ' + rest.map(i=> i + 1).join('・') + '）が あるよ。とじても いい？');
+  }
+  /* 答えの ほかにも、メモ・本の なまえ・きょうの きろくなど
+     まだ のこして いない 書きかけが ある。まとめて 聞く。 */
+  if(sheetInputsChanged()) return confirm('かきかけが あるよ。のこさずに とじても いい？');
+  return true;
 }
 
 function openSheet(id, editBookId){
@@ -4341,7 +4372,12 @@ function closeSheet(){
   sheetRating = 0; sheetBookId = null;
   sheetQBase = null; sheetQStored = null;
   sheetDailyToday = 0;
+  sheetInputBase = null;
   $('#sheetSave').textContent = 'きろくする';
+  /* シートのために 足した 履歴を かたづける。のこすと、あとで
+     戻ったときに 何も 起きない 空ぶりの 1回が できてしまう。
+     popstate から 閉じた ときは すでに 戻って いるので 何も しない。 */
+  if(sheetNavPushed){ sheetNavPushed = false; history.back(); }
 }
 
 function saveSheet(){
@@ -4378,6 +4414,13 @@ function saveSheet(){
     }
     if(!confirm('きょうは やらなかったことに しますか？\n' +
                 'いまの きろく（' + p.text + '）を 0 に もどします。')) return;
+  }
+  /* きょう まだ 記録が 無い まいにちの 課題では、0 の ボタンを 出していない。
+     えらばずに メモだけ 書いて 押すと、えらんだ つもりの ない
+     「やらなかった」が のこって しまうので、先に 数を えらんでもらう。 */
+  if(t.type === 'daily' && !dailySelection && !sheetDailyToday){
+    toast('どのくらい できたか えらんでね');
+    return;
   }
   const now = new Date();
   let what = '';
@@ -6609,6 +6652,20 @@ document.addEventListener('click', e=>{
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape' && $('#kinenbiDialog').open){ closeKinenbi(); return; }
   if(e.key === 'Escape' && !$('#sheetWrap').hidden && confirmLeaveSheet()) closeSheet();
+});
+
+/* 画面の はしを なぞって 戻ろうとした ときは、シートを 開くときに
+   足しておいた 履歴が 先に 戻る。書きかけが あれば ここで 引きとめる。 */
+window.addEventListener('popstate', ()=>{
+  const wrap = $('#sheetWrap');
+  if(!wrap || wrap.hidden){ sheetNavPushed = false; return; }
+  if(!confirmLeaveSheet()){
+    /* とどまる。戻ったぶんの 履歴を 足し直して、つぎの なぞりも 受けとめる */
+    history.pushState({ natsuSheet:true }, '', location.href);
+    return;
+  }
+  sheetNavPushed = false;
+  closeSheet();
 });
 
 /* 答えを 書きかえた とたんに、ボタンを「ほぞんずみ」から もどす */
