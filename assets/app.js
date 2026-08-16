@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.17';
+const RELEASE_VERSION = '1.3.18';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -195,9 +195,34 @@ function changedTaskFieldNames(t, base){
    変えた 欄の 数を まとめて 知らせ、基準を 手放す（＝ここから 先が
    次の 基準）。触っていなければ 何も出さない */
 function noticeTaskRowClosed(t){
+  /* 作ったばかりの 課題は、閉じた ところで ひと区切り。ここから 先の
+     書きかえが「変更」になる。数ではなく、足したという 事実を 知らせる */
+  if(configTaskNewId === t.id){
+    configTaskNewId = null;
+    configTaskBase = null;
+    toast('宿題を追加しました');
+    return;
+  }
   if(!configTaskBase || configTaskBase.id !== t.id) return;
   const n = changedTaskFieldNames(t, configTaskBase.snap).length;
   if(n > 0){ toast(n + 'か所 変更しました'); configTaskBase = null; }
+}
+/* ✓ と「元に戻す」は 描き直しの ときに 付く。この画面は 欄を 離れた
+   ときに 保存するだけで 描き直さない ものが 多く、そのままでは 変えた
+   しるしが いつまでも 出ない。欄を 離れた あとなので 描き直しても
+   入力の じゃまには ならないが、つぎの 欄へ 移った 直後の ことも あるので、
+   その欄へ focus を 返す。 */
+function refreshTaskRow(t){
+  openConfigTaskId = t.id;
+  const active = document.activeElement;
+  const row = active && active.closest ? active.closest('.set-task') : null;
+  const key = row && row.dataset.detailsKey === 'task:' + t.id
+    ? (active.dataset.f || active.dataset.bf || '') : '';
+  render({ keepScroll:true });
+  if(!key) return;
+  const sel = '.set-task[data-details-key="task:' + t.id + '"] ';
+  const back = $(sel + '[data-f="' + key + '"]') || $(sel + '[data-bf="' + key + '"]');
+  if(back) back.focus();
 }
 function applyTheme(theme){
   const id = THEME_IDS.includes(theme) ? theme : 'notebook';
@@ -225,6 +250,10 @@ let openConfigTaskId = null;
    最初の 変更の 直前の スナップショットを 1課題ぶんだけ 持つ。
    別の課題を いじったら、そちらに 置きかわる（1課題ぶんで 足りる） */
 let configTaskBase = null;
+/* いま 作ったばかりで、まだ 一度も 行を 閉じていない 課題。
+   作った 直後の 入力は「変更」ではなく「はじめて 書く」ことなので、
+   ✓ と「元に戻す」は 出さない。戻り先が 既定の 名前では 意味がない */
+let configTaskNewId = null;
 /* index.html を確認して見つけた新しい版。取り込みは静かに行うため、
    保護者の「アプリ情報」に事実として一言そえる以外には使わない。 */
 let newVersionAvailable = false;
@@ -4919,11 +4948,15 @@ function taskEditorRow(t, i){
   /* この課題に 基準（変える前の 控え）が あれば、欄ごとに 見くらべて
      「変更しました」と「元に戻す」を 出す。基準が 無い＝まだ 何も
      変えていない課題なら、何も 比べず 何も 出さない（平常時は 何も足さない） */
-  const base = (configTaskBase && configTaskBase.id === t.id) ? configTaskBase.snap : null;
+  const base = (configTaskBase && configTaskBase.id === t.id && configTaskNewId !== t.id)
+    ? configTaskBase.snap : null;
   const mark = name => {
     if(!base) return '';
     const changed = TASK_FIELD_KEYS[name].some(k => JSON.stringify(base[k]) !== JSON.stringify(t[k]));
-    return changed ? ` <em class="set-changed">変更しました</em><button class="set-revert" data-revert="${name}" type="button">元に戻す</button>` : '';
+    /* 「変更しました」と 書かずに ✓ だけを 置く。記録シートの
+       「✓ ほぞんずみ」と 同じ 意味の 記号なので、片方で 覚えたことが
+       そのまま 通じる。文字を 減らしても 分かることは 減らない */
+    return changed ? ` <em class="set-changed" aria-label="変更しました">✓</em><button class="set-revert" data-revert="${name}" type="button">元に戻す</button>` : '';
   };
   const groupField = kind === 'daily' ? '' : `
     <label class="set-field"><span>表示する場所${mark('group')}</span><select data-f="group">
@@ -6131,7 +6164,7 @@ function bindConfig(){
     const bf = e.target.dataset.bf;
     if(bf){
       t.bookFields = Object.assign(bookFields(t), { [bf]: e.target.checked });
-      saveCfg(); return;
+      saveCfg(); refreshTaskRow(t); return;
     }
 
     const f = e.target.dataset.f; if(!f) return;
@@ -6143,7 +6176,7 @@ function bindConfig(){
     }
     if(f === 'targetUnitCustom'){
       t.targetUnit = e.target.value.trim().slice(0,8);
-      saveCfg(); return;
+      saveCfg(); refreshTaskRow(t); return;
     }
     if(f === 'recordStyle'){
       const v = e.target.value;
@@ -6187,6 +6220,7 @@ function bindConfig(){
     else t[f] = e.target.value;
 
     saveCfg();
+    refreshTaskRow(t);
   });
 
   ed.addEventListener('click', e=>{
@@ -6232,6 +6266,20 @@ function bindConfig(){
   });
   }
 
+  /* 足した 直後は、名前を 入れる ところから 始まる。名前の欄へ
+     カーソルを 置いて、最初の 操作が 名づけに なるようにする。
+     まちがえて 押した ときも、名前が 選ばれた 状態なので すぐ 気づける */
+  function startNewTask(added){
+    config.tasks.push(added);
+    openConfigTaskId = added.id;
+    configTaskNewId = added.id;
+    configTaskBase = null;
+    saveCfg();
+    render({ keepScroll:true });
+    const name = $('.set-task[data-details-key="task:' + added.id + '"] [data-f="name"]');
+    if(name){ name.focus(); name.select(); }
+  }
+
   /* 押したボタンの 欄に 足す。group を まちがえると、足したものが
      別の欄に 現れて「追加できていない」ように 見える */
   function addNormalTask(group){
@@ -6240,8 +6288,7 @@ function bindConfig(){
       name:'あたらしい しゅくだい', total:10, unit:'かい', numbered:false,
       memoLabel:'やったことを かこう'
     };
-    config.tasks.push(added); openConfigTaskId = added.id;
-    saveCfg(); render({ keepScroll:true });
+    startNewTask(added);
   }
   on('#addMustTask',   'click', ()=>addNormalTask('must'));
   on('#addOptionTask', 'click', ()=>addNormalTask('option'));
@@ -6249,15 +6296,13 @@ function bindConfig(){
     const added = { id:'book-'+Date.now(), group:'must', type:'count', recordStyle:'book',
       name:'読書の きろく', total:10, unit:'さつ', numbered:true,
       bookFields:{ author:true, publisher:false, rating:true } };
-    config.tasks.push(added); openConfigTaskId = added.id;
-    saveCfg(); render({ keepScroll:true });
+    startNewTask(added);
   });
   on('#addDailyTask', 'click', ()=>{
     const added = { id:'daily-'+Date.now(), group:'daily', type:'daily',
       name:'おてつだい', target:1, targetUnit:'かい', memoLabel:'やったこと' };
-    config.tasks.push(added); openConfigTaskId = added.id;
     config.showDaily = true;
-    saveCfg(); render({ keepScroll:true });
+    startNewTask(added);
   });
 
   bindSync();

@@ -817,7 +817,8 @@ button{ font:inherit; color:inherit; }
 .set-help{ color:var(--ai-usu); font-size:14px; font-weight:700; line-height:1.65; }
 /* 変えた 欄にだけ 出す「変更しました」「元に戻す」。見出しの太字より
    ひかえめに、けれど 押す方は ほかの ボタンと 同じ 44px の 当たり判定を 確保する */
-.set-changed{ display:inline-block; margin-inline-start:6px; color:var(--ai-usu); font-size:12px; font-weight:700; font-style:normal; vertical-align:middle; }
+/* ✓ は 記録シートの「✓ ほぞんずみ」と 同じ 意味・同じ 色にそろえる */
+.set-changed{ display:inline-block; margin-inline-start:6px; color:var(--wakaba); font-size:14px; font-weight:900; font-style:normal; vertical-align:middle; }
 .set-revert{
   display:inline-flex; align-items:center; margin-inline-start:6px; min-height:44px; padding:0 2px;
   appearance:none; background:none; border:0; font:inherit; color:var(--asagao); font-size:13px; font-weight:900;

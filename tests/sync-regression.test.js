@@ -2557,11 +2557,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260816n',
+    'assets/style.css': '20260817a',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260816n',
+    'assets/app.js': '20260817a',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2584,12 +2584,14 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.17をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.17';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.17">/);
-  assert.equal(PACKAGE.version, '1.3.17');
-  assert.equal(PACKAGE_LOCK.version, '1.3.17');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.17');
+test('公開版番号v1.3.18をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.18';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.18">/);
+  assert.equal(PACKAGE.version, '1.3.18');
+  assert.equal(PACKAGE_LOCK.version, '1.3.18');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.18');
+  assert.match(UPDATES, /2026年8月17日　v1\.3\.18：[\s\S]*?元に戻す/,
+    'この版で足した欄ごとの取り消しを履歴に書くこと');
   assert.match(UPDATES, /2026年8月16日　v1\.3\.17：[\s\S]*?いちばん後ろの問の答え/,
     'この版で直したメモ本文の混入を履歴に書くこと');
   assert.match(UPDATES, /2026年8月16日　v1\.3\.16：[\s\S]*?これまでの きろく[\s\S]*?はしをなぞって戻る/,
@@ -3261,7 +3263,7 @@ function makeTaskEditorRowHarness(){
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
       .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }`;
-  return new Function('configTaskBase', 'openConfigTaskId', `
+  return new Function('configTaskBase', 'openConfigTaskId', 'configTaskNewId', `
     ${grabConst(APP, 'APP_ICONS')}
     ${grab(APP, 'icon')}
     ${esc}
@@ -3291,8 +3293,8 @@ test('変更していない欄には「元に戻す」を出さず、変更し�
   const taskEditorRow = makeTaskEditorRowHarness()({ id:'t1', snap:base }, 't1');
   const html = taskEditorRow(changed, 0);
 
-  assert.match(html, /合計\s*<em class="set-changed">変更しました<\/em><button class="set-revert" data-revert="total" type="button">元に戻す<\/button>/,
-    '変えた「合計」欄には出すこと');
+  assert.match(html, /合計\s*<em class="set-changed" aria-label="変更しました">✓<\/em><button class="set-revert" data-revert="total" type="button">元に戻す<\/button>/,
+    '変えた「合計」欄には、文字ではなく✓と「元に戻す」を出すこと');
   assert.equal((html.match(/data-revert="/g) || []).length, 1,
     '変えていない欄には出さないので、ボタンは1つだけのこと');
   assert.doesNotMatch(html, /data-revert="name"/, '変えていない「項目の名前」には出さないこと');
@@ -3313,7 +3315,7 @@ test('本の課題では、著者などのチェックが変わると凡例に1�
   const changed = Object.assign({}, base, { bookFields:{ author:true, publisher:false, rating:true } });
   const taskEditorRow = makeTaskEditorRowHarness()({ id:'b1', snap:base }, 'b1');
   const html = taskEditorRow(changed, 0);
-  assert.match(html, /本ごとに残す項目\s*<em class="set-changed">/, '凡例に1つ出すこと');
+  assert.match(html, /本ごとに残す項目\s*<em class="set-changed" aria-label="変更しました">✓<\/em>/, '凡例に1つ出すこと');
   assert.equal((html.match(/data-revert="bookFields"/g) || []).length, 1,
     'チェックは3つあっても、まとめて1つの印にすること');
 });
@@ -3365,7 +3367,7 @@ test('基準は最初の変更の直前に控え、行を開いた（toggle）�
 
 test('行を閉じたときに変えた箇所の数を知らせ、変更が無ければ何も出さない', ()=>{
   function makeNoticeHarness(onToast){
-    return new Function('toast', `
+    return new Function('toast', 'configTaskNewId', `
       let configTaskBase = null;
       ${grab(APP, 'isBook')}
       ${grab(APP, 'isFree')}
@@ -3381,7 +3383,7 @@ test('行を閉じたときに変えた箇所の数を知らせ、変更が無�
         noticeTaskRowClosed(t);
         return configTaskBase;
       };
-    `)(onToast);
+    `)(onToast, null);
   }
 
   // 1) 合計だけ 変えて 閉じる → 1か所
@@ -3431,4 +3433,30 @@ test('取り消しの仕組みは確認ダイアログを足さない', ()=>{
 test('「元に戻す」ボタンは44pxのタップ領域を持つ', ()=>{
   assert.match(STYLE, /\.set-revert\{[\s\S]{0,220}min-height:44px/,
     'ほかの押せるボタンと同じ44pxの当たり判定を確保すること');
+});
+
+/* 作ったばかりの課題では、名前を入れるのは「変更」ではなく初めて書くこと。
+   戻り先が既定の名前（あたらしい しゅくだい）では意味がないので印を出さない。 */
+test('作ったばかりの宿題には、まだ✓と「元に戻す」を出さない', ()=>{
+  const base = { id:'t1', group:'must', type:'count', name:'あたらしい しゅくだい',
+    total:10, unit:'かい', numbered:false, wrapUp:false, memoLabel:'', questions:[] };
+  const named = Object.assign({}, base, { name:'かん字ドリル' });
+  const asNew = makeTaskEditorRowHarness()({ id:'t1', snap:base }, 't1', 't1');
+  assert.doesNotMatch(asNew(named, 0), /data-revert=/,
+    '作った直後の入力は「変更」ではないので印を出さないこと');
+  const settled = makeTaskEditorRowHarness()({ id:'t1', snap:base }, 't1', null);
+  assert.match(settled(named, 0), /data-revert="name"/,
+    '一度閉じて区切りがついたあとは、ふつうに戻せること');
+});
+
+test('宿題を足したときは、名前の欄から始められるようにする', ()=>{
+  const add = grab(APP, 'startNewTask');
+  assert.match(add, /configTaskNewId = added\.id;/,
+    '足した課題を「作ったばかり」として覚えること');
+  assert.match(add, /\[data-f="name"\][\s\S]{0,80}focus\(\)/,
+    '名前の欄へカーソルを置き、最初の操作が名づけになること');
+  assert.match(grab(APP, 'noticeTaskRowClosed'), /toast\('宿題を追加しました'\)/,
+    '閉じたときは数ではなく、足したという事実を知らせること');
+  assert.match(APP, /on\('#addDailyTask'[\s\S]{0,220}startNewTask\(added\)/,
+    '毎日の項目も同じ入り口を通ること');
 });
