@@ -84,13 +84,13 @@ test('任意質問は回答ごとに保存・再表示し、シート外では�
   const all = grab(APP, 'saveQuestionAnswers');
   assert.match(open, /const row = questionAnswerRow\(t\);\s*\n\s*const savedAnswers = row\.answers;/,
     '保存済み回答を入力欄へ出すこと');
-  assert.match(open, /data-save-q="\$\{i\}"[\s\S]*この答えを保存/,
+  assert.match(open, /data-save-q="\$\{i\}"[\s\S]*この答えを ほぞん/,
     '質問ごとに保存ボタンを出すこと');
-  assert.match(one, /前に保存した答えを、新しい内容で上書きしますか？/,
+  assert.match(one, /まえの 答えを かきかえます。いいですか？/,
     '既存回答の上書きは確認すること');
   assert.match(grab(APP, 'saveQuestionAnswerRow'), /state\.questionAnswers\[t\.id\] = row/,
     '保存した回答を課題ごとに残すこと');
-  assert.match(one, /if\(!next && !old\)\{ toast\('答えを書いてから保存してね'\); return false; \}/,
+  assert.match(one, /if\(!next && !old\)\{ toast\('答えを 書いてから ほぞんしてね'\); return false; \}/,
     '空欄は保存済みとせず、入力を促すこと');
   assert.match(grab(APP, 'questionAnswerRow'), /K_QUESTION_ANSWERS/,
     '端末内の控えからも保存済み回答を再表示できること');
@@ -140,30 +140,36 @@ test('専用欄に一部だけ保存していても、残りの問は旧記録�
   const out = row({ id:'jiyu', questions:['しつもん1', 'しつもん2'] });
   assert.deepEqual(out.answers, ['ふるい1', 'あたらしい2'],
     '空の欄だけ旧記録で補い、保存済みの答えは残すこと');
-  assert.deepEqual(out.saved, [false, true],
-    '専用欄に入っている問だけ「保存ずみ」として扱うこと');
+  assert.deepEqual(out.kept, [true, true],
+    '旧記録から出した答えも「のこっている」として画面に出すこと');
+  assert.deepEqual(out.stored, [false, true],
+    '専用欄に入っているかは、移しかえの判断のためだけに持つこと');
 });
 
-test('保存ずみの答えはボタンで示し、書きかえたら保存を促す', ()=>{
+test('のこっている答えは印で示し、書きかえた問だけボタンを出す', ()=>{
   const open = grab(APP, 'openSheet');
-  assert.match(open, /q-save\$\{row\.saved\[i\] \? ' is-saved' : ''\}/,
-    '保存ずみの問はボタンの見た目を変えること');
-  assert.match(open, /\$\{row\.saved\[i\] \? 'ほぞんずみ' : 'この答えを保存'\}/,
-    '保存ずみの問はボタンの文字を変えること');
-  assert.match(open, /q-note[\s\S]{0,80}かえたら この ボタンで ほぞんしてね/,
-    '書きかえたら保存を促す文を持つこと');
-  assert.match(open, /row\.saved\[i\] \|\| !savedAnswers\[i\] \? ' hidden' : ''/,
-    'まだ何も書いていない問では促しを出さないこと');
+  assert.match(open, /<span class="q-done"\$\{row\.kept\[i\] \? '' : ' hidden'\}>✓ ほぞんずみ<\/span>/,
+    'のこっている答えはボタンでなく印で示すこと');
+  assert.match(open, /<button class="btn btn-sm q-save" data-save-q="\$\{i\}" type="button" hidden>/,
+    'することが無いうちはボタンを出さないこと');
+  const refresh = grab(APP, 'refreshQuestionSaveState');
+  assert.match(refresh, /btn\.hidden = st !== 'dirty';/,
+    '書きかえた問だけボタンを出すこと');
+  assert.match(refresh, /if\(done\) done\.hidden = st !== 'saved';/,
+    'のこっている問だけ印を出すこと');
   const st = grab(APP, 'questionState');
-  assert.match(st, /if\(now === base && \(sheetQSaved \|\| \[\]\)\[i\]\) return 'saved';/);
-  assert.match(st, /if\(!now && !base\) return 'empty';/);
+  assert.match(st, /if\(now !== base\) return 'dirty';/);
+  assert.match(st, /return now \? 'saved' : 'empty';/,
+    '旧記録から出した答えも「のこっている」として扱うこと');
   assert.match(APP, /document\.addEventListener\('input'[\s\S]{0,160}refreshQuestionSaveState/,
-    '入力のたびに保存ずみ表示を更新すること');
+    '入力のたびに表示を更新すること');
   assert.match(grab(APP, 'saveQuestionAnswer'), /markQuestionSaved\(index, next\);/,
     '保存できたらその場で表示を切り替えること');
-  assert.match(grab(APP, 'saveQuestionAnswer'), /if\(next === old && already\)\{ toast\('この答えは保存ずみです'\); return true; \}/,
+  assert.match(grab(APP, 'saveQuestionAnswer'), /if\(next === old && already\)\{ toast\('この答えは ほぞんずみだよ'\); return true; \}/,
     '旧記録から出しただけの答えは、同じ内容でも専用欄へ移せること');
-  assert.match(STYLE, /\.q-save\.is-saved\{/);
+  assert.match(STYLE, /\.q-actions\{[^}]*align-items:center[^}]*gap:8px/,
+    'そえ書きとボタンをとなりどうしに置くこと');
+  assert.match(STYLE, /\.q-done\{/);
 });
 
 test('答えの上書き確認は1回にまとめ、とじる前に未保存を知らせる', ()=>{
@@ -172,7 +178,7 @@ test('答えの上書き確認は1回にまとめ、とじる前に未保存を�
     '問ごとに確認を出さないこと');
   assert.match(all, /const over = changed\.map\(\(c, i\)=> c && String\(before\.answers\[i\] \|\| ''\) \? i \+ 1 : 0\)\.filter\(Boolean\);/,
     '書きかわる問の番号をまとめること');
-  assert.match(all, /confirm\('しつもん ' \+ over\.join\('・'\) \+ ' の 前の答えを 新しい内容に します。いいですか？'\)/,
+  assert.match(all, /confirm\('しつもん ' \+ over\.join\('・'\) \+ ' の 答えを かきかえます。いいですか？'\)/,
     '1回の確認で対象の問を示すこと');
   const leave = grab(APP, 'confirmLeaveSheet');
   assert.match(leave, /ほぞんして いない 答え（しつもん/,

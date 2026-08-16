@@ -3688,7 +3688,7 @@ let sheetTask = null, sheetSel = null, sheetSteps = null, sheetWrap = null;
 let sheetRating = 0, sheetBookId = null;
 /* 開いたときの 答えと、それが 専用欄に 入っているか。
    いまの 入力と くらべて「ほぞんずみ／まだ」を 出しわける */
-let sheetQBase = null, sheetQSaved = null;
+let sheetQBase = null, sheetQStored = null;
 
 function showSheet(){
   $('#sheetWrap').hidden = false;
@@ -3739,9 +3739,16 @@ function questionAnswerRow(t){
      見失う。問ごとに 見て、保存ずみの 答えは そのまま のこす。 */
   const legacy = legacyQuestionAnswers(t);
   const questions = t.questions || [];
+  const answers = questions.map((q, i)=> String(stored[i] || '') || String(legacy[i] || ''));
   return {
-    answers: questions.map((q, i)=> String(stored[i] || '') || String(legacy[i] || '')),
-    saved:   questions.map((q, i)=> !!String(stored[i] || '')),
+    answers,
+    /* 旧記録から 出した 答えも「のこっている」。記録本文は 消えないので、
+       専用欄に 無いことを 理由に「ほぞんして いない」と 言うのは まちがい。
+       画面には 答えが あるかどうかで 出しわける。 */
+    kept: answers.map(v=> !!v),
+    /* 専用欄に 入っているか。同じ 内容を もう一度 押した ときに
+       移しかえが 要るかどうかの 判断だけに つかう。 */
+    stored: questions.map((q, i)=> !!String(stored[i] || '')),
     at: pick ? pick.at : 0
   };
 }
@@ -3762,18 +3769,18 @@ function saveQuestionAnswer(index, ask){
   const answers = before.answers.slice();
   const next = String(el.value || '').trim().slice(0, 800);
   const old = String(answers[index] || '');
-  if(!next && !old){ toast('答えを書いてから保存してね'); return false; }
+  if(!next && !old){ toast('答えを 書いてから ほぞんしてね'); return false; }
   /* 旧記録から 出しただけの 答えは、見た目が 同じでも まだ 専用欄に ない。
      ここで 止めると「この答えを保存」と 出ている ボタンが
      押しても 何も しない ことに なるので、移しかえを 通す。 */
-  const already = !!(sheetQSaved || [])[index];
-  if(next === old && already){ toast('この答えは保存ずみです'); return true; }
-  if(ask && already && next !== old && !confirm('前に保存した答えを、新しい内容で上書きしますか？')) return false;
+  const already = !!(sheetQStored || [])[index];
+  if(next === old && already){ toast('この答えは ほぞんずみだよ'); return true; }
+  if(ask && already && next !== old && !confirm('まえの 答えを かきかえます。いいですか？')) return false;
   answers[index] = next;
   saveQuestionAnswerRow(t, answers);
   saveSt();
   markQuestionSaved(index, next);
-  toast(next ? '答えを保存しました' : '答えを空にして保存しました');
+  toast(next ? '答えを ほぞんしたよ' : '答えを からに したよ');
   return true;
 }
 function saveQuestionAnswers(ask){
@@ -3787,44 +3794,47 @@ function saveQuestionAnswers(ask){
      何回も 続く。読まずに 押す ようになって 確認の 意味が なくなるので、
      書きかわる 問の ばんごうを まとめて 1回だけ 聞く。 */
   const over = changed.map((c, i)=> c && String(before.answers[i] || '') ? i + 1 : 0).filter(Boolean);
-  if(ask && over.length && !confirm('しつもん ' + over.join('・') + ' の 前の答えを 新しい内容に します。いいですか？')) return false;
+  if(ask && over.length && !confirm('しつもん ' + over.join('・') + ' の 答えを かきかえます。いいですか？')) return false;
   saveQuestionAnswerRow(t, answers);
   saveSt();
   answers.forEach((v, i)=> markQuestionSaved(i, v));
   return true;
 }
 /* 答えの ようす は 3つ。
-   saved … 専用欄の 中身と 同じ。もう 保存ずみ
-   dirty … 書きかえた、または 旧記録から 出しただけで まだ 保存していない
+   saved … 開いた ときの まま。答えは のこっている
+   dirty … 書きかえた。まだ のこっていない
    empty … なにも 書いていない */
 function questionState(i){
   const el = $('#sheetBody [data-q="' + i + '"]');
   if(!el) return 'empty';
   const now = String(el.value || '').trim();
   const base = String((sheetQBase || [])[i] || '');
-  if(now === base && (sheetQSaved || [])[i]) return 'saved';
-  if(!now && !base) return 'empty';
-  return 'dirty';
+  if(now !== base) return 'dirty';
+  return now ? 'saved' : 'empty';
 }
 function unsavedQuestions(){
   const t = sheetTask;
   if(!t || !(t.questions || []).length || !sheetQBase) return [];
   return t.questions.map((q, i)=> i).filter(i=> questionState(i) === 'dirty');
 }
+/* 押せる ボタンは「いま することが ある」ときだけ 出す。
+   のこっている 答えの ところに ボタンが あると、
+   何か しないと いけないように 見える。 */
 function refreshQuestionSaveState(i){
   const btn = $('#sheetBody [data-save-q="' + i + '"]');
   if(!btn) return;
   const st = questionState(i);
-  btn.textContent = st === 'saved' ? 'ほぞんずみ' : 'この答えを保存';
-  btn.classList.toggle('is-saved', st === 'saved');
   const box = btn.closest('.q-actions');
   const note = box && box.querySelector('.q-note');
+  const done = box && box.querySelector('.q-done');
+  btn.hidden = st !== 'dirty';
   if(note) note.hidden = st !== 'dirty';
+  if(done) done.hidden = st !== 'saved';
 }
 function markQuestionSaved(i, value){
-  if(!sheetQBase || !sheetQSaved) return;
+  if(!sheetQBase || !sheetQStored) return;
   sheetQBase[i] = value;
-  sheetQSaved[i] = !!value;
+  sheetQStored[i] = !!value;
   refreshQuestionSaveState(i);
 }
 /* × や Esc で とじる ときだけ 聞く。「きろく」は 答えも まとめて
@@ -3899,7 +3909,7 @@ function openSheet(id, editBookId){
     const row = questionAnswerRow(t);
     const savedAnswers = row.answers;
     sheetQBase = savedAnswers.slice();
-    sheetQSaved = row.saved.slice();
+    sheetQStored = row.stored.slice();
     body += `<div class="field">
       <span class="lab">かんさつ してみよう</span>
       <p class="hint">わかるところだけで いいよ。答えごとに保存でき、次に開いたときも残るよ。</p>
@@ -3911,8 +3921,9 @@ function openSheet(id, editBookId){
             ${micBtn('q'+i)}
           </div>
           <div class="q-actions">
-            <p class="q-note"${row.saved[i] || !savedAnswers[i] ? ' hidden' : ''}>かえたら この ボタンで ほぞんしてね</p>
-            <button class="btn btn-sm q-save${row.saved[i] ? ' is-saved' : ''}" data-save-q="${i}" type="button">${row.saved[i] ? 'ほぞんずみ' : 'この答えを保存'}</button>
+            <span class="q-done"${row.kept[i] ? '' : ' hidden'}>✓ ほぞんずみ</span>
+            <p class="q-note" hidden>ほぞんして いないよ</p>
+            <button class="btn btn-sm q-save" data-save-q="${i}" type="button" hidden>この答えを ほぞん</button>
           </div>
         </div>`).join('')}
     </div>`;
@@ -4276,7 +4287,7 @@ function closeSheet(){
   document.body.style.overflow = '';
   sheetTask = null; sheetSel = null; sheetSteps = null; sheetWrap = null;
   sheetRating = 0; sheetBookId = null;
-  sheetQBase = null; sheetQSaved = null;
+  sheetQBase = null; sheetQStored = null;
   $('#sheetSave').textContent = 'きろくする';
 }
 

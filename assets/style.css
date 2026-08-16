@@ -1118,12 +1118,12 @@ select{ appearance:auto; -webkit-appearance:menulist; }
 
 /* 質問（かんさつカード） */
 .q{ margin-bottom:16px; }
+/* そえ書きと ボタンは となりどうしに 置く。はなれていると
+   iPad の 広い 画面で どの ボタンの ことか 分からなくなる */
 .q-actions{ display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; }
 .q-save{ min-height:38px; }
-/* 保存ずみは 押す 必要が ない。押せる ままだが、色を おとして
-   「いま することは ない」と 分かるように する */
-.q-save.is-saved{ background:var(--kami); color:var(--ai-usu); border-color:var(--ai-usu); }
-.q-note{ margin:0; margin-right:auto; font-size:12px; font-weight:700; color:var(--ai-usu); }
+.q-done{ font-size:13px; font-weight:700; color:var(--wakaba); }
+.q-note{ margin:0; font-size:13px; font-weight:700; color:var(--ai-usu); }
 .q-t{
   font-size:18px; font-weight:900; margin-bottom:8px;
   display:flex; gap:8px; align-items:flex-start;
