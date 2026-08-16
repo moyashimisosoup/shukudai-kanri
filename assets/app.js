@@ -7228,6 +7228,19 @@ document.addEventListener('visibilitychange', ()=>{
   const last = Number(getLocal(K_UPDATE_CHECKED)) || 0;
   if(Date.now() - last >= 30 * 60 * 1000) checkForNewVersion();
 });
+/* 読み直す直前に この版を 書いてから 読み直している。もどってきた 画面で
+   その印が いまの版と そろっていれば、たったいま 取り込んだ ということ。
+   黙って 入れかわると 何が 起きたのか 分からないので、一言だけ 残す。
+   問いかけでは なく 済んだ 事実なので、消える 知らせで よい。
+   知らせたら 印を 消す。次に 開くたびに くり返さないため。 */
+function noticeAdopted(){
+  if(getLocal(K_UPDATE_RELOADED_FOR) !== RELEASE_VERSION) return;
+  try{ localStorage.removeItem(K_UPDATE_RELOADED_FOR); }catch(e){}
+  /* 子どもに 版の 番号は 要らない。大人の 画面にだけ 何版かを 書く */
+  toast(isAdultTab(tab)
+    ? 'アプリを最新版（v' + RELEASE_VERSION + '）に更新しました'
+    : 'アプリが あたらしく なったよ');
+}
 
 /* ---------------------------------------------------------
    はじめる
@@ -7237,6 +7250,7 @@ if(typeof setReadingGrade === 'function') setReadingGrade(readingGrade());
 tab = launchRoute();
 if(typeof window.natsuBootProgress === 'function') window.natsuBootProgress(100, '表示します');
 render();
+noticeAdopted(); // 取り込みの直後なら、何が起きたのかを一言だけ残す
 checkForNewVersion(); // 描画を待たせない。結果は次の描画で静かに反映する
 
 })();

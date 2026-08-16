@@ -3665,3 +3665,22 @@ test('「かんじを しらべる」カードの案内は、固定の「2年生
   assert.doesNotMatch(APP, /かきうつす文（2年生までの かんじ）/,
     '見出しを 固定の「2年生までの」から、選んだ学年に合わせた言い方に変えること');
 });
+
+/* 静かに取り込むと、何が起きたのか分からないまま画面が入れかわる。
+   済んだ事実なので問いかけずに、消える知らせで一言だけ残す。 */
+test('新しい版を取り込んだ直後は、そのことを一言だけ知らせる', ()=>{
+  const fn = grab(APP, 'noticeAdopted');
+  assert.match(fn, /getLocal\(K_UPDATE_RELOADED_FOR\) !== RELEASE_VERSION\) return;/,
+    '読み直した版といまの版がそろったときだけ知らせること');
+  assert.match(fn, /removeItem\(K_UPDATE_RELOADED_FOR\)/,
+    '知らせたら印を消し、次に開くたびにくり返さないこと');
+  assert.match(fn, /isAdultTab\(tab\)/,
+    '子どもの画面と大人の画面で言い方を分けること');
+  assert.match(fn, /アプリを最新版（v' \+ RELEASE_VERSION \+ '）に更新しました/,
+    '大人の画面には何版になったかを書くこと');
+  assert.match(fn, /アプリが あたらしく なったよ/,
+    '子どもの画面はかなで、版の番号を出さないこと');
+  assert.doesNotMatch(fn, /confirm\(/, '済んだことなので問いかけないこと');
+  assert.match(APP, /render\(\);\s*\nnoticeAdopted\(\);/,
+    '描画したあとに知らせること');
+});
