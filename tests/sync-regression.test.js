@@ -2883,3 +2883,31 @@ test('自由記録シートも通常シートと同じ「これまでの きろ�
   assert.match(grab(APP, 'openSheet'), /body \+= recentLogsHTML\(t\);/,
     '通常シートはメモ欄の直後で recentLogsHTML を差し込むこと');
 });
+
+test('こわれた記録が混じっても、これまでのきろくは順番を保って出る', ()=>{
+  const recentLogsHTML = buildRecentLogsHTML();
+  const logs = [
+    null,
+    { taskId:'t1', memo:'ふるい', at:'2026-08-10T01:00:00.000Z' },
+    { taskId:'t1', memo:'こわれた', at:'not-a-date' },
+    { taskId:'t1', memo:'あたらしい', at:'2026-08-15T01:00:00.000Z' }
+  ];
+  const html = recentLogsHTML({ logs }, { id:'t1' });
+
+  assert.match(html, /あたらしい/);
+  assert.ok(html.indexOf('あたらしい') < html.indexOf('ふるい'),
+    '日付がこわれた記録が混じっても、新しい順のならびを崩さないこと');
+  assert.match(grab(APP, 'recentLogsHTML'), /\.filter\(l => l && l\.taskId === t\.id/,
+    '中身のない記録で止まらないこと');
+  assert.match(grab(APP, 'recentLogsHTML'), /localeCompare/,
+    '日付にできない値でもならべかえが壊れないよう文字として比べること');
+});
+
+test('もっと見るは押せると分かる大きさとしるしを持つ', ()=>{
+  assert.match(STYLE, /\.recent-more > summary\{[^}]*min-height:44px/,
+    'ほかの押すところと同じ44pxを確保すること');
+  assert.doesNotMatch(STYLE, /\.recent-more > summary::-webkit-details-marker\{ display:none; \}/,
+    'iPadで開閉のしるしを消さないこと');
+  assert.doesNotMatch(STYLE, /\.recent-more > summary\{[^}]*display:flex/,
+    'summaryのdisplayを変えると開閉のしるしごと消えるので変えないこと');
+});

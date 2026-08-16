@@ -1299,11 +1299,14 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 /* 「これまでの きろく」の折りたたみ。全件を開いた状態でレイアウトすると
    毎日型の課題で件数がふくらんだときに重くなるため、閉じたまま出す */
 .recent-more{ margin-top:8px; }
+/* 開ける ことが 分かるように、しるしは 消さない。iPad の Safari では
+   これを 隠すと ただの 文字に 見えて、押せると 気づけない。
+   ほかの 押す ところと 同じく 44px を 確保する */
 .recent-more > summary{
-  cursor:pointer; padding:10px 4px; font-size:16px; font-weight:700;
+  cursor:pointer; min-height:44px; padding:11px 4px;
+  font-size:16px; font-weight:700;
   color:var(--ai-usu); list-style-position:inside;
 }
-.recent-more > summary::-webkit-details-marker{ display:none; }
 .recent-over{
   padding:14px 16px; text-align:center;
   font-size:15px; font-weight:700; color:var(--ai-usu);

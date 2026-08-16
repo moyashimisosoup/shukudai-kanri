@@ -4071,10 +4071,13 @@ function openFreeSheet(t){
    ラベルの説明文を増やさずに2つの入力欄の性質の違いを伝える */
 function recentLogsHTML(t){
   const logs = Array.isArray(state.logs) ? state.logs : [];
+  /* 時刻が こわれている 記録も、メモは 出す。日付で ひくと NaN に なり、
+     ならべかえ そのものが おかしく なるので、文字として くらべる。
+     ISO の 文字列は 文字の じゅんばんが 時刻の じゅんばんと そろう。 */
   const rows = logs
-    .filter(l => l.taskId === t.id && String(l.memo || '').trim())
+    .filter(l => l && l.taskId === t.id && String(l.memo || '').trim())
     .slice()
-    .sort((a,b)=> new Date(b.at) - new Date(a.at));
+    .sort((a,b)=> String(b.at || '').localeCompare(String(a.at || '')));
   if(!rows.length) return '';
 
   // 3000件までためられる記録を折りたたみの中まで全部レイアウトすると重いので、
