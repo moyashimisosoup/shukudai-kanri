@@ -87,8 +87,12 @@ test('任意質問は回答ごとに保存・再表示し、シート外では�
     '質問ごとに保存ボタンを出すこと');
   assert.match(one, /前に保存した答えを、新しい内容で上書きしますか？/,
     '既存回答の上書きは確認すること');
-  assert.match(all, /state\.questionAnswers\[t\.id\] = \{ answers, at:Date\.now\(\) \}/,
+  assert.match(grab(APP, 'saveQuestionAnswerRow'), /state\.questionAnswers\[t\.id\] = row/,
     '保存した回答を課題ごとに残すこと');
+  assert.match(one, /if\(!next && !old\)\{ toast\('答えを書いてから保存してね'\); return false; \}/,
+    '空欄は保存済みとせず、入力を促すこと');
+  assert.match(grab(APP, 'questionAnswerRow'), /K_QUESTION_ANSWERS/,
+    '端末内の控えからも保存済み回答を再表示できること');
   assert.match(grab(APP, 'mergeState'), /out\.questionAnswers = \{\}/,
     '共有時にも質問回答を統合すること');
   assert.match(APP, /if\(e\.target\.id === 'sheetBack'\) return;/,
@@ -2411,11 +2415,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260816h',
+    'assets/style.css': '20260816i',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260816h',
+    'assets/app.js': '20260816i',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2438,13 +2442,13 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.12をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.12';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.12">/);
-  assert.equal(PACKAGE.version, '1.3.12');
-  assert.equal(PACKAGE_LOCK.version, '1.3.12');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.12');
-  assert.match(UPDATES, /2026年8月16日　v1\.3\.12：[\s\S]*任意質問.*答えごとに保存/);
+test('公開版番号v1.3.13をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.13';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.13">/);
+  assert.equal(PACKAGE.version, '1.3.13');
+  assert.equal(PACKAGE_LOCK.version, '1.3.13');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.13');
+  assert.match(UPDATES, /2026年8月16日　v1\.3\.13：[\s\S]*保存済み回答.*表示されない/);
   assert.match(UPDATES, /v1\.0\.0/);
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');

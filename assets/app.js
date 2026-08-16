@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.12';
+const RELEASE_VERSION = '1.3.13';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -54,6 +54,9 @@ function rememberChosenCode(code){ setLocal(K_CODE_CHOSEN, String(code || 'none'
 const K_ROLE = TEST_MODE ? 'natsu.preview.role.v1' : 'natsu.device.role.v1';
 const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
 const K_READING = TEST_MODE ? 'natsu.preview.reading.v1' : 'natsu.device.reading.v1';
+/* 任意質問の回答は共有stateに入れる。通信を始める直前の描き直しや古い
+   キャッシュに消されて入力欄が空に見えないよう、この端末にも同じ控えを持つ。 */
+const K_QUESTION_ANSWERS = TEST_MODE ? 'natsu.preview.question.answers.v1' : 'natsu.question.answers.v1';
 const K_THEME = TEST_MODE ? 'natsu.preview.theme.v1' : 'natsu.device.theme.v1';
 /* 共有へ入る子どもが初期設定で選んだデザイン。グループの設定を受け取ったあとに
    1度だけ反映し、受信前の初期値を先に送る事故を避ける。 */
@@ -3692,8 +3695,20 @@ function showSheet(){
   document.body.style.overflow = 'hidden';
 }
 function questionAnswerRow(t){
-  const row = state.questionAnswers && state.questionAnswers[t.id];
-  return row && Array.isArray(row.answers) ? row : { answers:[], at:0 };
+  const shared = state.questionAnswers && state.questionAnswers[t.id];
+  let local = null;
+  try{ local = JSON.parse(getLocal(K_QUESTION_ANSWERS) || '{}')[t.id]; }catch(e){}
+  const pick = !shared || (local && ms(local.at) > ms(shared.at)) ? local : shared;
+  return pick && Array.isArray(pick.answers) ? pick : { answers:[], at:0 };
+}
+function saveQuestionAnswerRow(t, answers){
+  const row = { answers, at:Date.now() };
+  if(!state.questionAnswers || typeof state.questionAnswers !== 'object') state.questionAnswers = {};
+  state.questionAnswers[t.id] = row;
+  let local = {};
+  try{ local = JSON.parse(getLocal(K_QUESTION_ANSWERS) || '{}') || {}; }catch(e){}
+  local[t.id] = row;
+  setLocal(K_QUESTION_ANSWERS, JSON.stringify(local));
 }
 function saveQuestionAnswer(index, ask){
   const t = sheetTask;
@@ -3703,11 +3718,11 @@ function saveQuestionAnswer(index, ask){
   const answers = before.answers.slice();
   const next = String(el.value || '').trim().slice(0, 800);
   const old = String(answers[index] || '');
+  if(!next && !old){ toast('答えを書いてから保存してね'); return false; }
   if(next === old){ toast('この答えは保存ずみです'); return true; }
   if(ask && old && !confirm('前に保存した答えを、新しい内容で上書きしますか？')) return false;
   answers[index] = next;
-  if(!state.questionAnswers || typeof state.questionAnswers !== 'object') state.questionAnswers = {};
-  state.questionAnswers[t.id] = { answers, at:Date.now() };
+  saveQuestionAnswerRow(t, answers);
   saveSt();
   toast(next ? '答えを保存しました' : '答えを空にして保存しました');
   return true;
@@ -3721,8 +3736,7 @@ function saveQuestionAnswers(ask){
   if(ask && before.answers.some((v,i)=> String(v || '') && changed[i]
     && !confirm('前に保存した答えを、新しい内容で上書きしますか？'))) return false;
   const answers = $$('#sheetBody [data-q]').map(el=>String(el.value || '').trim().slice(0, 800));
-  if(!state.questionAnswers || typeof state.questionAnswers !== 'object') state.questionAnswers = {};
-  state.questionAnswers[t.id] = { answers, at:Date.now() };
+  saveQuestionAnswerRow(t, answers);
   saveSt();
   return true;
 }
