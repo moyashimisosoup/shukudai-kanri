@@ -3745,7 +3745,16 @@ function legacyQuestionAnswers(t){
       if(start < 0) return;
       const from = start + marker.length;
       const next = memo.indexOf('\n・', from);
-      const value = memo.slice(from, next < 0 ? memo.length : next).trim();
+      /* つぎの 問が 続く なら、そこが 切れ目だと はっきり 分かるので
+         改行ごと のこす。いちばん 後ろの 答えには つぎの 問が 無く、
+         そのあとに 書いた ふつうの メモが つながって いる。
+         答えと メモの あいだに 目じるしは 無く、答えにも 改行を
+         ゆるして いるので、どこまでが 答えかは 決められない。
+         後ろの ものだけ 1行に かぎる。まちがえた 文を そのまま
+         専用欄へ 移して 固めて しまうより、足りない ぶんを 下の
+         「これまでの きろく」で 見て 直す ほうが とりかえしが つく。 */
+      const end = next < 0 ? memo.indexOf('\n', from) : next;
+      const value = memo.slice(from, end < 0 ? memo.length : end).trim();
       if(value){ answers[i] = value; filled++; }
     });
     /* 埋めた数を 自分で 数える。歯とびの 配列では length が

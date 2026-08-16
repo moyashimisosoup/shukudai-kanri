@@ -131,6 +131,29 @@ test('何回かに分けて記録した任意質問の答えを、ぜんぶ入�
     '新しい記録で後半が埋まっても、古い記録の前半まで読むこと');
 });
 
+/* 旧記録は「・質問\n　→ 答え」を並べたあと、ふつうのメモを \n でつないでいる。
+   いちばん後ろの答えには「次の ・」が無いため、放っておくとメモ本文まで
+   答えとして取り込み、それが専用欄へ移ると誤った答えとして固定される。 */
+test('記録のいちばん後ろの答えが、あとに書いたメモを飲み込まない', ()=>{
+  const legacy = new Function('state', `${grab(APP, 'legacyQuestionAnswers')} return legacyQuestionAnswers;`)({
+    logs:[{ taskId:'kyuri', at:'2026-08-16T10:00:00.000Z',
+            memo:'・色は？\n　→ あかかった\n・形は？\n　→ まるかった\nきょうは あつかった\nまた 見る' }]
+  });
+  assert.deepEqual(legacy({ id:'kyuri', questions:['色は？', '形は？'] }),
+    ['あかかった', 'まるかった'],
+    '後ろの答えはメモ本文を取り込まないこと');
+});
+
+test('途中の問の答えは、複数行のままのこす', ()=>{
+  const legacy = new Function('state', `${grab(APP, 'legacyQuestionAnswers')} return legacyQuestionAnswers;`)({
+    logs:[{ taskId:'kyuri', at:'2026-08-16T10:00:00.000Z',
+            memo:'・色は？\n　→ あかかった\nすこし きいろも\n・形は？\n　→ まるかった' }]
+  });
+  assert.deepEqual(legacy({ id:'kyuri', questions:['色は？', '形は？'] }),
+    ['あかかった\nすこし きいろも', 'まるかった'],
+    '次の問が続く答えは、区切りが分かるので改行ごと残すこと');
+});
+
 test('専用欄に一部だけ保存していても、残りの問は旧記録から補う', ()=>{
   const row = questionAnswerRowFn({
     logs:[{ taskId:'jiyu', at:'2026-08-14T01:00:00.000Z',
