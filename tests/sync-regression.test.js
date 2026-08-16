@@ -78,6 +78,27 @@ test('子どもの最終記録時刻は親の同期確認と混ざらず、新�
   assert.match(STYLE, /\.pstat-child-updated\{[\s\S]{0,100}position:absolute; right:8px; bottom:-13px[\s\S]{0,100}font-size:8px/);
 });
 
+test('任意質問は回答ごとに保存・再表示し、シート外では閉じない', ()=>{
+  const open = grab(APP, 'openSheet');
+  const one = grab(APP, 'saveQuestionAnswer');
+  const all = grab(APP, 'saveQuestionAnswers');
+  assert.match(open, /const savedAnswers = questionAnswerRow\(t\)\.answers/);
+  assert.match(open, /data-save-q="\$\{i\}"[\s\S]*この答えを保存/,
+    '質問ごとに保存ボタンを出すこと');
+  assert.match(one, /前に保存した答えを、新しい内容で上書きしますか？/,
+    '既存回答の上書きは確認すること');
+  assert.match(all, /state\.questionAnswers\[t\.id\] = \{ answers, at:Date\.now\(\) \}/,
+    '保存した回答を課題ごとに残すこと');
+  assert.match(grab(APP, 'mergeState'), /out\.questionAnswers = \{\}/,
+    '共有時にも質問回答を統合すること');
+  assert.match(APP, /if\(e\.target\.id === 'sheetBack'\) return;/,
+    'シート外のタップで入力を消さないこと');
+  assert.match(STYLE, /\.sheet-open \.scroll\{ overflow:hidden; overscroll-behavior:none; touch-action:none; \}/,
+    '記録シート中は背景をスクロールしないこと');
+  assert.match(STYLE, /\.sheet-body\{[^}]*overflow-y:auto/,
+    '長い記録はシート内でスクロールできること');
+});
+
 function grab(src, name){
   const re = new RegExp('(?:async\\s+)?function\\s+' + name + '\\s*\\(');
   const match = re.exec(src);
@@ -2390,11 +2411,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260816g',
+    'assets/style.css': '20260816h',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260816g',
+    'assets/app.js': '20260816h',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2417,13 +2438,13 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.11をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.11';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.11">/);
-  assert.equal(PACKAGE.version, '1.3.11');
-  assert.equal(PACKAGE_LOCK.version, '1.3.11');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.11');
-  assert.match(UPDATES, /2026年8月16日　v1\.3\.11：[\s\S]*上側の余白/);
+test('公開版番号v1.3.12をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.12';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.12">/);
+  assert.equal(PACKAGE.version, '1.3.12');
+  assert.equal(PACKAGE_LOCK.version, '1.3.12');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.12');
+  assert.match(UPDATES, /2026年8月16日　v1\.3\.12：[\s\S]*任意質問.*答えごとに保存/);
   assert.match(UPDATES, /v1\.0\.0/);
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');

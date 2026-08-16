@@ -77,6 +77,9 @@ body{
   -webkit-overflow-scrolling:touch;
   overscroll-behavior-y:contain;
 }
+/* 記録シートを開いているあいだ、下の画面は動かさない。
+   長い記録は .sheet-body が受け持つので、背景と一緒に動いて迷わない。 */
+.sheet-open .scroll{ overflow:hidden; overscroll-behavior:none; touch-action:none; }
 
 /* 初回表示の白画面を避ける、HTMLだけで出る軽い起動表示。
    数字は通信量の推測ではなく、直前までに終わった読込段階を示す。 */
@@ -1115,6 +1118,8 @@ select{ appearance:auto; -webkit-appearance:menulist; }
 
 /* 質問（かんさつカード） */
 .q{ margin-bottom:16px; }
+.q-actions{ display:flex; justify-content:flex-end; margin-top:8px; }
+.q-save{ min-height:38px; }
 .q-t{
   font-size:18px; font-weight:900; margin-bottom:8px;
   display:flex; gap:8px; align-items:flex-start;

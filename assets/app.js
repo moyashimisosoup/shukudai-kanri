@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.11';
+const RELEASE_VERSION = '1.3.12';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -183,7 +183,7 @@ function migrate5to6(c){
    books が無いまま 保護者ページや 本の一覧を開くと 例外で止まり、
    画面が切りかわらない（リンクが効かないように見える）ので、
    入口を ひとつに まとめる */
-function emptyState(){ return { schema:SCHEMA, resetAt:0, progress:{}, logs:[], books:[], trash:[], gone:[], reads:[], messages:[] }; }
+function emptyState(){ return { schema:SCHEMA, resetAt:0, progress:{}, logs:[], books:[], trash:[], gone:[], reads:[], messages:[], questionAnswers:{} }; }
 
 /* 消した記録を のこす数。
    これは「思い出のため」だけでは なく、消したことを 相手の端末に つたえる
@@ -247,6 +247,13 @@ function normalizeState(s){
   if(!Array.isArray(s.gone))  s.gone  = [];
   if(!Array.isArray(s.reads)) s.reads = [];
   if(!Array.isArray(s.messages)) s.messages = [];
+  if(!s.questionAnswers || typeof s.questionAnswers !== 'object' || Array.isArray(s.questionAnswers)) s.questionAnswers = {};
+  Object.keys(s.questionAnswers).forEach(id=>{
+    const row = s.questionAnswers[id];
+    if(!row || typeof row !== 'object'){ delete s.questionAnswers[id]; return; }
+    row.answers = Array.isArray(row.answers) ? row.answers.map(v=>String(v || '').slice(0, 800)) : [];
+    row.at = ms(row.at);
+  });
   return s;
 }
 
@@ -772,6 +779,18 @@ function mergeState(local, remote, localIsNewer){
   out.reads = mergeById(left.reads, right.reads, (a,b)=> String(a.at||'') >= String(b.at||''))
     .sort((x,y)=> String(x.at||'').localeCompare(String(y.at||'')))
     .slice(-READS_MAX);
+
+  /* 観察・自由研究の任意質問は、課題ごとに最後に確定した回答を残す。
+     回答の保存時刻で選ぶため、別端末で古い入力欄を開いたままでも
+     新しく保存した回答が古い内容で戻されない。 */
+  out.questionAnswers = {};
+  const questionTaskIds = new Set([...Object.keys(left.questionAnswers || {}), ...Object.keys(right.questionAnswers || {})]);
+  questionTaskIds.forEach(id=>{
+    const a = left.questionAnswers && left.questionAnswers[id];
+    const b = right.questionAnswers && right.questionAnswers[id];
+    const pick = !b || (a && (ms(a.at) > ms(b.at) || (ms(a.at) === ms(b.at) && localIsNewer))) ? a : b;
+    if(pick) out.questionAnswers[id] = deepCopy(pick);
+  });
 
   out.gone = mergeById(left.gone, right.gone, (a,b)=> ms(a.at) >= ms(b.at))
     .sort((x,y)=> ms(y.at) - ms(x.at))
@@ -3665,6 +3684,49 @@ function bookSectionHTML(){
 let sheetTask = null, sheetSel = null, sheetSteps = null, sheetWrap = null;
 let sheetRating = 0, sheetBookId = null;
 
+function showSheet(){
+  $('#sheetWrap').hidden = false;
+  /* シートが開いている間は、背後の #scroll を動かさない。
+     長い入力は .sheet-body だけでスクロールできる。 */
+  document.body.classList.add('sheet-open');
+  document.body.style.overflow = 'hidden';
+}
+function questionAnswerRow(t){
+  const row = state.questionAnswers && state.questionAnswers[t.id];
+  return row && Array.isArray(row.answers) ? row : { answers:[], at:0 };
+}
+function saveQuestionAnswer(index, ask){
+  const t = sheetTask;
+  const el = t && $('#sheetBody [data-q="' + index + '"]');
+  if(!t || !el) return false;
+  const before = questionAnswerRow(t);
+  const answers = before.answers.slice();
+  const next = String(el.value || '').trim().slice(0, 800);
+  const old = String(answers[index] || '');
+  if(next === old){ toast('この答えは保存ずみです'); return true; }
+  if(ask && old && !confirm('前に保存した答えを、新しい内容で上書きしますか？')) return false;
+  answers[index] = next;
+  if(!state.questionAnswers || typeof state.questionAnswers !== 'object') state.questionAnswers = {};
+  state.questionAnswers[t.id] = { answers, at:Date.now() };
+  saveSt();
+  toast(next ? '答えを保存しました' : '答えを空にして保存しました');
+  return true;
+}
+function saveQuestionAnswers(ask){
+  const t = sheetTask;
+  if(!t || !(t.questions || []).length) return true;
+  const before = questionAnswerRow(t);
+  const changed = $$('#sheetBody [data-q]').map((el,i)=> String(el.value || '').trim().slice(0, 800) !== String(before.answers[i] || ''));
+  if(!changed.some(Boolean)) return true;
+  if(ask && before.answers.some((v,i)=> String(v || '') && changed[i]
+    && !confirm('前に保存した答えを、新しい内容で上書きしますか？'))) return false;
+  const answers = $$('#sheetBody [data-q]').map(el=>String(el.value || '').trim().slice(0, 800));
+  if(!state.questionAnswers || typeof state.questionAnswers !== 'object') state.questionAnswers = {};
+  state.questionAnswers[t.id] = { answers, at:Date.now() };
+  saveSt();
+  return true;
+}
+
 function openSheet(id, editBookId){
   const t = config.tasks.find(x=>x.id===id);
   if(!t) return;
@@ -3726,16 +3788,18 @@ function openSheet(id, editBookId){
 
   // 観察の観点。count と step のどちらでも出す
   if((t.questions||[]).length){
+    const savedAnswers = questionAnswerRow(t).answers;
     body += `<div class="field">
       <span class="lab">かんさつ してみよう</span>
-      <p class="hint">わかるところだけで いいよ。こえで 入れても OK。</p>
+      <p class="hint">わかるところだけで いいよ。答えごとに保存でき、次に開いたときも残るよ。</p>
       ${t.questions.map((q,i)=>`
         <div class="q">
           <p class="q-t"><span class="qn">${i+1}</span>${esc(q)}</p>
           <div class="mic-row">
-            <textarea data-q="${i}" rows="2" placeholder="かいてみよう"></textarea>
+            <textarea data-q="${i}" rows="2" placeholder="かいてみよう">${esc(savedAnswers[i] || '')}</textarea>
             ${micBtn('q'+i)}
           </div>
+          <div class="q-actions"><button class="btn btn-sm q-save" data-save-q="${i}" type="button">この答えを保存</button></div>
         </div>`).join('')}
     </div>`;
   }
@@ -3753,9 +3817,8 @@ function openSheet(id, editBookId){
   $('#sheetTitle').textContent = t.name;
   $('#sheetBody').innerHTML = body;
   $('#sheetBody').scrollTop = 0;
-  $('#sheetWrap').hidden = false;
+  showSheet();
   applyReadingDisplay($('#sheetWrap'));
-  document.body.style.overflow = 'hidden';
 }
 
 /* ---------------------------------------------------------
@@ -3851,9 +3914,8 @@ function openBookSheet(t, p, editBookId){
   $('#sheetBody').innerHTML = body;
   $('#sheetSave').textContent = 'できた！';
   $('#sheetBody').scrollTop = 0;
-  $('#sheetWrap').hidden = false;
+  showSheet();
   applyReadingDisplay($('#sheetWrap'));
-  document.body.style.overflow = 'hidden';
 }
 
 /* ---------------------------------------------------------
@@ -3874,9 +3936,8 @@ function openFreeSheet(t){
     ${freeTodayHTML(t)}`;
   $('#sheetSave').textContent = 'かけた！';
   $('#sheetBody').scrollTop = 0;
-  $('#sheetWrap').hidden = false;
+  showSheet();
   applyReadingDisplay($('#sheetWrap'));
-  document.body.style.overflow = 'hidden';
 }
 
 /* 今日すでに書いたぶんを見せる。1日に何回でも書き足せる */
@@ -4097,6 +4158,7 @@ function closeSheet(){
      うちに focus を外すことで確実に終了する。 */
   stopSR();
   $('#sheetWrap').hidden = true;
+  document.body.classList.remove('sheet-open');
   document.body.style.overflow = '';
   sheetTask = null; sheetSel = null; sheetSteps = null; sheetWrap = null;
   sheetRating = 0; sheetBookId = null;
@@ -4112,6 +4174,7 @@ function saveSheet(){
   stopSR();
   if(isBook(t)){ saveBookSheet(); return; }
   if(isFree(t)){ saveFreeSheet(); return; }
+  if(!saveQuestionAnswers(true)) return;
   const p = prog(t);
   const memo = ($('#memo') && $('#memo').value.trim()) || '';
   const moreInput = $('#dailyMore');
@@ -6301,10 +6364,14 @@ document.addEventListener('click', e=>{
   }
 
   // シート内
-  if(e.target.closest('#sheetClose') || e.target.closest('#sheetCancel') || e.target.id === 'sheetBack'){
+  if(e.target.id === 'sheetBack') return;
+  if(e.target.closest('#sheetClose') || e.target.closest('#sheetCancel')){
     closeSheet(); return;
   }
   if(e.target.closest('#sheetSave')){ saveSheet(); return; }
+
+  const saveQuestion = e.target.closest('[data-save-q]');
+  if(saveQuestion){ saveQuestionAnswer(Number(saveQuestion.dataset.saveQ), true); return; }
 
   const num = e.target.closest('#nums .num');
   if(num){
