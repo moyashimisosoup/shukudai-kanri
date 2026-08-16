@@ -2558,11 +2558,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260817a',
+    'assets/style.css': '20260817b',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260817a',
+    'assets/app.js': '20260817b',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2585,14 +2585,16 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.18をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.18';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.18">/);
-  assert.equal(PACKAGE.version, '1.3.18');
-  assert.equal(PACKAGE_LOCK.version, '1.3.18');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.18');
+test('公開版番号v1.3.19をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.19';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.19">/);
+  assert.equal(PACKAGE.version, '1.3.19');
+  assert.equal(PACKAGE_LOCK.version, '1.3.19');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.19');
+  assert.match(UPDATES, /2026年8月17日　v1\.3\.19：[\s\S]*?小学6年生まで/,
+    'この版で広げた漢字レベルを履歴に書くこと');
   assert.match(UPDATES, /2026年8月17日　v1\.3\.18：[\s\S]*?元に戻す/,
-    'この版で足した欄ごとの取り消しを履歴に書くこと');
+    '前の版で足した欄ごとの取り消しも履歴に残すこと');
   assert.match(UPDATES, /2026年8月16日　v1\.3\.17：[\s\S]*?いちばん後ろの問の答え/,
     'この版で直したメモ本文の混入を履歴に書くこと');
   assert.match(UPDATES, /2026年8月16日　v1\.3\.16：[\s\S]*?これまでの きろく[\s\S]*?はしをなぞって戻る/,
