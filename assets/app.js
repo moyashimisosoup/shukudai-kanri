@@ -124,6 +124,10 @@ function isFree(t){ return t && t.type === 'daily' && t.recordStyle === 'free'; 
 /* 「文章で記録」の 既定の 呼びかけ。何も 決めていない 項目に つかう。
    白い 欄だけ 出されると 子どもの 手が 止まるので、例を ならべておく */
 const FREE_HINT_DEFAULT = '今日のはっけん、今おもっていること、わかったこと、おぼえたこと、あそび、かぞく、ゲーム…なんでもかいてみよう。';
+/* 「読める漢字」に小4以上を選んだ子むけの、同じ内容の大人びた言い方。
+   親が freeHint を自分で決めているときは そちらを優先するので、
+   ここは既定の呼びかけを 出すときだけ 使う。使う漢字は 小4までの配当に限る。 */
+const FREE_HINT_ADULT = '今日の発見、今思っていること、分かったこと、覚えたこと、遊び、家族、ゲーム…なんでも書いてみよう。';
 function bookFields(t){
   return Object.assign({ author:false, publisher:false, rating:true }, (t && t.bookFields) || {});
 }
@@ -740,6 +744,22 @@ function learnedKanjiLabel(){
   if(g === 9) return 'つかえる';
   if(g >= 1 && g <= 6) return g + '年生までの';
   return 'ならった';
+}
+/* 「読める漢字」に小4以上を選んだ子には、子ども画面の呼びかけの文（はんこ・
+   励まし文・記録シートの一言）を 少し大人びた言い方に切りかえる。
+   9（漢字のまま）は 数だけ見ると4以上に含まれるが、読みちがえを防ぐため
+   ここで明示しておく。判定を あちこちに 書き散らすと、あとで水準を
+   変えるときに 取りこぼすので、この関数だけに まとめる。 */
+function grownUpWording(){
+  const g = readingGrade();
+  return g >= 4 || g === 9;
+}
+/* 呼びかけの文だけを、上の判定にあわせて選ぶ。タブ名・見出し・ボタンの
+   名前・設定画面は 画面の骨組みなので ここを 使わない。
+   大人びた側の文に使う漢字は、必ず 小4までの配当表に 収める
+   （呼びだす側で選んだ学年の子が 読めない字を 出さないため）。 */
+function wording(child, adult){
+  return grownUpWording() ? adult : child;
 }
 
 /* ---------------------------------------------------------
@@ -2032,12 +2052,31 @@ const PACE_MESSAGES = {
   steady: ['いいペース！', 'このちょうしで すすめよう！', 'あわてず ひとつずつ！', '毎日すこしずつ すすもう！',
     'きょうも ひとつ すすめよう！', 'じぶんのペースで いこう！', 'つぎの ひとつへ いこう！', 'こつこつ つづけよう！']
 };
+/* 「読める漢字」に小4以上を選んだ子むけの、少し大人びた言い方。内容と
+   状態（good/focus/hurry/steady）・件数（各8）は PACE_MESSAGES とそろえる。
+   ここで使う漢字は 必ず 小4までの配当に収める（tests で機械的に確認）。 */
+const PACE_MESSAGES_ADULT = {
+  good: ['順調だね！この調子！', 'とても良いペース！', '進み具合ばっちり！', 'このまま進もう！',
+    '着実に進んでいるね！', '良いリズムだね！', 'しっかり進んでいるね！', 'ここまでよくできたね！'],
+  focus: ['まず「必ずやる」から！', '大事な宿題を先に！',
+    '「必ずやる」を一つ！', '今日は大事な宿題から！',
+    'まずは一つ進めよう！', '大事な宿題に もどろう！',
+    '先に一つ かたづけよう！', 'まずは大事な方から！'],
+  hurry: ['今日はがんばりどき！', '今から一つずつ！', '少しずつ とりもどそう！', 'まずはできる所から！',
+    '一つ選んで始めよう！', '小さく進めば へいき！', '今日の一つをやろう！', 'できる所からやろう！'],
+  steady: ['良いペース！', 'この調子で進めよう！', 'あわてず一つずつ！', '毎日少しずつ進もう！',
+    '今日も一つ進めよう！', '自分のペースで行こう！', '次の一つへ行こう！', 'こつこつ続けよう！']
+};
 function localDayNumber(now){
   const d = now instanceof Date ? now : new Date(now == null ? Date.now() : now);
   return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000;
 }
 function paceMessage(kind, overallGap, mustGap, now){
-  const rows = PACE_MESSAGES[kind];
+  /* grownUpWording はこのブロックの外（readingGrade の近く）で定義している。
+     この関数だけを切り出して動かすテストでも壊れないよう、存在しないときは
+     いままで通り 子ども向けの表を使う。 */
+  const table = (typeof grownUpWording === 'function' && grownUpWording()) ? PACE_MESSAGES_ADULT : PACE_MESSAGES;
+  const rows = table[kind];
   /* 同じ進捗でも毎日少し表情を変える。日付を足すだけなので、
      同じ日の再描画では文言がころころ変わらない。
      UTC の日付番号だと日本時間の朝9時に文言が変わるため、端末の暦日を使う。 */
@@ -4024,7 +4063,8 @@ function openSheet(id, editBookId){
     body += `
     <div class="field">
       <span class="lab">${isSheetCount(t) ? '何' + esc(unitAdult(t.unit||'まい')) + '目までやった？' : 'どこまで やった？'}</span>
-      <p class="hint">やった ところを おしてね。そこまで ぜんぶ できたことに なるよ。</p>
+      <p class="hint">${wording('やった ところを おしてね。そこまで ぜんぶ できたことに なるよ。',
+        'やった 所を おしてね。そこまで 全部 できたことに なるよ。')}</p>
       <p class="sel-say" id="selSay">${selSayText(t, sheetSel)}</p>
       <div class="nums" id="nums">${numsHTML(t, sheetSel)}</div>
     </div>`;
@@ -4049,7 +4089,7 @@ function openSheet(id, editBookId){
     body += `
     <div class="field">
       <span class="lab">きょうは どのくらい できた？</span>
-      <p class="hint">1日の めあては ${p.total}${esc(t.targetUnit||'')}だよ。</p>
+      <p class="hint">${wording('1日の めあては', '1日の 目当ては')} ${p.total}${esc(t.targetUnit||'')}だよ。</p>
       <div class="tally" id="tally">
         ${Array.from({length:max-min+1},(_,idx)=> min+idx).map(i=>
           `<button class="tally-btn${i===sheetSel?' sel':''}" data-n="${i}" type="button">${i}</button>`).join('')}
@@ -4068,7 +4108,8 @@ function openSheet(id, editBookId){
     body += `
     <div class="field field-wrap" id="wrapField"${p.numDone ? '' : ' hidden'}>
       <span class="lab">さいごの しあげ</span>
-      <p class="hint">ぜんぶ おわったね！ できた ところを おしてね。</p>
+      <p class="hint">${wording('ぜんぶ おわったね！ できた ところを おしてね。',
+        '全部 終わったね！ できた 所を おしてね。')}</p>
       <div class="steps" id="wraps">${wrapsHTML(t, sheetWrap)}</div>
     </div>`;
   }
@@ -4081,7 +4122,8 @@ function openSheet(id, editBookId){
     sheetQStored = row.stored.slice();
     body += `<div class="field">
       <span class="lab">かんさつ してみよう</span>
-      <p class="hint">わかるところだけで いいよ。答えごとに保存でき、次に開いたときも残るよ。</p>
+      <p class="hint">${wording('わかるところだけで いいよ。答えごとに保存でき、次に開いたときも残るよ。',
+        '分かる 所だけで いいよ。答えごとに残せて、次に開いたときも残るよ。')}</p>
       ${t.questions.map((q,i)=>`
         <div class="q">
           <p class="q-t"><span class="qn">${i+1}</span>${esc(q)}</p>
@@ -4218,10 +4260,15 @@ function openBookSheet(t, p, editBookId){
    --------------------------------------------------------- */
 function openFreeSheet(t){
   $('#sheetTitle').textContent = t.name;
+  /* 親が freeHint を決めているときは そのまま使う。既定を出すときだけ、
+     選んだ学年にあわせて言い方を切りかえる（設定欄の例示は変えないので
+     FREE_HINT_DEFAULT 自体はそのまま残す）。 */
+  const freeHintDefault = t.freeHint || FREE_HINT_DEFAULT;
+  const freeHint = t.freeHint ? freeHintDefault : wording(freeHintDefault, FREE_HINT_ADULT);
   $('#sheetBody').innerHTML = `
     <div class="field">
       <span class="lab">${esc(t.memoLabel || 'きょうは なにを した？')}</span>
-      <p class="hint">${esc(t.freeHint || FREE_HINT_DEFAULT)}</p>
+      <p class="hint">${esc(freeHint)}</p>
       <div class="mic-row">
         <textarea id="freeMemo" rows="6" placeholder="かいてみよう"></textarea>
         ${micBtn('freeMemo')}
@@ -4301,7 +4348,7 @@ function saveFreeSheet(){
   saveSt();
 
   closeSheet();
-  stamp('かけたね！');
+  stamp(wording('かけたね！', '書けたね！'));
   setTimeout(()=> render({ keepScroll:true }), 60);
 }
 
@@ -4363,7 +4410,8 @@ function saveBookSheet(){
 
   const done = prog(t).isDone;
   closeSheet();
-  stamp(sheetBookId ? 'なおしたよ' : (done ? 'ぜんぶ よんだ！' : 'よめたね！'));
+  stamp(sheetBookId ? wording('なおしたよ', '直したよ')
+    : (done ? wording('ぜんぶ よんだ！', '全部読んだ！') : wording('よめたね！', '読めたね！')));
   setTimeout(()=> render({ keepScroll:true }), 60);
 }
 
@@ -4624,7 +4672,7 @@ function saveSheet(){
      0までは 戻さず 数だけ 減らした ときも 同じ理由で はんこは 出さない */
   if((after.done | 0) === 0 && hadValue) toast('0 に もどしました');
   else if(dailyDecreased) toast('なおしました');
-  else stamp(after.isDone ? 'ぜんぶ できた！' : 'できた！');
+  else stamp(after.isDone ? wording('ぜんぶ できた！', '全部 できた！') : wording('できた！', '出来た！'));
   setTimeout(()=> render({ keepScroll:true }), 60);
   return ok;
 }

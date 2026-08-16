@@ -3225,7 +3225,9 @@ test('通信できないときは何もしない（オフラインはふつう�
 });
 
 test('起動時は描画を妨げずに版を確認し、タブ復帰時は30分に一度だけ確認する', ()=>{
-  assert.match(APP, /render\(\);\s*\n\s*checkForNewVersion\(\);/,
+  /* あいだに noticeAdopted()（取り込み直後の知らせ）が入る。どちらも
+     描画のあとで、確認そのものは待たせない、という意図は変わらない。 */
+  assert.match(APP, /render\(\);\s*\n(?:noticeAdopted\(\);[^\n]*\n)?checkForNewVersion\(\);/,
     '起動直後の render() を待たせずに確認を走らせること');
   assert.match(APP,
     /document\.addEventListener\('visibilitychange', \(\)=>\{[\s\S]{0,120}if\(document\.hidden\) return;[\s\S]{0,160}30 \* 60 \* 1000\) checkForNewVersion\(\);/,
@@ -3683,4 +3685,52 @@ test('新しい版を取り込んだ直後は、そのことを一言だけ知�
   assert.doesNotMatch(fn, /confirm\(/, '済んだことなので問いかけないこと');
   assert.match(APP, /render\(\);\s*\nnoticeAdopted\(\);/,
     '描画したあとに知らせること');
+});
+
+/* 小4以上を選んだ子むけの言い方に、その子がまだ習っていない漢字を混ぜては
+   本末転倒になる。語を足すたびに人が確かめるのは続かないので、配当表と
+   機械的に突き合わせる。ここが落ちたら、使った語のほうを直すこと。 */
+test('大人びた言い方の漢字は、すべて小4までの配当に収まる', ()=>{
+  const upTo4 = new Set([].concat(gradeChars(1), gradeChars(2), gradeChars(3), gradeChars(4)));
+  const strings = [];
+  const table = /const PACE_MESSAGES_ADULT = \{([\s\S]*?)\n\};/.exec(APP);
+  assert.ok(table, '大人びた側のペース文の表があること');
+  for(const m of table[1].matchAll(/'([^']*)'/g)) strings.push(m[1]);
+  const hint = /const FREE_HINT_ADULT = '([^']*)'/.exec(APP);
+  assert.ok(hint, '文章で記録の呼びかけにも大人びた側があること');
+  strings.push(hint[1]);
+  for(const m of APP.matchAll(/wording\('([^']*)',\s*'([^']*)'\)/g)) strings.push(m[2]);
+
+  assert.ok(strings.length >= 40, '切り替える文を集められていること');
+  const over = [];
+  for(const s of strings){
+    for(const ch of s){
+      if(/[\u3400-\u9FFF]/.test(ch) && !upTo4.has(ch)) over.push(ch + '（' + s + '）');
+    }
+  }
+  assert.deepEqual(over, [], '小4までに無い漢字を使わないこと');
+});
+
+test('小4以上と「漢字のまま」でだけ、言い方を切りかえる', ()=>{
+  const f = grab(APP, 'grownUpWording');
+  assert.match(f, /g >= 4 \|\| g === 9/, '小4以上と漢字のままを対象にすること');
+  assert.match(grab(APP, 'wording'), /grownUpWording\(\) \? adult : child/);
+  assert.match(grab(APP, 'paceMessage'), /grownUpWording\(\)\) \? PACE_MESSAGES_ADULT : PACE_MESSAGES/,
+    '励まし文も同じ判定で選ぶこと');
+  const body = /const PACE_MESSAGES_ADULT = \{([\s\S]*?)\n\};/.exec(APP)[1];
+  for(const kind of ['good','focus','hurry','steady']){
+    const from = body.indexOf(kind + ':');
+    assert.ok(from >= 0, kind + ' の文がそろっていること');
+    const rows = body.slice(from, body.indexOf(']', from));
+    assert.equal((rows.match(/'/g) || []).length / 2, 8,
+      kind + ' も8文そろえ、同じ日に文言が変わらない仕組みを保つこと');
+  }
+});
+
+test('切りかえるのは呼びかけだけで、画面の骨組みは変えない', ()=>{
+  assert.match(APP, /TABS = \[[^\]]*'home'[^\]]*\]/, 'タブの並びを変えないこと');
+  const tabLabels = /const TAB_LABELS[\s\S]{0,400}?\};/.exec(APP);
+  if(tabLabels) assert.doesNotMatch(tabLabels[0], /wording\(/, 'タブ名は切りかえないこと');
+  assert.doesNotMatch(grab(APP, 'viewConfig'), /wording\(/, '設定画面は切りかえないこと');
+  assert.doesNotMatch(grab(APP, 'viewTasks'), /wording\(/, '宿題を決める画面は切りかえないこと');
 });
