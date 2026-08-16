@@ -1068,6 +1068,7 @@ test('参加画面で変えた名前と漢字設定は、グループ設定の�
     function syncPush(){}
     function isGeneratedTitle(){ return true; }
     function defaultTitleFor(name){ return name ? name + 'の夏休みの宿題' : 'しゅくだいノート'; }
+    ${grabConst(APP, 'READING_GRADE_OPTIONS')}
     ${grab(APP, 'savedAt')}
     ${grab(APP, 'markReceivedAt')}
     ${grab(APP, 'applyRemote')}
@@ -3459,4 +3460,208 @@ test('宿題を足したときは、名前の欄から始められるように�
     '閉じたときは数ではなく、足したという事実を知らせること');
   assert.match(APP, /on\('#addDailyTask'[\s\S]{0,220}startNewTask\(added\)/,
     '毎日の項目も同じ入り口を通ること');
+});
+
+/* --- 読める漢字：小6までの拡張 ---------------------------------------------
+   以前は 0（すべてひらがな）・1・2・9（漢字のまま）だけしか選べなかった。
+   kanji.js 側は もともと 小1〜小6を 判定できるので、app.js の
+   選択肢・許可リスト・出し分けを 実際の学年に そろえる。 */
+
+test('「読める漢字」は すべてひらがな・小1〜小6・漢字のまま を この順で選べる', ()=>{
+  const harness = new Function(`
+    ${grabConst(APP, 'READING_GRADE_OPTIONS')}
+    ${grab(APP, 'readingOptions')}
+    return { READING_GRADE_OPTIONS, readingOptions };
+  `)();
+  assert.deepEqual(harness.READING_GRADE_OPTIONS, [0,1,2,3,4,5,6,9],
+    '0→1→2→3→4→5→6→9 の順で並ぶこと');
+  const html = harness.readingOptions(4);
+  [
+    ['0', 'すべてひらがな'], ['1', '小学1年生まで'], ['2', '小学2年生まで'],
+    ['3', '小学3年生まで'], ['4', '小学4年生まで'], ['5', '小学5年生まで'],
+    ['6', '小学6年生まで'], ['9', '漢字のまま']
+  ].forEach(([value, label])=>{
+    assert.match(html, new RegExp('<option value="' + value + '"[^>]*>' + label + '</option>'),
+      value + ' の選択肢が「' + label + '」で出ること');
+  });
+  assert.match(html, /<option value="4" selected>/, '選んでいる学年に selected を付けること');
+});
+
+test('app.js が選べる学年は、kanji.js が実際に受け入れる学年と食い違わない', ()=>{
+  const k = loadKanji();
+  const options = new Function(`${grabConst(APP, 'READING_GRADE_OPTIONS')} return READING_GRADE_OPTIONS;`)();
+  /* 許可リストの どの値も、kanji.js 側でも そのまま通ること */
+  options.forEach(g=>{
+    k.setReadingGrade(g);
+    assert.equal(k.getReadingGrade(), g, g + ' が kanji.js 側でも そのまま通ること');
+  });
+  /* 許可リストに無い値は、kanji.js 側でも 通らない（=範囲がそろっている） */
+  [7, 8].forEach(g=>{
+    k.setReadingGrade(g);
+    assert.equal(k.getReadingGrade(), 2, g + ' は どちらでも 通らないこと');
+  });
+});
+
+test('読める漢字の許可リストは1か所にまとまり、[0,1,2,9] の直書きが残っていない', ()=>{
+  assert.doesNotMatch(APP, /\[0,1,2,9\]/,
+    '直書きの許可リストを、共通の READING_GRADE_OPTIONS に一本化すること');
+});
+
+function readingGradeHarness(configGrade, legacyGrade){
+  return new Function(`
+    let config = ${configGrade === undefined ? 'null' : JSON.stringify({ readingGrade: configGrade })};
+    const K_READING = 'K_READING';
+    function getLocal(){ return ${JSON.stringify(legacyGrade === undefined ? '' : String(legacyGrade))}; }
+    ${grabConst(APP, 'READING_GRADE_OPTIONS')}
+    ${grab(APP, 'readingGrade')}
+    return readingGrade();
+  `)();
+}
+
+test('保存済みの 0・1・2・9 と、新しく選べる 3〜6 のどちらも、そのまま通る', ()=>{
+  [0, 1, 2, 3, 4, 5, 6, 9].forEach(g=>{
+    assert.equal(readingGradeHarness(g), g, 'config.readingGrade=' + g);
+  });
+});
+
+test('config にまだ値が無いグループは、端末に残る値（3〜6を含む）を引きつぎ、知らない値は小2に落とす', ()=>{
+  [0, 1, 2, 3, 4, 5, 6, 9].forEach(g=>{
+    assert.equal(readingGradeHarness(undefined, g), g, '端末の値=' + g);
+  });
+  assert.equal(readingGradeHarness(undefined, 8), 2, '知らない値は小2に落とすこと');
+});
+
+function normalizeConfigHarness(input, legacyTheme, legacyGrade){
+  return new Function(`
+    function deepCopy(v){ return JSON.parse(JSON.stringify(v)); }
+    const DEFAULT_CONFIG = { tasks:[], theme:'notebook', readingGrade:2 };
+    const THEME_IDS = ['notebook','sunny','soda','berry','block','cat'];
+    const PARENT_SENDERS = ['おかあさん','おとうさん','その他','名前表示なし'];
+    const K_THEME = 'K_THEME', K_READING = 'K_READING';
+    function getLocal(k){ return k === K_THEME ? ${JSON.stringify(legacyTheme || '')} : ${JSON.stringify(legacyGrade === undefined ? '' : String(legacyGrade))}; }
+    function isGeneratedTitle(){ return false; }
+    function defaultTitleFor(name){ return name ? name + 'の夏休みの宿題' : 'しゅくだいノート'; }
+    ${grabConst(APP, 'READING_GRADE_OPTIONS')}
+    ${grab(APP, 'normalizeConfig')}
+    return normalizeConfig(${JSON.stringify(input)});
+  `)();
+}
+
+test('normalizeConfig は 保存済みの 0・1・2・9 と 新しい 3〜6 を どちらも そのまま通す', ()=>{
+  [0, 1, 2, 3, 4, 5, 6, 9].forEach(g=>{
+    const c = normalizeConfigHarness({ tasks:[], theme:'notebook', readingGrade:g, title:'x', childName:'' });
+    assert.equal(c.readingGrade, g, 'readingGrade=' + g);
+  });
+});
+
+test('normalizeConfig は 未知の値のとき、端末に残る値（3〜6を含む）を引きつぐ', ()=>{
+  [3, 4, 5, 6].forEach(g=>{
+    const c = normalizeConfigHarness({ tasks:[], theme:'notebook', title:'x', childName:'' }, '', g);
+    assert.equal(c.readingGrade, g, '端末の値=' + g);
+  });
+  const fallback = normalizeConfigHarness({ tasks:[], theme:'notebook', title:'x', childName:'' }, '', 8);
+  assert.equal(fallback.readingGrade, 2, '知らない値は小2に落とすこと');
+});
+
+const FUN_TEST = new Function(`${grabConst(DATA, 'FUN_ASK_BY_TYPE')} ${grabConst(DATA, 'FUN')} return FUN;`)();
+
+function funAllowedHarness(grade){
+  return new Function(`
+    let config = { readingGrade: ${grade} };
+    const K_READING = 'K_READING';
+    function getLocal(){ return ''; }
+    ${grabConst(APP, 'READING_GRADE_OPTIONS')}
+    ${grab(APP, 'readingGrade')}
+    ${grabConst(DATA, 'FUN_ASK_BY_TYPE')}
+    ${grabConst(DATA, 'FUN')}
+    ${grab(APP, 'funAllowed')}
+    return funAllowed;
+  `)();
+}
+
+test('小3以上を選ぶと lv:3 の読みものも出て、小2以下では出ず、漢字のままでは出る', ()=>{
+  const lv3 = FUN_TEST.findIndex(f=> f.lv === 3);
+  const lv2 = FUN_TEST.findIndex(f=> f.lv === 2);
+  assert.ok(lv3 >= 0 && lv2 >= 0, 'テストの前提として lv:2・lv:3 の項目が両方あること');
+  [0, 1, 2].forEach(g=>{
+    assert.equal(funAllowedHarness(g)(lv3), false, '小' + g + 'では lv:3 を出さないこと');
+    assert.equal(funAllowedHarness(g)(lv2), true, '小' + g + 'でも lv:2 は出すこと');
+  });
+  [3, 4, 5, 6].forEach(g=>{
+    assert.equal(funAllowedHarness(g)(lv3), true, '小' + g + 'では lv:3 も出すこと（以前は9でしか出なかった）');
+  });
+  assert.equal(funAllowedHarness(9)(lv3), true, '漢字のままでは 引きつづき lv:3 も出すこと');
+});
+
+test('参加画面で選んだ小3〜小6の漢字設定も、グループ設定の受信後に反映する', ()=>{
+  const storage = new Map([
+    ['natsu.savedAt.v1', JSON.stringify({config:100})],
+    ['natsu.welcome.join.v1', JSON.stringify({
+      hasName:false, childName:'', hasGrade:true, readingGrade:5
+    })]
+  ]);
+  let saved = 0;
+  const harness = new Function('localStorage', 'onSave', `
+    let config={ tasks:[], theme:'notebook', childName:'', readingGrade:2, title:'しゅくだいノート' }, state={};
+    const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2', K_WELCOME_THEME='natsu.welcome.theme.v1', K_WELCOME_JOIN='natsu.welcome.join.v1';
+    const THEME_IDS=['notebook','sunny','soda','berry','block','cat'];
+    function ms(v){ const n=Number(v); return Number.isFinite(n) && n>0 ? n : 0; }
+    function normalizeConfig(v){ return v; }
+    function applyTheme(){}
+    function render(){}
+    function getLocal(k){ return localStorage.getItem(k) || ''; }
+    function saveCfg(){ onSave(); }
+    function traceConfig(){}
+    function markSaved(){}
+    function syncPush(){}
+    function isGeneratedTitle(){ return true; }
+    function defaultTitleFor(name){ return name ? name + 'の夏休みの宿題' : 'しゅくだいノート'; }
+    ${grabConst(APP, 'READING_GRADE_OPTIONS')}
+    ${grab(APP, 'savedAt')}
+    ${grab(APP, 'markReceivedAt')}
+    ${grab(APP, 'applyRemote')}
+    return { applyRemote, config:()=>config };
+  `)({
+    getItem:key => storage.get(key) || null,
+    setItem:(key,value) => storage.set(key, String(value)),
+    removeItem:key => storage.delete(key)
+  }, ()=>{ saved++; });
+  harness.applyRemote({
+    config:{tasks:[],theme:'notebook',childName:'',readingGrade:2,title:'しゅくだいノート'},
+    configAt:200,
+    first:true
+  });
+  assert.equal(harness.config().readingGrade, 5, '小5までの設定も、受信後に反映すること');
+  assert.equal(saved, 1, 'グループ設定を採ったあとに変更を1回だけ保存する');
+  assert.equal(storage.has('natsu.welcome.join.v1'), false, '反映後は一時値を消す');
+});
+
+test('招待の接続確認・参加時の一時保存も、直書きでなく共通の許可リストで学年を確かめる', ()=>{
+  const bind = grab(APP, 'bindWelcomeStart');
+  assert.match(bind, /READING_GRADE_OPTIONS\.includes\(remoteGrade\)/,
+    '接続確認で受け取った学年（3〜6を含む）を、共通の許可リストで確かめること');
+  assert.match(bind, /hasGrade: READING_GRADE_OPTIONS\.includes\(grade\) && grade !== baseGrade/,
+    '参加時に選んだ学年の一時保存も、同じ許可リストで確かめること');
+  assert.doesNotMatch(bind, /\[0,1,2,9\]/,
+    'bindWelcomeStart 内に許可リストの直書きが残っていないこと');
+});
+
+test('「かんじを しらべる」カードの案内は、固定の「2年生まで」でなく選んだ学年に合わせる', ()=>{
+  function label(grade){
+    return new Function(`
+      let config = { readingGrade: ${grade} };
+      const K_READING = 'K_READING';
+      function getLocal(){ return ''; }
+      ${grabConst(APP, 'READING_GRADE_OPTIONS')}
+      ${grab(APP, 'readingGrade')}
+      ${grab(APP, 'learnedKanjiLabel')}
+      return learnedKanjiLabel();
+    `)();
+  }
+  assert.equal(label(2), '2年生までの', '既定の小2は、これまでと同じ言い方のままにすること');
+  assert.equal(label(5), '5年生までの', '小5を選んだときは「5年生までの」と出ること');
+  assert.equal(label(9), 'つかえる', '漢字のままは 学年の数で言わないこと');
+  assert.equal(label(0), 'ならった', 'すべてひらがなも 学年の数で言わないこと');
+  assert.doesNotMatch(APP, /かきうつす文（2年生までの かんじ）/,
+    '見出しを 固定の「2年生までの」から、選んだ学年に合わせた言い方に変えること');
 });

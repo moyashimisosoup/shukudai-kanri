@@ -316,10 +316,11 @@ function normalizeConfig(c){
     c.theme = THEME_IDS.includes(legacyTheme) ? legacyTheme : 'notebook';
   }
   if(typeof c.showDaily !== 'boolean') c.showDaily = false;
-  /* 読める漢字。既存グループは、その端末に のこっている 値を 引きつぐ */
-  if(![0,1,2,9].includes(Number(c.readingGrade))){
+  /* 読める漢字。既存グループは、その端末に のこっている 値を 引きつぐ。
+     0/1/2/9 だけだった 旧データも、この一覧に 入っているので そのまま通る。 */
+  if(!READING_GRADE_OPTIONS.includes(Number(c.readingGrade))){
     const legacy = Number(getLocal(K_READING));
-    c.readingGrade = [0,1,2,9].includes(legacy) ? legacy : 2;
+    c.readingGrade = READING_GRADE_OPTIONS.includes(legacy) ? legacy : 2;
   }else c.readingGrade = Number(c.readingGrade);
   /* 記録の1行けし。ふだんは 切っておく。
      入れっぱなしだと、子どもが 誤って 記録を 消してしまう */
@@ -704,6 +705,13 @@ function homeInstallGuideHTML(){
 }
 function isStatsURL(){ return new URLSearchParams(location.search).get(STATS_PARAM) === STATS_VALUE; }
 function cleanCode(value){ return String(value || '').trim().normalize('NFKC').replace(/\s+/g,'').replace(/[\/\u0000-\u001f]/g,''); }
+/* 「読める漢字」で選べる値。kanji.js の READING_GRADES（小1〜小6の実学年、
+   0=すべてひらがな、9=漢字のまま）と 必ず そろえる。
+   別々に 書き写すと どちらかだけ 直したときに ズレるので、
+   kanji.js が 先に 読み込まれている ときは その配列を そのまま使い、
+   万一 読み込めていなくても 同じ並びに フォールバックする。 */
+const READING_GRADE_OPTIONS = (typeof READING_GRADES !== 'undefined' && Array.isArray(READING_GRADES))
+  ? READING_GRADES.slice() : [0,1,2,3,4,5,6,9];
 /* 読める漢字は これまで 端末ごとの 設定だった。
    そのため おうちの人の端末で 変えても、子どもの端末は そのままで、
    保護者から 直せない状態に なっていた。
@@ -711,13 +719,27 @@ function cleanCode(value){ return String(value || '').trim().normalize('NFKC').r
    まだ config に 無い グループは、その端末に のこっている 値を 引きつぐ。 */
 function readingGrade(){
   const c = config && Number(config.readingGrade);
-  if([0,1,2,9].includes(c)) return c;
+  if(READING_GRADE_OPTIONS.includes(c)) return c;
   const g = Number(getLocal(K_READING) || 2);
-  return [0,1,2,9].includes(g) ? g : 2;
+  return READING_GRADE_OPTIONS.includes(g) ? g : 2;
 }
 function readingOptions(selected){
-  const labels = { 0:'すべてひらがな', 1:'小学1年生まで', 2:'小学2年生まで', 9:'漢字のまま' };
-  return [0,1,2,9].map(g=>`<option value="${g}"${g===Number(selected)?' selected':''}>${labels[g]}</option>`).join('');
+  const labels = {
+    0:'すべてひらがな', 1:'小学1年生まで', 2:'小学2年生まで', 3:'小学3年生まで',
+    4:'小学4年生まで', 5:'小学5年生まで', 6:'小学6年生まで', 9:'漢字のまま'
+  };
+  return READING_GRADE_OPTIONS.map(g=>`<option value="${g}"${g===Number(selected)?' selected':''}>${labels[g]}</option>`).join('');
+}
+/* 「かんじを しらべる」カード（かきうつす文）の案内文で使う言い方。
+   unlearnedKanji() は setReadingGrade(readingGrade()) で 実際の設定に あわせて
+   判定しているので、案内も その学年に あわせる。以前は 小1・小2しか
+   選べなかったので「2年生までの」で 固定していたが、いまは 小3〜小6も
+   選べるため、選んだ学年を そのまま 出す。0・9は 学年で言えないので別の言い方にする。 */
+function learnedKanjiLabel(){
+  const g = readingGrade();
+  if(g === 9) return 'つかえる';
+  if(g >= 1 && g <= 6) return g + '年生までの';
+  return 'ならった';
 }
 
 /* ---------------------------------------------------------
@@ -1074,7 +1096,7 @@ function applyRemote(remote){
         welcomeChanged = true;
       }
     }
-    if(joinPrefs.hasGrade && [0,1,2,9].includes(Number(joinPrefs.readingGrade))
+    if(joinPrefs.hasGrade && READING_GRADE_OPTIONS.includes(Number(joinPrefs.readingGrade))
        && Number(config.readingGrade) !== Number(joinPrefs.readingGrade)){
       config.readingGrade = Number(joinPrefs.readingGrade);
       welcomeChanged = true;
@@ -2363,11 +2385,15 @@ function funToday(){
 /* 読める漢字の せっていに あわせて、出す内容を えらぶ。
    小2までの せっていでは、名言・故事成語・古語のように
    背景を 知らないと 味わえない ものを 出さない（lv:3）。
-   「漢字のまま」＝3年生いじょう と みなして ぜんぶ 出す。 */
+   以前は 小3以上を えらべず、「漢字のまま」＝3年生いじょう の 代用だったが、
+   いまは 実際の学年を えらべるので、その学年で そのまま 判定する。
+   「漢字のまま」も 引きつづき ぜんぶ 出す。 */
 function funAllowed(i){
   const f = FUN[i];
   if(!f) return false;
-  return readingGrade() >= 9 ? true : (Number(f.lv) || 2) <= 2;
+  const g = readingGrade();
+  if(g === 9 || g >= 3) return true;
+  return (Number(f.lv) || 2) <= 2;
 }
 
 function funPick(){
@@ -2577,7 +2603,7 @@ function viewWrites(){
       </div>
 
       <div id="wrOutWrap" hidden>
-        <span class="write-lab">かきうつす文（2年生までの かんじ）</span>
+        <span class="write-lab">かきうつす文（${learnedKanjiLabel()} かんじ）</span>
         <p class="write-hint">カードには この文を うつしてね。なおしても いいよ。</p>
         <textarea class="write-out" id="wrOut" rows="10"></textarea>
         <p class="write-note" id="wrOutNote"></p>
@@ -2603,7 +2629,7 @@ function checkWrites(){
 
   if(!un.length){
     $('#wrUnlearned').textContent = 'なし';
-    $('#wrCheckNote').textContent = 'ぜんぶ 2年生までの かんじだったよ。そのまま カードに うつせるね。';
+    $('#wrCheckNote').textContent = 'ぜんぶ ' + learnedKanjiLabel() + ' かんじだったよ。そのまま カードに うつせるね。';
     $('#wrFix').hidden = true;
     $('#wrDictNote').textContent = '';
   }else{
@@ -2669,7 +2695,7 @@ function fixWrites(){
     }else{
       note.textContent = un.length
         ? 'ならっていない かんじ（' + un.join('・') + '）を ひらがなに しました。'
-        : 'ぜんぶ 2年生までの かんじだったよ。';
+        : 'ぜんぶ ' + learnedKanjiLabel() + ' かんじだったよ。';
       $('#wrDictNote').textContent = 'じしょの よみこみは おわりました。つぎからは すぐ できるよ。';
     }
     wrap.scrollIntoView({ block:'nearest' });
@@ -4172,7 +4198,7 @@ function openBookSheet(t, p, editBookId){
     </div>
 
     <div id="bkOutWrap" ${b && b.memoOut ? '' : 'hidden'}>
-      <span class="lab" style="margin-top:16px;display:block">かきうつす文（2年生までの かんじ）</span>
+      <span class="lab" style="margin-top:16px;display:block">かきうつす文（${learnedKanjiLabel()} かんじ）</span>
       <p class="hint">カードには この文を うつしてね。なおしても いいよ。</p>
       <textarea id="bkOut" rows="3">${esc(b ? (b.memoOut||'') : '')}</textarea>
       <p class="mic-note" id="bkOutNote"></p>
@@ -4352,7 +4378,7 @@ function checkKanji(){
 
   if(!un.length){
     $('#bkUnlearned').textContent = 'なし';
-    $('#bkCheckNote').textContent = 'ぜんぶ 2年生までの かんじだったよ。そのまま カードに うつせるね。';
+    $('#bkCheckNote').textContent = 'ぜんぶ ' + learnedKanjiLabel() + ' かんじだったよ。そのまま カードに うつせるね。';
     $('#bkFix').hidden = true;
     $('#bkDictNote').textContent = '';
   }else{
@@ -4401,7 +4427,7 @@ function fixKanji(){
     if(r.ok){
       note.textContent = r.unlearned.length
         ? 'ならっていない かんじ（' + r.unlearned.join('・') + '）を ひらがなに しました。'
-        : 'ぜんぶ 2年生までの かんじだったよ。';
+        : 'ぜんぶ ' + learnedKanjiLabel() + ' かんじだったよ。';
       $('#bkDictNote').textContent = 'じしょの よみこみは おわりました。つぎからは すぐ できるよ。';
     }else{
       note.textContent = 'いまは じどうで なおせません（' + r.reason + '）。'
@@ -5526,7 +5552,7 @@ function bindWelcomeStart(){
         const nameInput = $('#welcomeName');
         const readingInput = $('#welcomeReading');
         if(nameInput) nameInput.value = remoteName;
-        if(readingInput && [0,1,2,9].includes(remoteGrade)) readingInput.value = String(remoteGrade);
+        if(readingInput && READING_GRADE_OPTIONS.includes(remoteGrade)) readingInput.value = String(remoteGrade);
         if(remoteTheme && start.dataset.role === 'child'){
           const themeInput = $('input[name="welcomeTheme"][value="' + remoteTheme + '"]', form);
           if(themeInput){
@@ -5628,7 +5654,7 @@ function bindWelcomeStart(){
       const prefs = {
         hasName: name !== baseName,
         childName: name,
-        hasGrade: [0,1,2,9].includes(grade) && grade !== baseGrade,
+        hasGrade: READING_GRADE_OPTIONS.includes(grade) && grade !== baseGrade,
         readingGrade: grade
       };
       if(prefs.hasName || prefs.hasGrade) setLocal(K_WELCOME_JOIN, JSON.stringify(prefs));
