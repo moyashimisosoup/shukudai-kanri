@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.9';
+const RELEASE_VERSION = '1.3.10';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2824,17 +2824,15 @@ function viewParent(){
 
   ${homeInstallGuideHTML()}
 
+  <div class="pstat-wrap">
   <section class="paper pstat">
-    <div class="pstat-heading">
-      <div class="pstat-left">
-        ${canRefreshShared ? `<button class="icon-btn pstat-refresh" id="parentSyncRefresh" type="button" title="共有データを更新" aria-label="共有データを更新">${icon('refresh')}</button>` : ''}
-        <span class="pstat-lab">夏休みの残り</span>
-        <span class="pstat-val">${ms > 0
-          ? `<span class="pstat-num">${Math.floor(ms/86400000)}</span><small class="pstat-unit">日</small><span class="pstat-num">${Math.floor(ms/3600000)%24}</span><small class="pstat-unit">時間</small>`
-          : '終了'}</span>
-        <span class="pstat-forecast">${esc(forecastText(forecast, false))}</span>
-      </div>
-      ${childActivity ? `<span class="pstat-child-updated">${esc(childActivity)}</span>` : ''}
+    <div class="pstat-left">
+      ${canRefreshShared ? `<button class="icon-btn pstat-refresh" id="parentSyncRefresh" type="button" title="共有データを更新" aria-label="共有データを更新">${icon('refresh')}</button>` : ''}
+      <span class="pstat-lab">夏休みの残り</span>
+      <span class="pstat-val">${ms > 0
+        ? `<span class="pstat-num">${Math.floor(ms/86400000)}</span><small class="pstat-unit">日</small><span class="pstat-num">${Math.floor(ms/3600000)%24}</span><small class="pstat-unit">時間</small>`
+        : '終了'}</span>
+      <span class="pstat-forecast">${esc(forecastText(forecast, false))}</span>
     </div>
     <div class="pstat-bars">
       ${/* 経過とすぐ見くらべたいのは「全体」なので、経過の真下に置く。
@@ -2845,6 +2843,8 @@ function viewParent(){
       ${so.total ? pstatRow('つぎに やる', so.pct, `${so.done}/${so.total}`, 'opt') : ''}
     </div>
   </section>
+  ${childActivity ? `<span class="pstat-child-updated">${esc(childActivity)}</span>` : ''}
+  </div>
 
   ${parentMessageEditorHTML()}
 

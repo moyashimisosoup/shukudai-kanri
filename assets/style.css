@@ -1694,8 +1694,8 @@ body.no-tabbar{ padding-bottom:0; }
 .pstat{ padding:18px; }
 /* 保護者ページの すすみぐあい。
    数字を ならべるより、子ども画面と 同じ バーで 見せた ほうが くらべやすい */
+.pstat-wrap{ position:relative; }
 .pstat{ position:relative; display:grid; gap:14px; }
-.pstat-heading{ display:grid; gap:2px; }
 .pstat-left{
   position:relative;
   padding:12px 14px; background:var(--surface-soft);
@@ -1707,11 +1707,11 @@ body.no-tabbar{ padding-bottom:0; }
   color:var(--ai-usu); background:transparent; border:0; box-shadow:none;
   font-size:clamp(12px, 3.4vw, 14px);
 }
-.icon-btn.pstat-refresh .codex-icon{ width:10px; height:10px; }
+.icon-btn.pstat-refresh .codex-icon{ width:12px; height:12px; }
 .icon-btn.pstat-refresh:disabled{ opacity:.55; cursor:wait; }
 .icon-btn.pstat-refresh:hover,.icon-btn.pstat-refresh:active{ background:transparent; border:0; box-shadow:none; }
 .pstat-child-updated{
-  justify-self:end;
+  position:absolute; right:8px; bottom:-10px;
   color:var(--ai-usu); font-size:8px; font-weight:700; line-height:1.15;
   font-variant-numeric:tabular-nums; pointer-events:none;
 }
