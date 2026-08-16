@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.7';
+const RELEASE_VERSION = '1.3.8';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -539,6 +539,9 @@ function forgetConfigStampForNewHousehold(code){
   setLocal(K_CFG_HOUSE, c);
 }
 function saveSt(){
+  /* 子どもが自分の端末で内容を変えた時刻だけを共有する。保護者側の同期確認・
+     合流結果の送り返しでは更新しないため、「子どもの最終記録」として使える。 */
+  if(getLocal(K_ROLE) === 'child') state.childActivityAt = Date.now();
   localStorage.setItem(K_ST, JSON.stringify(state));
   markSaved('state');
   syncPush('state');
@@ -781,6 +784,9 @@ function mergeState(local, remote, localIsNewer){
   }
 
   out.progress = mergeProgress(left.progress || {}, right.progress || {}, localIsNewer);
+  const childActivityAt = Math.max(ms(left.childActivityAt), ms(right.childActivityAt));
+  if(childActivityAt) out.childActivityAt = childActivityAt;
+  else delete out.childActivityAt;
   /* 並びは どの端末でも 同じに なるように そろえる。
      同じ時刻の 記録が あると 並びが 端末ごとに ちがい、
      それだけで「変わった」と 判定されて 送り合いが 止まらなくなる */
@@ -2748,6 +2754,16 @@ function calDetailHTML(key){
 /* ---------------------------------------------------------
    保護者ページ（最初の画面）— 進捗の一覧
    --------------------------------------------------------- */
+function childActivityText(){
+  const stamp = ms(state && state.childActivityAt);
+  if(!stamp) return '';
+  const when = new Date(stamp);
+  if(Number.isNaN(when.getTime())) return '';
+  const now = new Date();
+  const time = String(when.getHours()).padStart(2, '0') + ':' + String(when.getMinutes()).padStart(2, '0');
+  const today = dayKey(when) === dayKey(now);
+  return 'こども 最終記録 ' + (today ? time : (when.getMonth()+1) + '/' + when.getDate() + ' ' + time);
+}
 function viewParent(){
   const now = new Date();
   const en = parseLocal(config.endAt);
@@ -2763,6 +2779,7 @@ function viewParent(){
   const forecast = completionForecast(allDone, allTotal, config.startAt, now);
   const sync = window.NatsuSync;
   const canRefreshShared = !!(sync && sync.configured && sync.configured() && sync.getCode().length >= 8);
+  const childActivity = childActivityText();
 
   const row = t=>{
     const p = prog(t);
@@ -2824,6 +2841,7 @@ function viewParent(){
       ${pstatRow('必須の宿題', s.pct, `${s.done}/${s.total}`, 'must')}
       ${so.total ? pstatRow('つぎに やる', so.pct, `${so.done}/${so.total}`, 'opt') : ''}
     </div>
+    ${childActivity ? `<span class="pstat-child-updated">${esc(childActivity)}</span>` : ''}
   </section>
 
   ${parentMessageEditorHTML()}
