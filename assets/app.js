@@ -3686,6 +3686,8 @@ function bookSectionHTML(){
    --------------------------------------------------------- */
 let sheetTask = null, sheetSel = null, sheetSteps = null, sheetWrap = null;
 let sheetRating = 0, sheetBookId = null;
+/* まいにち型を 開いた ときの「きょうの きろく」。減らしたかどうかの 判定に つかう */
+let sheetDailyToday = 0;
 /* 開いたときの 答えと、それが 専用欄に 入っているか。
    いまの 入力と くらべて「ほぞんずみ／まだ」を 出しわける */
 let sheetQBase = null, sheetQStored = null;
@@ -3875,14 +3877,19 @@ function openSheet(id, editBookId){
   }
   else {
     sheetSel = p.done;
+    sheetDailyToday = p.done;
     const max = 5;
+    /* きょう まだ 1回も 記録が 無いなら、取り消す 対象が 無い。
+       0 は「まちがえて 入れた のを 取り消す」ための ボタンなので、
+       そのときは 出さず 1から 始める */
+    const min = p.done > 0 ? 0 : 1;
     const more = p.done > max ? p.done : '';
     body += `
     <div class="field">
       <span class="lab">きょうは どのくらい できた？</span>
       <p class="hint">1日の めあては ${p.total}${esc(t.targetUnit||'')}だよ。</p>
       <div class="tally" id="tally">
-        ${Array.from({length:max+1},(_,i)=>
+        ${Array.from({length:max-min+1},(_,idx)=> min+idx).map(i=>
           `<button class="tally-btn${i===sheetSel?' sel':''}" data-n="${i}" type="button">${i}</button>`).join('')}
       </div>
       <label class="daily-more" for="dailyMore">
@@ -4311,6 +4318,18 @@ function syncWrapField(){
   f.hidden = !ok;
 }
 
+/* えらんだ 数が きょうの きろくより 減っている ときだけ、記録ボタンを
+   「なおす」に する。0 に する ときは saveSheet 側で べつに 知らせるので、
+   ここでは 文字を 変えるだけで よい */
+function syncDailySaveLabel(){
+  if(!sheetTask) return;
+  const btn = $('#sheetSave');
+  if(!btn) return;
+  const more = $('#dailyMore');
+  const n = dailyCountSelection(sheetSel, more && more.value);
+  btn.textContent = n < sheetDailyToday ? 'なおす' : 'きろくする';
+}
+
 function closeSheet(){
   /* シートを隠す前に止める。iPad のキーボード音声入力は、入力欄が見えている
      うちに focus を外すことで確実に終了する。 */
@@ -4321,6 +4340,7 @@ function closeSheet(){
   sheetTask = null; sheetSel = null; sheetSteps = null; sheetWrap = null;
   sheetRating = 0; sheetBookId = null;
   sheetQBase = null; sheetQStored = null;
+  sheetDailyToday = 0;
   $('#sheetSave').textContent = 'きろくする';
 }
 
@@ -4362,6 +4382,7 @@ function saveSheet(){
   const now = new Date();
   let what = '';
   let ok = true;
+  let dailyDecreased = false;
 
   if(t.type === 'count'){
     const before = p.done;
@@ -4393,6 +4414,9 @@ function saveSheet(){
     /* 0 は「できた」ではない。取り消したことが 記録に のこるようにする */
     what = n > 0 ? n + (t.targetUnit||'かい') + ' できた'
                  : 'きょうは やらなかったことに した';
+    /* 0 まで もどす ときは 別の あんない（0 に もどしました）が 出るので、
+       ここでは 0より 多く 残った まま 減らした ときだけ フラグを 立てる */
+    dailyDecreased = n > 0 && n < p.done;
   }
 
   // さいごの しあげ。done / steps とは べつに のこす
@@ -4422,8 +4446,10 @@ function saveSheet(){
   const after = prog(t);
   closeSheet();
   /* 取り消し（0 にもどした）ときに「できた！」の はんこは 出さない。
-     押しまちがいを 直しに 来た人に、できたと 言わない */
+     押しまちがいを 直しに 来た人に、できたと 言わない。
+     0までは 戻さず 数だけ 減らした ときも 同じ理由で はんこは 出さない */
   if((after.done | 0) === 0 && hadValue) toast('0 に もどしました');
+  else if(dailyDecreased) toast('なおしました');
   else stamp(after.isDone ? 'ぜんぶ できた！' : 'できた！');
   setTimeout(()=> render({ keepScroll:true }), 60);
   return ok;
@@ -6563,6 +6589,7 @@ document.addEventListener('click', e=>{
     const more = $('#dailyMore');
     if(more) more.value = '';
     $$('#tally .tally-btn').forEach(b=> b.classList.toggle('sel', +b.dataset.n === sheetSel));
+    syncDailySaveLabel();
     return;
   }
   const mic = e.target.closest('[data-mic]');
@@ -6588,6 +6615,8 @@ document.addEventListener('keydown', e=>{
 document.addEventListener('input', e=>{
   const box = e.target.closest && e.target.closest('[data-q]');
   if(box) refreshQuestionSaveState(Number(box.dataset.q));
+  /* 6以上の欄に 打ち込んだ ときも、その場で「なおす」に 切りかわるように */
+  if(e.target && e.target.id === 'dailyMore') syncDailySaveLabel();
 });
 
 // タブを もどってきたら、どの画面でも上帯の日づけを更新する。

@@ -2911,3 +2911,89 @@ test('もっと見るは押せると分かる大きさとしるしを持つ', ()
   assert.doesNotMatch(STYLE, /\.recent-more > summary\{[^}]*display:flex/,
     'summaryのdisplayを変えると開閉のしるしごと消えるので変えないこと');
 });
+
+/* まいにち型は「きょうは どのくらい できた？」に 0〜5 のボタンを出す。
+   0 は「押しまちがいの取り消し」専用で、きょう まだ 何も 記録が無いときに
+   出すと、取り消す 対象が 無いのに 選べてしまい まぎらわしい。
+   openSheet 内の min 計算だけを 実際に 動かして確かめる（p.done 以外に
+   依存しない、切り出しやすい 1行なので、そのまま拾って実行する）。 */
+function dailyTallyMin(done){
+  const open = grab(APP, 'openSheet');
+  const m = open.match(/const min = p\.done > 0 \? 0 : 1;/);
+  assert.ok(m, 'まいにち型の 開始番号を 決める行が 見つかりません');
+  return new Function('p', m[0] + ' return min;')({ done });
+}
+
+test('まいにち型のタリーは、きょう記録が無いときだけ0を隠す', ()=>{
+  assert.equal(dailyTallyMin(0), 1, 'きょうの記録が0のときは1から始まり、0が選べないこと');
+  assert.equal(dailyTallyMin(1), 0, 'きょうの記録が1以上のときは0から始まり、0が選べること');
+  assert.equal(dailyTallyMin(5), 0, 'きょうの記録が多いときも0が選べること');
+  const open = grab(APP, 'openSheet');
+  assert.match(open, /Array\.from\(\{length:max-min\+1\},\(_,idx\)=> min\+idx\)/,
+    'ボタンの並びはminから作ること');
+});
+
+/* 選んだ数が きょうの きろくより 減っているときだけ、記録ボタンの文字を
+   「なおす」に する。0〜5のボタンだけでなく、6以上を入れる#dailyMoreの
+   入力でも 同じ判定に なることを、実際に syncDailySaveLabel を動かして確かめる。
+   判定には 既存の dailyCountSelection が返す実際の選択値を使う想定なので、
+   その関数もそのまま持ちこむ。 */
+function dailySaveLabelHarness(){
+  return new Function(`
+    let sheetTask = null, sheetSel = null, sheetDailyToday = 0;
+    const els = {};
+    function $(sel){ return els[sel] || null; }
+    ${grab(APP, 'clamp')}
+    ${grab(APP, 'dailyCountSelection')}
+    ${grab(APP, 'syncDailySaveLabel')}
+    return {
+      run(today, sel, moreValue){
+        sheetTask = { id:'daily-1', type:'daily' };
+        sheetDailyToday = today;
+        sheetSel = sel;
+        els['#sheetSave'] = { textContent:'きろくする' };
+        els['#dailyMore'] = { value: moreValue == null ? '' : moreValue };
+        syncDailySaveLabel();
+        return els['#sheetSave'].textContent;
+      }
+    };
+  `)();
+}
+
+test('選んだ数がきょうの記録より少ないとき、記録ボタンが「なおす」になる', ()=>{
+  const h = dailySaveLabelHarness();
+  assert.equal(h.run(3, 2, ''), 'なおす', 'タリーで選んだ数が記録より少ないとき「なおす」になること');
+  assert.equal(h.run(3, 3, ''), 'きろくする', '同じ数なら「きろくする」のままであること');
+  assert.equal(h.run(3, 5, ''), 'きろくする', '多い数なら「きろくする」のままであること');
+  assert.equal(h.run(8, 8, '6'), 'なおす',
+    '6以上の欄に きょうの記録より少ない数を入れたときも、その場で「なおす」になること');
+  assert.equal(h.run(8, 8, '10'), 'きろくする',
+    '6以上の欄に きょうの記録より多い数を入れたときは「きろくする」のままであること');
+});
+
+/* saveSheet は 0 に もどした ときの あんない（0 に もどしました）を
+   すでに持つ。数を減らしたが 0 までは戻さないときも、はんこ（できた！）は
+   出さず、別の言い方で知らせる。0にもどす扱いを崩さないよう、
+   0の判定を 先に、減らした判定を あとに 置くことを ソースで確かめる。 */
+test('数を減らしたときは、はんこを出さずに「なおしました」で知らせる', ()=>{
+  const save = grab(APP, 'saveSheet');
+  assert.match(save, /let dailyDecreased = false;/);
+  assert.match(save, /dailyDecreased = n > 0 && n < p\.done;/,
+    '0までもどす場合は 別のあんない（0にもどしました）に ゆずること');
+  assert.match(save,
+    /\(after\.done \| 0\) === 0 && hadValue\) toast\('0 に もどしました'\);\s*\n\s*else if\(dailyDecreased\) toast\('なおしました'\);\s*\n\s*else stamp\(/,
+    '0にもどした案内を優先しつつ、減らしたときははんこの代わりにtoastを出すこと');
+});
+
+/* クリックとタイプの どちらでも 表示が その場で 切りかわることを、
+   実装の呼び出しで確かめる（コメント欄には 触れていないことも あわせて確認）。 */
+test('タリーのクリックと6以上の欄への入力の両方でボタン表示を更新する', ()=>{
+  assert.match(APP, /sheetSel = \+ta\.dataset\.n;[\s\S]{0,220}syncDailySaveLabel\(\);/,
+    'タリーを押した直後に表示を更新すること');
+  assert.match(APP, /e\.target && e\.target\.id === 'dailyMore'\) syncDailySaveLabel\(\);/,
+    '6以上の欄への入力でも表示を更新すること');
+  assert.doesNotMatch(grab(APP, 'syncDailySaveLabel'), /memo|#memo/,
+    'コメント欄（メモ欄）には手を触れないこと');
+  assert.match(grab(APP, 'closeSheet'), /sheetDailyToday = 0;[\s\S]{0,80}textContent = 'きろくする';/,
+    'シートを閉じるときはボタンの文字を「きろくする」へ戻すこと');
+});
