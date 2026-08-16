@@ -3700,12 +3700,14 @@ function showSheet(){
    入力欄へ出す。まだ専用欄へは書き戻さず、本人が確認して保存したときだけ
    新しい形式へ移すため、昔の記録本文を勝手に変えない。 */
 function legacyQuestionAnswers(t){
-  const answers = [];
+  const questions = t.questions || [];
+  const answers = new Array(questions.length).fill('');
   const logs = (state.logs || []).filter(l=>l && l.taskId === t.id && l.memo)
     .slice().sort((a,b)=>String(b.at || '').localeCompare(String(a.at || '')));
+  let filled = 0;
   for(const log of logs){
     const memo = String(log.memo || '');
-    (t.questions || []).forEach((q, i)=>{
+    questions.forEach((q, i)=>{
       if(answers[i]) return;
       const marker = '・' + q + '\n　→ ';
       const start = memo.indexOf(marker);
@@ -3713,9 +3715,13 @@ function legacyQuestionAnswers(t){
       const from = start + marker.length;
       const next = memo.indexOf('\n・', from);
       const value = memo.slice(from, next < 0 ? memo.length : next).trim();
-      if(value) answers[i] = value;
+      if(value){ answers[i] = value; filled++; }
     });
-    if(answers.length >= (t.questions || []).length) break;
+    /* 埋めた数を 自分で 数える。歯とびの 配列では length が
+       「最後に 入れた ばんごうの つぎ」に なるため、
+       11問を 8〜11 だけ 埋めた 記録でも length は 11 に なり、
+       1〜7 が のこる 古い 記録を 読まずに 止まってしまう。 */
+    if(filled >= questions.length) break;
   }
   return answers;
 }
@@ -3724,9 +3730,17 @@ function questionAnswerRow(t){
   let local = null;
   try{ local = JSON.parse(getLocal(K_QUESTION_ANSWERS) || '{}')[t.id]; }catch(e){}
   const pick = !shared || (local && ms(local.at) > ms(shared.at)) ? local : shared;
-  return pick && Array.isArray(pick.answers)
-    ? pick
-    : { answers:legacyQuestionAnswers(t), at:0 };
+  const stored = pick && Array.isArray(pick.answers) ? pick.answers : [];
+  /* 専用欄が 空の 問だけ 旧記録で 補う。行が あるかどうかで
+     まとめて 決めると、1問だけ 保存した 課題で のこりの 問を
+     見失う。問ごとに 見て、保存ずみの 答えは そのまま のこす。 */
+  const legacy = legacyQuestionAnswers(t);
+  const questions = t.questions || [];
+  return {
+    answers: questions.map((q, i)=> String(stored[i] || '') || String(legacy[i] || '')),
+    saved:   questions.map((q, i)=> !!String(stored[i] || '')),
+    at: pick ? pick.at : 0
+  };
 }
 function saveQuestionAnswerRow(t, answers){
   const row = { answers, at:Date.now() };

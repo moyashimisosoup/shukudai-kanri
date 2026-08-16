@@ -112,6 +112,43 @@ test('旧版で記録した任意質問の答えを記録本文から再表示�
     '専用保存前の記録も入力欄へ出すこと');
 });
 
+/* 疎配列の length は「最後に埋めた添字＋1」なので、歯抜けのまま
+   質問数に達する。新しい記録で後半だけ埋まると、古い記録の前半を
+   読まずに打ち切ってしまう不具合を防ぐ。 */
+test('何回かに分けて記録した任意質問の答えを、ぜんぶ入力欄へ出す', ()=>{
+  const questions = Array.from({length:11}, (_,i)=> 'しつもん' + (i+1));
+  const block = (from, to)=> questions.slice(from, to)
+    .map((q,i)=> '・' + q + '\n　→ こたえ' + (from + i + 1)).join('\n');
+  const legacy = new Function('state', `${grab(APP, 'legacyQuestionAnswers')} return legacyQuestionAnswers;`)({
+    logs:[
+      { taskId:'jiyu', at:'2026-08-14T01:00:00.000Z', memo:block(0, 7) },
+      { taskId:'jiyu', at:'2026-08-15T01:00:00.000Z', memo:block(7, 11) }
+    ]
+  });
+  assert.deepEqual(legacy({ id:'jiyu', questions }),
+    questions.map((q,i)=> 'こたえ' + (i+1)),
+    '新しい記録で後半が埋まっても、古い記録の前半まで読むこと');
+});
+
+test('専用欄に一部だけ保存していても、残りの問は旧記録から補う', ()=>{
+  const row = questionAnswerRowFn({
+    logs:[{ taskId:'jiyu', at:'2026-08-14T01:00:00.000Z',
+            memo:'・しつもん1\n　→ ふるい1\n・しつもん2\n　→ ふるい2' }],
+    questionAnswers:{ jiyu:{ answers:['', 'あたらしい2'], at:200 } }
+  });
+  const out = row({ id:'jiyu', questions:['しつもん1', 'しつもん2'] });
+  assert.deepEqual(out.answers, ['ふるい1', 'あたらしい2'],
+    '空の欄だけ旧記録で補い、保存済みの答えは残すこと');
+  assert.deepEqual(out.saved, [false, true],
+    '専用欄に入っている問だけ「保存ずみ」として扱うこと');
+});
+
+function questionAnswerRowFn(st){
+  return new Function('state', 'getLocal', 'K_QUESTION_ANSWERS', 'ms',
+    `${grab(APP, 'legacyQuestionAnswers')} ${grab(APP, 'questionAnswerRow')} return questionAnswerRow;`
+  )(st, ()=> '{}', 'k', v=> Number(v) || 0);
+}
+
 function grab(src, name){
   const re = new RegExp('(?:async\\s+)?function\\s+' + name + '\\s*\\(');
   const match = re.exec(src);
