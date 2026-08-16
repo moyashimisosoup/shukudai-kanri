@@ -50,6 +50,14 @@ test('保護者トップから共有データを手動で更新できる', ()=>{
   assert.match(SYNC, /refresh: refreshFromServer/);
 });
 
+test('保護者ナビは起動URLが残っていても設定ページへ移動できる', ()=>{
+  const nav = grab(APP, 'bindAdultNav');
+  assert.match(nav, /\$\$\('\.pagenav-item'\)/,
+    '保護者用の各ページリンクを明示して扱うこと');
+  assert.match(nav, /if\(routeFromHash\(\) === target\)\{[\s\S]{0,80}tab = target;[\s\S]{0,80}render\(\)/,
+    '起動時の #config が残り hashchange しない場合も表示を切り替えること');
+});
+
 test('子どもの最終記録時刻は親の同期確認と混ざらず、新しい値を残す', ()=>{
   const merged = appFns.mergeState(
     state({ childActivityAt:1718436000000 }),
@@ -61,8 +69,13 @@ test('子どもの最終記録時刻は親の同期確認と混ざらず、新�
     '子ども端末の保存だけを最終記録時刻にすること');
   assert.match(grab(APP, 'childActivityText'), /こども 最終記録/);
   assert.match(grab(APP, 'viewParent'), /pstat-child-updated/);
-  assert.match(STYLE, /\.pstat-refresh\{[\s\S]{0,180}width:44px; height:44px[\s\S]{0,160}background:transparent/,
+  assert.match(STYLE, /\.icon-btn\.pstat-refresh\{[\s\S]{0,180}width:44px; height:44px[\s\S]{0,160}background:transparent; border:0/,
     '更新ボタンは44pxのタップ領域を保ち、背景と枠を出さないこと');
+  assert.match(STYLE, /\.icon-btn\.pstat-refresh \.codex-icon\{ width:10px; height:10px; \}/,
+    '更新の印だけは小さくすること');
+  assert.match(grab(APP, 'viewParent'), /<div class="pstat-heading">[\s\S]*pstat-left[\s\S]*pstat-child-updated[\s\S]*<\/div>[\s\S]*<div class="pstat-bars">/,
+    '子どもの最終記録は残り日数の枠外・右下に置くこと');
+  assert.match(STYLE, /\.pstat-child-updated\{[\s\S]{0,80}justify-self:end[\s\S]{0,100}font-size:8px/);
 });
 
 function grab(src, name){
@@ -2377,11 +2390,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260816d',
+    'assets/style.css': '20260816e',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260816d',
+    'assets/app.js': '20260816e',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2404,13 +2417,13 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.8をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.8';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.8">/);
-  assert.equal(PACKAGE.version, '1.3.8');
-  assert.equal(PACKAGE_LOCK.version, '1.3.8');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.8');
-  assert.match(UPDATES, /2026年8月16日　v1\.3\.8：[\s\S]*子ども端末で最後に記録を変更した時刻/);
+test('公開版番号v1.3.9をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.9';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.9">/);
+  assert.equal(PACKAGE.version, '1.3.9');
+  assert.equal(PACKAGE_LOCK.version, '1.3.9');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.9');
+  assert.match(UPDATES, /2026年8月16日　v1\.3\.9：[\s\S]*設定.*反応しない/);
   assert.match(UPDATES, /v1\.0\.0/);
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');

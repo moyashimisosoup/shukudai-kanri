@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.8';
+const RELEASE_VERSION = '1.3.9';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2825,13 +2825,16 @@ function viewParent(){
   ${homeInstallGuideHTML()}
 
   <section class="paper pstat">
-    <div class="pstat-left">
-      ${canRefreshShared ? `<button class="icon-btn pstat-refresh" id="parentSyncRefresh" type="button" title="共有データを更新" aria-label="共有データを更新">${icon('refresh')}</button>` : ''}
-      <span class="pstat-lab">夏休みの残り</span>
-      <span class="pstat-val">${ms > 0
-        ? `<span class="pstat-num">${Math.floor(ms/86400000)}</span><small class="pstat-unit">日</small><span class="pstat-num">${Math.floor(ms/3600000)%24}</span><small class="pstat-unit">時間</small>`
-        : '終了'}</span>
-      <span class="pstat-forecast">${esc(forecastText(forecast, false))}</span>
+    <div class="pstat-heading">
+      <div class="pstat-left">
+        ${canRefreshShared ? `<button class="icon-btn pstat-refresh" id="parentSyncRefresh" type="button" title="共有データを更新" aria-label="共有データを更新">${icon('refresh')}</button>` : ''}
+        <span class="pstat-lab">夏休みの残り</span>
+        <span class="pstat-val">${ms > 0
+          ? `<span class="pstat-num">${Math.floor(ms/86400000)}</span><small class="pstat-unit">日</small><span class="pstat-num">${Math.floor(ms/3600000)%24}</span><small class="pstat-unit">時間</small>`
+          : '終了'}</span>
+        <span class="pstat-forecast">${esc(forecastText(forecast, false))}</span>
+      </div>
+      ${childActivity ? `<span class="pstat-child-updated">${esc(childActivity)}</span>` : ''}
     </div>
     <div class="pstat-bars">
       ${/* 経過とすぐ見くらべたいのは「全体」なので、経過の真下に置く。
@@ -2841,7 +2844,6 @@ function viewParent(){
       ${pstatRow('必須の宿題', s.pct, `${s.done}/${s.total}`, 'must')}
       ${so.total ? pstatRow('つぎに やる', so.pct, `${so.done}/${so.total}`, 'opt') : ''}
     </div>
-    ${childActivity ? `<span class="pstat-child-updated">${esc(childActivity)}</span>` : ''}
   </section>
 
   ${parentMessageEditorHTML()}
@@ -5290,6 +5292,20 @@ function bindParentShareBadge(){
 /* 大人向け3ページに共通の帯。settings 以外でも 子ども画面へ 行けるように、
    render() から どのページでも 呼ぶ */
 function bindAdultNav(){
+  /* ホーム画面アプリは、追加した瞬間の #config などを起動URLに残すことがある。
+     起動時は保護者の進捗ページを優先するため、URLだけ #config のままになる。
+     その状態で通常のリンクを押しても hashchange は起きず設定へ移れないので、
+     保護者用ナビも子ども用タブと同じく同一ハッシュをここで描き直す。 */
+  $$('.pagenav-item').forEach(link=>link.addEventListener('click', e=>{
+    const target = String(link.getAttribute('href') || '').replace(/^#/, '');
+    if(!TABS.includes(target)) return;
+    e.preventDefault();
+    if(routeFromHash() === target){
+      tab = target;
+      render();
+    }
+    else location.hash = target;
+  }));
   const openChild = $('#openChildPage');
   if(openChild) openChild.addEventListener('click', e=>{
     e.preventDefault();
