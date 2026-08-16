@@ -3062,3 +3062,157 @@ test('きょうの記録が無いまいにちの課題は、数をえらばせ�
     /if\(t\.type === 'daily' && !dailySelection && !sheetDailyToday\)\{\s*\n\s*toast\('どのくらい できたか えらんでね'\);/,
     '0のボタンを出していないので、えらばずに「やらなかった」を残さないこと');
 });
+
+/* ---------------------------------------------------------
+   新しい版を静かに取り込む
+   --------------------------------------------------------- */
+
+function makeAdoptHarness(overrides){
+  const state = Object.assign({
+    hrefReplace: null,
+    locals: {},
+    sheetWrapHidden: true,
+    hasSheetWrap: true,
+    tab: 'home',
+    bootAgoMs: 120000 // 既定では起動から60秒以上たっていることにする
+  }, overrides || {});
+  const fn = new Function('location', 'getLocal', 'setLocal', '$', 'tab', 'cacheBustURL',
+    'APP_BOOT_AT', 'K_UPDATE_RELOADED_FOR', `
+    ${grab(APP, 'adoptNewVersionIfSafe')}
+    return adoptNewVersionIfSafe;
+  `)(
+    {
+      href: 'https://example.test/app/index.html',
+      replace: (url)=>{ state.hrefReplace = url; }
+    },
+    (k)=> state.locals[k] || '',
+    (k, v)=> { state.locals[k] = v; },
+    (sel)=> (sel === '#sheetWrap' && state.hasSheetWrap) ? { hidden: state.sheetWrapHidden } : null,
+    state.tab,
+    appFns.cacheBustURL,
+    Date.now() - state.bootAgoMs,
+    'natsu.update.reloaded.v1'
+  );
+  return { adopt: fn, state };
+}
+
+test('取得した本文から application-version の値を読み取れる', ()=>{
+  const parse = new Function(`${grab(APP, 'parseVersionFromIndexHTML')} return parseVersionFromIndexHTML;`)();
+  const html = '<!doctype html><html><head><meta charset="utf-8">\n' +
+    '<meta name="application-version" content="9.9.9"></head><body></body></html>';
+  assert.equal(parse(html), '9.9.9');
+  assert.equal(parse('<html><head></head></html>'), '',
+    'タグが無ければ空を返すこと（見つからないのに古い版のまま読み直すと事故になる）');
+});
+
+test('記録シートを開いている間は、新しい版が見つかっても読み直さない', ()=>{
+  const { adopt, state } = makeAdoptHarness({ sheetWrapHidden: false });
+  adopt('9.9.9');
+  assert.equal(state.hrefReplace, null, 'シートを開いている間は割り込まないこと');
+  assert.equal(state.locals['natsu.update.reloaded.v1'], undefined,
+    '読み直さなかった版を「読み直しずみ」として記録しないこと');
+});
+
+test('初期設定（welcome）を出している間は読み直さない', ()=>{
+  const { adopt, state } = makeAdoptHarness({ tab: 'welcome', sheetWrapHidden: true });
+  adopt('9.9.9');
+  assert.equal(state.hrefReplace, null);
+});
+
+test('起動から60秒以内は、連鎖を防ぐため読み直さない', ()=>{
+  const { adopt, state } = makeAdoptHarness({ bootAgoMs: 1000 });
+  adopt('9.9.9');
+  assert.equal(state.hrefReplace, null);
+});
+
+test('同じ版へは二度読み直さない歯止めがある', ()=>{
+  const { adopt, state } = makeAdoptHarness({
+    locals: { 'natsu.update.reloaded.v1': '9.9.9' }
+  });
+  adopt('9.9.9');
+  assert.equal(state.hrefReplace, null, '同じ版で二度読み直さないこと');
+});
+
+test('条件がそろえば静かに読み直し、読み直す前に版を記録する', ()=>{
+  const { adopt, state } = makeAdoptHarness({});
+  adopt('9.9.9');
+  assert.equal(state.locals['natsu.update.reloaded.v1'], '9.9.9',
+    '読み直す前に記録しておくこと（さもないと同じ版への読み直しが続く）');
+  assert.match(state.hrefReplace, /[?&]r=\d+/,
+    'cacheBustURLで印を付け直したURLへ読み直すこと');
+});
+
+test('取得した版が追いついていたら、読み直しずみの記録を消す', ()=>{
+  const removed = [];
+  let renderCalled = false;
+  const apply = new Function('RELEASE_VERSION', 'newVersionAvailable', 'tab', 'render',
+    'adoptNewVersionIfSafe', 'K_UPDATE_RELOADED_FOR', 'localStorage', `
+    ${grab(APP, 'applyVersionCheck')}
+    return applyVersionCheck;
+  `)(
+    '1.3.17', false, 'config',
+    ()=>{ renderCalled = true; },
+    ()=>{ throw new Error('追いついているので取り込み処理を呼んではいけない'); },
+    'natsu.update.reloaded.v1',
+    { removeItem: (k)=> removed.push(k) }
+  );
+  apply('1.3.17');
+  assert.deepEqual(removed, ['natsu.update.reloaded.v1'],
+    '次に別の新しい版が出たとき「読み直しずみ」と誤解しないよう、ここで消すこと');
+  assert.equal(renderCalled, false,
+    '追いついているだけなら保護者ページを描き直す理由がないこと');
+});
+
+test('新しい版の取り込みは、問いかけや確認ダイアログを足さない', ()=>{
+  const block = [
+    grab(APP, 'parseVersionFromIndexHTML'),
+    grab(APP, 'checkForNewVersion'),
+    grab(APP, 'applyVersionCheck'),
+    grab(APP, 'adoptNewVersionIfSafe')
+  ].join('\n');
+  assert.doesNotMatch(block, /confirm\(/,
+    '取り込むかどうかを利用者に選ばせないこと');
+  assert.doesNotMatch(block, /更新しますか|よろしいですか|あとで|キャンセル/,
+    '問いかけの言葉を足さないこと');
+});
+
+test('版の出どころは index.html だけで、専用の別ファイルを取りに行かない', ()=>{
+  const check = grab(APP, 'checkForNewVersion');
+  assert.doesNotMatch(check, /version\.json|manifest\.webmanifest|fetch\((?!cacheBustURL\('index\.html')/,
+    'index.html 以外を確認先にしないこと');
+  assert.match(check, /fetch\(cacheBustURL\('index\.html'/,
+    '確認先は index.html であること');
+});
+
+test('通信できないときは何もしない（オフラインはふつうのこと）', ()=>{
+  assert.match(grab(APP, 'checkForNewVersion'), /\.catch\(\(\)=>\{\}\)/,
+    'fetch が失敗してもエラーを出さないこと');
+  assert.match(grab(APP, 'checkForNewVersion'),
+    /fetch\(cacheBustURL\('index\.html', Date\.now\(\)\), \{ cache:'no-store' \}\)/,
+    '既存の cacheBustURL を使い、no-store で本物の index.html を取りに行くこと');
+});
+
+test('起動時は描画を妨げずに版を確認し、タブ復帰時は30分に一度だけ確認する', ()=>{
+  assert.match(APP, /render\(\);\s*\n\s*checkForNewVersion\(\);/,
+    '起動直後の render() を待たせずに確認を走らせること');
+  assert.match(APP,
+    /document\.addEventListener\('visibilitychange', \(\)=>\{[\s\S]{0,120}if\(document\.hidden\) return;[\s\S]{0,160}30 \* 60 \* 1000\) checkForNewVersion\(\);/,
+    '前面に戻ったときは、前回の確認から30分以上あいているときだけ確認すること');
+});
+
+test('保護者ページの「アプリの情報」にだけ、見つけた新しい版を事実として伝える', ()=>{
+  const cfg = grab(APP, 'viewConfig');
+  assert.match(cfg, /newVersionAvailable \? `<p class="set-note" id="appUpdateNote">あたらしい版が あります<\/p>` : ''/,
+    '見つかっているときだけ一言そえ、ボタンや選択肢は増やさないこと');
+  assert.doesNotMatch(grab(APP, 'viewParent'), /newVersionAvailable/,
+    '保護者トップには出さないこと（アプリ情報の中だけに置く）');
+  assert.doesNotMatch(grab(APP, 'viewTasks'), /newVersionAvailable/);
+});
+
+test('子ども画面には、新しい版の知らせを一切出さない', ()=>{
+  for(const name of ['viewWelcome', 'viewHome', 'viewLog', 'viewCalendar', 'viewBooks', 'viewWrites', 'viewStats']){
+    const src = grab(APP, name);
+    assert.doesNotMatch(src, /newVersionAvailable/, name + ' に更新の知らせを混ぜないこと');
+    assert.doesNotMatch(src, /あたらしい版/, name + ' に更新の知らせを混ぜないこと');
+  }
+});

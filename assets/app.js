@@ -88,6 +88,13 @@ const K_SAMPLE_CHILD  = TEST_MODE ? 'natsu.preview.sample.child.v1'  : 'natsu.sa
 const K_SYNC_PROMPT_DONE = TEST_MODE ? 'natsu.preview.prompt.sync.v1' : 'natsu.prompt.sync.v1';
 const K_HOME_INSTALL_DONE = TEST_MODE ? 'natsu.preview.prompt.install.v1' : 'natsu.prompt.install.v1';
 const K_METRIC = 'natsu.metric.registered.v1';
+/* 新しい版を静かに取り込む仕組み用。前回いつ index.html を確認したかを
+   端末に持ち、visibilitychange のたびに毎回問い合わせないようにする。 */
+const K_UPDATE_CHECKED = TEST_MODE ? 'natsu.preview.update.checked.v1' : 'natsu.update.checked.v1';
+/* GitHub Pages は公開直後、古い index.html をしばらく返し続けることがある。
+   歯止めが無いと、まだ新しくなっていないサーバーへ向けて読み直しを
+   永久に繰り返してしまう。読み直した版を覚えておき、同じ版では二度読み直さない。 */
+const K_UPDATE_RELOADED_FOR = TEST_MODE ? 'natsu.preview.update.reloaded.v1' : 'natsu.update.reloaded.v1';
 /* URL の隠し入口。静的サイトなので認証ではなく、通常画面に出さないための合図。 */
 const STATS_PARAM = 'stats';
 const STATS_VALUE = 'family-count';
@@ -161,6 +168,9 @@ let funIdx = 0, funOpen = false;
 let calMonth = null;
 let calDay = null;
 let openConfigTaskId = null;
+/* index.html を確認して見つけた新しい版。取り込みは静かに行うため、
+   保護者の「アプリ情報」に事実として一言そえる以外には使わない。 */
+let newVersionAvailable = false;
 let welcomeThemeChoice = '';
 let welcomeJoinVerified = null;
 /* 「かいたもの いちらん」が いま見せている 課題。#writes:<taskId> から 入る。
@@ -5133,6 +5143,7 @@ function viewConfig(){
       <p class="set-note">この端末は <b>v${esc(RELEASE_VERSION)}</b>（配信 ${appVersionHTML(APP_VER)}）を動かしています。
       同期の仕組みはバージョンによって変わるため、<b>共有しているすべての端末を同じバージョンに揃えてください</b>。
       片方が古いままだと、訂正が相手の端末から元に戻されることがあります。</p>
+      ${newVersionAvailable ? `<p class="set-note" id="appUpdateNote">あたらしい版が あります</p>` : ''}
       <div class="set-actions">
         <button class="btn btn-sm" id="appUpdate" type="button">最新に更新する</button>
       </div>
@@ -6998,6 +7009,61 @@ window.addEventListener('appinstalled', ()=>{
 });
 
 /* ---------------------------------------------------------
+   新しい版を静かに取り込む
+
+   version.json など専用のファイルは作らない。版の出どころを index.html
+   1つに保つほうが、「どちらが正しい版番号か」で食い違う余地がない。
+   利用者に更新を選ばせると、共有端末どうしで判断がずれてしまうため、
+   問いかけずに自動で読み直す。読み直せない事情があるときだけ、
+   保護者ページに事実を一言そえるにとどめる。 */
+const APP_BOOT_AT = Date.now();
+function parseVersionFromIndexHTML(html){
+  /* " と ' は " と ' のこと。生の引用符を並べて書かないのは好みではなく、
+     テスト側の「ソースを関数単位で切り出す」簡易ツールが、文字クラス中の引用符を
+     文字列の区切りと取り違えて以降の解析を狂わせるのを避けるため。 */
+  const Q = '[\\u0022\\u0027]', NOTQ = '[^\\u0022\\u0027]';
+  const m = String(html || '').match(new RegExp('<meta\\s+name=' + Q + 'application-version' + Q +
+    '\\s+content=' + Q + '(' + NOTQ + '*)' + Q, 'i'));
+  return m ? m[1] : '';
+}
+function checkForNewVersion(){
+  /* visibilitychange 側の30分の間隔は、この「最後に確認した時刻」を基準にする */
+  setLocal(K_UPDATE_CHECKED, String(Date.now()));
+  fetch(cacheBustURL('index.html', Date.now()), { cache:'no-store' })
+    .then(res => res.text())
+    .then(html => applyVersionCheck(parseVersionFromIndexHTML(html)))
+    .catch(()=>{}); // 通信できないのは ふつうのこと。エラーは出さない
+}
+function applyVersionCheck(remote){
+  if(!remote) return;
+  if(remote === RELEASE_VERSION){
+    /* もう追いついている。記録が残っていると、次に別の新しい版が出たときに
+       「読み直しずみ」と誤解して読み直さなくなるので、ここで消す */
+    try{ localStorage.removeItem(K_UPDATE_RELOADED_FOR); }catch(e){}
+    return;
+  }
+  if(!newVersionAvailable){
+    newVersionAvailable = true;
+    if(tab === 'config') render({ keepScroll:true });
+  }
+  adoptNewVersionIfSafe(remote);
+}
+function adoptNewVersionIfSafe(remote){
+  if(Date.now() - APP_BOOT_AT < 60000) return; // 読み直し直後の連鎖を防ぐ
+  const wrap = $('#sheetWrap');
+  if(wrap && !wrap.hidden) return; // 記録シートを開いている間は割り込まない
+  if(tab === 'welcome') return; // 初期設定の最中は割り込まない
+  if(getLocal(K_UPDATE_RELOADED_FOR) === remote) return; // 同じ版では二度読み直さない
+  setLocal(K_UPDATE_RELOADED_FOR, remote); // 読み直す前に記録し、失敗が続いても永久ループにしない
+  location.replace(cacheBustURL(location.href, Date.now()));
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.hidden) return;
+  const last = Number(getLocal(K_UPDATE_CHECKED)) || 0;
+  if(Date.now() - last >= 30 * 60 * 1000) checkForNewVersion();
+});
+
+/* ---------------------------------------------------------
    はじめる
    --------------------------------------------------------- */
 loadAll();
@@ -7005,5 +7071,6 @@ if(typeof setReadingGrade === 'function') setReadingGrade(readingGrade());
 tab = launchRoute();
 if(typeof window.natsuBootProgress === 'function') window.natsuBootProgress(100, '表示します');
 render();
+checkForNewVersion(); // 描画を待たせない。結果は次の描画で静かに反映する
 
 })();
