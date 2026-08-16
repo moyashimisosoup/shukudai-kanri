@@ -3686,6 +3686,9 @@ function bookSectionHTML(){
    --------------------------------------------------------- */
 let sheetTask = null, sheetSel = null, sheetSteps = null, sheetWrap = null;
 let sheetRating = 0, sheetBookId = null;
+/* 開いたときの 答えと、それが 専用欄に 入っているか。
+   いまの 入力と くらべて「ほぞんずみ／まだ」を 出しわける */
+let sheetQBase = null, sheetQSaved = null;
 
 function showSheet(){
   $('#sheetWrap').hidden = false;
@@ -3760,11 +3763,16 @@ function saveQuestionAnswer(index, ask){
   const next = String(el.value || '').trim().slice(0, 800);
   const old = String(answers[index] || '');
   if(!next && !old){ toast('答えを書いてから保存してね'); return false; }
-  if(next === old){ toast('この答えは保存ずみです'); return true; }
-  if(ask && old && !confirm('前に保存した答えを、新しい内容で上書きしますか？')) return false;
+  /* 旧記録から 出しただけの 答えは、見た目が 同じでも まだ 専用欄に ない。
+     ここで 止めると「この答えを保存」と 出ている ボタンが
+     押しても 何も しない ことに なるので、移しかえを 通す。 */
+  const already = !!(sheetQSaved || [])[index];
+  if(next === old && already){ toast('この答えは保存ずみです'); return true; }
+  if(ask && already && next !== old && !confirm('前に保存した答えを、新しい内容で上書きしますか？')) return false;
   answers[index] = next;
   saveQuestionAnswerRow(t, answers);
   saveSt();
+  markQuestionSaved(index, next);
   toast(next ? '答えを保存しました' : '答えを空にして保存しました');
   return true;
 }
@@ -3772,14 +3780,59 @@ function saveQuestionAnswers(ask){
   const t = sheetTask;
   if(!t || !(t.questions || []).length) return true;
   const before = questionAnswerRow(t);
-  const changed = $$('#sheetBody [data-q]').map((el,i)=> String(el.value || '').trim().slice(0, 800) !== String(before.answers[i] || ''));
-  if(!changed.some(Boolean)) return true;
-  if(ask && before.answers.some((v,i)=> String(v || '') && changed[i]
-    && !confirm('前に保存した答えを、新しい内容で上書きしますか？'))) return false;
   const answers = $$('#sheetBody [data-q]').map(el=>String(el.value || '').trim().slice(0, 800));
+  const changed = answers.map((v, i)=> v !== String(before.answers[i] || ''));
+  if(!changed.some(Boolean)) return true;
+  /* 問ごとに 確認を 出すと、質問の 多い 課題では 同じ 窓が
+     何回も 続く。読まずに 押す ようになって 確認の 意味が なくなるので、
+     書きかわる 問の ばんごうを まとめて 1回だけ 聞く。 */
+  const over = changed.map((c, i)=> c && String(before.answers[i] || '') ? i + 1 : 0).filter(Boolean);
+  if(ask && over.length && !confirm('しつもん ' + over.join('・') + ' の 前の答えを 新しい内容に します。いいですか？')) return false;
   saveQuestionAnswerRow(t, answers);
   saveSt();
+  answers.forEach((v, i)=> markQuestionSaved(i, v));
   return true;
+}
+/* 答えの ようす は 3つ。
+   saved … 専用欄の 中身と 同じ。もう 保存ずみ
+   dirty … 書きかえた、または 旧記録から 出しただけで まだ 保存していない
+   empty … なにも 書いていない */
+function questionState(i){
+  const el = $('#sheetBody [data-q="' + i + '"]');
+  if(!el) return 'empty';
+  const now = String(el.value || '').trim();
+  const base = String((sheetQBase || [])[i] || '');
+  if(now === base && (sheetQSaved || [])[i]) return 'saved';
+  if(!now && !base) return 'empty';
+  return 'dirty';
+}
+function unsavedQuestions(){
+  const t = sheetTask;
+  if(!t || !(t.questions || []).length || !sheetQBase) return [];
+  return t.questions.map((q, i)=> i).filter(i=> questionState(i) === 'dirty');
+}
+function refreshQuestionSaveState(i){
+  const btn = $('#sheetBody [data-save-q="' + i + '"]');
+  if(!btn) return;
+  const st = questionState(i);
+  btn.textContent = st === 'saved' ? 'ほぞんずみ' : 'この答えを保存';
+  btn.classList.toggle('is-saved', st === 'saved');
+  const box = btn.closest('.q-actions');
+  const note = box && box.querySelector('.q-note');
+  if(note) note.hidden = st !== 'dirty';
+}
+function markQuestionSaved(i, value){
+  if(!sheetQBase || !sheetQSaved) return;
+  sheetQBase[i] = value;
+  sheetQSaved[i] = !!value;
+  refreshQuestionSaveState(i);
+}
+/* × や Esc で とじる ときだけ 聞く。「きろく」は 答えも まとめて
+   保存するので、聞く 必要が ない。 */
+function confirmLeaveSheet(){
+  const rest = unsavedQuestions();
+  if(!rest.length) return true;
+  return confirm('ほぞんして いない 答え（しつもん ' + rest.map(i=> i + 1).join('・') + '）が あるよ。とじても いい？');
 }
 
 function openSheet(id, editBookId){
@@ -3843,7 +3896,10 @@ function openSheet(id, editBookId){
 
   // 観察の観点。count と step のどちらでも出す
   if((t.questions||[]).length){
-    const savedAnswers = questionAnswerRow(t).answers;
+    const row = questionAnswerRow(t);
+    const savedAnswers = row.answers;
+    sheetQBase = savedAnswers.slice();
+    sheetQSaved = row.saved.slice();
     body += `<div class="field">
       <span class="lab">かんさつ してみよう</span>
       <p class="hint">わかるところだけで いいよ。答えごとに保存でき、次に開いたときも残るよ。</p>
@@ -3854,7 +3910,10 @@ function openSheet(id, editBookId){
             <textarea data-q="${i}" rows="2" placeholder="かいてみよう">${esc(savedAnswers[i] || '')}</textarea>
             ${micBtn('q'+i)}
           </div>
-          <div class="q-actions"><button class="btn btn-sm q-save" data-save-q="${i}" type="button">この答えを保存</button></div>
+          <div class="q-actions">
+            <p class="q-note"${row.saved[i] || !savedAnswers[i] ? ' hidden' : ''}>かえたら この ボタンで ほぞんしてね</p>
+            <button class="btn btn-sm q-save${row.saved[i] ? ' is-saved' : ''}" data-save-q="${i}" type="button">${row.saved[i] ? 'ほぞんずみ' : 'この答えを保存'}</button>
+          </div>
         </div>`).join('')}
     </div>`;
   }
@@ -4217,6 +4276,7 @@ function closeSheet(){
   document.body.style.overflow = '';
   sheetTask = null; sheetSel = null; sheetSteps = null; sheetWrap = null;
   sheetRating = 0; sheetBookId = null;
+  sheetQBase = null; sheetQSaved = null;
   $('#sheetSave').textContent = 'きろくする';
 }
 
@@ -6421,6 +6481,7 @@ document.addEventListener('click', e=>{
   // シート内
   if(e.target.id === 'sheetBack') return;
   if(e.target.closest('#sheetClose') || e.target.closest('#sheetCancel')){
+    if(!confirmLeaveSheet()) return;
     closeSheet(); return;
   }
   if(e.target.closest('#sheetSave')){ saveSheet(); return; }
@@ -6476,7 +6537,13 @@ document.addEventListener('click', e=>{
 
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape' && $('#kinenbiDialog').open){ closeKinenbi(); return; }
-  if(e.key === 'Escape' && !$('#sheetWrap').hidden) closeSheet();
+  if(e.key === 'Escape' && !$('#sheetWrap').hidden && confirmLeaveSheet()) closeSheet();
+});
+
+/* 答えを 書きかえた とたんに、ボタンを「ほぞんずみ」から もどす */
+document.addEventListener('input', e=>{
+  const box = e.target.closest && e.target.closest('[data-q]');
+  if(box) refreshQuestionSaveState(Number(box.dataset.q));
 });
 
 // タブを もどってきたら、どの画面でも上帯の日づけを更新する。

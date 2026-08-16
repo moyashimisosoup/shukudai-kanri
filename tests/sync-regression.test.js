@@ -82,7 +82,8 @@ test('任意質問は回答ごとに保存・再表示し、シート外では�
   const open = grab(APP, 'openSheet');
   const one = grab(APP, 'saveQuestionAnswer');
   const all = grab(APP, 'saveQuestionAnswers');
-  assert.match(open, /const savedAnswers = questionAnswerRow\(t\)\.answers/);
+  assert.match(open, /const row = questionAnswerRow\(t\);\s*\n\s*const savedAnswers = row\.answers;/,
+    '保存済み回答を入力欄へ出すこと');
   assert.match(open, /data-save-q="\$\{i\}"[\s\S]*この答えを保存/,
     '質問ごとに保存ボタンを出すこと');
   assert.match(one, /前に保存した答えを、新しい内容で上書きしますか？/,
@@ -141,6 +142,47 @@ test('専用欄に一部だけ保存していても、残りの問は旧記録�
     '空の欄だけ旧記録で補い、保存済みの答えは残すこと');
   assert.deepEqual(out.saved, [false, true],
     '専用欄に入っている問だけ「保存ずみ」として扱うこと');
+});
+
+test('保存ずみの答えはボタンで示し、書きかえたら保存を促す', ()=>{
+  const open = grab(APP, 'openSheet');
+  assert.match(open, /q-save\$\{row\.saved\[i\] \? ' is-saved' : ''\}/,
+    '保存ずみの問はボタンの見た目を変えること');
+  assert.match(open, /\$\{row\.saved\[i\] \? 'ほぞんずみ' : 'この答えを保存'\}/,
+    '保存ずみの問はボタンの文字を変えること');
+  assert.match(open, /q-note[\s\S]{0,80}かえたら この ボタンで ほぞんしてね/,
+    '書きかえたら保存を促す文を持つこと');
+  assert.match(open, /row\.saved\[i\] \|\| !savedAnswers\[i\] \? ' hidden' : ''/,
+    'まだ何も書いていない問では促しを出さないこと');
+  const st = grab(APP, 'questionState');
+  assert.match(st, /if\(now === base && \(sheetQSaved \|\| \[\]\)\[i\]\) return 'saved';/);
+  assert.match(st, /if\(!now && !base\) return 'empty';/);
+  assert.match(APP, /document\.addEventListener\('input'[\s\S]{0,160}refreshQuestionSaveState/,
+    '入力のたびに保存ずみ表示を更新すること');
+  assert.match(grab(APP, 'saveQuestionAnswer'), /markQuestionSaved\(index, next\);/,
+    '保存できたらその場で表示を切り替えること');
+  assert.match(grab(APP, 'saveQuestionAnswer'), /if\(next === old && already\)\{ toast\('この答えは保存ずみです'\); return true; \}/,
+    '旧記録から出しただけの答えは、同じ内容でも専用欄へ移せること');
+  assert.match(STYLE, /\.q-save\.is-saved\{/);
+});
+
+test('答えの上書き確認は1回にまとめ、とじる前に未保存を知らせる', ()=>{
+  const all = grab(APP, 'saveQuestionAnswers');
+  assert.doesNotMatch(all, /\.some\(\(v,i\)=>[\s\S]*confirm\(/,
+    '問ごとに確認を出さないこと');
+  assert.match(all, /const over = changed\.map\(\(c, i\)=> c && String\(before\.answers\[i\] \|\| ''\) \? i \+ 1 : 0\)\.filter\(Boolean\);/,
+    '書きかわる問の番号をまとめること');
+  assert.match(all, /confirm\('しつもん ' \+ over\.join\('・'\) \+ ' の 前の答えを 新しい内容に します。いいですか？'\)/,
+    '1回の確認で対象の問を示すこと');
+  const leave = grab(APP, 'confirmLeaveSheet');
+  assert.match(leave, /ほぞんして いない 答え（しつもん/,
+    'とじる前に未保存の問を知らせること');
+  assert.match(APP, /if\(!confirmLeaveSheet\(\)\) return;\s*\n\s*closeSheet\(\); return;/,
+    '×では未保存を確認してから閉じること');
+  assert.match(APP, /e\.key === 'Escape' && !\$\('#sheetWrap'\)\.hidden && confirmLeaveSheet\(\)/,
+    'Escでも未保存を確認すること');
+  assert.match(grab(APP, 'saveSheet'), /if\(!saveQuestionAnswers\(true\)\) return;/,
+    '「きろく」は答えもまとめて保存するので、別の確認を足さないこと');
 });
 
 function questionAnswerRowFn(st){
