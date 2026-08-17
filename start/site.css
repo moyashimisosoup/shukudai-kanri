@@ -1588,6 +1588,86 @@ blockquote {
   color: var(--color-ink-soft);
 }
 
+/* 使い方ページの最初の画面は、概要ではなく目次にする。何がどこに書いてあるかを
+   先に見せ、読みたい項目へ直接飛べるようにするため。紹介ページと同じ説明を
+   繰り返さないので、ここには見出しと一行の手がかりだけを置く。 */
+.guide-legacy .guide-menu {
+  margin: var(--space-xl) 0 var(--space-3xl);
+  padding: var(--space-lg);
+  border: var(--rule-strong) solid var(--color-navy);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-raised);
+}
+
+.guide-legacy .guide-menu h2 {
+  margin: 0 0 var(--space-xs);
+  padding-block-end: 0;
+  border-block-end: 0;
+  font-size: var(--text-md);
+}
+
+.guide-legacy .guide-menu__note {
+  margin-block-end: var(--space-lg);
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+}
+
+.guide-legacy .guide-menu__list {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guide-legacy .guide-menu__list a {
+  display: grid;
+  gap: var(--space-2xs);
+  align-content: center;
+  min-height: 2.75rem;
+  padding: var(--space-sm) var(--space-md);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+  color: var(--color-navy-deep);
+  text-decoration: none;
+}
+
+.guide-legacy .guide-menu__list a:hover {
+  border-color: var(--color-navy);
+  background: var(--color-paper-blue);
+}
+
+.guide-legacy .guide-menu__list a:focus-visible {
+  outline: var(--rule-strong) solid var(--color-navy);
+  outline-offset: 2px;
+}
+
+.guide-legacy .guide-menu__list strong {
+  font-family: var(--font-display);
+  line-height: 1.5;
+}
+
+.guide-legacy .guide-menu__list span {
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+/* 目次から飛んだ見出しが固定の上帯に隠れないよう、html には scroll-padding-top が
+   入っている（上の html 側の指定）。ただしその値は紹介ページの告知帯ぶんを含み、
+   告知帯が無い案内・変更履歴のページでは 1画面ぶん近く空きすぎる。ここで引く。
+   :has を解さない古い端末では従来どおり広めに空くだけで、隠れはしない。 */
+html:has(body.guide-legacy) {
+  scroll-padding-top: calc(var(--nav-bar-height) + var(--space-lg));
+}
+
+@media (min-width: 40rem) {
+  .guide-legacy .guide-menu__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .guide-legacy h2 {
   margin: var(--space-3xl) 0 var(--space-lg);
   padding-block-end: var(--space-sm);
@@ -1620,6 +1700,12 @@ blockquote {
 
 .guide-legacy a {
   color: var(--color-navy);
+}
+
+/* 本文リンクの色（.guide-legacy a）は .button より詳細度が高いので、
+   上帯の「しゅくだいノートを開く」が紺地に紺字で読めなくなる。ここで戻す。 */
+.guide-legacy a.button {
+  color: var(--color-navy-ink);
 }
 
 .guide-legacy figure {

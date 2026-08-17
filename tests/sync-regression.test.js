@@ -2705,8 +2705,8 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'assets/style.css': '20260817e',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
-    'assets/data.js': '20260814b',
-    'assets/app.js': '20260817e',
+    'assets/data.js': '20260817f',
+    'assets/app.js': '20260817f',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2729,16 +2729,18 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.22をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.22';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.22">/);
-  assert.equal(PACKAGE.version, '1.3.22');
-  assert.equal(PACKAGE_LOCK.version, '1.3.22');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.22');
-  assert.match(UPDATES, /<b>v1\.3\.22<\/b> の3つの数字は/,
+test('公開版番号v1.3.23をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.23';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.23">/);
+  assert.equal(PACKAGE.version, '1.3.23');
+  assert.equal(PACKAGE_LOCK.version, '1.3.23');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.23');
+  assert.match(UPDATES, /<b>v1\.3\.23<\/b> の3つの数字は/,
     '「バージョン番号の見方」の例も今の版にそろえること');
+  assert.match(UPDATES, /2026年8月17日　v1\.3\.23：[\s\S]*?目次/,
+    'この版で入れ替えた使い方ページの入口を履歴に書くこと');
   assert.match(UPDATES, /2026年8月17日　v1\.3\.22：[\s\S]*?始めること自体を目標にする/,
-    'この版で見直した呼びかけの方針を履歴に書くこと');
+    '前の版で見直した呼びかけの方針も履歴に残すこと');
   assert.match(UPDATES, /2026年8月17日　v1\.3\.21：[\s\S]*?名前に1行まるごと使い/,
     '前の版で直した宿題名の切れも履歴に残すこと');
   assert.match(UPDATES, /2026年8月17日　v1\.3\.20：[\s\S]*?上のメニューがくずれて重なる/,
@@ -4019,4 +4021,57 @@ test('切りかえるのは呼びかけだけで、画面の骨組みは変え�
   if(tabLabels) assert.doesNotMatch(tabLabels[0], /wording\(/, 'タブ名は切りかえないこと');
   assert.doesNotMatch(grab(APP, 'viewConfig'), /wording\(/, '設定画面は切りかえないこと');
   assert.doesNotMatch(grab(APP, 'viewTasks'), /wording\(/, '宿題を決める画面は切りかえないこと');
+});
+
+/* 使い方ページの最初の画面は目次にする。概要を先頭へ戻すと紹介ページと同じ話を
+   二度読ませることになり、探している手順まで指1本ぶんスクロールが増える。 */
+test('使い方ページは最初に目次を出し、各項目へ飛べる', ()=>{
+  const head = GUIDE.slice(GUIDE.indexOf('id="guide-main"'), GUIDE.indexOf('<h2 id="open"'));
+  assert.match(head, /<nav class="guide-menu"/, '本文の最初の要素を目次にすること');
+  assert.doesNotMatch(head, /class="lede"/,
+    '目次より前にアプリの概要を置かないこと（紹介ページと重複する）');
+  assert.match(head, /href="\.\/"[^>]*>紹介ページ<\/a>/,
+    'アプリの説明は紹介ページにあると案内すること');
+
+  const links = [...GUIDE.matchAll(/<li><a href="#([\w-]+)">/g)].map(m=>m[1]);
+  assert.equal(links.length, 10, '目次は本文の10項目ぶんを並べること');
+  links.forEach(id=>{
+    assert.match(GUIDE, new RegExp('<h2 id="' + id + '">'),
+      '目次の ' + id + ' に対応する見出しがあること');
+  });
+  const headings = [...GUIDE.matchAll(/<h2 id="([\w-]+)">/g)].map(m=>m[1])
+    .filter(id=> id !== 'guide-menu-title');
+  assert.deepEqual(headings, links, '見出しの並び順と目次の並び順をそろえること');
+
+  assert.match(DOCS_STYLE, /html:has\(body\.guide-legacy\)\s*\{[^}]*scroll-padding-top: calc\(var\(--nav-bar-height\) \+ var\(--space-lg\)\)/,
+    '告知帯の無い案内ページでは、飛んだ見出しの上に1画面ぶん空けないこと');
+});
+
+test('案内・変更履歴ページの上帯のボタンを、紺地に紺字で消さない', ()=>{
+  assert.match(DOCS_STYLE, /\.guide-legacy a\.button\s*\{[^}]*color: var\(--color-navy-ink\)/,
+    '本文リンクの色が .button より強いので、ボタンの文字色を戻すこと');
+});
+
+/* めずらしい生きものは、既読の キー が 配列の 添字 なので末尾へ足す。
+   とちゅうへ入れると、既存の端末で読んだ／まだの対応が1つずつずれる。 */
+test('めずらしい名前・めずらしい暮らしの生きものを、既読の添字をずらさずに増やす', ()=>{
+  const names = ['スベスベマンジュウガニ', 'オジサン', 'ウッカリカサゴ', 'モクズショイ',
+    'ハシビロコウ', 'ダンゴウオ', 'アメフラシ', 'コウモリダコ', 'ウデフリツノザヤウミウシ',
+    'テッポウエビ', 'テヅルモヅル',
+    /* 名前だけでなく暮らしぶりも変わったもの */
+    'カイロウドウケツ', 'ホネクイハナムシ', 'コウガイビル', 'ハリガネムシ', 'デメニギス',
+    'ミツクリザメ', 'サカサクラゲ', 'カツオノエボシ', 'アリジゴク'];
+  ['チンアナゴ', 'オオグチボヤ'].forEach(name=>{
+    assert.equal(FUN_TEST.findIndex(f=> f.q === name), -1,
+      name + ' は「めずらしさが足りない」として外した。戻さないこと');
+  });
+  const lastOld = FUN_TEST.map(f=>f.t).lastIndexOf('よくわからないけれどかっこいい長い言葉');
+  names.forEach(name=>{
+    const i = FUN_TEST.findIndex(f=> f.q === name);
+    assert.ok(i > lastOld, name + ' は配列の末尾へ足すこと（添字がずれる）');
+    assert.equal(FUN_TEST[i].t, 'めずらしい生きもの');
+    assert.equal(FUN_TEST[i].lv, 2, '小2でも読めるように lv:2 にすること');
+    assert.equal(FUN_TEST[i].ask, 'どんな いきもの かな？', '分野ごとの問いかけを解決させること');
+    assert.ok(FUN_TEST[i].a.length > 40, name + ' の説明を1文で終わらせないこと');
+  });
 });

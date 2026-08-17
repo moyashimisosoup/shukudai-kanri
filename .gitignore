@@ -22,3 +22,6 @@ tools/retention-admin.html
 tools/RETENTION_ADMIN.md
 tests/analytics-admin.test.js
 tests/retention-admin.test.js
+
+# ローカル専用の運用ページ。公開リポジトリ（main直配信）へ入れない。
+local/
