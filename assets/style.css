@@ -221,6 +221,12 @@ button{ font:inherit; color:inherit; }
   .topband-title{ font-size:17px; }
   .topband-date{ font-size:12px; }
 }
+/* 帯を つめても、名前が 4文字 入るだけで 題名は 切れる（320px で 実測 17px 超過）。
+   帯を 2行に しない かわりに、長い題名だけ 小さくして 出しきる。
+   幅の 指定より あとに 置いて 上書きする（clamp で 画面幅にも ついていく）。
+   下限 14px は 隣の 日づけ（狭い画面で 13px）より 大きく 保つための 線。
+   これでも 入らない 題名は … で 切れる。 */
+.topband-title--long{ font-size:clamp(14px, 4.4vw, 19px); }
 
 /* 今日はなんの日？：新しい画面を増やさず、小さな紙の読みものにする。
    本文の行送りと背景の罫線は端末幅・文字設定によってずれて見えるため、
@@ -916,9 +922,17 @@ select{ appearance:auto; -webkit-appearance:menulist; }
 @media (max-width:639px){
   .config-head .autosave{ display:none; }
   .set-task-summary{ grid-template-columns:auto minmax(0,1fr) auto auto; gap:7px; padding:12px; }
-  .set-task-meta{ grid-column:2; }
-  .set-task-move{ grid-column:3; grid-row:1 / span 2; align-self:center; }
-  .set-task-summary::after{ grid-column:4; grid-row:1 / span 2; }
+  /* 宿題名の欄は 種類の印・並べかえ・開閉の印に 場所を とられ、320px では
+     108px（6文字ほど）しか 残らなかった。「きゅうりの かんさつカード」も
+     「学習用プリント（さんすう）」も 途中で 切れ、名前で 見分けられない。
+     印は どれも 用が あって 置いてある ので 減らせない。ならば 名前に 1行
+     まるごと 使わせ、種類・件数・並べかえは 下の段へ そろえる（要素は そのまま）。
+     ここは 幅ごとの 指定の いちばん あとなので、上の grid-row を 確実に 上書きする */
+  .set-task-summary strong{ grid-column:1 / -1; grid-row:1; white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; }
+  .set-kind{ grid-row:2; }
+  .set-task-meta{ grid-column:2; grid-row:2; }
+  .set-task-move{ grid-column:3; grid-row:2; align-self:center; }
+  .set-task-summary::after{ grid-column:4; grid-row:2; }
   .set-task-body{ padding:14px 12px; }
   .set-grid{ grid-template-columns:minmax(0,1fr); gap:13px; }
   .set-field--wide{ grid-column:1; }

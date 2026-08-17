@@ -2302,6 +2302,51 @@ test('「よゆう」は全体と必須の両方が夏休みより大幅に進�
   assert.equal(pace.paceVerdictSizeClass('ちいさく すすめば だいじょうぶ！'), ' pace-verdict--long');
 });
 
+/* 上帯の題名は config.title を そのまま出す。既定は「〈名前〉の夏休みの宿題」
+   なので、名前が4文字（「さくらこ」）に なるだけで 320px では 入りきらず、
+   無言で 切れていた（実測 17px 超過）。帯を2行に すると 画面が せまく なるので
+   （style.css の 帯の項を 参照）、一言と 同じ型で 長い題名だけ 小さくする。 */
+test('長い題名は、帯を1行に保ったまま 小さくして 出しきる', ()=>{
+  const sizeClass = new Function(`${grab(APP, 'appTitleSizeClass')} return appTitleSizeClass;`)();
+  assert.equal(sizeClass('しゅくだいノート'), '', '短い題名の大きさは変えないこと');
+  assert.equal(sizeClass('たろうの夏休みの宿題'), '',
+    '名前3文字までの既定の題名は、そのままの大きさで入ること');
+  assert.equal(sizeClass('さくらこの夏休みの宿題'), ' topband-title--long',
+    '名前4文字からは縮めて出しきること');
+  assert.equal(sizeClass('はるとくんの夏休みの宿題'), ' topband-title--long');
+  /* 下限は14px。日づけ（狭い画面で13px）より小さくなると、見出しに見えない。
+     これより長い題名は … で切る（帯を2行にしないための、承知のうえの割り切り） */
+  assert.match(STYLE, /\.topband-title--long\{ font-size:clamp\(14px, 4\.4vw, 19px\); \}/);
+  assert.match(APP, /appTitleSizeClass\(shownTitle\)/,
+    '関数があるだけでなく、実際に題名へ付けること');
+});
+
+/* 設定の宿題名は、種類の印・並べかえ・開閉の印に 場所を とられ、
+   欄が 108px（6文字ほど）しか なかった。実際の名前
+   （「きゅうりの かんさつカード」など）は ほぼ すべて 途中で 切れていた。
+   印を 減らさずに 名前へ 場所を まわすには、名前に 1行 まるごと 使わせるしかない。 */
+test('設定の宿題名は、狭い画面では1行まるごと使って切らない', ()=>{
+  const at = STYLE.indexOf('@media (max-width:639px){');
+  assert.ok(at > 0, '狭い画面の指定があること');
+  const block = /@media \(max-width:639px\)\{([\s\S]*?)\n\}/.exec(STYLE)[1];
+  assert.match(block, /\.set-task-summary strong\{[^}]*grid-column:1 \/ -1/,
+    '名前が横いっぱいを使うこと');
+  assert.match(block, /\.set-task-summary strong\{[^}]*white-space:normal/,
+    '入りきらないときは切らずに折り返すこと');
+  ['\\.set-kind', '\\.set-task-meta', '\\.set-task-move', '\\.set-task-summary::after'].forEach(sel=>{
+    assert.match(block, new RegExp(sel + '\\{[^}]*grid-row:2'),
+      sel + ' を下の段に送ること（消さずに残す）');
+  });
+  /* 規則が「在る」ことと「勝つ」ことは別。実際、同じ指定を先に書いたときは
+     この @media より あとの 規則に 負けて、テストは通ったまま 実機だけ
+     元の並びの ままだった。あとから 1段目へ 戻す 指定が 増えていないか見る。 */
+  const after = STYLE.slice(at + block.length);
+  ['\\.set-kind', '\\.set-task-move', '\\.set-task-summary::after'].forEach(sel=>{
+    assert.doesNotMatch(after, new RegExp(sel + '\\{[^}]*grid-row:1'),
+      sel + ' を1段目へ戻す指定が、この指定より あとに 無いこと');
+  });
+});
+
 test('励まし文と「あと」は狭い画面でも一続きに読める', ()=>{
   assert.match(APP, /<p class="count-lead">なつやすみ おわりまで<\/p>/);
   assert.match(APP, /big \? '<span class="cd-prefix">あと<\/span>' : ''/,
@@ -2571,11 +2616,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260817c',
+    'assets/style.css': '20260817d',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260817c',
+    'assets/app.js': '20260817d',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2598,14 +2643,18 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.20をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.20';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.20">/);
-  assert.equal(PACKAGE.version, '1.3.20');
-  assert.equal(PACKAGE_LOCK.version, '1.3.20');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.20');
+test('公開版番号v1.3.21をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.21';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.21">/);
+  assert.equal(PACKAGE.version, '1.3.21');
+  assert.equal(PACKAGE_LOCK.version, '1.3.21');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.21');
+  assert.match(UPDATES, /<b>v1\.3\.21<\/b> の3つの数字は/,
+    '「バージョン番号の見方」の例も今の版にそろえること');
+  assert.match(UPDATES, /2026年8月17日　v1\.3\.21：[\s\S]*?名前に1行まるごと使い/,
+    'この版で直した宿題名の切れを履歴に書くこと');
   assert.match(UPDATES, /2026年8月17日　v1\.3\.20：[\s\S]*?上のメニューがくずれて重なる/,
-    'この版で直した上帯の崩れを履歴に書くこと');
+    '前の版で直した上帯の崩れも履歴に残すこと');
   assert.match(UPDATES, /2026年8月17日　v1\.3\.19：[\s\S]*?小学6年生まで/,
     '前の版で広げた漢字レベルも履歴に残すこと');
   assert.match(UPDATES, /2026年8月17日　v1\.3\.18：[\s\S]*?元に戻す/,
@@ -3524,6 +3573,53 @@ test('app.js が選べる学年は、kanji.js が実際に受け入れる学年�
 test('読める漢字の許可リストは1か所にまとまり、[0,1,2,9] の直書きが残っていない', ()=>{
   assert.doesNotMatch(APP, /\[0,1,2,9\]/,
     '直書きの許可リストを、共通の READING_GRADE_OPTIONS に一本化すること');
+});
+
+/* 選択肢そのものを見るテストは上にあるが、案内ページの説明を見るテストが
+   無かった。小6までの拡張では、選択肢だけ増えて start/ の説明が
+   「1年生まで／2年生まで」のまま取り残された。実装と文章の両方を
+   別々に見ていても、突き合わせが無ければ ズレは見つからない。
+   説明は選択肢を1つずつ数え上げず「端から端」で語っているので、
+   テストも端の3つ（先頭・学年の上端・最後）を実装から取り出して照合する。 */
+function readingOptionLabels(){
+  const html = new Function(`
+    ${grabConst(APP, 'READING_GRADE_OPTIONS')}
+    ${grab(APP, 'readingOptions')}
+    return readingOptions(-1);
+  `)();
+  return [...html.matchAll(/<option value="\d+"[^>]*>([^<]+)<\/option>/g)].map(m=>m[1]);
+}
+
+test('案内ページの「読める漢字」の説明は、実際に選べる範囲と食い違わない', ()=>{
+  const labels = readingOptionLabels();
+  assert.ok(labels.length >= 3,
+    '端から端で語るには、少なくとも3つの選択肢が取り出せること');
+  const first = labels[0];                      // すべてひらがな
+  const topGrade = labels[labels.length - 2];   // 学年の上端（いまは小学6年生まで）
+  const last = labels[labels.length - 1];       // 漢字のまま
+  const sentence = new RegExp('「' + first + '」から「' + topGrade + '」、それに「' + last + '」');
+  [
+    ['start/index.html（FAQ「何年生向けですか？」）', DOCS_INDEX],
+    ['start/getting-started.html（「名前と、読める漢字」）', GUIDE]
+  ].forEach(([where, html])=>{
+    assert.match(html, sentence,
+      where + ' が、いま選べる範囲を app.js の表示名どおりに語ること');
+  });
+});
+
+/* 上のテストは端の3つしか見ないので、途中が欠ける変更（例：小3だけ消す）は
+   通ってしまう。だが案内文の「〈先頭〉から〈上端〉まで」という言い方は、
+   その間が飛んでいないことを暗に約束している。文章を増やして確かめるのではなく、
+   文章が成り立つ前提のほうを実装側で押さえる。 */
+test('「読める漢字」の学年は、端から端まで飛ばさずに並ぶ', ()=>{
+  const options = new Function(`${grabConst(APP, 'READING_GRADE_OPTIONS')} return READING_GRADE_OPTIONS;`)();
+  const grades = options.slice(1, -1);  // 先頭（すべてひらがな）と最後（漢字のまま）を除いた学年
+  assert.ok(grades.length >= 2, '学年が2つ以上あること');
+  grades.forEach((g, i)=>{
+    assert.equal(g, grades[0] + i,
+      '学年が1つずつ続くこと（' + grades.join('・') + ' は ' + (grades[0] + i) + ' の位置で飛んでいる）。'
+      + '途中を消すなら、案内ページの「…から…まで」という言い方も直すこと');
+  });
 });
 
 function readingGradeHarness(configGrade, legacyGrade){

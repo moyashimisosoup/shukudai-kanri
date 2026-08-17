@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.20';
+const RELEASE_VERSION = '1.3.21';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -4833,6 +4833,18 @@ function stopSR(){
    古い作りの画面でも こわれないよう、見つからなければ ページに もどす */
 function scrollBox(){ return $('#scroll') || document.scrollingElement || document.documentElement; }
 
+/* 上帯の題名は おうちで 決められる（既定は「〈名前〉の夏休みの宿題」）。
+   帯を 2行に すると 画面が せまく なるため 1行のままにするが、名前が
+   4文字 入るだけで 320px では 切れていた。進み具合の一言（paceVerdictSizeClass）
+   と 同じ手で、長い題名だけ 小さくして 出しきる。
+   下限は 14px（style.css）。それより 小さいと 隣の 日づけ（13px）と 並んで
+   見出しに 見えないので、そこから先は … で 切る。 */
+function appTitleSizeClass(title){
+  const width = Array.from(String(title || '')).reduce((n, ch) =>
+    n + (ch === ' ' ? .35 : '！「」（）'.includes(ch) ? .55 : 1), 0);
+  return width > 10 ? ' topband-title--long' : '';
+}
+
 /* keepScroll: 今の位置のまま描き直す。タブを変えたときだけ先頭に戻す */
 function render(opts){
   /* 描き直しで入力欄が消える前に、アプリ側・キーボード側の音声入力を止める。 */
@@ -4847,6 +4859,7 @@ function render(opts){
 
   const shownTitle = TEST_MODE && (!getLocal(K_ONBOARD) || DEBUG_PARENT) ? 'おためし用の設定' : config.title;
   $('#appTitle').textContent = shownTitle;
+  $('#appTitle').className = 'topband-title' + appTitleSizeClass(shownTitle);
   renderKinenbiButton(new Date());
   document.title = shownTitle;
 
