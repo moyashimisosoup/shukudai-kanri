@@ -455,9 +455,41 @@ test('保護者ページの共有表示は子ども端末を最優先し、総�
     {id:'child-1', role:'child', name:'はな'}
   ];
   assert.deepEqual(appFns.parentShareSummary(rows, 'parent-1', ''), {
-    state:'child', full:'はなと共有中', short:'はなと共有中'
+    state:'child', full:'はなと共有中', short:'：はな'
   });
   assert.equal(appFns.parentShareSummary([{id:'parent-1', role:'parent'}], 'parent-1', '').state, 'waiting');
+});
+
+/* 短い方の表示に使えるのは 320px で 90px ほど（実測）。
+   「子ども端末の接続待ち」は 20px、「ほかの端末と共有中」は 9px はみ出していた。
+   バッジの左には すでに「共有」の印が 出ているので、短い方は 印に続く
+   「：〈短い語〉」で 足りる（共有なしのときの「：設定」と 同じ形）。
+   名前が入る形だけは 長さを 約束できないので … に まかせる。 */
+test('共有バッジの短い表示は、狭い画面の幅に収まる形にそろえる', ()=>{
+  const short = rows => appFns.parentShareSummary(rows, 'me', '').short;
+  assert.equal(short([{ id:'c1', role:'child', name:'はな' }]), '：はな',
+    '子どもの名前が分かるときは名前だけ出すこと');
+  assert.equal(short([{ id:'c1', role:'child', name:'' }]), '：子ども',
+    '名前が無いときも短く言うこと');
+  assert.equal(short([{ id:'p2', role:'parent' }]), '：ほかの端末');
+  assert.equal(short([{ id:'me', role:'parent' }]), '：接続待ち');
+  assert.match(APP, /<span class="parent-share-short">：設定<\/span>/,
+    '共有なしのときも同じ形であること');
+  /* 320pxで収まったのは「：」＋7文字まで（実測）。名前入りは利用者の文字数なので除く */
+  ['：ほかの端末', '：接続待ち', '：子ども', '：設定'].forEach(s=>
+    assert.ok(Array.from(s).length <= 8, '320pxで収まる長さにすること: ' + s));
+});
+
+/* 自由記述の「きょう かいたこと」の1行目。カードは grid の 1fr で、
+   1fr の 最小幅は min-content。nowrap の 中身が そのまま トラックを
+   押し広げるので、箱が カードの外へ 出て しまい、要素自身は あふれて
+   いないため … が 出ない（320px で 箱が 475px に なっていた）。
+   min-width:0 を 足して はじめて カードの中で 省略記号が 働く。 */
+test('自由記述のメモ1行目は、カードからはみ出さず … で示す', ()=>{
+  assert.match(STYLE, /\.free-body\{[^}]*min-width:0/,
+    'grid の 1fr が min-content で広がらないようにすること');
+  assert.match(STYLE, /\.free-said\{[\s\S]*?text-overflow:ellipsis/,
+    '入りきらないメモは … で気づけるようにすること');
 });
 
 test('同梱QRライブラリが招待URLをSVG化できる', ()=>{

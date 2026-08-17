@@ -3517,16 +3517,21 @@ function newestVer(vers){
 function parentShareSummary(rows, mine, fallbackName){
   const other = (rows || []).filter(r => r && r.id !== mine);
   const children = other.filter(r => r.role === 'child');
+  /* short は 狭い画面用。320px で 使えるのは 90px ほど しか なく、
+     「子ども端末の接続待ち」は 20px はみ出していた。バッジの 左には
+     すでに「共有」の印が 出ているので、続きは「：〈短い語〉」で 足りる
+     （共有なしのときの「：設定」と 同じ形）。名前だけは 長さを
+     約束できないので、入りきらなければ … に まかせる。 */
   if(children.length){
     const name = String(children[0].name || fallbackName || '').trim();
     return {
       state: 'child',
       full: name ? name + 'と共有中' : '子ども端末と共有中',
-      short: name ? name + 'と共有中' : '子どもと共有中'
+      short: name ? '：' + name : '：子ども'
     };
   }
-  if(other.length) return { state:'other', full:'ほかの端末と共有中', short:'ほかの端末と共有中' };
-  return { state:'waiting', full:'共有設定済み・子ども端末の接続待ち', short:'子ども端末の接続待ち' };
+  if(other.length) return { state:'other', full:'ほかの端末と共有中', short:'：ほかの端末' };
+  return { state:'waiting', full:'共有設定済み・子ども端末の接続待ち', short:'：接続待ち' };
 }
 
 function parentShareBadgeHTML(){

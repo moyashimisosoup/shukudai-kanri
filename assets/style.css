@@ -740,7 +740,12 @@ button{ font:inherit; color:inherit; }
 /* まいにちが奇数のときは、最後の1枚を次の段いっぱいに広げる。 */
 .task-list--2up > .task:last-child:nth-child(odd){ grid-column:1 / -1; }
 
-.free-body{ margin-top:6px; }
+/* カードは grid の 1fr。1fr の 最小幅は min-content なので、下の
+   nowrap の 一言が そのまま トラックを 押し広げ、箱が カードの 外へ
+   出ていた（320px で 246px の ところが 475px）。要素そのものは
+   あふれていないため … も 出ず、画面の はしで 黙って 切れる。
+   min-width:0 を 足して はじめて、カードの中で 省略記号が 働く。 */
+.free-body{ margin-top:6px; min-width:0; }
 .free-ask{ font-size:17px; font-weight:700; color:var(--ai-usu); line-height:1.5; }
 .free-said{
   font-size:18px; font-weight:700;
