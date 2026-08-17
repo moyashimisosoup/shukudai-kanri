@@ -692,6 +692,21 @@ button{ font:inherit; color:inherit; }
 }
 .pace-verdict--medium{ font-size:clamp(16px, 4.4vw, 19px); }
 .pace-verdict--long{ font-size:clamp(14px, 3.9vw, 17px); }
+/* 1行に収まらない長さ。これ以上縮めると隣の日づけ（13px）より小さくなり、
+   画面でいちばん大事な一言が いちばん読みにくい字になる。字の大きさは
+   下限14pxで止め、2行に折り返す。3行目が出るほど長い文はテストで落とす。 */
+.pace-verdict--wrap{
+  font-size:clamp(14px, 3.9vw, 17px);
+  white-space:normal; line-height:1.35;
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
+}
+/* 配当外の語に振ったルビ。行の上に出るぶん帯の丈が伸びるので、
+   よみは本文より小さくし、行の間で受けられるだけにとどめる。 */
+.pace-verdict ruby{ ruby-position:over; }
+.pace-verdict rt{ font-size:.5em; font-weight:800; line-height:1; }
+@supports not (ruby-position: over){
+  .pace-verdict rt{ ruby-position:before; }
+}
 .pace-forecast{
   max-width:100%; margin:7px auto 0;
   display:flex; justify-content:center; flex-wrap:wrap; column-gap:.25em;

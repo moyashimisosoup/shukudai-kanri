@@ -2302,7 +2302,7 @@ test('宿題を足すと、押したボタンの欄に入る', ()=>{
 test('「よゆう」は全体と必須の両方が夏休みより大幅に進んだときだけ出す', ()=>{
   const start = APP.indexOf('const PACE_MESSAGES');
   const end = APP.indexOf('/* 夏休みの経過率', start);
-  const pace = new Function(APP.slice(start, end) + '; return { verdictOf, paceMessage, paceVerdictSizeClass, PACE_MESSAGES };')();
+  const pace = new Function(APP.slice(start, end) + '; return { verdictOf, paceMessage, paceVerdictSizeClass, paceVisualWidth, PACE_MESSAGES, PACE_MESSAGES_ADULT };')();
 
   const roomy = pace.verdictOf(12, 10);
   assert.equal(roomy.cls, 'v-good');
@@ -2323,15 +2323,37 @@ test('「よゆう」は全体と必須の両方が夏休みより大幅に進�
   Object.values(pace.PACE_MESSAGES).flat().forEach(msg=>assert.ok(visualWidth(msg) <= 13.25,
     '320pxで14pxの1行に収まる長さにする: ' + msg));
 
+  /* 大人びた側は、1行に収まらない文を2行で出す（pace-verdict--wrap）。
+     3行目が出ると帯の丈が崩れるので、2行ぶんの 26.5 を上限にする。
+     ここを見ていなかったため、引継ぎが縛りと書いていた 13.25 が
+     大人側では効いていなかった。 */
+  Object.values(pace.PACE_MESSAGES_ADULT).flat().forEach(msg=>{
+    const width = pace.paceVisualWidth(msg);
+    assert.ok(width <= 26.5, '320pxで2行に収まる長さにする: ' + msg);
+    const cls = pace.paceVerdictSizeClass(msg);
+    if(width > 13.25) assert.equal(cls, ' pace-verdict--wrap',
+      '1行に収まらない文は折り返す指定にする: ' + msg);
+    else assert.notEqual(cls, ' pace-verdict--wrap',
+      '1行で足りる文を折り返しにしない: ' + msg);
+  });
+
+  /* ルビの指定は画面では漢字の幅しか取らない。読みの分まで数えると
+     短い文が不要に縮む。 */
+  assert.equal(pace.paceVisualWidth('{余裕|よゆう}をたもっていこう'), 10,
+    'ルビの読みは幅に数えないこと');
+
   /* UTCの日替わり（日本時間9時）ではなく、端末の0時まで同じ文言を保つ。 */
   const morning = pace.paceMessage('steady', 2, 1, new Date(2026, 7, 11, 0, 1));
   const night = pace.paceMessage('steady', 2, 1, new Date(2026, 7, 11, 23, 59));
   assert.equal(morning, night, '同じ暦日の途中で励まし文を変えない');
 
-  /* 長い案だけ縮め、短い案の大きさは保つ。 */
+  /* 長い案だけ縮め、短い案の大きさは保つ。1行に入りきらない長さからは、
+     縮め続けずに折り返す（下限14pxより小さくすると、隣の日づけ13pxや
+     下の完了予測12pxより小さくなり、いちばん大事な一言が最も読みにくくなる）。 */
   assert.equal(pace.paceVerdictSizeClass('いいペース！'), '');
   assert.equal(pace.paceVerdictSizeClass('つぎの ひとつへ いこう！'), ' pace-verdict--medium');
-  assert.equal(pace.paceVerdictSizeClass('ちいさく すすめば だいじょうぶ！'), ' pace-verdict--long');
+  assert.equal(pace.paceVerdictSizeClass('さきに ひとつ かたづけよう！'), ' pace-verdict--long');
+  assert.equal(pace.paceVerdictSizeClass('ちいさく すすめば だいじょうぶ！'), ' pace-verdict--wrap');
 });
 
 /* 上帯の題名は config.title を そのまま出す。既定は「〈名前〉の夏休みの宿題」
@@ -2434,6 +2456,35 @@ test('完了予測は全体進捗から求め、実績が少ないときは行�
   assert.equal(forecast.completionForecast(0, 0, start, now).kind, 'empty');
 });
 
+/* 全部終わったあと、子ども画面は「いつ終わったか」を出す。日づけだけだと
+   その日のうちに何度見ても同じなので、時刻まで添えて記録として読ませる。
+   記録がまだ1件も無いときは時刻を作れないので、言い切りに落とす。 */
+test('全部終わったときは、最後の記録の日時をそのまま完了時刻として出す', ()=>{
+  const mod = new Function('pad2', 'wording', `
+    ${grab(APP, 'lastRecordLabel')}
+    ${grab(APP, 'forecastText')}
+    return { lastRecordLabel, forecastText };
+  `)(n=>String(n).padStart(2,'0'), (child, adult)=>adult);
+
+  const label = mod.lastRecordLabel([
+    { at: new Date(2026, 7, 3, 9, 5).toISOString() },
+    { at: new Date(2026, 7, 17, 14, 30).toISOString() },
+    { at: new Date(2026, 7, 12, 20, 0).toISOString() }
+  ]);
+  assert.equal(label, '8月17日14時30分', 'いちばん新しい記録の日時を採ること');
+
+  const done = { kind:'done' };
+  assert.equal(mod.forecastText(done, true, label), '8月17日14時30分に完了！');
+  assert.equal(mod.forecastText(done, true, null), '全部終わった！',
+    '記録が無いときも文が欠けないこと');
+  assert.equal(mod.forecastText(done, false, label), '完了予測　完了',
+    '保護者ページの言い方は変えないこと');
+
+  assert.equal(mod.lastRecordLabel([]), null);
+  assert.equal(mod.lastRecordLabel([{ at:'こわれた値' }]), null,
+    '日時として読めない記録で落ちないこと');
+});
+
 test('保護者ページは縦の余白を節約する表示になっている', ()=>{
   const settings = grab(APP, 'viewParent');
   const messageEditor = grab(APP, 'parentMessageEditorHTML');
@@ -2471,7 +2522,10 @@ test('保護者ページは縦の余白を節約する表示になっている',
   assert.doesNotMatch(STYLE, /\.pagenav-child\{[^}]*grid-column:1 \/ -1/,
     '子ども画面への導線だけを別段に落とさない');
   assert.match(STYLE, /\.pace-forecast\{[\s\S]*font-size:12px/);
-  assert.match(APP, /<span>かんりょうよそく：<\/span><span>いまのペースだと\$\{esc\(forecast\.label\)\}<\/span>/,
+  /* 見出しと本体を別の span に分け、折り返し位置をコロンの後に限る。
+     日付（「9月7日」）は本体側の span に入れて途中で割らせない。
+     学年で言い方を切りかえても、この2分割は保つこと。 */
+  assert.match(APP, /<span>\$\{wording\('かんりょうよそく：', '完了よそく：'\)\}<\/span><span>\$\{\s*\n?\s*wording\('いまのペースだと', '今のペースだと'\)\}\$\{esc\(forecast\.label\)\}<\/span>/,
     '狭幅では日付の途中でなくコロンの後を折り返し位置にする');
   assert.match(STYLE, /\.pace-forecast span\{ white-space:nowrap; \}/,
     '「9がつ7にち」の途中では折り返さない');
@@ -2648,11 +2702,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260817d',
+    'assets/style.css': '20260817e',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260814b',
-    'assets/app.js': '20260817d',
+    'assets/app.js': '20260817e',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2675,16 +2729,18 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.21をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.21';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.21">/);
-  assert.equal(PACKAGE.version, '1.3.21');
-  assert.equal(PACKAGE_LOCK.version, '1.3.21');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.21');
-  assert.match(UPDATES, /<b>v1\.3\.21<\/b> の3つの数字は/,
+test('公開版番号v1.3.22をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.22';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.22">/);
+  assert.equal(PACKAGE.version, '1.3.22');
+  assert.equal(PACKAGE_LOCK.version, '1.3.22');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.22');
+  assert.match(UPDATES, /<b>v1\.3\.22<\/b> の3つの数字は/,
     '「バージョン番号の見方」の例も今の版にそろえること');
+  assert.match(UPDATES, /2026年8月17日　v1\.3\.22：[\s\S]*?始めること自体を目標にする/,
+    'この版で見直した呼びかけの方針を履歴に書くこと');
   assert.match(UPDATES, /2026年8月17日　v1\.3\.21：[\s\S]*?名前に1行まるごと使い/,
-    'この版で直した宿題名の切れを履歴に書くこと');
+    '前の版で直した宿題名の切れも履歴に残すこと');
   assert.match(UPDATES, /2026年8月17日　v1\.3\.20：[\s\S]*?上のメニューがくずれて重なる/,
     '前の版で直した上帯の崩れも履歴に残すこと');
   assert.match(UPDATES, /2026年8月17日　v1\.3\.19：[\s\S]*?小学6年生まで/,
@@ -3841,10 +3897,15 @@ test('新しい版を取り込んだ直後は、そのことを一言だけ知�
    ここに載っていない配当外の字は、これまでどおり検出して落とす。 */
 const STAMP_KANJI_EXCEPTIONS = { '了': 'スタンプ「完了！」。中学以上の配当' };
 
+/* {漢字|よみ} と書いた語は、画面ではルビつきで出る（rubyHTML）。読みを
+   そえてあるので配当外の字でも読めるため、この検査からは外す。外すのは
+   ルビの中だけで、地の文に裸で置かれた配当外の字はこれまでどおり落とす。 */
+const RUBY_RE = /\{([^{}|]+)\|([^{}|]+)\}/g;
+function stripRuby(s){ return String(s).replace(RUBY_RE, ''); }
 function overGradeChars(strings, upTo4){
   const over = [];
   for(const s of strings){
-    for(const ch of s){
+    for(const ch of stripRuby(s)){
       if(/[\u3400-\u9FFF]/.test(ch) && !upTo4.has(ch) && !(ch in STAMP_KANJI_EXCEPTIONS)){
         over.push(ch + '（' + s + '）');
       }
@@ -3867,6 +3928,40 @@ test('大人びた言い方の漢字は、すべて小4までの配当か理由�
   assert.ok(strings.length >= 40, '切り替える文を集められていること');
   assert.deepEqual(overGradeChars(strings, upTo4), [],
     '小4までに無く、例外にも無い漢字を使わないこと');
+});
+
+/* 配当外の字をルビで通せるようにした以上、ルビ自体が正しく組めているかを
+   見ておかないと「読めない字にでたらめな読みが付いている」状態を通してしまう。
+   ルビは rubyHTML が {漢字|よみ} を組み替えるので、書き方も一緒に縛る。 */
+test('大人びた言い方のルビは、かなの読みつきで、配当外の語にだけ振る', ()=>{
+  const upTo4 = new Set([].concat(gradeChars(1), gradeChars(2), gradeChars(3), gradeChars(4)));
+  const table = /const PACE_MESSAGES_ADULT = \{([\s\S]*?)\n\};/.exec(APP)[1];
+  const strings = [...table.matchAll(/'([^']*)'/g)].map(m => m[1]);
+  for(const m of APP.matchAll(/wording\('([^']*)',\s*'([^']*)'\)/g)) strings.push(m[2]);
+
+  let found = 0;
+  for(const s of strings){
+    for(const m of s.matchAll(/\{([^{}|]+)\|([^{}|]+)\}/g)){
+      found++;
+      const [, base, yomi] = m;
+      assert.match(yomi, /^[ぁ-ん]+$/, 'ルビの読みはひらがなだけにする: ' + s);
+      assert.ok([...base].some(ch => /[㐀-鿿]/.test(ch) && !upTo4.has(ch)),
+        '小4までで読める語にルビを振らない（うるさくなる）: ' + base + '（' + s + '）');
+    }
+  }
+  assert.ok(found >= 3, 'ルビの実例が集められていること');
+
+  /* 組み立て側が {} を残したまま画面に出さないこと。data-no-reading は
+     「その要素に」付いていないと意味がないので、要素ごとに見る
+     ―― 片方だけ消しても もう片方で正規表現が当たってしまい、
+     最初この検査は 消しても通ってしまった。 */
+  const paceHTML = grab(APP, 'paceHTML');
+  assert.match(paceHTML,
+    /class="pace-verdict \$\{cls\}\$\{paceVerdictSizeClass\(msg\)\}"\$\{grownUpWording\(\) \? ' data-no-reading' : ''\}>\$\{rubyHTML\(msg\)\}/,
+    '進み具合の一言は、ルビに通し、大人びた側だけ機械のかな化から外すこと');
+  assert.match(paceHTML,
+    /class="pace-forecast"\$\{grownUpWording\(\) \? ' data-no-reading' : ''\}>/,
+    '完了予測も、大人びた側だけ機械のかな化から外すこと');
 });
 
 test('例外に無い配当外の字を大人びた言い方に混ぜると、今までどおり検出できる', ()=>{

@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.21';
+const RELEASE_VERSION = '1.3.22';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -1199,6 +1199,7 @@ function dailyCountSelection(selected, raw){
 }
 function dailyMorePrompt(task){
   const unit = unitAdult((task && task.targetUnit) || 'かい');
+  if(grownUpWording()) return '6' + unit + '以上のときは、入力しよう';
   return unit === '回'
     ? '6回以上のときは、何回できたか 入れてね。'
     : '6' + unit + '以上のときは、いくつできたか 入れてね。';
@@ -2052,20 +2053,33 @@ const PACE_MESSAGES = {
   steady: ['いいペース！', 'このちょうしで すすめよう！', 'あわてず ひとつずつ！', '毎日すこしずつ すすもう！',
     'きょうも ひとつ すすめよう！', 'じぶんのペースで いこう！', 'つぎの ひとつへ いこう！', 'こつこつ つづけよう！']
 };
-/* 「読める漢字」に小4以上を選んだ子むけの、少し大人びた言い方。内容と
+/* 「読める漢字」に小4以上を選んだ子むけの、少し大人びた言い方。
    状態（good/focus/hurry/steady）・件数（各8）は PACE_MESSAGES とそろえる。
-   ここで使う漢字は 必ず 小4までの配当に収める（tests で機械的に確認）。 */
+
+   低学年の文を漢字に置きかえただけだと、言い回しが幼いまま残る。
+   体言止めの言い切り（「まず〇〇から！」）は 統制的な口調として
+   読まれ、年齢が上がるほど反発を生むので、動詞で終える形にそろえた。
+   遅れているときは 責めずに「着手そのもの」を目標にする。
+
+   使う漢字は 小4までの配当に収める。収まらない語は {漢字|よみ} と
+   書いてルビを振る（rubyHTML が組み立てる）。ひらがなに開くより
+   語の形が保てるので、読める子には そのまま読ませる。 */
 const PACE_MESSAGES_ADULT = {
-  good: ['順調だね！この調子！', 'とても良いペース！', '進み具合ばっちり！', 'このまま進もう！',
-    '着実に進んでいるね！', '今のペースで続けよう！', 'しっかり進んでいるね！', 'ここまでよくできたね！'],
-  focus: ['まず「必ずやる」から！', '大事な宿題を先に！',
-    '「必ずやる」を一つ！', '今日は大事な宿題から！',
-    'まずは一つ進めよう！', '大事な宿題に もどろう！',
-    '先に一つ かたづけよう！', 'まずは大事な方から！'],
-  hurry: ['今日はがんばりどき！', '今から一つずつ！', '少しずつ とりもどそう！', 'まずはできる所から！',
-    '一つ選んで始めよう！', '小さく進めば へいき！', '今日の一つをやろう！', 'できる所からやろう！'],
-  steady: ['良いペース！', 'この調子で進めよう！', 'あわてず一つずつ！', '毎日少しずつ進もう！',
-    '今日も一つ進めよう！', '自分のペースで行こう！', '次の一つへ行こう！', 'こつこつ続けよう！']
+  good: ['今のペースなら間に合う！', 'ここまでよく続いているね', '着実に進んでいるね', '早めに終わりそうだね',
+    'よく積み上げてきたね', 'もっと学びたいことは見つかったかな？',
+    '{余裕|よゆう}をたもっていこう', '全部終わったら何をしたい？'],
+  focus: ['まようなら「必ずやる」から', '大事な宿題を一つ選ぼう',
+    '先に一つ かたづけよう', 'まずは一つ進めよう',
+    '一つ終えると気が楽になるよ', 'まよったら大事な方から手をつけよう',
+    '今日はどれから始める？', 'やりやすいものから始めよう'],
+  hurry: ['一つだけ手をつけよう', 'まずは5分だけと思って始めるのがコツ',
+    '気が重いときは「ちょっとだけやる」と考えよう', 'できるところから始めよう',
+    'どれが一番取りかかりやすいかな？', '今日は1つやればいいことにしよう',
+    'どういうときにやる気が出るのか考えてみよう', '始められたら自分にごほうび という作戦もあります'],
+  steady: ['この調子で少しずつ進もう', 'いまのペースを守れるといいね', 'いつまでに終わらせたい？',
+    'こういうのは毎日やるのが大事なのです', '千里の道も一歩から。何歩くらい進んだかな？',
+    '{油断|ゆだん}は{禁物|きんもつ}！', '「明日やろう」は「〇〇やろう」……',
+    '思ったペースで進んでいるかな？']
 };
 function localDayNumber(now){
   const d = now instanceof Date ? now : new Date(now == null ? Date.now() : now);
@@ -2084,11 +2098,23 @@ function paceMessage(kind, overallGap, mustGap, now){
   const n = Math.abs(Math.round(overallGap * 10) + Math.round(mustGap * 10) + day);
   return rows[n % rows.length];
 }
-function paceVerdictSizeClass(msg){
-  /* 日本語1文字を1、空白と括弧を少し細く見積もる。
-     短い一言の存在感は保ち、長い文だけを2段階で縮める。 */
-  const width = Array.from(String(msg || '')).reduce((n, ch) =>
+/* ルビの指定 {漢字|よみ} は、画面では漢字の分の幅しか取らない。
+   幅を見積もるときも、印をはずした見た目の文字だけを数える。 */
+function paceDisplayText(msg){
+  return String(msg || '').replace(/\{([^{}|]+)\|[^{}|]+\}/g, '$1');
+}
+function paceVisualWidth(msg){
+  /* 日本語1文字を1、空白と括弧を少し細く見積もる。 */
+  return Array.from(paceDisplayText(msg)).reduce((n, ch) =>
     n + (ch === ' ' ? .35 : '！「」'.includes(ch) ? .55 : 1), 0);
+}
+function paceVerdictSizeClass(msg){
+  /* 短い一言の存在感は保ち、長い文だけを段階的に縮める。
+     13.25 を超えると 320px では1行に収まらない。そこから先は
+     縮め続けても隣の日づけ（13px）より小さくなるだけなので、
+     字を保ったまま2行に折り返す。 */
+  const width = paceVisualWidth(msg);
+  if(width > 13.25) return ' pace-verdict--wrap';
   if(width > 12.5) return ' pace-verdict--long';
   if(width > 9.5) return ' pace-verdict--medium';
   return '';
@@ -2127,13 +2153,38 @@ function completionForecast(done, total, startAt, now){
   if(!(at.getTime() === at.getTime())) return { kind:'more' };
   return { kind:'date', at, label:(at.getMonth() + 1) + '月' + at.getDate() + '日' };
 }
-function forecastText(forecast, child){
+/* 全部終わったのが いつだったかは 記録の いちばん新しい時刻で 分かる。
+   終わった瞬間を あとから 見返せるように、日づけだけでなく 時刻まで 出す。
+   記録が 1件も 無い（読み込み直後など）ときは null を返し、
+   呼びだす側で いままで通りの 言い方に もどす。 */
+function lastRecordLabel(logs){
+  const rows = logs || (typeof state === 'object' && state ? state.logs : null);
+  if(!rows || !rows.length) return null;
+  let best = null;
+  for(const r of rows){
+    const at = new Date(r && r.at);
+    if(at.getTime() === at.getTime() && (!best || at > best)) best = at;
+  }
+  if(!best) return null;
+  return (best.getMonth() + 1) + '月' + best.getDate() + '日'
+    + best.getHours() + '時' + pad2(best.getMinutes()) + '分';
+}
+function forecastText(forecast, child, doneLabel){
+  /* wording はこのブロックの外で定義している。この関数だけを切り出して
+     動かすテストでも壊れないよう、無いときは低学年側の言い方に落とす
+     （paceMessage と同じ構え）。 */
+  const say = (a, b) => (typeof wording === 'function' ? wording(a, b) : a);
   if(forecast.kind === 'date') return child
-    ? 'かんりょうよそく：いまのペースだと' + forecast.label
+    ? say('かんりょうよそく：いまのペースだと', '完了よそく：今のペースだと') + forecast.label
     : '完了予測 ' + forecast.label;
-  if(forecast.kind === 'done') return child ? 'しゅくだい ぜんぶ できた！' : '完了予測　完了';
+  if(forecast.kind === 'done'){
+    if(!child) return '完了予測　完了';
+    return say('しゅくだい ぜんぶ できた！',
+      doneLabel ? doneLabel + 'に完了！' : '全部終わった！');
+  }
   if(forecast.kind === 'empty') return child ? '' : '宿題を登録すると予測できます';
-  return child ? 'すすむと めやすが でるよ' : '進捗が増えると予測できます';
+  return child ? say('すすむと めやすが でるよ', '進めると{表示|ひょうじ}されます')
+    : '進捗が増えると予測できます';
 }
 
 /* しゅくだいバーは「かならず やる」と「つぎに やる」を あわせて 出す。
@@ -2161,10 +2212,11 @@ function paceHTML(o){
   const optLeft  = left('option');
   const allGap = todo - natsu;
   const forecast = completionForecast(allDone, allTotal, config.startAt, new Date());
-  const forecastCopy = forecastText(forecast, true);
+  const forecastCopy = forecastText(forecast, true, lastRecordLabel());
   const forecastHTML = forecast.kind === 'date'
-    ? `<span>かんりょうよそく：</span><span>いまのペースだと${esc(forecast.label)}</span>`
-    : esc(forecastCopy);
+    ? `<span>${wording('かんりょうよそく：', '完了よそく：')}</span><span>${
+        wording('いまのペースだと', '今のペースだと')}${esc(forecast.label)}</span>`
+    : rubyHTML(forecastCopy);
   const v = verdictOf(allGap, mustGap);
   let cls = v.cls, msg = v.msg;
 
@@ -2203,8 +2255,12 @@ function paceHTML(o){
     ${opt.total ? `<p class="pace-legend">
       <span class="pace-key pace-key--must"></span>かならず やる
       <span class="pace-key pace-key--opt"></span>つぎに やる</p>` : ''}
-    <p class="pace-verdict ${cls}${paceVerdictSizeClass(msg)}">${msg}</p>
-    ${forecastCopy ? `<p class="pace-forecast">${forecastHTML}</p>` : ''}
+    ${/* 大人びた側だけ、かな化の対象から外す。配当外の語には自分でルビを
+          振ってあり、機械のかな化に上書きされると読みが二重になる。
+          低学年側は「宿題」などを小1・小2むけに開く必要があるので、
+          いままで通り かな化に任せる。 */''}
+    <p class="pace-verdict ${cls}${paceVerdictSizeClass(msg)}"${grownUpWording() ? ' data-no-reading' : ''}>${rubyHTML(msg)}</p>
+    ${forecastCopy ? `<p class="pace-forecast"${grownUpWording() ? ' data-no-reading' : ''}>${forecastHTML}</p>` : ''}
     ${warn}
   </div>`;
 }
@@ -4067,9 +4123,10 @@ function openSheet(id, editBookId){
     sheetSel = p.done;
     body += `
     <div class="field">
-      <span class="lab">${isSheetCount(t) ? '何' + esc(unitAdult(t.unit||'まい')) + '目までやった？' : 'どこまで やった？'}</span>
+      <span class="lab">${isSheetCount(t) ? '何' + esc(unitAdult(t.unit||'まい')) + '目までやった？'
+        : wording('どこまで やった？', 'どこまで進んだ？')}</span>
       <p class="hint">${wording('やった ところを おしてね。そこまで ぜんぶ できたことに なるよ。',
-        'やった 所を おしてね。そこまで 全部 できたことに なるよ。')}</p>
+        'やった所をおすと、そこまで全部できたことになるよ')}</p>
       <p class="sel-say" id="selSay">${selSayText(t, sheetSel)}</p>
       <div class="nums" id="nums">${numsHTML(t, sheetSel)}</div>
     </div>`;
@@ -4078,7 +4135,7 @@ function openSheet(id, editBookId){
     sheetSteps = (t.steps||[]).map((_,i)=> !!(p.arr && p.arr[i]));
     body += `
     <div class="field">
-      <span class="lab">できた ところを おしてね</span>
+      <span class="lab">${wording('できた ところを おしてね', 'できたらチェック')}</span>
       <div class="steps" id="steps">${stepsHTML(t, sheetSteps)}</div>
     </div>`;
   }
@@ -4093,8 +4150,8 @@ function openSheet(id, editBookId){
     const more = p.done > max ? p.done : '';
     body += `
     <div class="field">
-      <span class="lab">きょうは どのくらい できた？</span>
-      <p class="hint">${wording('1日の めあては', '1日の 目当ては')} ${p.total}${esc(t.targetUnit||'')}だよ。</p>
+      <span class="lab">${wording('きょうは どのくらい できた？', '今日はどのくらい進んだ？')}</span>
+      <p class="hint">${wording('1日の めあては', '1日の目当ては')} ${p.total}${esc(t.targetUnit||'')}だよ。</p>
       <div class="tally" id="tally">
         ${Array.from({length:max-min+1},(_,idx)=> min+idx).map(i=>
           `<button class="tally-btn${i===sheetSel?' sel':''}" data-n="${i}" type="button">${i}</button>`).join('')}
@@ -4114,7 +4171,7 @@ function openSheet(id, editBookId){
     <div class="field field-wrap" id="wrapField"${p.numDone ? '' : ' hidden'}>
       <span class="lab">さいごの しあげ</span>
       <p class="hint">${wording('ぜんぶ おわったね！ できた ところを おしてね。',
-        '全部 終わったね！ できた 所を おしてね。')}</p>
+        'できたらチェック')}</p>
       <div class="steps" id="wraps">${wrapsHTML(t, sheetWrap)}</div>
     </div>`;
   }
@@ -4126,14 +4183,14 @@ function openSheet(id, editBookId){
     sheetQBase = savedAnswers.slice();
     sheetQStored = row.stored.slice();
     body += `<div class="field">
-      <span class="lab">かんさつ してみよう</span>
+      <span class="lab">${wording('かんさつ してみよう', '観察してみよう')}</span>
       <p class="hint">${wording('わかるところだけで いいよ。答えごとに保存でき、次に開いたときも残るよ。',
-        '分かる 所だけで いいよ。答えごとに残せて、次に開いたときも残るよ。')}</p>
+        'わかるところから記録しよう')}</p>
       ${t.questions.map((q,i)=>`
         <div class="q">
           <p class="q-t"><span class="qn">${i+1}</span>${esc(q)}</p>
           <div class="mic-row">
-            <textarea data-q="${i}" rows="2" placeholder="かいてみよう">${esc(savedAnswers[i] || '')}</textarea>
+            <textarea data-q="${i}" rows="2" placeholder="${wording('かいてみよう', '書いてみよう')}">${esc(savedAnswers[i] || '')}</textarea>
             ${micBtn('q'+i)}
           </div>
           <div class="q-actions">
@@ -4275,7 +4332,7 @@ function openFreeSheet(t){
       <span class="lab">${esc(t.memoLabel || 'きょうは なにを した？')}</span>
       <p class="hint">${esc(freeHint)}</p>
       <div class="mic-row">
-        <textarea id="freeMemo" rows="6" placeholder="かいてみよう"></textarea>
+        <textarea id="freeMemo" rows="6" placeholder="${wording('かいてみよう', '書いてみよう')}"></textarea>
         ${micBtn('freeMemo')}
       </div>
       <p class="mic-note">${micNoteHTML()}</p>
@@ -4358,7 +4415,8 @@ function saveFreeSheet(){
 }
 
 function starSay(n){
-  return n === 3 ? 'とても おすすめ' : n === 2 ? 'おすすめ' : n === 1 ? 'ふつう' : 'まだ えらんでいない';
+  return n === 3 ? wording('とても おすすめ', 'とてもおすすめ') : n === 2 ? 'おすすめ'
+    : n === 1 ? 'ふつう' : wording('まだ えらんでいない', 'まだ選んでいない');
 }
 
 function saveBookSheet(){
@@ -4503,9 +4561,11 @@ function numsHTML(t, sel){
   }).join('');
 }
 function selSayText(t, sel){
-  if(!sel) return 'まだ ひとつも やっていない';
+  if(!sel) return wording('まだ ひとつも やっていない', '記録なし');
   const label = countUsesCircle(t) ? maru(sel) : sel + (t.unit||'');
-  return (sel >= (t.total|0)) ? label + ' まで ぜんぶ できた！' : label + ' まで できた';
+  return (sel >= (t.total|0))
+    ? label + wording(' まで ぜんぶ できた！', ' まで全部できた')
+    : label + wording(' まで できた', ' までできた');
 }
 function stepsHTML(t, arr){
   return (t.steps||[]).map((s,i)=>
