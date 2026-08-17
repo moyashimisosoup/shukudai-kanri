@@ -1836,6 +1836,13 @@ html:has(body.guide-legacy) {
   font-weight: 700;
 }
 
+/* 公開履歴は項目名だけを並べる。そのことを一行だけ添える。 */
+.updates-page .release-note {
+  margin-block-start: calc(var(--space-lg) * -1);
+  color: var(--color-ink-soft);
+  font-size: var(--text-sm);
+}
+
 .updates-page .release-lead {
   margin-block-end: var(--space-3xl);
   padding: var(--space-xl);

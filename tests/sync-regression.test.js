@@ -2706,7 +2706,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260817f',
+    'assets/app.js': '20260817g',
     'assets/sync.js': '20260816b'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2729,31 +2729,21 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.23をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.23';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.23">/);
-  assert.equal(PACKAGE.version, '1.3.23');
-  assert.equal(PACKAGE_LOCK.version, '1.3.23');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.23');
-  assert.match(UPDATES, /<b>v1\.3\.23<\/b> の3つの数字は/,
+test('公開版番号v1.3.24をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.24';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.24">/);
+  assert.equal(PACKAGE.version, '1.3.24');
+  assert.equal(PACKAGE_LOCK.version, '1.3.24');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.24');
+  assert.match(UPDATES, /<b>v1\.3\.24<\/b> の3つの数字は/,
     '「バージョン番号の見方」の例も今の版にそろえること');
-  assert.match(UPDATES, /2026年8月17日　v1\.3\.23：[\s\S]*?目次/,
-    'この版で入れ替えた使い方ページの入口を履歴に書くこと');
-  assert.match(UPDATES, /2026年8月17日　v1\.3\.22：[\s\S]*?始めること自体を目標にする/,
-    '前の版で見直した呼びかけの方針も履歴に残すこと');
-  assert.match(UPDATES, /2026年8月17日　v1\.3\.21：[\s\S]*?名前に1行まるごと使い/,
-    '前の版で直した宿題名の切れも履歴に残すこと');
-  assert.match(UPDATES, /2026年8月17日　v1\.3\.20：[\s\S]*?上のメニューがくずれて重なる/,
-    '前の版で直した上帯の崩れも履歴に残すこと');
-  assert.match(UPDATES, /2026年8月17日　v1\.3\.19：[\s\S]*?小学6年生まで/,
-    '前の版で広げた漢字レベルも履歴に残すこと');
-  assert.match(UPDATES, /2026年8月17日　v1\.3\.18：[\s\S]*?元に戻す/,
-    '前の版で足した欄ごとの取り消しも履歴に残すこと');
-  assert.match(UPDATES, /2026年8月16日　v1\.3\.17：[\s\S]*?いちばん後ろの問の答え/,
-    'この版で直したメモ本文の混入を履歴に書くこと');
-  assert.match(UPDATES, /2026年8月16日　v1\.3\.16：[\s\S]*?これまでの きろく[\s\S]*?はしをなぞって戻る/,
-    '前の版の内容も履歴に残すこと');
-  assert.match(UPDATES, /v1\.0\.0/);
+  /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
+     ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
+  ['1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+    .forEach(v=>{
+      assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
+        'v' + v + ' の行を履歴から落とさないこと');
+    });
   assert.match(APP, /v\$\{esc\(RELEASE_VERSION\)\}<\/b>（配信 \$\{appVersionHTML\(APP_VER\)\}）/,
     'アプリ情報では公開版と内部配信番号の意味を分ける');
 });
@@ -2775,6 +2765,20 @@ test('90日保持を自動削除と誤記せず、予告と対象範囲も説明
   }
   assert.match(GUIDE, /予告メールはありません/);
   assert.match(GUIDE, /書き出したファイルは対象外/);
+});
+
+/* 公開履歴に載せるのは項目名だけ。理由や経緯まで公開ページへ書くと、読む量が
+   増えるうえ、あとから訂正が必要な記述も増える。詳細は local/changelog-detail.md
+   （.gitignore 済み）に残す。 */
+test('公開履歴の各項目は、項目名だけで詳細を公開しない', ()=>{
+  const list = /<h2 id="release-title">[\s\S]*?<dl class="history-list">([\s\S]*?)<\/dl>/.exec(UPDATES);
+  assert.ok(list, '公開履歴の一覧が読み取れること');
+  const rows = [...list[1].matchAll(/<dt>(.*?)<\/dt><dd>(.*?)<\/dd>/g)];
+  assert.ok(rows.length >= 20, '公開済みの版をすべて並べること');
+  rows.forEach(([, dt, dd])=>{
+    assert.ok(dd.length <= 60, dt + ' は項目名だけにすること（' + dd.length + '字）');
+    assert.doesNotMatch(dd, /。/, dt + ' に説明文を書かないこと。複数あるときは ／ で並べる');
+  });
 });
 
 test('変更履歴は公開版と内部配信版の事実だけを短く並べる', ()=>{
