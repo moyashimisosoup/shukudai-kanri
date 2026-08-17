@@ -15,16 +15,26 @@
 
 <a class="skip-link" href="#guide-main">本文へ移動</a>
 <nav class="guide-topbar" aria-label="案内ページのメニュー">
-  <div class="shell guide-topbar__inner">
-    <a class="brand" href="./">
+  <div class="shell nav-bar__inner">
+    <a class="brand" href="./" aria-label="しゅくだいノート 紹介ページへ">
       <img src="images/icon.png" width="76" height="76" alt="">
       <span class="wordmark">しゅくだいノート</span>
     </a>
-    <div class="guide-topbar__links">
-      <a href="./">紹介</a>
-      <a href="updates.html">変更履歴</a>
-      <a href="../">しゅくだいノートを開く</a>
-    </div>
+    <nav class="nav-links" aria-label="ページメニュー">
+      <a class="nav-link" href="./">紹介</a>
+      <a class="nav-link" href="getting-started.html" aria-current="page">使い方</a>
+      <a class="nav-link" href="updates.html">変更履歴</a>
+      <a class="button" href="../">しゅくだいノートを開く</a>
+    </nav>
+    <details class="mobile-menu">
+      <summary aria-label="メニューを開く">メニュー</summary>
+      <nav class="mobile-menu__panel" aria-label="モバイルメニュー">
+        <a href="./">紹介</a>
+        <a href="getting-started.html" aria-current="page">使い方</a>
+        <a href="updates.html">変更履歴</a>
+        <a href="../">しゅくだいノートを開く</a>
+      </nav>
+    </details>
   </div>
 </nav>
 

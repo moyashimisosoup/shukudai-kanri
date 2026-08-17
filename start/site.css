@@ -276,6 +276,16 @@ blockquote {
   border-radius: var(--radius-sm);
 }
 
+/* ロゴは見出しと同じ書体の規則を借りているが、見出し向けの
+   overflow-wrap:anywhere / word-break:auto-phrase / text-wrap:balance まで
+   受け取ってしまい、幅が足りないと1文字ずつ縦に割れてメニューとぶつかる。
+   名前は途中で折らない。 */
+.brand .wordmark {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
 .wordmark {
   font-size: var(--text-md);
 }
@@ -1525,36 +1535,10 @@ blockquote {
   background: var(--color-paper-raised);
 }
 
-.guide-topbar__inner {
-  min-height: var(--nav-bar-height);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-md);
-}
-
-.guide-topbar__links {
-  display: flex;
-  gap: var(--space-xs);
-}
-
-.guide-topbar__links a {
-  min-height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  padding-inline: var(--space-sm);
-  border-radius: var(--radius-pill);
-  color: var(--color-navy);
-  font-size: var(--text-sm);
-  font-weight: 700;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.guide-topbar__links a:hover,
-.guide-topbar__links a:active {
-  background: var(--color-paper-blue);
-}
+/* 案内ページの上帯は、紹介ページと同じ nav-bar__inner / nav-links /
+   mobile-menu を使う。案内ページも紹介ページの一部という位置づけなので、
+   別の作りにする理由がない。狭い幅ではメニューが1つにたたまれるため、
+   リンクが横にあふれることも起きない。 */
 
 .guide-legacy > header {
   margin-block-end: var(--space-2xl);
@@ -1881,11 +1865,9 @@ blockquote {
   }
 }
 
-@media (max-width: 24rem) {
-  .guide-topbar .wordmark {
-    display: none;
-  }
-}
+/* 以前はここで、狭い幅のときロゴの文字を消していた。ロゴが折り返して
+   メニューとぶつかるのを避けるための応急処置だったが、折り返しを直し、
+   メニューを1つにたたむようにしたので、名前を消す必要がなくなった。 */
 
 @media print {
   .guide-topbar {

@@ -14,16 +14,26 @@
 <body class="guide-legacy updates-page">
   <a class="skip-link" href="#updates-main">本文へ移動</a>
   <nav class="guide-topbar" aria-label="変更履歴ページのメニュー">
-    <div class="shell guide-topbar__inner">
+    <div class="shell nav-bar__inner">
       <a class="brand" href="./">
         <img src="images/icon.png" width="76" height="76" alt="">
         <span class="wordmark">しゅくだいノート</span>
       </a>
-      <div class="guide-topbar__links">
-        <a href="./">紹介</a>
-        <a href="getting-started.html">使い方</a>
-        <a href="../">アプリを開く</a>
-      </div>
+      <nav class="nav-links" aria-label="ページメニュー">
+        <a class="nav-link" href="./">紹介</a>
+        <a class="nav-link" href="getting-started.html">使い方</a>
+        <a class="nav-link" href="updates.html" aria-current="page">変更履歴</a>
+        <a class="button" href="../">しゅくだいノートを開く</a>
+      </nav>
+      <details class="mobile-menu">
+        <summary aria-label="メニューを開く">メニュー</summary>
+        <nav class="mobile-menu__panel" aria-label="モバイルメニュー">
+          <a href="./">紹介</a>
+          <a href="getting-started.html">使い方</a>
+          <a href="updates.html" aria-current="page">変更履歴</a>
+          <a href="../">しゅくだいノートを開く</a>
+        </nav>
+      </details>
     </div>
   </nav>
 
