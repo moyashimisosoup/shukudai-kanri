@@ -2042,7 +2042,7 @@ function parentMessageHTML(){
    任意だけを先に進めても、必須の遅れを隠さないため。 */
 const PACE_MESSAGES = {
   good: ['よゆうだね！このちょうし！', 'とっても いいペース！', 'すすみぐあい ばっちり！', 'このまま いこう！',
-    'こつこつ すすんでいるね！', 'いいリズムだね！', 'しっかり すすんでいるね！', 'ここまで よく できたね！'],
+    'こつこつ すすんでいるね！', 'よく つづいているね！', 'しっかり すすんでいるね！', 'ここまで よく できたね！'],
   focus: ['まず「かならず やる」から！', 'だいじな宿題を さきに！',
     '「かならず やる」を ひとつ！', 'きょうは だいじな宿題から！',
     'まずは ひとつ すすめよう！', 'だいじな宿題に もどろう！',
@@ -2057,7 +2057,7 @@ const PACE_MESSAGES = {
    ここで使う漢字は 必ず 小4までの配当に収める（tests で機械的に確認）。 */
 const PACE_MESSAGES_ADULT = {
   good: ['順調だね！この調子！', 'とても良いペース！', '進み具合ばっちり！', 'このまま進もう！',
-    '着実に進んでいるね！', '良いリズムだね！', 'しっかり進んでいるね！', 'ここまでよくできたね！'],
+    '着実に進んでいるね！', '今のペースで続けよう！', 'しっかり進んでいるね！', 'ここまでよくできたね！'],
   focus: ['まず「必ずやる」から！', '大事な宿題を先に！',
     '「必ずやる」を一つ！', '今日は大事な宿題から！',
     'まずは一つ進めよう！', '大事な宿題に もどろう！',
@@ -4348,7 +4348,7 @@ function saveFreeSheet(){
   saveSt();
 
   closeSheet();
-  stamp(wording('かけたね！', '書けたね！'));
+  stamp(wording('かけたね！', 'できた'));
   setTimeout(()=> render({ keepScroll:true }), 60);
 }
 
@@ -4410,8 +4410,8 @@ function saveBookSheet(){
 
   const done = prog(t).isDone;
   closeSheet();
-  stamp(sheetBookId ? wording('なおしたよ', '直したよ')
-    : (done ? wording('ぜんぶ よんだ！', '全部読んだ！') : wording('よめたね！', '読めたね！')));
+  stamp(sheetBookId ? wording('なおしたよ', 'なおした')
+    : (done ? wording('ぜんぶ よんだ！', '完了！') : wording('よめたね！', 'できた')));
   setTimeout(()=> render({ keepScroll:true }), 60);
 }
 
@@ -4672,7 +4672,7 @@ function saveSheet(){
      0までは 戻さず 数だけ 減らした ときも 同じ理由で はんこは 出さない */
   if((after.done | 0) === 0 && hadValue) toast('0 に もどしました');
   else if(dailyDecreased) toast('なおしました');
-  else stamp(after.isDone ? wording('ぜんぶ できた！', '全部 できた！') : wording('できた！', '出来た！'));
+  else stamp(after.isDone ? wording('ぜんぶ できた！', '完了！') : wording('できた！', 'できた'));
   setTimeout(()=> render({ keepScroll:true }), 60);
   return ok;
 }

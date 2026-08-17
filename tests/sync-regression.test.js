@@ -2310,9 +2310,22 @@ test('励まし文と「あと」は狭い画面でも一続きに読める', ()
   assert.match(STYLE, /\.cd\{[\s\S]{0,180}transform:translateX\(6px\)/,
     '「あと」を足した見た目の重心を右へ戻す');
   assert.match(STYLE, /\.cd-prefix\{[\s\S]*inset-inline-end:calc\(100% \+ 6px\)[\s\S]*white-space:nowrap/);
-  assert.match(STYLE, /\.pace-verdict\{[\s\S]*white-space:nowrap[\s\S]*padding:10px 6px/);
+  assert.match(STYLE, /\.pace-verdict\{[\s\S]*white-space:nowrap[\s\S]*padding:12px 6px/);
   assert.match(STYLE, /\.pace-verdict--medium\{ font-size:clamp\(16px, 4\.4vw, 19px\); \}/);
   assert.match(STYLE, /\.pace-verdict--long\{ font-size:clamp\(14px, 3\.9vw, 17px\); \}/);
+});
+
+/* 漢字は同じ幅でも画数が多く詰まって見えるので、行間・内側余白・字間で
+   息を入れる。文字サイズは下げない（大人側の文は低学年より短く、はみ出しは
+   起きていない）。white-space:nowrap と overflow:hidden の組み合わせは、
+   幅の見積もりが外れると文を無言で切り落とすので、省略記号で気づけるようにする。 */
+test('進み具合の一言は、行間と余白で読みやすくし、切れたときは省略記号で示す', ()=>{
+  const block = /\.pace-verdict\{([\s\S]*?)\}/.exec(STYLE)[1];
+  assert.match(block, /line-height:1\.45/, '画数の多い漢字が詰まらないよう行間を広げること');
+  assert.match(block, /padding:12px 6px/, '窮屈さをやわらげる余白にすること');
+  assert.match(block, /letter-spacing:\.01em/, '字間をわずかに空けること');
+  assert.match(block, /text-overflow:ellipsis/, '切り落とされた一言に気づけるようにすること');
+  assert.doesNotMatch(block, /font-size:(?!21px)/, '文字サイズそのものは下げないこと');
 });
 
 test('完了予測は全体進捗から求め、実績が少ないときは行動を示す', ()=>{
@@ -3691,8 +3704,26 @@ test('新しい版を取り込んだ直後は、そのことを一言だけ知�
 
 /* 小4以上を選んだ子むけの言い方に、その子がまだ習っていない漢字を混ぜては
    本末転倒になる。語を足すたびに人が確かめるのは続かないので、配当表と
-   機械的に突き合わせる。ここが落ちたら、使った語のほうを直すこと。 */
-test('大人びた言い方の漢字は、すべて小4までの配当に収まる', ()=>{
+   機械的に突き合わせる。ここが落ちたら、使った語のほうを直すこと。
+
+   ただしスタンプ（「完了！」など）だけは例外を認める。操作に必要な情報
+   ではなく、達成の瞬間に一度出る飾りなので、配当外の字でも通す。
+   ここに載っていない配当外の字は、これまでどおり検出して落とす。 */
+const STAMP_KANJI_EXCEPTIONS = { '了': 'スタンプ「完了！」。中学以上の配当' };
+
+function overGradeChars(strings, upTo4){
+  const over = [];
+  for(const s of strings){
+    for(const ch of s){
+      if(/[\u3400-\u9FFF]/.test(ch) && !upTo4.has(ch) && !(ch in STAMP_KANJI_EXCEPTIONS)){
+        over.push(ch + '（' + s + '）');
+      }
+    }
+  }
+  return over;
+}
+
+test('大人びた言い方の漢字は、すべて小4までの配当か理由つきの例外に収まる', ()=>{
   const upTo4 = new Set([].concat(gradeChars(1), gradeChars(2), gradeChars(3), gradeChars(4)));
   const strings = [];
   const table = /const PACE_MESSAGES_ADULT = \{([\s\S]*?)\n\};/.exec(APP);
@@ -3704,13 +3735,19 @@ test('大人びた言い方の漢字は、すべて小4までの配当に収ま�
   for(const m of APP.matchAll(/wording\('([^']*)',\s*'([^']*)'\)/g)) strings.push(m[2]);
 
   assert.ok(strings.length >= 40, '切り替える文を集められていること');
-  const over = [];
-  for(const s of strings){
-    for(const ch of s){
-      if(/[\u3400-\u9FFF]/.test(ch) && !upTo4.has(ch)) over.push(ch + '（' + s + '）');
-    }
-  }
-  assert.deepEqual(over, [], '小4までに無い漢字を使わないこと');
+  assert.deepEqual(overGradeChars(strings, upTo4), [],
+    '小4までに無く、例外にも無い漢字を使わないこと');
+});
+
+test('例外に無い配当外の字を大人びた言い方に混ぜると、今までどおり検出できる', ()=>{
+  const upTo4 = new Set([].concat(gradeChars(1), gradeChars(2), gradeChars(3), gradeChars(4)));
+  /* 小5・小6の配当から、例外にも無い字を1つ拾って混入させる。今後この
+     字が配当表から消えても、条件を満たす別の字を自動で拾い直す。 */
+  const bogus = gradeChars(5).concat(gradeChars(6))
+    .find(ch => !upTo4.has(ch) && !(ch in STAMP_KANJI_EXCEPTIONS));
+  assert.ok(bogus, 'テストの前提となる、配当外かつ例外外の字が見つかること');
+  const over = overGradeChars(['お' + bogus + 'をだす'], upTo4);
+  assert.notDeepEqual(over, [], '例外の仕組みが効いていて、それ以外の配当外の字は検出されること');
 });
 
 test('小4以上と「漢字のまま」でだけ、言い方を切りかえる', ()=>{
@@ -3727,6 +3764,28 @@ test('小4以上と「漢字のまま」でだけ、言い方を切りかえる'
     assert.equal((rows.match(/'/g) || []).length / 2, 8,
       kind + ' も8文そろえ、同じ日に文言が変わらない仕組みを保つこと');
   }
+});
+
+/* 行為ごとの言い当ては、年齢が上がるほど幼く働く。大人側は「できた」
+   「完了！」に集約し、訂正だけは達成の合図と混ざらないよう別の語にする。
+   低学年側は今までどおり行為ごとに分けたまま変えない。 */
+test('大人びた言い方のスタンプは行為をまたいで集約し、訂正だけ別の語にする', ()=>{
+  assert.match(APP, /stamp\(after\.isDone \? wording\('ぜんぶ できた！', '完了！'\) : wording\('できた！', 'できた'\)\)/,
+    '毎日の記録と全部終わったときのスタンプを「できた」「完了！」に集約すること');
+  assert.match(APP, /stamp\(wording\('かけたね！', 'できた'\)\)/,
+    '作文のスタンプも「できた」に集約すること');
+  assert.match(APP,
+    /stamp\(sheetBookId \? wording\('なおしたよ', 'なおした'\)\s*\n\s*: \(done \? wording\('ぜんぶ よんだ！', '完了！'\) : wording\('よめたね！', 'できた'\)\)\);/,
+    '読書は記録・完読を「できた」「完了！」に集約しつつ、訂正だけ「なおした」に分けること');
+});
+
+/* 「いいリズムだね」は何のリズムかを指すものが無く、意味が空回りしていた。
+   低学年・大人のどちらの表からも消してあること。 */
+test('「リズム」を指すものが無い文言は、低学年・大人のどちらの表にも残さない', ()=>{
+  const child = grabConst(APP, 'PACE_MESSAGES');
+  const adult = grabConst(APP, 'PACE_MESSAGES_ADULT');
+  assert.doesNotMatch(child, /リズム/);
+  assert.doesNotMatch(adult, /リズム/);
 });
 
 test('切りかえるのは呼びかけだけで、画面の骨組みは変えない', ()=>{

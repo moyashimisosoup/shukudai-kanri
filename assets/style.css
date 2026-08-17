@@ -679,8 +679,9 @@ button{ font:inherit; color:inherit; }
 .pace-verdict{
   margin-top:6px; text-align:center;
   font-size:21px; font-weight:900;
-  line-height:1.3; white-space:nowrap; overflow:hidden;
-  padding:10px 6px; border-radius:var(--r-s);
+  line-height:1.45; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  letter-spacing:.01em;
+  padding:12px 6px; border-radius:var(--r-s);
   border:2px solid var(--ai);
 }
 .pace-verdict--medium{ font-size:clamp(16px, 4.4vw, 19px); }
