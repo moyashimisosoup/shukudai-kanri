@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.28';
+const RELEASE_VERSION = '1.3.29';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -1324,6 +1324,42 @@ function wrapOf(p){
 /* しあげの2段階は、宿題全体のノルマにも入れる。
    番号（段階）の表示はそのまま残し、allDone / allTotal / allPct で
    マルつけ・なおし込みの全体進捗を出す。 */
+/* 記録の しつもん（観察の観点など）も、宿題の ノルマに 数える。
+
+   答えは state.questionAnswers に あり、progress とは 別の 欄で 合流する。
+   だから ここでは 数えるだけで、progPatch は 通さない（同期のしかたを 変えない）。
+
+   数える 元は 共有ぶんと この端末の ひかえの 新しい方。**古い記録の 本文から
+   拾い直す legacyQuestionAnswers は ここでは 使わない。** 描き直しの たびに
+   全部の 記録を 読むことに なるうえ、旧い答えは シートを 開いて 保存すれば
+   専用の 欄へ 移る。 */
+let answerMapCache = null;
+function localAnswerMap(){
+  const raw = getLocal(K_QUESTION_ANSWERS) || '{}';
+  if(answerMapCache && answerMapCache.raw === raw) return answerMapCache.map;
+  let map = {};
+  try{ map = JSON.parse(raw) || {}; }catch(e){ map = {}; }
+  answerMapCache = { raw, map };
+  return map;
+}
+function answeredQuestionCount(task){
+  const qs = (task && task.questions || []).length;
+  if(!qs) return 0;
+  const shared = state.questionAnswers && state.questionAnswers[task.id];
+  const local = localAnswerMap()[task.id];
+  const pick = !shared || (local && ms(local.at) > ms(shared.at)) ? local : shared;
+  const arr = pick && Array.isArray(pick.answers) ? pick.answers : [];
+  let n = 0;
+  for(let i = 0; i < qs; i++) if(String(arr[i] || '').trim()) n++;
+  return n;
+}
+/* しつもんを ノルマに 入れるのは、番号・段階の 課題だけ。まいにちの 課題は
+   その日ぶんの 回数が ノルマなので、日を またぐ 答えを 足すと 意味が 変わる */
+function countsQuestions(task){
+  return !!(task && (task.questions || []).length &&
+            (task.type === 'count' || task.type === 'step'));
+}
+
 function withWrap(task, p, r){
   r.numDone  = r.isDone;        // 番号（段階）を ぜんぶ 終えたか
   r.wrap     = wrapOf(p);
@@ -1340,23 +1376,38 @@ function withWrap(task, p, r){
   return r;
 }
 
+/* しつもんは、番号・段階・しあげ と 同じ ならびで 数える。
+   **done / total / text は さわらない。** ここを 足すと
+   「つぎは ⑦」や 記録シートの えらび先が ずれる。 */
+function withQuestions(task, r){
+  r.qTotal = (task && task.questions || []).length;
+  r.qDone  = 0;
+  if(!countsQuestions(task)) return r;
+  r.qDone    = answeredQuestionCount(task);
+  r.allDone  = r.allDone + r.qDone;
+  r.allTotal = r.allTotal + r.qTotal;
+  r.allPct   = r.allTotal ? r.allDone / r.allTotal * 100 : 0;
+  r.isDone   = r.isDone && r.qDone >= r.qTotal;
+  return r;
+}
+
 function prog(task){
   const p = state.progress[task.id] || {};
   if(task.type === 'count'){
     const total = Math.max(1, task.total|0);
     const done  = clamp(p.done|0, 0, total);
-    return withWrap(task, p,
+    return withQuestions(task, withWrap(task, p,
            { done, total, pct: done/total*100, unit: task.unit || 'こ',
-             text: done+'/'+total+(task.unit||''), isDone: done >= total });
+             text: done+'/'+total+(task.unit||''), isDone: done >= total }));
   }
   if(task.type === 'step'){
     const steps = task.steps || [];
     const arr = Array.isArray(p.steps) ? p.steps : [];
     const done = steps.reduce((a,_,i)=> a + (arr[i] ? 1 : 0), 0);
     const total = Math.max(1, steps.length);
-    return withWrap(task, p,
+    return withQuestions(task, withWrap(task, p,
            { done, total, pct: done/total*100, unit:'',
-             text: done+'/'+steps.length, isDone: done >= steps.length, arr });
+             text: done+'/'+steps.length, isDone: done >= steps.length, arr }));
   }
   // daily
   const days = p.days || {};
@@ -1413,7 +1464,13 @@ function nextLabel(task, adult){
   // 番号（段階）が ぜんぶ おわったら、さいごの2段階を 出す
   if(hasWrap(task) && p.numDone){
     const i = p.wrap.findIndex(v => !v);
-    return { lead:'つぎは', num:'', tail: wrapLabelsFull(task)[i] };
+    /* しあげも 終わっているのに ここへ 来るのは、しつもんが のこって
+       いるとき。i は -1 に なるので、そのまま 使うと 空欄が 出る */
+    if(i >= 0) return { lead:'つぎは', num:'', tail: wrapLabelsFull(task)[i] };
+  }
+  /* 番号（段階）も しあげも 終わって、しつもんだけ のこっている */
+  if(p.numDone && (p.qDone || 0) < (p.qTotal || 0)){
+    return { lead:'つぎは', num:'', tail: wording('しつもんに こたえる', '問いに答える') };
   }
   if(task.type === 'count'){
     const n = p.done + 1;
@@ -2285,6 +2342,14 @@ function wrapMarksHTML(t, p){
     `<span class="wrapmark${p.wrap[i] ? ' is-on' : ''}">${esc(s)}</span>`).join('')}</span>`;
 }
 
+/* しつもんも ノルマに 入るので、いくつ 答えたかを カードに 出す。
+   出さないと、番号が 全部 終わっているのに 完了に ならない 理由が 分からない */
+function questionMarkHTML(t, p){
+  if(!countsQuestions(t)) return '';
+  return `<span class="qmark${p.qDone >= p.qTotal ? ' is-on' : ''}">${
+    esc(wording('しつもん', '問い'))} ${p.qDone}/${p.qTotal}</span>`;
+}
+
 function taskHTML(t){
   const p = prog(t);
   const nx = nextLabel(t);
@@ -2318,7 +2383,7 @@ function taskHTML(t){
     // count と step は 同じ 見た目。ランプは 14/14 の すぐ よこに ならべる
     meter = `<div class="task-meter task-meter--bar">
         <div class="bar"><div class="bar-fill" style="width:${p.allPct.toFixed(1)}%"></div></div>
-        <span class="task-count">${esc(p.text)}</span>${wrapMarksHTML(t, p)}
+        <span class="task-count">${esc(p.text)}</span>${questionMarkHTML(t, p)}${wrapMarksHTML(t, p)}
       </div>`;
   }
 

@@ -2704,11 +2704,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260818a',
+    'assets/style.css': '20260818b',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260818c',
+    'assets/app.js': '20260818d',
     'assets/sync.js': '20260818a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2731,19 +2731,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.28をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.28';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.28">/);
-  assert.equal(PACKAGE.version, '1.3.28');
-  assert.equal(PACKAGE_LOCK.version, '1.3.28');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.28');
+test('公開版番号v1.3.29をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.29';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.29">/);
+  assert.equal(PACKAGE.version, '1.3.29');
+  assert.equal(PACKAGE_LOCK.version, '1.3.29');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.29');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4382,4 +4382,108 @@ test('進みを変えずに答えだけ記録したときは、その旨を知�
   assert.match(save, /progressChanged = n !== \(Number\(days\[dayKey\(now\)\]\) \|\| 0\);/);
   assert.match(save, /progressChanged = true;[\s\S]{0,120}が できた/,
     'しあげ（まるつけ・なおし）を足したときも進みが変わったと見ること');
+});
+
+/* しつもん（観察の観点）も宿題のノルマに数える。答えは state.questionAnswers に
+   あり progress とは別の欄で合流するので、数えるだけで同期のしかたは変えない。 */
+function progHarness(){
+  return new Function(`
+    let state = { progress:{}, questionAnswers:{} };
+    let config = { readingGrade: 2 };
+    function getLocal(){ return '{}'; }
+    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+    function ms(n){ return Number(n) > 0 ? Number(n) : 0; }
+    function dayKey(){ return '2026-08-18'; }
+    function streakOf(){ return 0; }
+    function wrapOf(p){ return Array.isArray(p.wrap) ? p.wrap.slice(0,2) : [false,false]; }
+    const K_QUESTION_ANSWERS = 'k';
+    ${grab(APP, 'hasWrap')}
+    ${grab(APP, 'localAnswerMap')}
+    let answerMapCache = null;
+    ${grab(APP, 'answeredQuestionCount')}
+    ${grab(APP, 'countsQuestions')}
+    ${grab(APP, 'withWrap')}
+    ${grab(APP, 'withQuestions')}
+    ${grab(APP, 'prog')}
+    return {
+      prog,
+      setAnswers(id, answers){ state.questionAnswers[id] = { answers, at: 1 }; },
+      setProgress(id, v){ state.progress[id] = v; }
+    };
+  `)();
+}
+
+test('しつもんは宿題のノルマに数え、番号・段階の表示はそのまま', ()=>{
+  const h = progHarness();
+  const task = { id:'kansatsu', type:'step', steps:['見る','はかる','かく','まとめる','だす'],
+                 questions:['たかさは？','はっぱは？','花は？'] };
+  h.setProgress('kansatsu', { steps:[true,true,true,true,false] });
+  h.setAnswers('kansatsu', ['ひざ', '', '']);
+  const p = h.prog(task);
+  assert.equal(p.done, 4, 'だんかいの数はそのまま');
+  assert.equal(p.text, '4/5', '「4/5」の表示を変えないこと');
+  assert.equal(p.qDone, 1);
+  assert.equal(p.qTotal, 3);
+  assert.equal(p.allDone, 5, 'ノルマの分子にしつもんを足すこと');
+  assert.equal(p.allTotal, 8, 'ノルマの分母にしつもんを足すこと');
+  assert.equal(p.isDone, false, 'しつもんが残っていれば完了にしないこと');
+});
+
+test('だんかいが全部終わっても、しつもんが残れば完了にしない', ()=>{
+  const h = progHarness();
+  const task = { id:'k', type:'step', steps:['a','b'], questions:['q1','q2'] };
+  h.setProgress('k', { steps:[true,true] });
+  h.setAnswers('k', ['こたえ', '']);
+  assert.equal(h.prog(task).isDone, false);
+  h.setAnswers('k', ['こたえ', 'こたえ2']);
+  const done = h.prog(task);
+  assert.equal(done.isDone, true, 'すべて答えたら完了にすること');
+  assert.equal(done.allDone, 4);
+  assert.equal(done.allTotal, 4);
+});
+
+test('番号の課題でも、しつもんはノルマに入るが「つぎは」の番号は動かさない', ()=>{
+  const h = progHarness();
+  const task = { id:'d', type:'count', total:14, unit:'', questions:['q1','q2'] };
+  h.setProgress('d', { done:7 });
+  h.setAnswers('d', ['あ', 'い']);
+  const p = h.prog(task);
+  assert.equal(p.done, 7, '「つぎは ⑧」の元になる数を変えないこと');
+  assert.equal(p.text, '7/14');
+  assert.equal(p.allDone, 9);
+  assert.equal(p.allTotal, 16);
+  assert.equal(p.isDone, false, '番号が残っていれば完了ではない');
+});
+
+test('まいにちの課題には、しつもんをノルマに入れない', ()=>{
+  const h = progHarness();
+  const task = { id:'m', type:'daily', target:3, targetUnit:'かい', questions:['q1'] };
+  h.setProgress('m', { days:{ '2026-08-18': 3 } });
+  h.setAnswers('m', ['こたえ']);
+  const p = h.prog(task);
+  assert.equal(p.allTotal, 3, 'その日ぶんのノルマに、日をまたぐ答えを足さないこと');
+  assert.equal(p.isDone, true);
+});
+
+test('しつもんの無い課題は、これまでどおりの数え方', ()=>{
+  const h = progHarness();
+  const task = { id:'p', type:'count', total:6, unit:'まい' };
+  h.setProgress('p', { done:6 });
+  const p = h.prog(task);
+  assert.equal(p.allDone, 6);
+  assert.equal(p.allTotal, 6);
+  assert.equal(p.isDone, true);
+  assert.equal(p.qTotal, 0);
+});
+
+test('しつもんの残りは、カードと「つぎは」に出す', ()=>{
+  assert.match(grab(APP, 'questionMarkHTML'), /countsQuestions\(t\)/);
+  assert.match(grab(APP, 'questionMarkHTML'), /p\.qDone \}\/\$\{p\.qTotal\}|qDone\}\/\$\{p\.qTotal/,
+    '答えた数と全部の数を出すこと');
+  assert.match(grab(APP, 'taskHTML'), /questionMarkHTML\(t, p\)/);
+  const next = grab(APP, 'nextLabel');
+  assert.match(next, /if\(i >= 0\) return \{ lead:'つぎは'/,
+    'しあげが済んでいるときに空の行き先を返さないこと');
+  assert.match(next, /p\.numDone && \(p\.qDone \|\| 0\) < \(p\.qTotal \|\| 0\)/);
+  assert.match(next, /wording\('しつもんに こたえる', '問いに答える'\)/);
 });

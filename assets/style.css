@@ -2236,6 +2236,19 @@ input.is-need, textarea.is-need{
   padding:2px 9px;
 }
 .wrapmark::before{ content:"✓"; margin-right:4px; opacity:.45; }
+/* しつもんの こたえの すすみ。しあげの しるしと 同じ ならびに 置く */
+.qmark{
+  font-size:14px; font-weight:900; line-height:1.2;
+  white-space:nowrap; flex-shrink:0;
+  color:var(--ai-usu); background:var(--kami);
+  border:2px solid var(--hougan); border-radius:999px;
+  padding:2px 9px;
+}
+.qmark.is-on{ color:var(--kami); background:var(--wakaba); border-color:var(--wakaba); }
+@media (max-width:560px){
+  .qmark{ font-size:13px; padding:2px 8px; }
+}
+
 /* 済んだら はっきり 分かるように 塗りつぶす */
 .wrapmark.is-on{
   color:var(--kami); background:var(--wakaba); border-color:var(--wakaba);
