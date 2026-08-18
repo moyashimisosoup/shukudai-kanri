@@ -2804,6 +2804,8 @@ test('変更履歴は公開版と内部配信版の事実だけを短く並べ�
   assert.match(UPDATES, /2026年8月13日　v1\.0\.0/);
   assert.match(UPDATES, /「大きな互換変更」「機能追加」「修正」/,
     '3桁のバージョン番号の意味は、1文だけ公開ページに残す');
+  assert.doesNotMatch(UPDATES, /配信 20\d{6}[a-z]/,
+    '凡例に実在の配信番号を書かないこと（配信のたびに古くなる）');
   const legend = /<section aria-labelledby="version-rule-title"[\s\S]*?<\/section>/.exec(UPDATES);
   assert.ok(legend && legend[0].length < 500,
     '凡例は最小限にとどめること（' + (legend ? legend[0].length : 0) + '字）');
