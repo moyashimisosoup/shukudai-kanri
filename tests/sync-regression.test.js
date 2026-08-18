@@ -2708,7 +2708,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260818a',
+    'assets/app.js': '20260818b',
     'assets/sync.js': '20260818a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2731,19 +2731,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.26をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.26';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.26">/);
-  assert.equal(PACKAGE.version, '1.3.26');
-  assert.equal(PACKAGE_LOCK.version, '1.3.26');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.26');
+test('公開版番号v1.3.27をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.27';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.27">/);
+  assert.equal(PACKAGE.version, '1.3.27');
+  assert.equal(PACKAGE_LOCK.version, '1.3.27');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.27');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4269,4 +4269,93 @@ test('失敗が続くほど、つなぎ直しの間隔を空ける（上限あ�
 
   h.clearTrouble();
   assert.equal(h.read().retryWait, 0, 'つながったら待ち時間を戻すこと');
+});
+
+/* 観察・自由研究の 任意質問。1問 直して きろく を 押すと、
+   「やったこと」に 全問が もう一度 並んでいた（実機からの指摘）。
+   記録は「その とき 何を したか」の 控えなので、書きかわった 答えだけを
+   のせる。答えそのものは state.questionAnswers に のこる。 */
+function answerLogHarness(saved, fields, stored){
+  return new Function('savedJSON', 'fieldsJSON', 'storedJSON', `
+    const saved = JSON.parse(savedJSON), fields = JSON.parse(fieldsJSON);
+    let sheetSavedAnswers = JSON.parse(storedJSON);
+    const sheetTask = { id:'t1', questions:['なにを 見た？','どう 思った？','つぎは？'] };
+    function questionAnswerRow(){ return { answers: saved }; }
+    /* 画面の 入力欄の 代わり */
+    const $$ = () => fields.map(v => ({ value: v }));
+    ${grab(APP, 'rememberSavedAnswer')}
+    ${grab(APP, 'answerChangesForLog')}
+    ${grab(APP, 'pendingAnswerChanges')}
+    return { answerChangesForLog, pendingAnswerChanges, remember:(i,t)=>{ rememberSavedAnswer(i,t); return sheetSavedAnswers; } };
+  `)(JSON.stringify(saved), JSON.stringify(fields), JSON.stringify(stored || []));
+}
+
+test('答えを1つ直して記録すると、その1問だけが記録に残る', ()=>{
+  const h = answerLogHarness(
+    ['あさがお', 'きれいだった', 'みずやり'],        // 保存ずみ
+    ['あさがお', 'とても きれいだった', 'みずやり']  // 2問目だけ直した
+  );
+  const changes = h.answerChangesForLog();
+  assert.deepEqual(changes, [{ i:1, text:'とても きれいだった' }],
+    '直した問だけを記録にのせること（全問を並べ直さない）');
+});
+
+test('何も直さずに記録を押しても、答えは記録に出ない', ()=>{
+  const h = answerLogHarness(['あさがお', 'きれい'], ['あさがお', 'きれい']);
+  assert.deepEqual(h.answerChangesForLog(), [],
+    '同じ内容をもう一度書き出さないこと');
+});
+
+test('はじめて書いた答えは、書いた問だけが記録に残る', ()=>{
+  const h = answerLogHarness(['', '', ''], ['あさがお', '', 'みずやり']);
+  assert.deepEqual(h.answerChangesForLog(),
+    [{ i:0, text:'あさがお' }, { i:2, text:'みずやり' }],
+    '空のままの問は記録にのせないこと');
+});
+
+test('1問ずつ保存したぶんも、そのシートの記録には残る', ()=>{
+  /* 「この答えを保存」を押すと保存ずみになるので、きろく の時点では
+     差分が無い。覚えていないと「やったこと」に何も残らない */
+  const h = answerLogHarness(
+    ['あさがお', 'きれい'],
+    ['あさがお', 'きれい'],
+    [{ i:1, text:'きれい' }]
+  );
+  assert.deepEqual(h.answerChangesForLog(), [{ i:1, text:'きれい' }]);
+});
+
+test('1問ずつ保存したあとに直したら、あとから直した方を記録に残す', ()=>{
+  const h = answerLogHarness(
+    ['あさがお', 'きれい'],
+    ['あさがお', 'やっぱり すごい'],
+    [{ i:1, text:'きれい' }]
+  );
+  assert.deepEqual(h.answerChangesForLog(), [{ i:1, text:'やっぱり すごい' }],
+    '同じ問が2つ並ばないこと');
+});
+
+test('空にした答えは、そのシートの控えからも外す', ()=>{
+  const h = answerLogHarness(['あさがお'], ['あさがお'], [{ i:0, text:'あさがお' }]);
+  assert.deepEqual(h.remember(0, ''), [], '空にしたぶんを記録にのせないこと');
+});
+
+test('記録本文とシートの空入力ガードは、書きかわった答えだけで決める', ()=>{
+  const save = grab(APP, 'saveSheet');
+  assert.match(save, /const answerChanges = answerChangesForLog\(\);/);
+  assert.match(save, /const hasAnswer = answerChanges\.length > 0;/,
+    '欄に答えが入っているだけで「入力あり」と見なさないこと');
+  assert.match(save, /answerChanges\s*\n?\s*\.map\(c => '・' \+ \(t\.questions\[c\.i\] \|\| ''\)/,
+    '記録本文も書きかわったぶんだけで組み立てること');
+  assert.doesNotMatch(save, /const qs = \$\$\('#sheetBody \[data-q\]'\)/,
+    '欄を丸ごと読み直して全問を書き出す作りに戻さないこと');
+  /* 取る順番を まちがえると、保存ずみに なった あとで 差分を 見ることに なる */
+  assert.ok(save.indexOf('answerChangesForLog()') < save.indexOf('saveQuestionAnswers(true)'),
+    '差分は saveQuestionAnswers() より先に取ること');
+});
+
+test('だんかいを変えずに記録したときは「なおした」と書かない', ()=>{
+  const save = grab(APP, 'saveSheet');
+  assert.match(save, /const sameSteps = \(t\.steps\|\|\[\]\)\.every/);
+  assert.match(save, /sameSteps \? 'すすみは そのまま'/,
+    '答えだけ直しに来たとき、だんかいまで「なおした」と残さないこと');
 });

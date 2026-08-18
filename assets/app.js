@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.26';
+const RELEASE_VERSION = '1.3.27';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -3932,6 +3932,11 @@ let sheetDailyToday = 0;
 /* 開いたときの 答えと、それが 専用欄に 入っているか。
    いまの 入力と くらべて「ほぞんずみ／まだ」を 出しわける */
 let sheetQBase = null, sheetQStored = null;
+/* このシートを 開いてから「この答えを保存」で 入れた ぶん。
+   きろく の 本文に のせるのは この 回に 書きかえた 答えだけなので、
+   先に 1問ずつ 保存した ぶんも ここで 覚えておかないと、
+   「やったこと」に 何も のこらなく なる */
+let sheetSavedAnswers = [];
 /* 開いたときの 入力らんの ひかえと、シートのために 足した 履歴が あるか */
 let sheetInputBase = null, sheetNavPushed = false;
 
@@ -4058,9 +4063,43 @@ function saveQuestionAnswer(index, ask){
   saveQuestionAnswerRow(t, answers);
   saveSt();
   markQuestionSaved(index, next);
+  rememberSavedAnswer(index, next);
   toast(next ? '答えを ほぞんしたよ' : '答えを からに したよ');
   return true;
 }
+/* この保存で 実際に 書きかわる 答えだけを 取り出す。**必ず
+   saveQuestionAnswers() より 先に 呼ぶこと**（あとでは 保存ずみに なり、
+   何も 変わっていないように 見える）。
+
+   記録本文には ここで 返した ぶんだけを のせる。以前は 欄に 入っている
+   答えを 毎回 すべて 書き出していたので、1問 直しただけでも
+   「やったこと」に 全問が もう一度 並んだ。 */
+function rememberSavedAnswer(index, text){
+  const keep = String(text || '');
+  sheetSavedAnswers = sheetSavedAnswers.filter(c => c.i !== index);
+  if(keep) sheetSavedAnswers.push({ i:index, text:keep });
+}
+
+/* 記録本文に のせる 答え。1問ずつ 保存した ぶんと、きろく を 押した
+   時点で まだ 書きかわる ぶんを 合わせ、問の 順に そろえる。
+   同じ問が 両方に あるときは、あとから 直した 今の 値を 採る。 */
+function answerChangesForLog(){
+  const pendingList = pendingAnswerChanges();
+  const byIndex = new Map();
+  sheetSavedAnswers.forEach(c => byIndex.set(c.i, c));
+  pendingList.forEach(c => byIndex.set(c.i, c));
+  return [...byIndex.values()].sort((a, b)=> a.i - b.i);
+}
+
+function pendingAnswerChanges(){
+  const t = sheetTask;
+  if(!t || !(t.questions || []).length) return [];
+  const before = questionAnswerRow(t);
+  return $$('#sheetBody [data-q]')
+    .map((el, i)=> ({ i, text:String(el.value || '').trim().slice(0, 800) }))
+    .filter(c => c.text && c.text !== String(before.answers[c.i] || ''));
+}
+
 function saveQuestionAnswers(ask){
   const t = sheetTask;
   if(!t || !(t.questions || []).length) return true;
@@ -4201,6 +4240,7 @@ function openSheet(id, editBookId){
     const savedAnswers = row.answers;
     sheetQBase = savedAnswers.slice();
     sheetQStored = row.stored.slice();
+    sheetSavedAnswers = [];
     body += `<div class="field">
       <span class="lab">${wording('かんさつ してみよう', '観察してみよう')}</span>
       <p class="hint">${wording('わかるところだけで いいよ。答えごとに保存でき、次に開いたときも残るよ。',
@@ -4634,6 +4674,7 @@ function closeSheet(){
   sheetTask = null; sheetSel = null; sheetSteps = null; sheetWrap = null;
   sheetRating = 0; sheetBookId = null;
   sheetQBase = null; sheetQStored = null;
+  sheetSavedAnswers = [];
   sheetDailyToday = 0;
   sheetInputBase = null;
   $('#sheetSave').textContent = 'きろくする';
@@ -4652,12 +4693,16 @@ function saveSheet(){
   stopSR();
   if(isBook(t)){ saveBookSheet(); return; }
   if(isFree(t)){ saveFreeSheet(); return; }
+  /* 保存する前に 取る。順番を 入れかえないこと */
+  const answerChanges = answerChangesForLog();
   if(!saveQuestionAnswers(true)) return;
   const p = prog(t);
   const memo = ($('#memo') && $('#memo').value.trim()) || '';
   const moreInput = $('#dailyMore');
   const dailySelection = dailyCountSelection(sheetSel, moreInput && moreInput.value);
-  const hasAnswer = $$('#sheetBody [data-q]').some(el=>el.value.trim());
+  /* 「答えが 入っている」ではなく「この保存で 書きかわる」で 見る。
+     直しに 来ただけで 何も 変えずに 押した ときに、空の記録を のこさない */
+  const hasAnswer = answerChanges.length > 0;
   const hasSelection = t.type === 'count' ? (sheetSel|0) > 0
     : t.type === 'step' ? !!(sheetSteps && sheetSteps.some(Boolean))
     : dailySelection > 0;
@@ -4707,9 +4752,14 @@ function saveSheet(){
   else if(t.type === 'step'){
     const before = (p.arr||[]);
     const added = (t.steps||[]).filter((s,i)=> sheetSteps[i] && !before[i]);
+    /* だんかいが 前と 同じなら「なおした」ではない。答えだけを 直しに 来て
+       きろく を 押すと、直していない だんかいまで「4/5 に なおした」と
+       のこって いた（かず の 課題は もともと そのまま と 書いている） */
+    const sameSteps = (t.steps||[]).every((s,i)=> !!sheetSteps[i] === !!before[i]);
     progPatch(t.id, { steps: sheetSteps.slice() });
     what = added.length ? added.join('・') + ' が できた'
-                        : (sheetSteps.filter(Boolean).length + '/' + (t.steps||[]).length + ' に なおした');
+         : sameSteps ? 'すすみは そのまま'
+         : (sheetSteps.filter(Boolean).length + '/' + (t.steps||[]).length + ' に なおした');
     ok = true;
   }
   else {
@@ -4732,12 +4782,13 @@ function saveSheet(){
     if(added.length) what = [what, added.join('・') + ' が できた'].filter(Boolean).join('　');
   }
 
-  // かんさつの こたえを メモに くっつける
-  const qs = $$('#sheetBody [data-q]');
-  const ans = qs.map((el,i)=>{
-    const v = el.value.trim();
-    return v ? '・' + (t.questions[i] || '') + '\n　→ ' + v : '';
-  }).filter(Boolean).join('\n');
+  /* かんさつの こたえは、**この保存で 書きかえた ぶんだけ** のせる。
+     答えそのものは state.questionAnswers に のこって いて、シートを
+     開けば いつでも 出る。記録は「その とき 何を したか」の 控えなので、
+     直すたびに 全問を くり返すと、何を 直したのかが 分からなくなる。 */
+  const ans = answerChanges
+    .map(c => '・' + (t.questions[c.i] || '') + '\n　→ ' + c.text)
+    .join('\n');
 
   const fullMemo = [ans, memo].filter(Boolean).join('\n');
 
