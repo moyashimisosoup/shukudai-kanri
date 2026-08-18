@@ -2708,7 +2708,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260818b',
+    'assets/app.js': '20260818c',
     'assets/sync.js': '20260818a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2731,19 +2731,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.27をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.27';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.27">/);
-  assert.equal(PACKAGE.version, '1.3.27');
-  assert.equal(PACKAGE_LOCK.version, '1.3.27');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.27');
+test('公開版番号v1.3.28をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.28';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.28">/);
+  assert.equal(PACKAGE.version, '1.3.28');
+  assert.equal(PACKAGE_LOCK.version, '1.3.28');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.28');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -3215,9 +3215,18 @@ test('数を減らしたときは、はんこを出さずに「なおしまし�
   assert.match(save, /let dailyDecreased = false;/);
   assert.match(save, /dailyDecreased = n > 0 && n < p\.done;/,
     '0までもどす場合は 別のあんない（0にもどしました）に ゆずること');
-  assert.match(save,
-    /\(after\.done \| 0\) === 0 && hadValue\) toast\('0 に もどしました'\);\s*\n\s*else if\(dailyDecreased\) toast\('なおしました'\);\s*\n\s*else stamp\(/,
-    '0にもどした案内を優先しつつ、減らしたときははんこの代わりにtoastを出すこと');
+  /* 「0にもどした」→「減らした」→「答えだけ」→ はんこ の順に見ること。
+     順番が入れかわると、0にもどしたのに「できた！」が出るなど、
+     したことと言葉が食いちがう。 */
+  const order = [
+    /\(after\.done \| 0\) === 0 && hadValue\) toast\('0 に もどしました'\)/,
+    /else if\(dailyDecreased\) toast\('なおしました'\)/,
+    /else if\(answersOnly\) stamp\(/,
+    /else stamp\(after\.isDone/
+  ].map(re => save.search(re));
+  assert.ok(order.every(i => i >= 0), '4つの知らせ方がすべてあること');
+  assert.deepEqual(order.slice().sort((a, b)=> a - b), order,
+    '0にもどした案内を先に、はんこを最後に置くこと');
 });
 
 /* クリックとタイプの どちらでも 表示が その場で 切りかわることを、
@@ -4358,4 +4367,19 @@ test('だんかいを変えずに記録したときは「なおした」と書�
   assert.match(save, /const sameSteps = \(t\.steps\|\|\[\]\)\.every/);
   assert.match(save, /sameSteps \? 'すすみは そのまま'/,
     '答えだけ直しに来たとき、だんかいまで「なおした」と残さないこと');
+});
+
+test('進みを変えずに答えだけ記録したときは、その旨を知らせる', ()=>{
+  const save = grab(APP, 'saveSheet');
+  assert.match(save, /const answersOnly = !progressChanged && answerChanges\.length > 0;/);
+  assert.match(save, /if\(answersOnly\) what = wording\('しつもんの こたえを きろくした'/,
+    '記録本文も「すすみは そのまま」で終わらせないこと');
+  assert.match(save, /else if\(answersOnly\) stamp\(wording\('こたえを きろくしたよ'/,
+    '「できた！」ではなく、答えを残したことを伝えること');
+  /* 進みが変わったかは、かず・だんかい・まいにち・しあげのすべてで見る */
+  assert.match(save, /progressChanged = after !== before;/);
+  assert.match(save, /progressChanged = !sameSteps;/);
+  assert.match(save, /progressChanged = n !== \(Number\(days\[dayKey\(now\)\]\) \|\| 0\);/);
+  assert.match(save, /progressChanged = true;[\s\S]{0,120}が できた/,
+    'しあげ（まるつけ・なおし）を足したときも進みが変わったと見ること');
 });

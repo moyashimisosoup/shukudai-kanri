@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.27';
+const RELEASE_VERSION = '1.3.28';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -4734,11 +4734,15 @@ function saveSheet(){
   let what = '';
   let ok = true;
   let dailyDecreased = false;
+  /* 進みぐあいが 変わったか。変わっていないのに 答えだけ 直した ときは、
+     「できた！」でも「そのまま」でもなく、答えを のこしたことを 伝える */
+  let progressChanged = false;
 
   if(t.type === 'count'){
     const before = p.done;
     const after = clamp(sheetSel|0, 0, t.total|0);
     progPatch(t.id, { done: after });
+    progressChanged = after !== before;
     if(after > before){
       what = countUsesCircle(t)
         ? maru(before+1) + (after>before+1 ? '〜'+maru(after) : '') + ' できた'
@@ -4757,6 +4761,7 @@ function saveSheet(){
        のこって いた（かず の 課題は もともと そのまま と 書いている） */
     const sameSteps = (t.steps||[]).every((s,i)=> !!sheetSteps[i] === !!before[i]);
     progPatch(t.id, { steps: sheetSteps.slice() });
+    progressChanged = !sameSteps;
     what = added.length ? added.join('・') + ' が できた'
          : sameSteps ? 'すすみは そのまま'
          : (sheetSteps.filter(Boolean).length + '/' + (t.steps||[]).length + ' に なおした');
@@ -4765,6 +4770,7 @@ function saveSheet(){
   else {
     const n = clamp(dailySelection, 0, 99);
     const days = Object.assign({}, (state.progress[t.id]||{}).days || {});
+    progressChanged = n !== (Number(days[dayKey(now)]) || 0);
     days[dayKey(now)] = n;
     progPatch(t.id, { days });
     /* 0 は「できた」ではない。取り消したことが 記録に のこるようにする */
@@ -4779,7 +4785,10 @@ function saveSheet(){
   if(hasWrap(t) && sheetWrap){
     const added = WRAP_LABELS.filter((s,i)=> sheetWrap[i] && !p.wrap[i]);
     progPatch(t.id, { wrap: sheetWrap.slice() });
-    if(added.length) what = [what, added.join('・') + ' が できた'].filter(Boolean).join('　');
+    if(added.length){
+      progressChanged = true;
+      what = [what, added.join('・') + ' が できた'].filter(Boolean).join('　');
+    }
   }
 
   /* かんさつの こたえは、**この保存で 書きかえた ぶんだけ** のせる。
@@ -4789,6 +4798,11 @@ function saveSheet(){
   const ans = answerChanges
     .map(c => '・' + (t.questions[c.i] || '') + '\n　→ ' + c.text)
     .join('\n');
+
+  /* 進みは 変えず、答えだけ のこした とき。「すすみは そのまま」だけでは、
+     何を したのかが 記録から 読み取れない */
+  const answersOnly = !progressChanged && answerChanges.length > 0;
+  if(answersOnly) what = wording('しつもんの こたえを きろくした', '答えを記録した');
 
   const fullMemo = [ans, memo].filter(Boolean).join('\n');
 
@@ -4807,6 +4821,9 @@ function saveSheet(){
      0までは 戻さず 数だけ 減らした ときも 同じ理由で はんこは 出さない */
   if((after.done | 0) === 0 && hadValue) toast('0 に もどしました');
   else if(dailyDecreased) toast('なおしました');
+  /* 進みを 変えずに 答えだけ のこした ときに「できた！」と 出すと、
+     宿題が 進んだと 読めてしまう。したことを そのまま 伝える */
+  else if(answersOnly) stamp(wording('こたえを きろくしたよ', '答えを記録した'));
   else stamp(after.isDone ? wording('ぜんぶ できた！', '完了！') : wording('できた！', 'できた'));
   setTimeout(()=> render({ keepScroll:true }), 60);
   return ok;
