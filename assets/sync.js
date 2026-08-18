@@ -76,6 +76,13 @@ let gotSnapshot = false;
 let joiningExisting = false;
 let status = 'off';          // off | connecting | online | offline | error
 let statusText = '';
+/* つながらなくなった あとの 立ち直り用（5.5 を 見ること） */
+let firebaseApp = null;
+let memoryOnly = false;      // 保存庫（IndexedDB）を あきらめたか
+let storageBroken = false;   // 保存庫が 原因で 失敗したと 分かったか
+let lastTrouble = null;      // { at, where, detail } 設定ページの デバッグ欄用
+let retryTimer = null;
+let retryWait = 0;
 let pushTimer = null;
 let pending = readPending();
 let pendingVersion = {
@@ -393,6 +400,7 @@ function watchHousehold(fs, ref, code){
       if(docRef !== ref || snap.metadata.hasPendingWrites) return;
       setStatus(snap.metadata.fromCache ? 'offline' : 'online',
                 snap.metadata.fromCache ? 'オフライン（この端末に ためています）' : 'つながっています');
+      if(!snap.metadata.fromCache) clearTrouble();
 
       if(!snap.exists()){
         /* キャッシュだけでは新旧を決めない。ここで新規文書を作ると、
@@ -492,7 +500,7 @@ function watchHousehold(fs, ref, code){
   };
   receiveHouseholdSnapshot = receiveSnapshot;
   unsub = fs.onSnapshot(ref, receiveSnapshot,
-    err => setStatus('error', 'つながりません：' + (err && err.code || err)));
+    err => noteTrouble('受信', err));
   /* 起動直後の listener は、端末に残った Firestore キャッシュを先に返す。
      子ども端末が通信できる場合はサーバーを一度直接読み、親端末がその後オフラインに
      なっても、すでにクラウドへ届いた最新 state を必ず取り込む。完全にオフラインなら
@@ -504,6 +512,9 @@ function watchHousehold(fs, ref, code){
    保護者ページの更新ボタンも同じ入口を使うので、listener の再接続待ちに
    ならず、その場で最新の共有 state を取り込める。 */
 async function refreshFromServer(){
+  /* 切れている あいだは docRef が 無く、読むものが ない。
+     「更新できません」と 突き返す 前に、まず つなぎ直しを 試す */
+  if(status === 'error' && !recovering){ clearTrouble(); await recoverConnection(); }
   const fs = Sync._fs;
   const ref = docRef;
   const receive = receiveHouseholdSnapshot;
@@ -546,7 +557,7 @@ async function connect(){
     watchHousehold(fs, secureRef, code);
 
   }catch(err){
-    setStatus('error', 'つながりません：' + (err && err.message || err));
+    noteTrouble('接続', err);
   }
 }
 
@@ -559,6 +570,7 @@ async function initFirebase(){
   Sync._fs = fs;
 
   const app = initializeApp(FIREBASE_CONFIG);
+  firebaseApp = app;
 
   /* 匿名ログイン。画面には 何も出ない。
      これが あることで、規則に request.auth != null を 書ける */
@@ -569,6 +581,92 @@ async function initFirebase(){
   db = fs.initializeFirestore(app, {
     localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() })
   });
+}
+
+/* ---------------------------------------------------------
+   5.5 つながらなくなった あとの 立ち直り
+
+   iOS の Safari には、アプリを 何度か 裏へ 回すと ブラウザ内の 保存庫
+   （IndexedDB）が 閉じられ、以後の 読み書きが すべて 失敗する 不具合が ある。
+   WebKit 側の 問題なので こちらからは 防げない。実際に 保護者の端末で
+   「Database is closing」が 出て、アプリを 開き直すまで 共有が 止まった。
+
+   そこで 起きた あとに 自力で 立ち直る。
+   1. 画面に 戻ったとき・通信が 戻ったときに つなぎ直す（それでも だめなら 時間を あけて 再挑戦）
+   2. 保存庫が 壊れている ときは、保存庫を あきらめて 通信だけで つなぎ直す
+
+   2 で オフラインの ためこみは 減るが、**記録は 消えない**。
+   送れていない 変更は もともと この端末の localStorage（未送信キュー）が
+   持っていて、つながった ときに 送り直すため。
+   --------------------------------------------------------- */
+const TROUBLE_TEXT = 'つながりません。アプリを開き直すと直ることがあります';
+/* 保存庫まわりの 失敗かどうか。文言は ブラウザごとに ちがうので 広めに 見る */
+const STORAGE_TROUBLE = /indexeddb|database is clos|is closing|persistence|storage|quota/i;
+const RETRY_MIN = 15000, RETRY_MAX = 300000;
+
+function troubleDetail(err){
+  const e = err || {};
+  return String(e.code ? e.code + '：' + (e.message || '') : (e.message || e));
+}
+
+/* 画面に 出すのは やさしい 一文だけ。内部の 文言は 大人の 設定ページの
+   デバッグ欄からだけ 見られるようにする（保護者に 英語の 例外を 読ませない） */
+function noteTrouble(where, err){
+  lastTrouble = { at: Date.now(), where, detail: troubleDetail(err) };
+  if(STORAGE_TROUBLE.test(lastTrouble.detail)) storageBroken = true;
+  setStatus('error', TROUBLE_TEXT);
+  scheduleRecovery();
+}
+
+function scheduleRecovery(){
+  if(retryTimer || getCode().length < 8) return;
+  retryWait = retryWait ? Math.min(retryWait * 2, RETRY_MAX) : RETRY_MIN;
+  retryTimer = setTimeout(()=>{ retryTimer = null; recoverConnection(); }, retryWait);
+}
+
+/* 保存庫を あきらめて つなぎ直す。terminate() の あとは 同じ設定で
+   initializeFirestore() を 呼べないことが あるので、その ときは
+   既定（メモリだけ）の getFirestore() に 落とす */
+async function restartWithoutStorage(){
+  const fs = Sync._fs;
+  if(!fs || !firebaseApp || memoryOnly) return false;
+  memoryOnly = true;
+  if(unsub){ try{ unsub(); }catch(e){} unsub = null; }
+  if(tombstoneUnsub){ try{ tombstoneUnsub(); }catch(e){} tombstoneUnsub = null; }
+  docRef = null;
+  receiveHouseholdSnapshot = null;
+  gotSnapshot = false;
+  try{ if(db) await fs.terminate(db); }catch(e){}
+  db = null;
+  try{ db = fs.initializeFirestore(firebaseApp, { localCache: fs.memoryLocalCache() }); }
+  catch(e){ try{ db = fs.getFirestore(firebaseApp); }catch(e2){ db = null; } }
+  return !!db;
+}
+
+/* つなぎ直しは 1本だけ 走らせる。画面復帰・通信復帰・時間切れが
+   重なっても、connect() を 何本も 走らせない */
+let recovering = false;
+async function recoverConnection(){
+  if(recovering) return false;
+  if(getCode().length < 8) return false;
+  if(status !== 'error') return false;
+  recovering = true;
+  try{
+    if(storageBroken) await restartWithoutStorage();
+    await connect();
+    return true;
+  }catch(err){
+    noteTrouble('つなぎ直し', err);
+    return false;
+  }finally{
+    recovering = false;
+  }
+}
+
+/* うまく つながったら、次に 失敗した ときのために 待ち時間を 戻す */
+function clearTrouble(){
+  retryWait = 0;
+  if(retryTimer){ clearTimeout(retryTimer); retryTimer = null; }
 }
 
 /* 文書内の devices は { ランダム番号: { 役割・呼び名・版・いつ } }。
@@ -619,7 +717,7 @@ async function registerDevice(){
     setDeviceMap(Object.assign({}, deviceMap, { [id]: info }));
   }catch(err){
     lastDeviceWrite = '';
-    setStatus('error', '端末の記録を保存できません：' + (err && err.code || err));
+    noteTrouble('端末の記録', err);
   }
 }
 /* 役割を えらび直した ときなど、書き直させる */
@@ -654,7 +752,7 @@ async function removeDevice(id){
     setDeviceCount(Object.keys(next).filter(k => !(next[k] && next[k].revoked)).length);
     return true;
   }catch(err){
-    setStatus('error', '端末をはずせません：' + (err && err.code || err));
+    noteTrouble('端末をはずす', err);
     return false;
   }
 }
@@ -749,13 +847,20 @@ async function flush(){
   }catch(err){
     /* 一時的な失敗では送信予約を消さない。再接続・再起動後に再送する。 */
     persistPending();
-    setStatus('error', '保存できません：' + (err && err.code || err));
+    noteTrouble('送信', err);
   }
 }
 
-addEventListener('online', flushPendingSoon);
+/* 通信が 戻ったとき・画面に 戻ったときは、ためた ぶんを 送るだけでなく、
+   切れたままなら つなぎ直す。iOS の 保存庫の 不具合は 裏へ 回した ときに
+   起きるので、戻ってきた この 瞬間が いちばん 立ち直りやすい */
+function resumeSync(){
+  flushPendingSoon();
+  if(status === 'error'){ clearTrouble(); recoverConnection(); }
+}
+addEventListener('online', resumeSync);
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'visible') flushPendingSoon();
+  if(document.visibilityState === 'visible') resumeSync();
 });
 
 /* ---------------------------------------------------------
@@ -829,6 +934,10 @@ const Sync = {
   awaitingFirstSnapshot: () => getCode().length >= 8 && !gotSnapshot,
   status:     () => status,
   statusText: () => statusText,
+  /* 画面には やさしい 一文しか 出さない。英語の 例外は ここから 取り出し、
+     大人の 設定ページの デバッグ欄にだけ 出す */
+  lastTrouble: () => lastTrouble,
+  storageMode: () => (memoryOnly ? 'memory' : 'persistent'),
   onStatus(fn){ listeners.push(fn); fn(status, statusText); },
   deviceCount: displayedDeviceCount,
   onDeviceCount(fn){ deviceListeners.push(fn); fn(displayedDeviceCount()); },

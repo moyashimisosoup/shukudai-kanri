@@ -1471,6 +1471,9 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   background:var(--kami); color:var(--ai); font-size:11px;
 }
 .parent-share-short{ display:none; min-width:0; }
+/* つながっていないときだけ色を変える。色だけに頼らず、文字も
+   「接続待ち」ではなく「未接続」にして、待っているのか切れているのかを分ける */
+.parent-share-badge.is-error{ background:var(--suika); }
 .parent-child-guide{
   margin-top:14px; padding:12px 16px;
   display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px;

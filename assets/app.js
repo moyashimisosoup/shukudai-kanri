@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.25';
+const RELEASE_VERSION = '1.3.26';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -3570,7 +3570,13 @@ function newestVer(vers){
 /* 保護者ページの見出しでは、端末の総数よりも「子ども端末と共有できているか」を
    先に伝える。台数や個々の端末の管理は設定ページの一覧で行うため、ここでは
    最小限の状態だけを短いバッジで示す。 */
-function parentShareSummary(rows, mine, fallbackName){
+function parentShareSummary(rows, mine, fallbackName, syncStatus){
+  /* 端末一覧だけで決めていたので、同期が切れていても「接続待ち」と出ていた。
+     子ども端末を待っているのか、こちらがつながっていないのかは、保護者に
+     とって別のことなので分ける（実際に切れた日、この見分けが付かなかった） */
+  if(syncStatus === 'error'){
+    return { state:'error', full:'共有につながっていません', short:'：未接続' };
+  }
   const other = (rows || []).filter(r => r && r.id !== mine);
   const children = other.filter(r => r.role === 'child');
   /* short は 狭い画面用。320px で 使えるのは 90px ほど しか なく、
@@ -3601,7 +3607,8 @@ function parentShareBadgeHTML(){
   </button>`;
   const summary = parentShareSummary(
     deviceRows(typeof S.devices === 'function' ? S.devices() : {}),
-    getLocal(K_DEVICE_ID), config.childName || getLocal(K_NAME)
+    getLocal(K_DEVICE_ID), config.childName || getLocal(K_NAME),
+    typeof S.status === 'function' ? S.status() : ''
   );
   return `<button class="parent-share-badge is-${summary.state}" id="parentShareBadge" type="button" title="${esc(summary.full)}">
     <span class="parent-share-mark" aria-hidden="true">共有</span>
@@ -3845,6 +3852,17 @@ function trashSectionHTML(){
 /* 同期で 値が 入れかわった ところの ひかえ（調べもの用）。
    「こちらの値・その時刻」と「相手の値・その時刻」、どちらが 勝ったかを 出す。
    端末の 中だけに のこり、外へは 送らない */
+function syncTroubleHTML(){
+  const S = window.NatsuSync;
+  const t = (S && typeof S.lastTrouble === 'function') ? S.lastTrouble() : null;
+  if(!t) return '';
+  const mode = (S && typeof S.storageMode === 'function' && S.storageMode() === 'memory')
+    ? '　（この端末では、ためこみをやめて通信だけでつないでいます）' : '';
+  /* 英語の例外は ここだけに 出す。ふだんの 画面には
+     「つながりません。アプリを開き直すと直ることがあります」しか 出さない */
+  return `<p class="set-note">最後につながらなかったとき：${esc(fmtTime(new Date(t.at)))}　${esc(t.where)}　${esc(t.detail)}${mode}</p>`;
+}
+
 function syncTraceHTML(){
   const rows = traceRead();
   const t = ms => ms ? fmtTime(new Date(ms)) + ':' + pad2(new Date(ms).getSeconds()) : '（なし）';
@@ -3853,6 +3871,7 @@ function syncTraceHTML(){
     <details class="paper set-advanced">
       <summary>デバッグ用：同期の記録（${rows.length}件）</summary>
       <div class="set-advanced-body">
+        ${syncTroubleHTML()}
         <p class="set-note">開発者向けの記録です。通常の利用では触る必要はありません。記録が元に戻ってしまうときに、どちらの端末のどの値が採用されたかを調べるために使います。この端末の中だけに残り、外へは送りません。</p>
         <div class="set-actions">
           <button class="btn btn-sm" id="traceCopy" type="button">コピー</button>
@@ -5901,7 +5920,7 @@ function bindAdultNav(){
     syncRefresh.disabled = true;
     const ok = !!(S && typeof S.refresh === 'function' && await S.refresh());
     syncRefresh.disabled = false;
-    toast(ok ? '共有データを更新しました' : '更新できませんでした。通信を確認してください');
+    toast(ok ? '共有データを更新しました' : '更新できませんでした。少し待ってからもう一度お試しください');
   });
 }
 

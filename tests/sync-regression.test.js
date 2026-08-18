@@ -521,6 +521,7 @@ test('接続前の保留送信は初回snapshot後に再開できる', async ()=
     function getDeviceId(){ return 'device-1'; }
     function getCode(){ return 'abcdefghjkmnpqrs'; }
     function setStatus(){}
+    function noteTrouble(){}
     function persistPending(){}
     ${CRYPTO_PARTS}
     ${names.map(n=>grab(SYNC, n)).join('\n')}
@@ -562,6 +563,7 @@ test('Firestore書き込み失敗時は送信予約を失わない', async ()=>{
     function getDeviceId(){ return 'device-1'; }
     function getCode(){ return 'abcdefghjkmnpqrs'; }
     function setStatus(){}
+    function noteTrouble(){}
     function persistPending(){}
     ${CRYPTO_PARTS}
     ${grab(SYNC, 'flush')}
@@ -2702,12 +2704,12 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260817e',
+    'assets/style.css': '20260818a',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260817h',
-    'assets/sync.js': '20260816b'
+    'assets/app.js': '20260818a',
+    'assets/sync.js': '20260818a'
   };
   for(const [file, version] of Object.entries(versions)){
     assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=' + version));
@@ -2729,17 +2731,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.25をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.25';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.25">/);
-  assert.equal(PACKAGE.version, '1.3.25');
-  assert.equal(PACKAGE_LOCK.version, '1.3.25');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.25');
-  assert.match(UPDATES, /<b>v1\.3\.25<\/b> の3つの数字は/,
-    '「バージョン番号の見方」の例も今の版にそろえること');
+test('公開版番号v1.3.26をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.26';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.26">/);
+  assert.equal(PACKAGE.version, '1.3.26');
+  assert.equal(PACKAGE_LOCK.version, '1.3.26');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.26');
+  /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
+     置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
+  assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
+    '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.3.25', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -2770,6 +2774,18 @@ test('90日保持を自動削除と誤記せず、予告と対象範囲も説明
 /* 公開履歴に載せるのは項目名だけ。理由や経緯まで公開ページへ書くと、読む量が
    増えるうえ、あとから訂正が必要な記述も増える。詳細は local/changelog-detail.md
    （.gitignore 済み）に残す。 */
+/* 公開履歴はアプリの変更だけを載せる。使い方・紹介ページの手直しは、アプリの
+   動きが変わったわけではないので、利用者の一覧には出さない（版の行ごと出さない
+   ことも、行の中のその部分だけ落とすこともある）。 */
+test('公開履歴に案内ページだけの手直しを書かない', ()=>{
+  const list = /<h2 id="release-title">[\s\S]*?<dl class="history-list">([\s\S]*?)<\/dl>/.exec(UPDATES);
+  assert.ok(list, '公開履歴の一覧が読み取れること');
+  [...list[1].matchAll(/<dt>(.*?)<\/dt><dd>(.*?)<\/dd>/g)].forEach(([, dt, dd])=>{
+    assert.doesNotMatch(dd, /使い方ページ|紹介ページ|案内ページ/,
+      dt + ' … ページの手直しは公開履歴に載せないこと');
+  });
+});
+
 test('公開履歴の各項目は、項目名だけで詳細を公開しない', ()=>{
   const list = /<h2 id="release-title">[\s\S]*?<dl class="history-list">([\s\S]*?)<\/dl>/.exec(UPDATES);
   assert.ok(list, '公開履歴の一覧が読み取れること');
@@ -2786,8 +2802,11 @@ test('変更履歴は公開版と内部配信版の事実だけを短く並べ�
   assert.match(UPDATES, /2026年8月14日　v1\.3\.0/);
   assert.match(UPDATES, /2026年8月13日　v1\.1\.0/);
   assert.match(UPDATES, /2026年8月13日　v1\.0\.0/);
-  assert.match(UPDATES, /大きな互換変更[\s\S]*機能追加[\s\S]*修正/,
-    '3桁のバージョン番号の意味を公開ページで説明する');
+  assert.match(UPDATES, /「大きな互換変更」「機能追加」「修正」/,
+    '3桁のバージョン番号の意味は、1文だけ公開ページに残す');
+  const legend = /<section aria-labelledby="version-rule-title"[\s\S]*?<\/section>/.exec(UPDATES);
+  assert.ok(legend && legend[0].length < 500,
+    '凡例は最小限にとどめること（' + (legend ? legend[0].length : 0) + '字）');
   assert.match(UPDATES, /20260812a–l/);
   assert.match(UPDATES, /20260811a–af/);
   assert.match(UPDATES, /20260810a–aw/);
@@ -2810,7 +2829,7 @@ test('未送信の種類は端末に残し、再起動後も同じ合言葉で�
   assert.match(SYNC, /let pending = readPending\(\)/);
   assert.match(grab(SYNC, 'push'), /persistPending\(\)/);
   assert.match(grab(SYNC, 'flush'), /pendingVersion\.config === sentVersion\.config/);
-  assert.match(SYNC, /addEventListener\('online', flushPendingSoon\)/);
+  assert.match(SYNC, /addEventListener\('online', resumeSync\)/);
 });
 
 test('紹介ページの実画面画像を装飾目的で傾けない', ()=>{
@@ -4078,4 +4097,174 @@ test('めずらしい名前・めずらしい暮らしの生きものを、既�
     assert.equal(FUN_TEST[i].ask, 'どんな いきもの かな？', '分野ごとの問いかけを解決させること');
     assert.ok(FUN_TEST[i].a.length > 40, name + ' の説明を1文で終わらせないこと');
   });
+});
+
+/* iOS Safari は、アプリを裏へ回すと IndexedDB の接続を閉じることがある
+   （WebKit の既知の不具合）。実際に保護者端末で起き、アプリを開き直すまで
+   共有が止まった。こちらで防げない以上、起きたあとに立ち直れることを縛る。 */
+test('つながらなくなったら、画面に戻ったとき・時間をおいて、つなぎ直す', ()=>{
+  const resume = grab(SYNC, 'resumeSync');
+  assert.match(resume, /status === 'error'/, '切れたままのときだけ つなぎ直すこと');
+  assert.match(resume, /recoverConnection\(\)/);
+  assert.match(SYNC, /addEventListener\('online', resumeSync\)/,
+    '通信が戻ったときも つなぎ直すこと');
+  assert.match(SYNC, /visibilityState === 'visible'\) resumeSync\(\)/,
+    '画面に戻ったときも つなぎ直すこと');
+
+  const schedule = grab(SYNC, 'scheduleRecovery');
+  assert.match(schedule, /retryWait \* 2/, '失敗が続くときは間隔を空けること');
+  assert.match(schedule, /RETRY_MAX/, '間隔に上限を置くこと');
+
+  const recover = grab(SYNC, 'recoverConnection');
+  assert.match(recover, /if\(recovering\) return false/,
+    'つなぎ直しを何本も同時に走らせないこと');
+  assert.match(recover, /storageBroken/);
+});
+
+test('保存庫が壊れたときは、ためこみをやめて通信だけでつなぎ直す', ()=>{
+  const restart = grab(SYNC, 'restartWithoutStorage');
+  assert.match(restart, /fs\.terminate\(db\)/, '古いFirestoreを畳んでから作り直すこと');
+  assert.match(restart, /memoryLocalCache\(\)/);
+  assert.match(restart, /getFirestore\(firebaseApp\)/,
+    'terminate 後に同じ設定で作れない場合の逃げ道を残すこと');
+  assert.match(restart, /if\(!fs \|\| !firebaseApp \|\| memoryOnly\) return false/,
+    '一度きりにすること');
+  /* 記録が消えないことの根拠：未送信は localStorage の控えが持っている */
+  assert.match(SYNC, /K_PENDING/);
+});
+
+test('つながらないときに、英語の例外を保護者の画面へ出さない', ()=>{
+  assert.match(SYNC, /const TROUBLE_TEXT = 'つながりません。アプリを開き直すと直ることがあります'/);
+  assert.doesNotMatch(SYNC, /'つながりません：' \+/,
+    '例外の文言をそのまま画面へ出さないこと');
+  assert.doesNotMatch(SYNC, /setStatus\('error', '[^']*' \+ \(err/,
+    'エラー本文の連結を画面の文言に使わないこと');
+  const note = grab(SYNC, 'noteTrouble');
+  assert.match(note, /lastTrouble = \{/, '調べもの用に内容は控えておくこと');
+  assert.match(note, /STORAGE_TROUBLE\.test/);
+  assert.match(note, /setStatus\('error', TROUBLE_TEXT\)/);
+  /* 内部の文言は、大人の設定ページのデバッグ欄からだけ見える */
+  assert.match(grab(APP, 'syncTroubleHTML'), /S\.lastTrouble\(\)/);
+  assert.match(grab(APP, 'syncTraceHTML'), /syncTroubleHTML\(\)/);
+});
+
+test('切れているときの更新ボタンは、まずつなぎ直してから読む', ()=>{
+  const refresh = grab(SYNC, 'refreshFromServer');
+  assert.match(refresh, /status === 'error' && !recovering/);
+  assert.match(refresh, /await recoverConnection\(\)/);
+  assert.match(APP, /更新できませんでした。少し待ってからもう一度お試しください/,
+    '通信のせいと決めつけないこと');
+  assert.doesNotMatch(APP, /更新できませんでした。通信を確認してください/);
+});
+
+test('同期が切れているあいだ、保護者ページのバッジで「接続待ち」と言わない', ()=>{
+  const summary = grab(APP, 'parentShareSummary');
+  assert.match(summary, /syncStatus === 'error'/);
+  assert.match(summary, /共有につながっていません/);
+  assert.match(summary, /'：未接続'/);
+  assert.match(grab(APP, 'parentShareBadgeHTML'), /S\.status\(\)/,
+    'バッジに同期の状態を渡すこと');
+  assert.match(STYLE, /\.parent-share-badge\.is-error\{/);
+});
+
+/* 上の3件はソースの形を見るだけなので、ここでは実際に動かして確かめる。
+   立ち直りは「切れているときだけ」「1本だけ」「保存庫が原因のときは
+   ためこみをやめてから」の3つが同時に成り立たないと、つなぎ直しが
+   暴走したり、逆にいつまでも戻らなかったりする。 */
+function recoveryHarness(){
+  return new Function(`
+    let status = 'off';
+    let code = 'abcdefghjkmnpqrs';
+    let storageBroken = false, memoryOnly = false, recovering = false;
+    let retryTimer = null, retryWait = 0, lastTrouble = null;
+    let connects = 0, restarts = 0;
+    const timers = [];
+    const setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+    const clearTimeout = () => {};
+    function getCode(){ return code; }
+    function setStatus(s, text){ status = s; }
+    async function connect(){ connects++; status = 'online'; }
+    async function restartWithoutStorage(){ restarts++; memoryOnly = true; return true; }
+    ${['TROUBLE_TEXT','STORAGE_TROUBLE','RETRY_MIN','RETRY_MAX'].map(n=>{
+      const m = new RegExp('const ' + n + ' = .*?;\n').exec(SYNC);
+      return m ? m[0] : '';
+    }).join('')}
+    ${grab(SYNC, 'troubleDetail')}
+    ${grab(SYNC, 'noteTrouble')}
+    ${grab(SYNC, 'scheduleRecovery')}
+    ${grab(SYNC, 'clearTrouble')}
+    ${grab(SYNC, 'recoverConnection')}
+    return {
+      noteTrouble, recoverConnection, clearTrouble,
+      /* 予約した時刻が来たことにして、その1本を走らせる */
+      async runTimer(){
+        const t = timers[timers.length - 1];
+        if(!t) return false;
+        await t.fn();
+        return true;
+      },
+      read: ()=> ({ status, storageBroken, memoryOnly, connects, restarts, retryWait,
+                    waits: timers.map(t=>t.ms), trouble: lastTrouble }),
+      set: (s)=> { status = s; },
+      clearCode: ()=> { code = ''; }
+    };
+  `)();
+}
+
+test('保存庫の失敗と分かったときだけ、ためこみをやめてつなぎ直す', async ()=>{
+  const h = recoveryHarness();
+  h.noteTrouble('受信', new Error('Database is closing'));
+  assert.equal(h.read().status, 'error', '画面には切れていることを出すこと');
+  assert.equal(h.read().storageBroken, true, '保存庫が原因だと見分けること');
+  assert.match(h.read().trouble.detail, /Database is closing/,
+    '調べもの用には元の文言を残すこと');
+
+  await h.recoverConnection();
+  const after = h.read();
+  assert.equal(after.restarts, 1, 'ためこみをやめてから つなぎ直すこと');
+  assert.equal(after.connects, 1);
+  assert.equal(after.status, 'online');
+});
+
+test('保存庫と関係ない失敗では、ためこみを続けたままつなぎ直す', async ()=>{
+  const h = recoveryHarness();
+  h.noteTrouble('受信', { code:'unavailable', message:'network' });
+  assert.equal(h.read().storageBroken, false);
+  await h.recoverConnection();
+  assert.equal(h.read().restarts, 0, '通信が理由なら、ためこみは そのままにすること');
+  assert.equal(h.read().connects, 1);
+});
+
+test('つながっているとき・合言葉が無いときは、つなぎ直さない', async ()=>{
+  const h = recoveryHarness();
+  h.set('online');
+  assert.equal(await h.recoverConnection(), false);
+  assert.equal(h.read().connects, 0, 'つながっているのに つなぎ直さないこと');
+
+  const h2 = recoveryHarness();
+  h2.noteTrouble('受信', new Error('x'));
+  h2.clearCode();
+  assert.equal(await h2.recoverConnection(), false);
+  assert.equal(h2.read().connects, 0, '合言葉が無ければ何もしないこと');
+});
+
+test('失敗が続くほど、つなぎ直しの間隔を空ける（上限あり）', async ()=>{
+  const h = recoveryHarness();
+  for(let i=0;i<8;i++){
+    h.noteTrouble('受信', new Error('x'));   // 切れた
+    await h.runTimer();                      // 予約の時刻が来た → つなぎ直す
+  }
+  const waits = h.read().waits;
+  assert.equal(waits[0], 15000, '最初は15秒で試すこと');
+  assert.ok(waits[1] > waits[0], '続けて失敗したら間隔を空けること');
+  assert.ok(Math.max(...waits) <= 300000, '5分を超えて空けないこと');
+  assert.equal(waits.length, 8, '失敗のたびに1本だけ予約すること');
+
+  /* 失敗の最中に もう一度 切れても、予約は1本のまま */
+  h.noteTrouble('受信', new Error('x'));
+  h.noteTrouble('送信', new Error('x'));
+  assert.equal(h.read().waits.length, 9, '予約を積み増さないこと');
+
+  h.clearTrouble();
+  assert.equal(h.read().retryWait, 0, 'つながったら待ち時間を戻すこと');
 });
