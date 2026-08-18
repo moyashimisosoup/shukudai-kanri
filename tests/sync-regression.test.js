@@ -2792,9 +2792,16 @@ test('公開履歴の各項目は、項目名だけで詳細を公開しない',
   const rows = [...list[1].matchAll(/<dt>(.*?)<\/dt><dd>(.*?)<\/dd>/g)];
   assert.ok(rows.length >= 20, '公開済みの版をすべて並べること');
   rows.forEach(([, dt, dd])=>{
-    assert.ok(dd.length <= 60, dt + ' は項目名だけにすること（' + dd.length + '字）');
+    assert.ok(dd.length <= 40, dt + ' は「〇〇を修正」の形にすること（' + dd.length + '字）');
     assert.doesNotMatch(dd, /。/, dt + ' に説明文を書かないこと。複数あるときは ／ で並べる');
   });
+  /* 公開以前の一覧も同じ書き方でそろえる */
+  [...UPDATES.matchAll(/<dl class="history-list history-list--internal">([\s\S]*?)<\/dl>/g)]
+    .flatMap(m => [...m[1].matchAll(/<dt>(.*?)<\/dt><dd>(.*?)<\/dd>/g)])
+    .forEach(([, dt, dd])=>{
+      assert.ok(dd.length <= 40, dt + ' も短くそろえること（' + dd.length + '字）');
+      assert.doesNotMatch(dd, /。/, dt + ' に句点を置かないこと');
+    });
 });
 
 test('変更履歴は公開版と内部配信版の事実だけを短く並べる', ()=>{
