@@ -4548,6 +4548,18 @@ test('配信するスクリプトは、まるごと構文が通る', ()=>{
   }
 });
 
+/* 受け渡し箱は TTL（コンソール側の設定）にも守られるが、**TTL が無くても
+   溜まらない**ようにする。権限などでTTLを作れない家庭でも運用できること。 */
+test('古い受け渡し箱は、アプリ側でも片づける', ()=>{
+  const sweep = grab(SYNC, 'sweepHandoff');
+  assert.match(sweep, /if\(at && Date\.now\(\) - at < HANDOFF_MS\) return false;/,
+    '期限より新しい箱は消さないこと');
+  assert.match(sweep, /return await clearHandoff\(\);/);
+  assert.match(grab(APP, 'bindConfig'),
+    /if\(\$\('#posterFile'\) && typeof S\.sweepHandoff === 'function'\) S\.sweepHandoff\(\);/,
+    '保護者ページを開いたときだけ、1回だけ見にいくこと');
+});
+
 /* しつもん（観察の観点）も宿題のノルマに数える。答えは state.questionAnswers に
    あり progress とは別の欄で合流するので、数えるだけで同期のしかたは変えない。 */
 function progHarness(){

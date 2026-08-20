@@ -6652,7 +6652,12 @@ function bindSync(){
 
 /* 保護者ページ（設定）*/
 function bindConfig(){
-  /* 宿題の一覧の写真。画像は端末の中に置き、共有には印だけを流す */
+  /* 宿題の一覧の写真。画像は端末の中に置き、共有には印だけを流す。
+
+     ページを開いたついでに、24時間より古い受け渡し箱を片づける。
+     TTL（コンソール側の設定）が無くても溜まらないようにするためで、
+     読み取りは開くたび1回だけ。子どもの画面では走らせない。 */
+  if($('#posterFile') && typeof S.sweepHandoff === 'function') S.sweepHandoff();
   on('#posterFile', 'change', e=>{
     const file = e.target.files && e.target.files[0];
     e.target.value = '';

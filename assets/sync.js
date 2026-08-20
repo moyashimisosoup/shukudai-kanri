@@ -994,7 +994,24 @@ async function takeHandoff(){
   }
 }
 
-/* 受け取った あとの 後始末。失敗しても 害は ない（TTL が 消す） */
+/* 古い 箱を 片づける。**TTL が 無くても 溜まらない ようにする ため。**
+   TTL（Firebase コンソール側の 設定）は 安全網で、こちらが 本筋。
+   期限より 古ければ 消し、消したかどうかを 返す。
+   読めない・切れている ときは 何も しない（画面に 出す ことも しない） */
+async function sweepHandoff(){
+  try{
+    const ref = await handoffRef();
+    if(!ref) return false;
+    const fs = Sync._fs;
+    const snap = await fs.getDoc(ref);
+    if(!snap.exists()) return false;
+    const at = Number((snap.data() || {}).at) || 0;
+    if(at && Date.now() - at < HANDOFF_MS) return false;
+    return await clearHandoff();
+  }catch(e){ return false; }
+}
+
+/* 受け取った あとの 後始末。失敗しても 害は ない（古ければ sweepHandoff が 消す） */
 async function clearHandoff(){
   try{
     const ref = await handoffRef();
@@ -1032,7 +1049,7 @@ const Sync = {
   disconnect,
   verifyHousehold,
   registerHousehold,
-  putHandoff, takeHandoff, clearHandoff,
+  putHandoff, takeHandoff, clearHandoff, sweepHandoff,
   getRegistrationCount,
   /* あいことばを 入れ替えて つなぎ直す */
   /* opts.joining … すでに ある グループへ 入るとき true。
