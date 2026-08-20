@@ -2708,7 +2708,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260818d',
+    'assets/app.js': '20260820a',
     'assets/sync.js': '20260818a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2731,19 +2731,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.29をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.29';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.29">/);
-  assert.equal(PACKAGE.version, '1.3.29');
-  assert.equal(PACKAGE_LOCK.version, '1.3.29');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.29');
+test('公開版番号v1.3.30をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.30';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.30">/);
+  assert.equal(PACKAGE.version, '1.3.30');
+  assert.equal(PACKAGE_LOCK.version, '1.3.30');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.30');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4389,6 +4389,51 @@ test('進みを変えずに答えだけ記録したときは、その旨を知�
   assert.match(save, /progressChanged = n !== \(Number\(days\[dayKey\(now\)\]\) \|\| 0\);/);
   assert.match(save, /progressChanged = true;[\s\S]{0,120}が できた/,
     'しあげ（まるつけ・なおし）を足したときも進みが変わったと見ること');
+});
+
+
+/* 何も 直さずに きろく を 押した とき。ログを 1件 のこすと「きょう やったこと」に
+   出るだけでなく、didSomethingToday() が 真に なって ミニコンテンツの 解禁数まで
+   増える。何も していない 日に 増えるのは おかしい。ログは のこさず、
+   押したことが 伝わる ように 一言だけ 出す。 */
+function unchangedHarness(){
+  return new Function(`
+    ${grab(APP, 'sheetUnchanged')}
+    return { sheetUnchanged };
+  `)();
+}
+
+test('何も書きかわらなかったときは、記録を増やさない', ()=>{
+  const h = unchangedHarness();
+  assert.equal(h.sheetUnchanged(false, [], ''), true,
+    '進み・答え・メモの どれも 変わっていなければ 記録を のこさないこと');
+});
+
+test('進み・答え・メモのどれかが書きかわったら、記録を残す', ()=>{
+  const h = unchangedHarness();
+  assert.equal(h.sheetUnchanged(true, [], ''), false, '進みが変わったら残すこと');
+  assert.equal(h.sheetUnchanged(false, [{ i:0, text:'あさがお' }], ''), false,
+    '答えが変わったら残すこと');
+  assert.equal(h.sheetUnchanged(false, [], 'きょうは しずかに できた'), false,
+    'メモを書いたら残すこと');
+});
+
+test('何も書きかわらなくても、押したことは伝える', ()=>{
+  const save = grab(APP, 'saveSheet');
+  assert.match(save, /const unchanged = sheetUnchanged\(progressChanged, answerChanges, memo\);/);
+  assert.match(save, /if\(!unchanged\)\{[\s\S]{0,400}state\.logs\.push\(/,
+    'ログは 書きかわった ときだけ のこすこと');
+  assert.match(save, /if\(unchanged\) toast\(wording\('そのままに しておいたよ'/,
+    '押しても 何も 起きないように 見せないこと');
+  assert.ok(save.indexOf('if(unchanged) toast(') < save.indexOf('else stamp('),
+    '何も 変わっていない ときに「できた！」の はんこを 出さないこと');
+});
+
+test('しあげの印を外したときも、書きかわったものとして残す', ()=>{
+  const save = grab(APP, 'saveSheet');
+  assert.match(save, /const removed = WRAP_LABELS\.some\(\(s,i\)=> !sheetWrap\[i\] && p\.wrap\[i\]\);/);
+  assert.match(save, /if\(removed && !added\.length\)\{[\s\S]{0,200}progressChanged = true;/,
+    '外した ぶんは 保存されるので、記録にも のこすこと');
 });
 
 /* しつもん（観察の観点）も宿題のノルマに数える。答えは state.questionAnswers に

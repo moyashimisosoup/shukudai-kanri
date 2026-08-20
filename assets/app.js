@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.29';
+const RELEASE_VERSION = '1.3.30';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -4749,6 +4749,14 @@ function closeSheet(){
   if(sheetNavPushed){ sheetNavPushed = false; history.back(); }
 }
 
+/* 何も 書きかわらなかった とき。ログを のこすと「きょう やったこと」に
+   ならぶだけでなく、didSomethingToday() が 真に なって ミニコンテンツの
+   解禁数まで 増える。何も していない 日に 増やさないため、記録は のこさず
+   「そのまま」と 一言だけ 伝える。 */
+function sheetUnchanged(progressChanged, answerChanges, memo){
+  return !progressChanged && !answerChanges.length && !memo;
+}
+
 function saveSheet(){
   const t = sheetTask;
   if(!t) return;
@@ -4849,10 +4857,17 @@ function saveSheet(){
   // さいごの しあげ。done / steps とは べつに のこす
   if(hasWrap(t) && sheetWrap){
     const added = WRAP_LABELS.filter((s,i)=> sheetWrap[i] && !p.wrap[i]);
+    /* 外した ぶんも 保存される。変わっていないことに すると、記録に
+       のこらないまま 印だけ 消えて しまう */
+    const removed = WRAP_LABELS.some((s,i)=> !sheetWrap[i] && p.wrap[i]);
     progPatch(t.id, { wrap: sheetWrap.slice() });
     if(added.length){
       progressChanged = true;
       what = [what, added.join('・') + ' が できた'].filter(Boolean).join('　');
+    }
+    if(removed && !added.length){
+      progressChanged = true;
+      if(what === 'すすみは そのまま') what = wording('しあげを もどした', '仕上げを直した');
     }
   }
 
@@ -4871,12 +4886,15 @@ function saveSheet(){
 
   const fullMemo = [ans, memo].filter(Boolean).join('\n');
 
-  state.logs.push({
-    id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
-    at: now.toISOString(), by: logBy(),
-    taskId: t.id, name: t.name, what, memo: fullMemo
-  });
-  if(state.logs.length > 3000) state.logs = state.logs.slice(-3000);
+  const unchanged = sheetUnchanged(progressChanged, answerChanges, memo);
+  if(!unchanged){
+    state.logs.push({
+      id: 'l' + now.getTime() + Math.floor(Math.random()*1000),
+      at: now.toISOString(), by: logBy(),
+      taskId: t.id, name: t.name, what, memo: fullMemo
+    });
+    if(state.logs.length > 3000) state.logs = state.logs.slice(-3000);
+  }
   saveSt();
 
   const after = prog(t);
@@ -4884,7 +4902,10 @@ function saveSheet(){
   /* 取り消し（0 にもどした）ときに「できた！」の はんこは 出さない。
      押しまちがいを 直しに 来た人に、できたと 言わない。
      0までは 戻さず 数だけ 減らした ときも 同じ理由で はんこは 出さない */
-  if((after.done | 0) === 0 && hadValue) toast('0 に もどしました');
+  /* 何も 変わっていない ときは「できた！」でも「なおしました」でもない。
+     ただし 黙って 閉じると 押せていないように 見えるので、一言だけ 出す */
+  if(unchanged) toast(wording('そのままに しておいたよ', '変わりはありません'));
+  else if((after.done | 0) === 0 && hadValue) toast('0 に もどしました');
   else if(dailyDecreased) toast('なおしました');
   /* 進みを 変えずに 答えだけ のこした ときに「できた！」と 出すと、
      宿題が 進んだと 読めてしまう。したことを そのまま 伝える */
