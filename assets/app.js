@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.30';
+const RELEASE_VERSION = '1.3.31';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -1286,11 +1286,14 @@ if(kinenbiDialog) kinenbiDialog.addEventListener('close', syncKinenbiClosed);
 function fmtTime(d){ return pad2(d.getHours())+':'+pad2(d.getMinutes()); }
 function keyToDate(k){ const p = k.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
 
+/* 長い 知らせは 2.2秒では 読み切れない。字の 多さに 合わせて のばす
+   （マイクの 許可のように、手だてを 2つ 出す ものが ある） */
 function toast(msg){
   const t = $('#toast');
   t.textContent = msg; t.hidden = false;
   clearTimeout(toast._t);
-  toast._t = setTimeout(()=>{ t.hidden = true; }, 2200);
+  const wait = Math.max(2200, Math.min(7000, String(msg || '').length * 160));
+  toast._t = setTimeout(()=>{ t.hidden = true; }, wait);
 }
 function stamp(text){
   const el = $('#stamp');
@@ -2371,8 +2374,8 @@ function taskHTML(t){
     if((t.targetUnit||'') === 'ハート'){
       const n = Math.max(p.total, p.done);
       let hearts = '';
-      for(let i=1;i<=n;i++) hearts += `<span class="heart${i<=p.done?' on':''}">❤️</span>`;
-      meter = `<div class="task-meter"><div class="hearts">${hearts}</div></div>`;
+      for(let i=1;i<=n;i++) hearts += `<span class="heart${i<=p.done?' on':''}"></span>`;
+      meter = `<div class="task-meter"><div class="hearts" role="img" aria-label="ハート ${p.done|0}/${n}">${hearts}</div></div>`;
     }else{
       meter = `<div class="task-meter task-meter--bar task-meter--daily">
         <div class="bar"><div class="bar-fill" style="width:${p.pct.toFixed(1)}%"></div></div>
@@ -4076,6 +4079,58 @@ function legacyQuestionAnswers(t){
   }
   return answers;
 }
+/* しつもん・だんかいの 行を 編集した とき、古い ならびの どの 添字が
+   新しい ならびの どこへ 行くかを 出す。-1 は 新しく ふえた 行。
+
+   答え（answers[i]）も だんかいの チェック（progress.steps[i]）も、
+   **添字だけ**で 行に ひもづいて いる。行の 編集は textarea を まるごと
+   置きかえる ので、間の1行を 消すと 後ろが 前へ 詰まり、答えと チェックが
+   1つ上へ ずれる。同じ 文の 行を さがして 取り直す。
+
+   文ごと 書き直した 行は さがしても 見つからない。余った もの どうしを
+   出てきた 順に 組み合わせて、書き直しただけの ときに 引きつぎを 落とさない。 */
+function realignIndexes(before, after){
+  const b = Array.isArray(before) ? before : [];
+  const a = Array.isArray(after)  ? after  : [];
+  const used = [];
+  const out = a.map(q=>{
+    const i = b.indexOf(q);
+    if(i < 0 || used.indexOf(i) >= 0) return -1;
+    used.push(i);
+    return i;
+  });
+  const rest = b.map((q,i)=>i).filter(i => used.indexOf(i) < 0);
+  let r = 0;
+  return out.map(i => i >= 0 ? i : (r < rest.length ? rest[r++] : -1));
+}
+
+/* 行を 入れかえる **前に** 呼ぶこと（古い ならびが 要る）。
+   何も 動かない ときは 書きこまない（同期に むだな 更新を 流さない） */
+function realignQuestionAnswers(t, before, after){
+  const map = realignIndexes(before, after);
+  if(before.length === after.length && map.every((oldI, i)=> oldI === i)) return;
+  const answers = questionAnswerRow(t).answers;
+  if(!answers.some(Boolean)) return;
+  saveQuestionAnswerRow(t, map.map(i => i < 0 ? '' : String(answers[i] || '')));
+  saveSt();
+}
+
+function realignStepProgress(t, before, after){
+  const map = realignIndexes(before, after);
+  if(before.length === after.length && map.every((oldI, i)=> oldI === i)) return;
+  const cur = state.progress[t.id];
+  if(!cur || !Array.isArray(cur.steps) || !cur.steps.some(Boolean)) return;
+  const steps = map.map(i => i < 0 ? false : !!cur.steps[i]);
+  const at = Array.isArray(cur.stepsAt) ? map.map(i => i < 0 ? 0 : ms(cur.stepsAt[i])) : [];
+  /* 動かした ぶんは「いま 決めた こと」なので、値が 変わった 行だけ 時刻を
+     いまに する。そうしないと、まだ 直していない 端末の 古い ならびに
+     合流で 負けて、ずれが もどって しまう */
+  state.progress[t.id] = Object.assign({}, cur, {
+    steps, stepsAt: stampArray(cur.steps, steps, at, Date.now())
+  });
+  saveSt();
+}
+
 function questionAnswerRow(t){
   const shared = state.questionAnswers && state.questionAnswers[t.id];
   let local = null;
@@ -4957,8 +5012,12 @@ function finishSR(session, btn){
   }
 }
 function srErrorMessage(code){
+  /* 許可を 押しそこねた のか、はじめから ことわった のかは、
+     Web Speech API からは 区別できない（どちらも not-allowed）。
+     分けずに、その場で できる 手だてを 両方 出す。
+     開き直すのが いちばん はやいので 先に 書く */
   if(code === 'not-allowed' || code === 'service-not-allowed'){
-    return 'マイクを使えません。SafariのWebサイト設定で、マイクを「許可」にしてください。';
+    return 'マイクを使えません。アプリを開き直すか、SafariのWebサイト設定でマイクを「許可」にしてください。';
   }
   if(code === 'audio-capture') return 'マイクが見つかりません。端末のマイク設定を確認してください。';
   if(code === 'network') return '音声入力に接続できません。通信を確認して、もう一度おしてください。';
@@ -6525,8 +6584,18 @@ function bindConfig(){
     else if(f === 'wrapBy')     t.wrapBy = e.target.value;
     else if(f === 'total')      t.total = clamp(+e.target.value||1, 1, 200);
     else if(f === 'target')     t.target = clamp(+e.target.value||1, 1, 999);
-    else if(f === 'steps')      t.steps = e.target.value.split('\n').map(s=>s.trim()).filter(Boolean);
-    else if(f === 'questions')  t.questions = e.target.value.split('\n').map(s=>s.trim()).filter(Boolean);
+    /* 行を 置きかえる 前に、答え・チェックを 新しい ならびへ 移す。
+       先に t.steps / t.questions を 書きかえると、古い ならびが 分からなくなる */
+    else if(f === 'steps'){
+      const next = e.target.value.split('\n').map(s=>s.trim()).filter(Boolean);
+      realignStepProgress(t, t.steps || [], next);
+      t.steps = next;
+    }
+    else if(f === 'questions'){
+      const next = e.target.value.split('\n').map(s=>s.trim()).filter(Boolean);
+      realignQuestionAnswers(t, t.questions || [], next);
+      t.questions = next;
+    }
     else if(f === 'type'){
       t.type = e.target.value;
       if(t.type==='count'  && !t.total) { t.total = 10; t.unit = t.unit || 'ばん'; t.numbered = true; }

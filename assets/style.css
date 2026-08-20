@@ -1030,10 +1030,17 @@ select{ appearance:auto; -webkit-appearance:menulist; }
   padding:3px 12px; white-space:nowrap;
 }
 
-/* まいにちアプリの ハート */
-.hearts{ display:flex; gap:6px; font-size:28px; line-height:1; }
-.heart{ filter:grayscale(1); opacity:.3; }
-.heart.on{ filter:none; opacity:1; }
+/* まいにちアプリの ハート。
+   絵文字は 端末ごとに 形も 色も ちがい、白黒の 端末では 数えにくい。
+   ほかの しるし（paw・sun など）と 同じ 抜き型（mask）に そろえ、
+   色だけで 済んだ／まだ を 出す。かたちは どの端末でも 同じ */
+.hearts{ display:flex; gap:6px; line-height:1; }
+.heart{
+  flex:none; width:26px; height:26px; background:var(--suika-usu);
+  -webkit-mask:url("heart.svg?v=20260820a") center / contain no-repeat;
+  mask:url("heart.svg?v=20260820a") center / contain no-repeat;
+}
+.heart.on{ background:var(--suika); }
 .streak{
   font-size:16px; font-weight:900; color:var(--asagao);
   background:var(--asagao-usu); border:2px solid var(--asagao);

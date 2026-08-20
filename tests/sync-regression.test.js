@@ -2704,11 +2704,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260818b',
+    'assets/style.css': '20260820a',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260820a',
+    'assets/app.js': '20260820b',
     'assets/sync.js': '20260818a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2731,19 +2731,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.30をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.30';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.30">/);
-  assert.equal(PACKAGE.version, '1.3.30');
-  assert.equal(PACKAGE_LOCK.version, '1.3.30');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.30');
+test('公開版番号v1.3.31をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.31';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.31">/);
+  assert.equal(PACKAGE.version, '1.3.31');
+  assert.equal(PACKAGE_LOCK.version, '1.3.31');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.31');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4434,6 +4434,35 @@ test('しあげの印を外したときも、書きかわったものとして�
   assert.match(save, /const removed = WRAP_LABELS\.some\(\(s,i\)=> !sheetWrap\[i\] && p\.wrap\[i\]\);/);
   assert.match(save, /if\(removed && !added\.length\)\{[\s\S]{0,200}progressChanged = true;/,
     '外した ぶんは 保存されるので、記録にも のこすこと');
+});
+
+/* マイクの 許可を 押しそこねた ときの 案内。押しそこねたのか、そもそも
+   ことわったのかは Web Speech API からは 区別できない（どちらも not-allowed）。
+   分けずに、その場で できる 手だてを 両方 出す。 */
+test('マイクを使えないときは、開き直す方法と設定の両方を案内する', ()=>{
+  const msg = new Function(`${grab(APP, 'srErrorMessage')} return srErrorMessage('not-allowed');`)();
+  assert.match(msg, /開き直/, 'アプリを開き直せば直ることを伝えること');
+  assert.match(msg, /許可/, 'Safariの設定で許可する道も残すこと');
+  /* 2.2秒では 読み切れない 長さなので、長い 知らせは 表示を のばす */
+  assert.match(grab(APP, 'toast'), /Math\.max\(2200/, '長い知らせを2.2秒で消さないこと');
+});
+
+/* 保護者画面で しつもん（や だんかい）の行を 消すと、答え・チェックが
+   1つ上へ ずれていた。答えは `answers[i]`、だんかいは `progress.steps[i]` と
+   **添字だけ**で 問に ひもづいて いるのに、行の 編集は textarea を
+   まるごと 置きかえる ため、消した ぶん 後ろが 前へ 詰まる。
+   行の 文で 対応を 取り直してから 入れかえること。 */
+test('しつもん・だんかいの行を消しても、答えとチェックはその行に付いたまま', ()=>{
+  const map = new Function(`${grab(APP, 'realignIndexes')} return realignIndexes;`)();
+  assert.deepEqual(map(['A','B','C'], ['A','C']), [0, 2], '消した行の ぶんを 詰めること');
+  assert.deepEqual(map(['A','B'], ['B','A']), [1, 0], '並べかえにも ついていくこと');
+  assert.deepEqual(map(['A','B'], ['A','D','B']), [0, -1, 1], '足した行には 何も 引きつがないこと');
+  assert.deepEqual(map(['A','B'], ['A','B2']), [0, 1], '書き直しただけの行は 引きつぐこと');
+  const ed = grab(APP, "bindConfig");
+  assert.match(ed, /realignQuestionAnswers\(t, t\.questions \|\| \[\], next\)/,
+    'しつもんを 入れかえる 前に 答えを そろえること');
+  assert.match(ed, /realignStepProgress\(t, t\.steps \|\| \[\], next\)/,
+    'だんかいも 同じように そろえること');
 });
 
 /* しつもん（観察の観点）も宿題のノルマに数える。答えは state.questionAnswers に
