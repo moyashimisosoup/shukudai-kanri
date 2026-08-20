@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.33';
+const RELEASE_VERSION = '1.4.0';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -320,6 +320,14 @@ function normalizeConfig(c){
     c.theme = THEME_IDS.includes(legacyTheme) ? legacyTheme : 'notebook';
   }
   if(typeof c.showDaily !== 'boolean') c.showDaily = false;
+  /* 宿題の一覧の写真。**印だけ**を共有する（画像は端末の中）。
+     ここに画像を入れると1文書1MiBの上限にあたり、家庭ぜんぶの同期が止まる */
+  const poster = c.poster && typeof c.poster === 'object' ? c.poster : {};
+  const posterAt = Number(poster.at);
+  c.poster = {
+    label: String(poster.label || 'いちらん').slice(0, 6),
+    at: posterAt > 0 ? posterAt : 0
+  };
   /* 読める漢字。既存グループは、その端末に のこっている 値を 引きつぐ。
      0/1/2/9 だけだった 旧データも、この一覧に 入っているので そのまま通る。 */
   if(!READING_GRADE_OPTIONS.includes(Number(c.readingGrade))){
@@ -1038,6 +1046,8 @@ function applyRemote(remote){
       syncPush('config');
     }
     changed = true;
+    /* グループの印が新しければ、受け渡し箱から取りに行く（画面は待たせない） */
+    if(typeof checkPosterArrival === 'function') checkPosterArrival();
   }
 
   if(remote.state){
@@ -1985,6 +1995,158 @@ function joinRolePickHTML(){
   </section>`;
 }
 
+/* ---------------------------------------------------------
+   宿題の 一覧の 写真
+
+   1家庭に 1枚だけ。写真の 本体は **この端末の 中**（IndexedDB）に あり、
+   config には ボタンの 名前と「いつのものか」しか 入れない。
+   **config に 画像を 入れないこと。** 入れると 1文書 1MiB の 上限に あたり、
+   家庭ぜんぶの 同期が 止まる。
+
+   ほかの端末へは、一時の 受け渡し箱（sync.js の 5.7）で 渡す。
+   届いていない ときは「まだ とどいていない」と 出す。壊れて 見せない。
+   --------------------------------------------------------- */
+const POSTER_ID = 'poster';
+const POSTER_LABEL_DEFAULT = 'いちらん';
+const K_POSTER_AT = TEST_MODE ? 'natsu.preview.poster.at.v1' : 'natsu.poster.at.v1';
+let posterURL = '';        // 表示用。IndexedDB の Blob から 作る
+let posterFresh = false;   // 届いたばかりの 印
+let posterBusy = false;    // 取りに行っている 最中（二重に 走らせない）
+
+function photos(){ return window.NatsuPhotos || null; }
+function posterCfg(){
+  const p = config.poster && typeof config.poster === 'object' ? config.poster : {};
+  return { label: String(p.label || POSTER_LABEL_DEFAULT).slice(0, 6), at: ms(p.at) };
+}
+function posterHeldAt(){ return ms(getLocal(K_POSTER_AT)); }
+
+/* 端末に ある ぶんを 出す。読めなくても アプリは そのまま 動く */
+async function loadPoster(){
+  const lib = photos();
+  if(!lib) return;
+  const blob = await lib.get(POSTER_ID);
+  if(!blob){ posterURL = ''; return; }
+  if(posterURL) URL.revokeObjectURL(posterURL);
+  posterURL = URL.createObjectURL(blob);
+}
+
+/* グループの 印が この端末の ものより 新しければ、箱から 受け取る。
+   受け取ったら 知らせる（黙って 差しかえない） */
+async function checkPosterArrival(){
+  const lib = photos();
+  if(!lib || posterBusy) return;
+  const want = posterCfg().at;
+  if(!want || want <= posterHeldAt()) return;
+  if(!(typeof S.takeHandoff === 'function' && sharingOn())) return;
+  posterBusy = true;
+  try{
+    const dataURL = await S.takeHandoff();
+    if(!dataURL) return;
+    const blob = await lib.fromDataURL(dataURL);
+    if(!blob) return;
+    await lib.put(POSTER_ID, blob);
+    setLocal(K_POSTER_AT, String(want));
+    await loadPoster();
+    posterFresh = true;
+    toast('あたらしい ' + posterCfg().label + 'が とどいたよ');
+    render({ keepScroll:true });
+    if(typeof S.clearHandoff === 'function') S.clearHandoff();
+  }finally{ posterBusy = false; }
+}
+
+/* 保護者の 端末で 選んだ ぶん。縮めてから 置き、印を 同期し、箱へ 入れる */
+async function savePosterFile(file){
+  const lib = photos();
+  if(!lib || !file) return;
+  toast('写真を用意しています…');
+  const shrunk = await lib.shrink(file);
+  if(!shrunk){
+    toast('この写真は大きすぎます。もう少し小さく写してください');
+    return;
+  }
+  await lib.put(POSTER_ID, shrunk.blob);
+  const now = Date.now();
+  setLocal(K_POSTER_AT, String(now));
+  config.poster = { label: posterCfg().label, at: now };
+  saveCfg();
+  await loadPoster();
+  posterFresh = false;
+  render({ keepScroll:true });
+  handPoster(shrunk.blob);
+}
+
+/* 相手の 端末へ 渡す。受け取ったかどうかは 分からないので、
+   「渡した」までしか 言わない（分からないことを 断定しない） */
+async function handPoster(blob){
+  const lib = photos();
+  if(!lib || !sharingOn() || typeof S.putHandoff !== 'function'){
+    toast('この端末に 保存しました');
+    return;
+  }
+  const dataURL = await lib.toDataURL(blob || await lib.get(POSTER_ID));
+  const ok = dataURL && await S.putHandoff(dataURL);
+  toast(ok ? 'わたしました（24時間 ゆうこう）' : 'この端末に 保存しました');
+}
+
+async function removePoster(){
+  const lib = photos();
+  if(lib) await lib.remove(POSTER_ID);
+  if(posterURL){ URL.revokeObjectURL(posterURL); posterURL = ''; }
+  setLocal(K_POSTER_AT, '0');
+  config.poster = { label: posterCfg().label, at: 0 };
+  saveCfg();
+  render({ keepScroll:true });
+}
+
+/* 子ども画面の 入口。カウントダウンの 右上に 置く。
+   **縦を 増やさない**（帯は iPhone の 幅で すでに いっぱいで、
+   足すと タイトルが 切れる。実測で 見出し行の 右に 空きが ある）。
+   写真の 印が 無いときは ボタンごと 出さない */
+function posterChipHTML(){
+  const cfg = posterCfg();
+  if(!cfg.at) return '';
+  const label = posterURL ? cfg.label : 'まだ です';
+  return `<button class="poster-chip${posterFresh ? ' is-fresh' : ''}" id="posterOpen" type="button"
+    aria-label="${esc(cfg.label)} を 見る"><span class="poster-chip-ico" aria-hidden="true"></span><span
+    class="poster-chip-txt">${esc(label)}</span></button>`;
+}
+
+function openPoster(){
+  const dialog = $('#posterDialog');
+  const img = $('#posterImg');
+  if(!dialog || !img) return;
+  if(!posterURL){ toast('まだ とどいていないよ'); return; }
+  img.src = posterURL;
+  $('#posterTitle').textContent = posterCfg().label;
+  posterFresh = false;
+  if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+}
+
+/* 保護者ページ「宿題を決める」の 欄。大人向けの 言い方で 書く */
+function posterSectionHTML(){
+  const cfg = posterCfg();
+  const state = !cfg.at ? 'まだ登録していません。'
+    : posterURL ? 'この端末に保存されています。'
+    : 'この端末には写真がありません。写真のある端末で「もう一度わたす」を押してください。';
+  const share = sharingOn()
+    ? '渡した写真は24時間だけ受け取れます。受け取ったかどうかは分からないため、届かないときはもう一度わたしてください。'
+    : '共有を使っていないため、この端末の中だけで使います。';
+  return `
+  <section class="sec config-sec"><div class="sec-head"><h2>宿題の一覧の写真</h2></div><div class="paper">
+    <p class="set-note">プリントや時間割、目標表などを1枚だけ持たせます。子ども画面のカウントダウンの右上に、開くボタンが出ます。写真は各端末の中に保存し、共有データには入れません。</p>
+    <div class="set-row"><label class="lab" for="posterLabel">ボタンの名前</label>
+      <input type="text" id="posterLabel" maxlength="6" value="${esc(cfg.label)}"></div>
+    <p class="set-note">4文字までにすると、子ども画面できれいに収まります。</p>
+    <div class="poster-actions">
+      <label class="btn btn-go" for="posterFile">写真を選ぶ</label>
+      <input type="file" id="posterFile" accept="image/*" hidden>
+      ${cfg.at ? '<button class="btn" id="posterSend" type="button">もう一度わたす</button>' : ''}
+      ${cfg.at ? '<button class="btn" id="posterClear" type="button">写真を消す</button>' : ''}
+    </div>
+    <p class="set-note">${esc(state)}${esc(share)}</p>
+  </div></section>`;
+}
+
 function viewHome(){
   if(DEBUG_CONTENT) return contentDebugHTML();
   if(joinRoleNeeded()) return joinRolePickHTML();
@@ -2005,7 +2167,7 @@ function viewHome(){
 
   return `
   <section class="count">
-    <p class="count-lead">なつやすみ おわりまで</p>
+    <p class="count-lead">なつやすみ おわりまで${posterChipHTML()}</p>
     <div id="cdBox"></div>
     ${paceHTML(o)}
   </section>
@@ -5586,6 +5748,8 @@ function viewTasks(){
   return `
   ${adultHeadHTML('tasks', '変更はすぐに保存されます。')}
 
+  ${posterSectionHTML()}
+
   ${taskSectionHTML({
     title:'必ず行う宿題', rows:must, editorId:'mustTaskEditor',
     note:'子ども画面の「かならず やる」に出ます。上へ・下へで順番を変更できます。「表示する場所」を変えると、下の「次に行う宿題」へ移ります。',
@@ -6486,6 +6650,23 @@ function bindSync(){
 
 /* 保護者ページ（設定）*/
 function bindConfig(){
+  /* 宿題の一覧の写真。画像は端末の中に置き、共有には印だけを流す */
+  on('#posterFile', 'change', e=>{
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(file) savePosterFile(file);
+  });
+  on('#posterSend', 'click', ()=> handPoster());
+  on('#posterClear', 'click', ()=>{
+    if(confirm('宿題の一覧の写真を消しますか？' + '\n' + 'この端末から消えます。')) removePoster();
+  });
+  on('#posterLabel', 'change', e=>{
+    const label = String(e.target.value || '').trim().slice(0, 6) || 'いちらん';
+    config.poster = { label, at: posterCfg().at };
+    saveCfg();
+    render({ keepScroll:true });
+  });
+
   on('#cfgChildName', 'change', e=>{
     const name = e.target.value.trim();
     const oldName = config.childName;
@@ -6999,6 +7180,12 @@ document.addEventListener('click', e=>{
 
   if(e.target.closest('#todayLabel')){ openKinenbi(new Date()); return; }
   if(e.target.closest('#kinenbiClose')){ closeKinenbi(); return; }
+  if(e.target.closest('#posterOpen')){ openPoster(); render({ keepScroll:true }); return; }
+  if(e.target.closest('#posterClose')){
+    const dialog = $('#posterDialog');
+    if(typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open');
+    return;
+  }
   if(e.target.id === 'kinenbiDialog'){
     const r = e.target.getBoundingClientRect();
     const outside = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
@@ -7633,5 +7820,7 @@ if(typeof window.natsuBootProgress === 'function') window.natsuBootProgress(100,
 render();
 noticeAdopted(); // 取り込みの直後なら、何が起きたのかを一言だけ残す
 checkForNewVersion(); // 描画を待たせない。結果は次の描画で静かに反映する
+/* 端末に ある 写真を 読んでから 描き直す。読めなくても 先に 画面は 出す */
+loadPoster().then(()=>{ if(posterURL) render({ keepScroll:true }); });
 
 })();

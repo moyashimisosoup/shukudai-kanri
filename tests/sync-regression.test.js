@@ -12,6 +12,7 @@ const SYNC = fs.readFileSync(path.join(ROOT, 'assets', 'sync.js'), 'utf8');
 const RULES = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
 const DATA = fs.readFileSync(path.join(ROOT, 'assets', 'data.js'), 'utf8');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const PHOTOS = fs.readFileSync(path.join(ROOT, 'assets', 'photos.js'), 'utf8');
 const DOCS_INDEX = fs.readFileSync(path.join(ROOT, 'start', 'index.html'), 'utf8');
 const GUIDE = fs.readFileSync(path.join(ROOT, 'start', 'getting-started.html'), 'utf8');
 const UPDATES = fs.readFileSync(path.join(ROOT, 'start', 'updates.html'), 'utf8');
@@ -2404,7 +2405,9 @@ test('設定の宿題名は、狭い画面では1行まるごと使って切ら�
 });
 
 test('励まし文と「あと」は狭い画面でも一続きに読める', ()=>{
-  assert.match(APP, /<p class="count-lead">なつやすみ おわりまで<\/p>/);
+  /* 一覧の写真のボタンを同じ行に置いた。呼びかけの文はこれまでどおり
+     ひと続きで、ボタンは同じ行の中に収める（縦を増やさないため）。 */
+  assert.match(APP, /<p class="count-lead">なつやすみ おわりまで\$\{posterChipHTML\(\)\}<\/p>/);
   assert.match(APP, /big \? '<span class="cd-prefix">あと<\/span>' : ''/,
     '「あと」は日数の数字盤に結びつける');
   assert.match(STYLE, /\.cd-unit--big\{ position:relative; \}/);
@@ -2704,12 +2707,13 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260820c',
+    'assets/style.css': '20260820d',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260820d',
-    'assets/sync.js': '20260818a'
+    'assets/app.js': '20260820e',
+    'assets/sync.js': '20260818a',
+    'assets/photos.js': '20260820a'
   };
   for(const [file, version] of Object.entries(versions)){
     assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=' + version));
@@ -2731,19 +2735,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.33をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.33';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.33">/);
-  assert.equal(PACKAGE.version, '1.3.33');
-  assert.equal(PACKAGE_LOCK.version, '1.3.33');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.33');
+test('公開版番号v1.4.0をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.4\.0';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.4\.0">/);
+  assert.equal(PACKAGE.version, '1.4.0');
+  assert.equal(PACKAGE_LOCK.version, '1.4.0');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.4.0');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4492,6 +4496,56 @@ test('欄が全部済んだら、但し書きは出さずスタンプだけに�
     '済んだ欄で のこり件数や「ぜんぶ できた」を かさねて 出さないこと');
   assert.doesNotMatch(sec, /aria-hidden="true">✓<\/span>/,
     'スタンプの中に チェック印を かさねないこと');
+});
+
+/* 宿題の一覧の写真。画像の本体は端末の中（IndexedDB）に置き、共有には
+   「いつのものか」の印だけを流す。1家庭＝Firestoreの1文書（1MiB）なので、
+   ここに画像が混ざると、記録がたまるほど上限に近づき、いつか家庭ぜんぶの
+   同期が止まる。 */
+test('共有する設定には、写真の印だけを入れて画像は入れない', ()=>{
+  const out = normalizeConfigHarness({
+    poster: { label:'いちらん', at: 1755000000000, photo:'data:image/jpeg;base64,AAAA' }
+  });
+  assert.deepEqual(Object.keys(out.poster).sort(), ['at','label'],
+    '画像そのものを config に持ちこまないこと');
+  assert.equal(out.poster.at, 1755000000000);
+  const app = grab(APP, 'savePosterFile');
+  assert.match(app, /config\.poster = \{ label: posterCfg\(\)\.label, at: now \};/,
+    '保存するのは印だけにすること');
+  assert.doesNotMatch(app, /config\.poster[^\n]*dataURL/, '設定に画像を入れないこと');
+});
+
+test('受け渡し箱へ書くのは暗号文で、期限を必ず付ける', ()=>{
+  const put = grab(SYNC, 'putHandoff');
+  assert.match(put, /photo: await encryptField\('photo', getCode\(\)/,
+    '写真も合言葉の鍵で包むこと');
+  assert.match(put, /expiresAt: new Date\(now \+ HANDOFF_MS\)/,
+    '消し忘れが残らないよう、期限を必ず付けること');
+  assert.match(RULES, /match \/photo_handoff\/\{houseId\}/, 'ルールに受け渡し箱を足すこと');
+  assert.match(RULES, /allow delete:\s+if request\.auth != null && validHouseId\(houseId\);/,
+    '受け取った側が片づけられるよう、この箱だけ delete を許すこと');
+});
+
+test('縮めても収まらない写真は、荒くして通さずに断る', ()=>{
+  assert.match(PHOTOS, /const MAX_BYTES = 500 \* 1024;/);
+  assert.match(PHOTOS, /if\(blob && blob\.size <= MAX_BYTES\) return \{ blob/,
+    '上限に収まったものだけ通すこと');
+  assert.match(grab(PHOTOS, 'shrink'), /return null;\s*\}$/,
+    'どうしても収まらないときは null を返して、呼ぶ側に断らせること');
+  assert.doesNotMatch(INDEX, /accept="image\/\*,image\/heic"/,
+    'accept に image/heic を書かないこと（Safari 17以降、逆にHEICへ変換される）');
+});
+
+/* 配信するスクリプトを まるごと 読ませて、構文を 確かめる。
+   ほかのテストは grab() で関数を切り出して見るので、**ファイル全体の
+   構文エラーは通り抜ける**。実際、文字列の中に生の改行が入って
+   app.js が丸ごと動かなくなったのに、テストは全部通った。
+   壊れたら画面が真っ白になるところなので、ここで止める。 */
+test('配信するスクリプトは、まるごと構文が通る', ()=>{
+  const files = { 'app.js':APP, 'photos.js':PHOTOS, 'sync.js':SYNC, 'data.js':DATA };
+  for(const [name, src] of Object.entries(files)){
+    assert.doesNotThrow(()=> new vm.Script(src, { filename:name }), name + ' の構文が通ること');
+  }
 });
 
 /* しつもん（観察の観点）も宿題のノルマに数える。答えは state.questionAnswers に

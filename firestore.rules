@@ -115,6 +115,30 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /* ---------- 写真の受け渡し箱（一時） ----------
+       宿題の一覧の写真を、親の端末から子の端末へその場で渡すための箱。
+       写真の本体は各端末の中（IndexedDB）にあり、ここは運ぶだけ。
+       グループの文書に入れないのは、1文書1MiBの上限に写真を乗せると
+       家庭ぜんぶの同期が止まるため。
+
+       中身はあいことばの鍵で包んだ文字列なので、IDを当てられても読めない。
+
+       **このパスだけ delete を許す。** ほかは全部禁止しているが、
+       ここは受け取った側が自分で片づけられる必要がある。消し忘れても
+       expiresAt の TTL が消す（Console で TTL を設定すること）。 */
+    match /photo_handoff/{houseId} {
+      allow get:            if request.auth != null && validHouseId(houseId);
+      allow list:           if false;
+      allow create, update: if request.auth != null && validHouseId(houseId)
+                            && notRetired(houseId)
+                            && request.resource.data.keys()
+                                 .hasOnly(['photo', 'at', 'from', 'expiresAt'])
+                            && request.resource.data.photo is string
+                            && request.resource.data.photo.size() < 900000
+                            && request.resource.data.expiresAt is timestamp;
+      allow delete:         if request.auth != null && validHouseId(houseId);
+    }
+
     /* 上に書いていない場所は、すべて禁止 */
     match /{document=**} {
       allow read, write: if false;

@@ -604,6 +604,57 @@ button{ font:inherit; color:inherit; }
 .adult-view .sec-head{ border-radius:var(--r); }
 @media (max-width:400px){ .adult-view .sec-head h2{ font-size:19px; } }
 
+/* 宿題の 一覧の 写真を 開く ボタン。
+   帯（タイトル行）は iPhone の 幅で すでに いっぱいで、足すと タイトルが
+   切れる（style.css の 帯の 項に そのむねの 覚えが ある）。そこで
+   カウントダウンの 見出し行に 同居させ、**その行の 中で** 収める。
+
+   角に 重ねる やり方は やめた。実測で 見出しの 字と 41px 重なる。
+   行に 並べて 下の すきまを つめれば、増える 高さは 数px で 済む。 */
+.poster-chip{
+  display:inline-flex; align-items:center; gap:4px; position:relative;
+  flex:none; min-height:38px; padding:5px 8px;
+  border:3px solid var(--ai); border-radius:var(--r-pill);
+  background:var(--kami); color:var(--ai);
+  font-size:13px; font-weight:900; line-height:1.15; cursor:pointer;
+  box-shadow:2px 2px 0 var(--ai);
+}
+.poster-chip:active{ transform:translateY(1px); box-shadow:1px 1px 0 var(--ai); }
+.poster-chip:focus-visible{ outline:3px solid var(--ai); outline-offset:2px; }
+.poster-chip-ico{
+  flex:none; width:18px; height:18px; background:currentColor;
+  -webkit-mask:url("sheet.svg?v=20260820a") center / contain no-repeat;
+  mask:url("sheet.svg?v=20260820a") center / contain no-repeat;
+}
+.poster-chip-txt{ max-width:6em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* 届いたばかりの しるし。帯の 未読点と 同じ 考え方 */
+.poster-chip.is-fresh::after{
+  content:""; position:absolute; inset-block-start:-3px; inset-inline-end:-3px;
+  width:12px; height:12px; border-radius:var(--r-pill);
+  background:var(--himawari); border:2px solid var(--kami);
+}
+/* いちばん せまい 端末では、見出しと 1行に 収まらないので しるしだけに する */
+@media (max-width:340px){
+  .poster-chip{ padding:6px; }
+  .poster-chip-txt{ display:none; }
+}
+
+.poster-dialog{
+  width:min(96vw, 900px); max-height:92vh; padding:14px;
+  border:var(--line) solid var(--ai); border-radius:var(--r);
+  background:var(--kami); color:var(--ai);
+}
+.poster-dialog::backdrop{ background:rgba(20,55,94,.55); }
+.poster-head{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.poster-head h2{ flex:1 1 auto; min-width:0; font-size:20px; font-weight:900;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.poster-body{ overflow:auto; max-height:80vh; }
+/* 写真は 端末の 幅に そろえる。文字が 小さくて 読めない ときは
+   端末の 拡大（ピンチ）で 見る */
+.poster-body img{ display:block; width:100%; height:auto; border-radius:var(--r-s); }
+
+.poster-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; }
+
 /* =========================================================
    シグネチャ 1 : マス目のカウントダウン
    ========================================================= */
@@ -617,8 +668,12 @@ button{ font:inherit; color:inherit; }
   position:relative; overflow:hidden;
 }
 .count-lead{
+  /* 一覧の ボタンを 同じ 行に 並べる。下の すきまを つめて、
+     行が 高く なった ぶんを 打ち消す（画面の 縦は 宿題の ために 使う） */
+  display:flex; align-items:center; justify-content:center;
+  flex-wrap:wrap; gap:4px 6px;
   font-size:18px; font-weight:700; color:var(--ai-usu);
-  margin-bottom:12px;
+  margin-bottom:2px;
 }
 /* 画面幅に合わせて縮むので、iPad の縦でも横1行に収まる */
 .cd{

@@ -924,6 +924,86 @@ async function getRegistrationCount(){
 /* ---------------------------------------------------------
    7. 外に見せるもの
    --------------------------------------------------------- */
+/* ---------------------------------------------------------
+   5.7 写真の 受け渡し箱（一時）
+
+   宿題の 一覧の 写真は、各端末の 中（IndexedDB）に 置く。
+   ここは **運ぶだけの 箱**で、置き場では ない。
+
+   ・グループの 文書（households）には 入れない。1文書 1MiB に 写真が
+     乗ると、記録が たまるほど 上限に 近づき、いつか 家庭ぜんぶの 同期が
+     止まる。だから 別の 文書に 分ける。
+   ・**読んだら 消す、では なく 期限で 消える。** 読み取りと 削除の あいだで
+     通信が 切れると「読めていないのに 消えた」が 起きる。TTL に まかせ、
+     削除は 補助に する。子端末が 何台 あっても 早い者勝ちに ならない。
+   ・中身は これまでと 同じ 合言葉の 鍵で 包む。AAD に 'photo' を 使うので、
+     config / state の 暗号文と 取りちがえない。
+
+   **Firebase コンソールで expiresAt に TTL を 設定すること。**
+   90日の 保持期限の しくみ（手動ツール・未デプロイの Function）は
+   この パスを 見ないので、TTL が 無いと 消し忘れが たまる。 */
+const HANDOFF_PATH = 'photo_handoff';
+const HANDOFF_MS = 24 * 60 * 60 * 1000;
+
+async function handoffRef(){
+  const code = getCode();
+  if(code.length < 8 || !configured()) return null;
+  if(!db){
+    if(!initPromise) initPromise = initFirebase();
+    await initPromise;
+  }
+  if(!db || !Sync._fs) return null;
+  return Sync._fs.doc(db, HANDOFF_PATH, await houseIdFor(code));
+}
+
+/* 写真を 箱に 入れる。渡せたかどうかだけを 返す */
+async function putHandoff(dataURL){
+  try{
+    const ref = await handoffRef();
+    if(!ref) return false;
+    const now = Date.now();
+    await Sync._fs.setDoc(ref, {
+      photo: await encryptField('photo', getCode(), String(dataURL || '')),
+      at: now,
+      from: getDeviceId(),
+      expiresAt: new Date(now + HANDOFF_MS)
+    });
+    return true;
+  }catch(err){
+    noteTrouble('写真の受け渡し', err);
+    return false;
+  }
+}
+
+/* 箱を のぞく。空・読めない・切れている ときは null。
+   呼ぶ側は「まだ とどいていない」と 出すこと（例外の 文言を 画面に 出さない） */
+async function takeHandoff(){
+  try{
+    const ref = await handoffRef();
+    if(!ref) return null;
+    const fs = Sync._fs;
+    const read = typeof fs.getDocFromServer === 'function' ? fs.getDocFromServer : fs.getDoc;
+    const snap = await read(ref);
+    if(!snap.exists()) return null;
+    const raw = (snap.data() || {}).photo;
+    if(!isCiphertext(raw)) return null;
+    return await decryptField('photo', getCode(), raw);
+  }catch(err){
+    noteTrouble('写真の受け取り', err);
+    return null;
+  }
+}
+
+/* 受け取った あとの 後始末。失敗しても 害は ない（TTL が 消す） */
+async function clearHandoff(){
+  try{
+    const ref = await handoffRef();
+    if(!ref || typeof Sync._fs.deleteDoc !== 'function') return false;
+    await Sync._fs.deleteDoc(ref);
+    return true;
+  }catch(e){ return false; }
+}
+
 const Sync = {
   _fs: null,
   configured,
@@ -952,6 +1032,7 @@ const Sync = {
   disconnect,
   verifyHousehold,
   registerHousehold,
+  putHandoff, takeHandoff, clearHandoff,
   getRegistrationCount,
   /* あいことばを 入れ替えて つなぎ直す */
   /* opts.joining … すでに ある グループへ 入るとき true。
