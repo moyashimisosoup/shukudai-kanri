@@ -2713,7 +2713,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260821c',
+    'assets/app.js': '20260821d',
     'assets/sync.js': '20260821a',
     'assets/photos.js': '20260820a'
   };
@@ -2737,19 +2737,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.4.3をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.4\.3';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.4\.3">/);
-  assert.equal(PACKAGE.version, '1.4.3');
-  assert.equal(PACKAGE_LOCK.version, '1.4.3');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.4.3');
+test('公開版番号v1.4.4をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.4\.4';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.4\.4">/);
+  assert.equal(PACKAGE.version, '1.4.4');
+  assert.equal(PACKAGE_LOCK.version, '1.4.4');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.4.4');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4575,6 +4575,19 @@ test('同期を使う関数は、必ず S を宣言してから使う', ()=>{
       name + ' は S を宣言してから使うこと（素の S は ReferenceError になる）');
   }
   assert.match(grab(APP, 'sync'), /return window\.NatsuSync \|\| null;/);
+});
+
+/* 渡すたびに 印の時刻を 更新しないと、相手から見て「新しいものがある」ことに
+   ならず、自動では取りに行かない。実機で「渡せているのに子端末が受け取らない」
+   という形で出た。手で押す「写真を受け取る」も用意し、結果をそのまま伝える。 */
+test('渡し直したら合図も更新し、手で受け取る道も残す', ()=>{
+  const bind = grab(APP, 'bindConfig');
+  assert.match(bind, /if\(!await handPoster\(\)\) return;[\s\S]{0,160}config\.poster = \{ label: posterCfg\(\)\.label, at \};[\s\S]{0,40}saveCfg\(\);/,
+    '渡せたときは印の時刻も更新すること');
+  assert.match(bind, /checkPosterArrival\(\{ force:true \}\)/, '手で押したときは間引きを飛ばすこと');
+  const check = grab(APP, 'checkPosterArrival');
+  assert.match(check, /if\(!want \|\| \(!force && want <= posterHeldAt\(\)\)\) return 'skip';/);
+  assert.match(check, /return 'empty';/, '箱が空のときは、そう分かる形で返すこと');
 });
 
 /* しつもん（観察の観点）も宿題のノルマに数える。答えは state.questionAnswers に

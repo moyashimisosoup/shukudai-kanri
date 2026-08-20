@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.4.3';
+const RELEASE_VERSION = '1.4.4';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2042,24 +2042,30 @@ async function loadPoster(){
    受け取ったら 知らせる（黙って 差しかえない） */
 const POSTER_RETRY_MS = 3 * 60 * 1000;
 let posterTriedAt = 0;
-async function checkPosterArrival(){
+/* opts.force … 人が「受け取る」を 押した とき。間引きを 飛ばし、
+   結果を 返す（'got' / 'empty' / 'skip'）。ふだんの 自動の 呼び出しは
+   黙って 帰る。**自動だけに 頼らないこと。** 届かなかった ときに
+   何が 起きたのか 人に 分からないと、直しようが ない。 */
+async function checkPosterArrival(opts){
+  const force = !!(opts && opts.force);
   const lib = photos();
-  if(!lib || posterBusy) return;
+  if(!lib || posterBusy) return 'skip';
   const want = posterCfg().at;
-  /* くらべるのは 端末の 中の 値どうし。ここで 帰るときは 通信しない */
-  if(!want || want <= posterHeldAt()) return;
+  /* くらべるのは 端末の 中の 値どうし。ここで 帰るときは 通信しない。
+     人が 押した ときは、印が 同じでも いちおう 見にいく */
+  if(!want || (!force && want <= posterHeldAt())) return 'skip';
   const S = sync();
-  if(!(S && typeof S.takeHandoff === 'function' && sharingOn())) return;
+  if(!(S && typeof S.takeHandoff === 'function' && sharingOn())) return 'skip';
   /* 箱が まだ 空の ことは ある（渡す 途中など）。空振りを くり返して
      読み取りを 使い切らないよう、3分に 一度までに する */
-  if(posterTriedAt && Date.now() - posterTriedAt < POSTER_RETRY_MS) return;
+  if(!force && posterTriedAt && Date.now() - posterTriedAt < POSTER_RETRY_MS) return 'skip';
   posterTriedAt = Date.now();
   posterBusy = true;
   try{
     const dataURL = await S.takeHandoff();
-    if(!dataURL) return;
+    if(!dataURL) return 'empty';
     const blob = await lib.fromDataURL(dataURL);
-    if(!blob) return;
+    if(!blob) return 'empty';
     await lib.put(POSTER_ID, blob);
     setLocal(K_POSTER_AT, String(want));
     await loadPoster();
@@ -2067,6 +2073,7 @@ async function checkPosterArrival(){
     toast('あたらしい ' + posterCfg().label + 'が とどいたよ');
     render({ keepScroll:true });
     if(typeof S.clearHandoff === 'function') S.clearHandoff();
+    return 'got';
   }finally{ posterBusy = false; }
 }
 
@@ -2179,7 +2186,9 @@ function posterSectionHTML(){
   try{ sent = JSON.parse(getLocal(K_POSTER_SENT) || 'null'); }catch(e){}
   const state = !cfg.at ? 'まだ登録していません。'
     : here ? 'この端末に保存されています。'
-    : 'この端末には写真がありません。写真のある端末の同じ欄で「もう一度わたす」を押してください。';
+    : sharingOn()
+      ? 'この端末にはまだ写真がありません。「写真を受け取る」を押すと取りに行きます。見つからないときは、写真のある端末の同じ欄で「もう一度わたす」を押してから、もう一度お試しください。'
+      : 'この端末には写真がありません。';
   const share = !sharingOn() ? '共有を使っていないため、この端末の中だけで使います。'
     : here ? '渡した写真は24時間だけ受け取れます。受け取ったかどうかは分からないため、届かないときはもう一度わたしてください。'
     : '';
@@ -2198,6 +2207,7 @@ function posterSectionHTML(){
       <button class="btn btn-go" id="posterPick" type="button">写真を選ぶ</button>
       <input type="file" id="posterFile" accept="image/*" class="offscreen">
       ${here ? '<button class="btn" id="posterSend" type="button">もう一度わたす</button>' : ''}
+      ${!here && cfg.at && sharingOn() ? '<button class="btn" id="posterTake" type="button">写真を受け取る</button>' : ''}
       ${here ? '<button class="btn" id="posterClear" type="button">写真を消す</button>' : ''}
     </div>
     <p class="set-note">${esc(state)}${esc(share)}</p>
@@ -6729,7 +6739,26 @@ function bindConfig(){
     e.target.value = '';
     if(file) savePosterFile(file);
   });
-  on('#posterSend', 'click', ()=> handPoster());
+  /* 渡し直したら **合図（印の時刻）も 更新する。** 更新しないと、相手の
+     端末から 見て「新しい ものが ある」ことに ならず、自動では 取りに 行かない
+     （実機で、渡せているのに 子端末が 受け取らない、という 形で 出た） */
+  on('#posterSend', 'click', async ()=>{
+    if(!await handPoster()) return;
+    const at = Date.now();
+    setLocal(K_POSTER_AT, String(at));
+    config.poster = { label: posterCfg().label, at };
+    saveCfg();
+    render({ keepScroll:true });
+  });
+  /* 自動で 届かなかった ときの 手動の 受け取り。結果を そのまま 伝える */
+  on('#posterTake', 'click', async ()=>{
+    toast('写真を さがしています…');
+    const result = await checkPosterArrival({ force:true });
+    if(result === 'got') return;
+    toast(result === 'empty'
+      ? '写真が 見つかりません。渡した端末で「もう一度わたす」を押してください'
+      : '共有の状態を確かめてください');
+  });
   on('#posterClear', 'click', ()=>{
     if(confirm('宿題の一覧の写真を消しますか？' + '\n' + 'この端末から消えます。')) removePoster();
   });
