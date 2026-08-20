@@ -2496,7 +2496,9 @@ function sectionHTML(kind, title, note, tasks, opts){
   /* スタンプと 但し書きは 同じことを 言う（「のこり 0しゅるい」「きょうは
      ぜんぶ できた！」）。済んだ 欄では 但し書きを 出さず、スタンプに まかせる */
   const done = allDone || fold;
-  const mark = done ? `<span class="sec-complete-mark">ぜんぶ できた</span>` : '';
+  const mark = done
+    ? `<span class="sec-complete-mark"><span class="sec-complete-ico" aria-hidden="true"></span>ぜんぶ できた！</span>`
+    : '';
   const head = `<h2>${esc(title)}</h2>${done ? '' : `<span class="sec-note">${esc(note)}</span>`}${mark}`;
   const list = `<div class="task-list${kind==='daily' ? ' task-list--2up' : ''}">${tasks.map(taskHTML).join('')}</div>`;
   return `

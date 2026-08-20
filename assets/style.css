@@ -547,26 +547,38 @@ button{ font:inherit; color:inherit; }
 
 /* 必須・任意の欄を完走した印。区分色は残し、紙に押した大きな緑の
    スタンプだけを足すことで、欄の意味と「全部終わった」を両立する。 */
+/* 済んだ 欄の しるし。**帯の 中の 一部**に する。
+
+   前は 白い 面（明度99%）を 帯（明度49%）に のせていた。すると 行の 中で
+   いちばん 明るい ものが しるしに なり、見出しより 目立って しまう。
+   終わった 欄は 注意を 引く 必要が ない（だから 畳む）ので、方向が 逆だった。
+
+   色は テーマごとに 用意ずみの「その帯の 落ちついた 前景色」を つかう。
+   白と緑を 持ちこむと、6つの テーマの ぶんだけ 色を 決め直すことに なる。
+   祝いは 完了した その瞬間の stamp() が 受けもつ。ここは 記録なので 静かに。 */
 .sec-complete-mark{
-  margin-inline-start:auto; display:inline-flex; align-items:center;
-  padding:5px 15px; color:var(--wakaba); background:var(--kami);
-  border:3px solid var(--wakaba); border-radius:var(--r-pill);
-  /* はんこ の 二重枠。チェック印は 置かない（「ぜんぶ できた」と
-     同じことを 二度 言うことに なる。しるしは ひとつで 足りる） */
-  box-shadow:2px 2px 0 var(--ai),
-             inset 0 0 0 2px var(--kami), inset 0 0 0 4px var(--wakaba);
-  font-size:17px; font-weight:900; letter-spacing:.06em;
-  line-height:1.2; white-space:nowrap; transform:rotate(-3.5deg);
+  margin-inline-start:auto; display:inline-flex; align-items:center; gap:6px;
+  padding:4px 12px; background:transparent;
+  border:2px solid currentColor; border-radius:var(--r-pill);
+  font-size:14px; font-weight:900; line-height:1.2; white-space:nowrap;
 }
+.sec-complete-ico{
+  flex:none; width:16px; height:16px; background:currentColor;
+  -webkit-mask:url("check.svg?v=20260821a") center / contain no-repeat;
+  mask:url("check.svg?v=20260821a") center / contain no-repeat;
+}
+.sec-must  .sec-complete-mark{ color:var(--on-must-muted); }
+.sec-opt   .sec-complete-mark{ color:var(--on-option); }
+.sec-daily .sec-complete-mark{ color:var(--on-daily-muted); }
 
 /* 済んだ「まいにち」は その場で 畳む。見出しが そのまま 取っ手に なるので、
    直しに 来た ときも 置き場所を さがさなくて よい。
    ▾ は 開けることの しるし。開くと 上下が 反転する */
-/* iPhone の 幅では、見出しと はんこで 1行に 収まらず 2行に なる。
-   畳んだ 欄が 2行に なると、縦を 節約する ために 畳んだ 意味が うすれる。
-   せまい ときだけ はんこを 小さくして 1行に 収める */
+/* iPhone の 幅では、見出しと しるしで 1行に 収まらないことが ある。
+   畳んだ 欄が 2行に なると、縦を 節約する ために 畳んだ 意味が うすれる */
 @media (max-width:420px){
-  .sec-complete-mark{ padding:4px 10px; font-size:15px; letter-spacing:.02em; }
+  .sec-complete-mark{ padding:3px 9px; font-size:13px; gap:4px; }
+  .sec-complete-ico{ width:14px; height:14px; }
 }
 
 .sec-fold > summary.sec-head{ cursor:pointer; list-style:none; }
@@ -579,8 +591,10 @@ button{ font:inherit; color:inherit; }
   mask:url("chevron.svg?v=20260820a") center / contain no-repeat;
 }
 .sec-fold[open] .sec-fold-mark{ transform:rotate(180deg); }
-/* 畳んで いる あいだは スタンプが その まとまりの ぜんぶに かかる */
-.sec-fold:not([open]) .sec-complete-mark{ transform:rotate(-4.5deg) scale(1.04); }
+/* .sec の gap は 見出しと 中身の あいだに 効いていた。details で 包むと
+   その あいだが なくなり、見出しと カードが くっつく。開いた ときだけ 足す */
+.sec-fold > .task-list{ margin-top:12px; }
+
 
 /* 「きょう やったこと」は記録のまとまりなので、保護者ページの
    「今日の記録」と同じ濃色の紙帯に白抜きでそろえる。 */
