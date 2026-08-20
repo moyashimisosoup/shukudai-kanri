@@ -665,6 +665,14 @@ button{ font:inherit; color:inherit; }
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }
 
+/* 見出しの 右に 置く 小さな「使い方」。欄の 意味を 聞かれた ときに
+   その場で 答えられる ようにする（画面を 増やさない） */
+.sec-help-btn{ margin-inline-start:auto; flex:none; font-size:15px; padding:4px 12px; }
+.poster-help{ width:min(94vw, 560px); }
+.poster-steps{ margin:0; padding-inline-start:1.4em; display:grid; gap:10px; }
+.poster-steps li{ font-size:16px; line-height:1.7; }
+.poster-note{ margin:14px 0 0; font-size:15px; line-height:1.7; color:var(--ai-usu); }
+
 .poster-dialog{
   width:min(96vw, 900px); max-height:92vh; padding:14px;
   border:var(--line) solid var(--ai); border-radius:var(--r);

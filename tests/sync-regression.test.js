@@ -2709,11 +2709,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260821b',
+    'assets/style.css': '20260821c',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260821d',
+    'assets/app.js': '20260821e',
     'assets/sync.js': '20260821a',
     'assets/photos.js': '20260820a'
   };
@@ -2737,19 +2737,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.4.4をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.4\.4';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.4\.4">/);
-  assert.equal(PACKAGE.version, '1.4.4');
-  assert.equal(PACKAGE_LOCK.version, '1.4.4');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.4.4');
+test('公開版番号v1.4.5をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.4\.5';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.4\.5">/);
+  assert.equal(PACKAGE.version, '1.4.5');
+  assert.equal(PACKAGE_LOCK.version, '1.4.5');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.4.5');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
