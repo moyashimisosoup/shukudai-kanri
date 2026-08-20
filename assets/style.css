@@ -559,6 +559,22 @@ button{ font:inherit; color:inherit; }
   color:var(--kami); background:var(--wakaba); border-radius:50%;
 }
 
+/* 済んだ「まいにち」は その場で 畳む。見出しが そのまま 取っ手に なるので、
+   直しに 来た ときも 置き場所を さがさなくて よい。
+   ▾ は 開けることの しるし。開くと 上下が 反転する */
+.sec-fold > summary.sec-head{ cursor:pointer; list-style:none; }
+.sec-fold > summary.sec-head::-webkit-details-marker{ display:none; }
+.sec-fold > summary.sec-head:focus-visible{ outline:3px solid var(--ai); outline-offset:2px; }
+.sec-fold-mark{
+  flex:none; width:22px; height:22px; margin-inline-start:8px;
+  background:currentColor; transition:transform .15s ease;
+  -webkit-mask:url("chevron.svg?v=20260820a") center / contain no-repeat;
+  mask:url("chevron.svg?v=20260820a") center / contain no-repeat;
+}
+.sec-fold[open] .sec-fold-mark{ transform:rotate(180deg); }
+/* 畳んで いる あいだは スタンプが その まとまりの ぜんぶに かかる */
+.sec-fold:not([open]) .sec-complete-mark{ transform:rotate(-2.5deg) scale(1.02); }
+
 /* 「きょう やったこと」は記録のまとまりなので、保護者ページの
    「今日の記録」と同じ濃色の紙帯に白抜きでそろえる。 */
 .sec-today .sec-head{ background:var(--ai); color:var(--kami); }

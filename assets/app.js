@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.31';
+const RELEASE_VERSION = '1.3.32';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2000,7 +2000,8 @@ function viewHome(){
   const dailyAllDone = daily.length > 0 && daily.every(t => prog(t).isDone);
   const dailySec = daily.length
     ? sectionHTML('daily','まいにち すこしずつ',
-        dailyAllDone ? 'きょうは ぜんぶ できた！' : 'きょうの ぶん', daily)
+        dailyAllDone ? 'きょうは ぜんぶ できた！' : 'きょうの ぶん', daily,
+        { fold: dailyAllDone })
     : '';
 
   return `
@@ -2016,7 +2017,7 @@ function viewHome(){
 
   ${joinInstallTransferHTML()}
 
-  ${dailyAllDone ? '' : dailySec}
+  ${dailySec}
   ${sectionHTML('must','かならず やる','のこり '+mustLeft+'しゅるい', must)}
   ${opt.length   ? sectionHTML('opt','つぎに やる','のこり '+optLeft+'しゅるい', opt) : ''}
 
@@ -2025,7 +2026,6 @@ function viewHome(){
     <div class="paper today-list">${todayHTML()}</div>
   </section>
 
-  ${dailyAllDone ? dailySec : ''}
   ${funHTML()}
   `;
 }
@@ -2325,14 +2325,26 @@ function paceHTML(o){
   </div>`;
 }
 
-function sectionHTML(kind, title, note, tasks){
+/* opts.fold … 済んだら **その場で** 畳む（まいにち）。
+   下へ 送ると 置き場所が 動く。毎日 同じ ところに ある ほうが たどりやすく、
+   直しに 来た ときの 入口（見出し）も 動かない。 */
+function sectionHTML(kind, title, note, tasks, opts){
   const allDone = (kind === 'must' || kind === 'opt')
     && tasks.length > 0 && tasks.every(t=>prog(t).isDone);
+  const fold = !!(opts && opts.fold);
+  const mark = (allDone || fold)
+    ? `<span class="sec-complete-mark"><span aria-hidden="true">✓</span>ぜんぶできた！</span>` : '';
+  const head = `<h2>${esc(title)}</h2><span class="sec-note">${esc(note)}</span>${mark}`;
+  const list = `<div class="task-list${kind==='daily' ? ' task-list--2up' : ''}">${tasks.map(taskHTML).join('')}</div>`;
   return `
-  <section class="sec sec-${kind}${allDone ? ' is-all-done' : ''}">
-    <div class="sec-head"><h2>${esc(title)}</h2><span class="sec-note">${esc(note)}</span>${allDone ? `
-      <span class="sec-complete-mark"><span aria-hidden="true">✓</span>ぜんぶできた！</span>` : ''}</div>
-    <div class="task-list${kind==='daily' ? ' task-list--2up' : ''}">${tasks.map(taskHTML).join('')}</div>
+  <section class="sec sec-${kind}${allDone || fold ? ' is-all-done' : ''}">
+    ${fold
+      ? `<details class="sec-fold" data-details-key="dailyDone">
+      <summary class="sec-head">${head}<span class="sec-fold-mark" aria-hidden="true"></span></summary>
+      ${list}
+    </details>`
+      : `<div class="sec-head">${head}</div>
+    ${list}`}
   </section>`;
 }
 

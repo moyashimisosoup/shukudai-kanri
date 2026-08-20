@@ -2704,11 +2704,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260820a',
+    'assets/style.css': '20260820b',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260820b',
+    'assets/app.js': '20260820c',
     'assets/sync.js': '20260818a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2731,19 +2731,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.3.31をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.3\.31';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.3\.31">/);
-  assert.equal(PACKAGE.version, '1.3.31');
-  assert.equal(PACKAGE_LOCK.version, '1.3.31');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.31');
+test('公開版番号v1.3.32をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.3\.32';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.3\.32">/);
+  assert.equal(PACKAGE.version, '1.3.32');
+  assert.equal(PACKAGE_LOCK.version, '1.3.32');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.3.32');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4463,6 +4463,24 @@ test('しつもん・だんかいの行を消しても、答えとチェック�
     'しつもんを 入れかえる 前に 答えを そろえること');
   assert.match(ed, /realignStepProgress\(t, t\.steps \|\| \[\], next\)/,
     'だんかいも 同じように そろえること');
+});
+
+/* 「まいにち」は 済んだら 下へ 送っていた。位置が 動くと、毎日 おぼえた
+   「自分のあれは ここ」が くずれる。畳んで その場に のこす。
+   直しに 来た ときの 入口（見出し）も 同じ場所に あるほうが たどりやすい。 */
+test('まいにちは、済んでも下へ送らずその場で畳む', ()=>{
+  const home = grab(APP, 'viewHome');
+  assert.doesNotMatch(home, /\$\{dailyAllDone \? '' : dailySec\}/,
+    '済んだかどうかで 置き場所を 変えないこと');
+  assert.doesNotMatch(home, /\$\{dailyAllDone \? dailySec : ''\}/,
+    '下の 置き場所を のこさないこと');
+  assert.equal((home.match(/\$\{dailySec\}/g) || []).length, 1,
+    'まいにちの 欄は 1か所だけに 出すこと');
+  const sec = grab(APP, 'sectionHTML');
+  assert.match(sec, /data-details-key="dailyDone"/,
+    '開いたままかどうかを 再描画のあとも 覚えること');
+  assert.match(sec, /<summary class="sec-head"/,
+    '見出しを そのまま 開閉の 取っ手に すること');
 });
 
 /* しつもん（観察の観点）も宿題のノルマに数える。答えは state.questionAnswers に
