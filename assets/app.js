@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.4.1';
+const RELEASE_VERSION = '1.4.2';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2016,6 +2016,12 @@ let posterFresh = false;   // 届いたばかりの 印
 let posterBusy = false;    // 取りに行っている 最中（二重に 走らせない）
 
 function photos(){ return window.NatsuPhotos || null; }
+/* 同期の入口。**素の `S` を書かないこと。** このコードベースの `S` は
+   グローバルではなく、使う関数ごとに `const S = window.NatsuSync;` と
+   宣言する 約束に なっている。うっかり 素で 書くと、その関数は
+   ReferenceError で 丸ごと 止まる（bindConfig が 止まり、保護者ページの
+   設定が すべて 効かなく なった）。写真まわりは この関数を 通す。 */
+function sync(){ return window.NatsuSync || null; }
 function posterCfg(){
   const p = config.poster && typeof config.poster === 'object' ? config.poster : {};
   return { label: String(p.label || POSTER_LABEL_DEFAULT).slice(0, 6), at: ms(p.at) };
@@ -2042,7 +2048,8 @@ async function checkPosterArrival(){
   const want = posterCfg().at;
   /* くらべるのは 端末の 中の 値どうし。ここで 帰るときは 通信しない */
   if(!want || want <= posterHeldAt()) return;
-  if(!(typeof S.takeHandoff === 'function' && sharingOn())) return;
+  const S = sync();
+  if(!(S && typeof S.takeHandoff === 'function' && sharingOn())) return;
   /* 箱が まだ 空の ことは ある（渡す 途中など）。空振りを くり返して
      読み取りを 使い切らないよう、3分に 一度までに する */
   if(posterTriedAt && Date.now() - posterTriedAt < POSTER_RETRY_MS) return;
@@ -2100,7 +2107,8 @@ async function handPoster(blob){
     toast('この端末には 写真が ありません');
     return false;
   }
-  if(!lib || !sharingOn() || typeof S.putHandoff !== 'function'){
+  const S = sync();
+  if(!lib || !sharingOn() || !S || typeof S.putHandoff !== 'function'){
     toast('この端末に 保存しました');
     return false;
   }
@@ -2134,11 +2142,12 @@ async function removePoster(){
 
    **この端末に 写真が 無い あいだは 出さない。** まだ 届いて いないのに
    ボタンだけ あると、押しても「まだ です」しか 出ず、まぎらわしい。 */
+function posterShown(){ return !!(posterURL && posterCfg().at); }
 function renderPosterButton(){
   const btn = $('#posterOpen'), text = $('#posterOpenText');
   if(!btn || !text) return;
   const cfg = posterCfg();
-  const show = !!(posterURL && cfg.at);
+  const show = posterShown();
   btn.hidden = !show;
   if(!show) return;
   text.textContent = cfg.label;
@@ -2181,13 +2190,12 @@ function posterSectionHTML(){
     : '';
   return `
   <section class="sec config-sec"><div class="sec-head"><h2>宿題の一覧の写真</h2></div><div class="paper">
-    <p class="set-note">プリントや時間割、目標表などを1枚だけ持たせます。子ども画面の上の帯に、開くボタンが出ます。写真は各端末の中に保存し、共有データには入れません。</p>
+    <p class="set-note">プリントや時間割、目標表などを1枚だけ持たせます。子ども画面の上の帯に、開くボタンが出ます。写真は各端末の中に保存し、共有データには入れません。ボタンの名前は4文字までにすると、子ども画面できれいに収まります。</p>
     <div class="set-row"><label class="lab" for="posterLabel">ボタンの名前</label>
       <input type="text" id="posterLabel" maxlength="6" value="${esc(cfg.label)}"></div>
-    <p class="set-note">4文字までにすると、子ども画面できれいに収まります。</p>
     <div class="set-actions">
-      <label class="btn btn-go" for="posterFile">写真を選ぶ</label>
-      <input type="file" id="posterFile" accept="image/*" hidden>
+      <button class="btn btn-go" id="posterPick" type="button">写真を選ぶ</button>
+      <input type="file" id="posterFile" accept="image/*" class="offscreen">
       ${here ? '<button class="btn" id="posterSend" type="button">もう一度わたす</button>' : ''}
       ${here ? '<button class="btn" id="posterClear" type="button">写真を消す</button>' : ''}
     </div>
@@ -5362,10 +5370,12 @@ function scrollBox(){ return $('#scroll') || document.scrollingElement || docume
    と 同じ手で、長い題名だけ 小さくして 出しきる。
    下限は 14px（style.css）。それより 小さいと 隣の 日づけ（13px）と 並んで
    見出しに 見えないので、そこから先は … で 切る。 */
-function appTitleSizeClass(title){
+function appTitleSizeClass(title, taken){
   const width = Array.from(String(title || '')).reduce((n, ch) =>
     n + (ch === ' ' ? .35 : '！「」（）'.includes(ch) ? .55 : 1), 0);
-  return width > 10 ? ' topband-title--long' : '';
+  /* 一覧の写真の ボタンが 出ている ぶんだけ 場所が せまい。同じ 題名でも
+     切れやすく なるので、小さくする 目安を 2文字ぶん 早める */
+  return width + (taken || 0) > 10 ? ' topband-title--long' : '';
 }
 
 /* keepScroll: 今の位置のまま描き直す。タブを変えたときだけ先頭に戻す */
@@ -5382,7 +5392,7 @@ function render(opts){
 
   const shownTitle = TEST_MODE && (!getLocal(K_ONBOARD) || DEBUG_PARENT) ? 'おためし用の設定' : config.title;
   $('#appTitle').textContent = shownTitle;
-  $('#appTitle').className = 'topband-title' + appTitleSizeClass(shownTitle);
+  $('#appTitle').className = 'topband-title' + appTitleSizeClass(shownTitle, posterShown() ? 2 : 0);
   renderKinenbiButton(new Date());
   renderPosterButton();
   document.title = shownTitle;
@@ -6707,7 +6717,12 @@ function bindConfig(){
      ページを開いたついでに、24時間より古い受け渡し箱を片づける。
      TTL（コンソール側の設定）が無くても溜まらないようにするためで、
      読み取りは開くたび1回だけ。子どもの画面では走らせない。 */
-  if($('#posterFile') && typeof S.sweepHandoff === 'function') S.sweepHandoff();
+  const posterSync = sync();
+  if($('#posterFile') && posterSync && typeof posterSync.sweepHandoff === 'function') posterSync.sweepHandoff();
+  /* iOS では、隠した 入力欄を <label for> で 押しても 一度目が 効かない
+     ことが ある（実機で「2回 押さないと 出ない」）。ふつうの ボタンから
+     input.click() を 呼ぶ。入力欄は display:none に せず、画面の 外へ 出す */
+  on('#posterPick', 'click', ()=>{ const f = $('#posterFile'); if(f) f.click(); });
   on('#posterFile', 'change', e=>{
     const file = e.target.files && e.target.files[0];
     e.target.value = '';

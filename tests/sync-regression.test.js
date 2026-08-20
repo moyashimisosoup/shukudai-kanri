@@ -2374,7 +2374,11 @@ test('長い題名は、帯を1行に保ったまま 小さくして 出しき�
   /* 下限は14px。日づけ（狭い画面で13px）より小さくなると、見出しに見えない。
      これより長い題名は … で切る（帯を2行にしないための、承知のうえの割り切り） */
   assert.match(STYLE, /\.topband-title--long\{ font-size:clamp\(14px, 4\.4vw, 19px\); \}/);
-  assert.match(APP, /appTitleSizeClass\(shownTitle\)/,
+  /* 一覧の写真のボタンが出ている端末では、帯がその分せまい。
+     同じ題名でも切れやすくなるので、2文字ぶん早く小さくする */
+  assert.equal(sizeClass('たろうの夏休みの宿題', 2), ' topband-title--long',
+    'ボタンが出ているときは、早めに縮めること');
+  assert.match(APP, /appTitleSizeClass\(shownTitle, posterShown\(\) \? 2 : 0\)/,
     '関数があるだけでなく、実際に題名へ付けること');
 });
 
@@ -2705,11 +2709,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260821a',
+    'assets/style.css': '20260821b',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260821a',
+    'assets/app.js': '20260821b',
     'assets/sync.js': '20260821a',
     'assets/photos.js': '20260820a'
   };
@@ -2733,19 +2737,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.4.1をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.4\.1';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.4\.1">/);
-  assert.equal(PACKAGE.version, '1.4.1');
-  assert.equal(PACKAGE_LOCK.version, '1.4.1');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.4.1');
+test('公開版番号v1.4.2をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.4\.2';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.4\.2">/);
+  assert.equal(PACKAGE.version, '1.4.2');
+  assert.equal(PACKAGE_LOCK.version, '1.4.2');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.4.2');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4554,8 +4558,23 @@ test('古い受け渡し箱は、アプリ側でも片づける', ()=>{
     '期限より新しい箱は消さないこと');
   assert.match(sweep, /return await clearHandoff\(\);/);
   assert.match(grab(APP, 'bindConfig'),
-    /if\(\$\('#posterFile'\) && typeof S\.sweepHandoff === 'function'\) S\.sweepHandoff\(\);/,
+    /if\(\$\('#posterFile'\) && posterSync && typeof posterSync\.sweepHandoff === 'function'\)/,
     '保護者ページを開いたときだけ、1回だけ見にいくこと');
+});
+
+/* このコードベースの `S` はグローバルではなく、使う関数ごとに
+   `const S = window.NatsuSync;` と宣言する約束。素で書くと ReferenceError で
+   **その関数が丸ごと止まる**。実際、bindConfig の先頭で書いてしまい、
+   保護者ページの設定（名前・タイトル・日付・デザイン・共有）が
+   すべて効かなくなった。写真まわりは sync() を通す。 */
+test('同期を使う関数は、必ず S を宣言してから使う', ()=>{
+  for(const name of ['checkPosterArrival','handPoster','savePosterFile','bindConfig','removePoster']){
+    const fn = grab(APP, name);
+    if(!/[^.\w]S\./.test(fn)) continue;
+    assert.match(fn, /const S = (sync\(\)|window\.NatsuSync);/,
+      name + ' は S を宣言してから使うこと（素の S は ReferenceError になる）');
+  }
+  assert.match(grab(APP, 'sync'), /return window\.NatsuSync \|\| null;/);
 });
 
 /* しつもん（観察の観点）も宿題のノルマに数える。答えは state.questionAnswers に

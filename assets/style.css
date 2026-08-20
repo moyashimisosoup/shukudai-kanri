@@ -220,6 +220,11 @@ button{ font:inherit; color:inherit; }
 @media (max-width:360px){
   .topband-title{ font-size:17px; }
   .topband-date{ font-size:12px; }
+  /* 一覧の写真の ボタンが 増えた ぶん、いちばん せまい 端末では
+     題名が 1文字ぶん はみ出す（320px で 実測 14px 超過）。
+     帯を もう一段 つめて、その ぶんを 題名に まわす */
+  .topband-inner{ gap:6px; padding:10px 10px; }
+  .topband-poster{ padding:5px 5px; }
 }
 /* 帯を つめても、名前が 4文字 入るだけで 題名は 切れる（320px で 実測 17px 超過）。
    帯を 2行に しない かわりに、長い題名だけ 小さくして 出しきる。
@@ -651,6 +656,13 @@ button{ font:inherit; color:inherit; }
 @media (max-width:480px){
   .topband-poster{ padding:5px 7px; }
   .topband-poster-txt{ display:none; }
+}
+
+/* 画面には 出さないが、押せる 状態で 置いておく 入力欄。
+   display:none に すると iOS で 一度目の タップが 効かない ことが ある */
+.offscreen{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }
 
 .poster-dialog{
