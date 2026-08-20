@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.4.0';
+const RELEASE_VERSION = '1.4.1';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2009,6 +2009,8 @@ function joinRolePickHTML(){
 const POSTER_ID = 'poster';
 const POSTER_LABEL_DEFAULT = 'いちらん';
 const K_POSTER_AT = TEST_MODE ? 'natsu.preview.poster.at.v1' : 'natsu.poster.at.v1';
+/* さいごに 渡せたか どうか。端末ごとの 控えで、共有には 入れない */
+const K_POSTER_SENT = TEST_MODE ? 'natsu.preview.poster.sent.v1' : 'natsu.poster.sent.v1';
 let posterURL = '';        // 表示用。IndexedDB の Blob から 作る
 let posterFresh = false;   // 届いたばかりの 印
 let posterBusy = false;    // 取りに行っている 最中（二重に 走らせない）
@@ -2032,12 +2034,19 @@ async function loadPoster(){
 
 /* グループの 印が この端末の ものより 新しければ、箱から 受け取る。
    受け取ったら 知らせる（黙って 差しかえない） */
+const POSTER_RETRY_MS = 3 * 60 * 1000;
+let posterTriedAt = 0;
 async function checkPosterArrival(){
   const lib = photos();
   if(!lib || posterBusy) return;
   const want = posterCfg().at;
+  /* くらべるのは 端末の 中の 値どうし。ここで 帰るときは 通信しない */
   if(!want || want <= posterHeldAt()) return;
   if(!(typeof S.takeHandoff === 'function' && sharingOn())) return;
+  /* 箱が まだ 空の ことは ある（渡す 途中など）。空振りを くり返して
+     読み取りを 使い切らないよう、3分に 一度までに する */
+  if(posterTriedAt && Date.now() - posterTriedAt < POSTER_RETRY_MS) return;
+  posterTriedAt = Date.now();
   posterBusy = true;
   try{
     const dataURL = await S.takeHandoff();
@@ -2067,25 +2076,43 @@ async function savePosterFile(file){
   await lib.put(POSTER_ID, shrunk.blob);
   const now = Date.now();
   setLocal(K_POSTER_AT, String(now));
-  config.poster = { label: posterCfg().label, at: now };
-  saveCfg();
   await loadPoster();
   posterFresh = false;
+  /* **箱に 入れてから 合図を 出す。** 逆に すると、設定（合図）は すぐ 届くのに
+     箱は まだ 空で、受け取り側が 空振りする。空振りの あとは 合図が 来ないので
+     二度と 取りに 行かない、という 事故に なる */
+  await handPoster(shrunk.blob);
+  config.poster = { label: posterCfg().label, at: now };
+  saveCfg();
   render({ keepScroll:true });
-  handPoster(shrunk.blob);
 }
 
 /* 相手の 端末へ 渡す。受け取ったかどうかは 分からないので、
-   「渡した」までしか 言わない（分からないことを 断定しない） */
+   「渡した」までしか 言わない（分からないことを 断定しない）。
+
+   **写真が この端末に 無いときは、渡しようが ない。** 以前は そのまま
+   FileReader へ 渡して 例外に なり、押しても 何も 起きなかった。
+   結果は 端末に 控えて 保護者ページに 出す（失敗を 黙って 飲みこまない）。 */
 async function handPoster(blob){
   const lib = photos();
+  const photo = blob || (lib ? await lib.get(POSTER_ID) : null);
+  if(!photo){
+    toast('この端末には 写真が ありません');
+    return false;
+  }
   if(!lib || !sharingOn() || typeof S.putHandoff !== 'function'){
     toast('この端末に 保存しました');
-    return;
+    return false;
   }
-  const dataURL = await lib.toDataURL(blob || await lib.get(POSTER_ID));
-  const ok = dataURL && await S.putHandoff(dataURL);
-  toast(ok ? 'わたしました（24時間 ゆうこう）' : 'この端末に 保存しました');
+  let ok = false;
+  try{
+    const dataURL = await lib.toDataURL(photo);
+    ok = !!dataURL && await S.putHandoff(dataURL);
+  }catch(e){ ok = false; }
+  setLocal(K_POSTER_SENT, JSON.stringify({ at: Date.now(), ok }));
+  toast(ok ? 'わたしました（24時間 ゆうこう）' : 'わたせませんでした');
+  render({ keepScroll:true });
+  return ok;
 }
 
 async function removePoster(){
@@ -2098,17 +2125,25 @@ async function removePoster(){
   render({ keepScroll:true });
 }
 
-/* 子ども画面の 入口。カウントダウンの 右上に 置く。
-   **縦を 増やさない**（帯は iPhone の 幅で すでに いっぱいで、
-   足すと タイトルが 切れる。実測で 見出し行の 右に 空きが ある）。
-   写真の 印が 無いときは ボタンごと 出さない */
-function posterChipHTML(){
+/* 子ども画面の 入口は **帯（タイトル行）**に 置く。
+
+   カウントダウンの 見出し行に 同居させて いたが、「なつやすみ おわりまで」と
+   となりあって 読めて しまい、何の ボタンか 分からない という 指摘が あった。
+   帯は どの 画面でも 出ている ところなので、置き場所としても 分かりやすい。
+   タイトルは もともと はみ出すと 三点リーダで 切れるので、押し出しても 壊れない。
+
+   **この端末に 写真が 無い あいだは 出さない。** まだ 届いて いないのに
+   ボタンだけ あると、押しても「まだ です」しか 出ず、まぎらわしい。 */
+function renderPosterButton(){
+  const btn = $('#posterOpen'), text = $('#posterOpenText');
+  if(!btn || !text) return;
   const cfg = posterCfg();
-  if(!cfg.at) return '';
-  const label = posterURL ? cfg.label : 'まだ です';
-  return `<button class="poster-chip${posterFresh ? ' is-fresh' : ''}" id="posterOpen" type="button"
-    aria-label="${esc(cfg.label)} を 見る"><span class="poster-chip-ico" aria-hidden="true"></span><span
-    class="poster-chip-txt">${esc(label)}</span></button>`;
+  const show = !!(posterURL && cfg.at);
+  btn.hidden = !show;
+  if(!show) return;
+  text.textContent = cfg.label;
+  btn.setAttribute('aria-label', cfg.label + ' を 見る');
+  btn.classList.toggle('has-unread', posterFresh);
 }
 
 function openPoster(){
@@ -2122,28 +2157,42 @@ function openPoster(){
   if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
 }
 
-/* 保護者ページ「宿題を決める」の 欄。大人向けの 言い方で 書く */
+/* 保護者ページ「宿題を決める」の 欄。大人向けの 言い方で 書く。
+
+   **この端末に 写真が 無いときは「わたす」「消す」を 出さない。**
+   出していたので、まだ 受け取って いない 端末でも 押せてしまい、
+   押しても 何も 起きなかった（渡す ものが 無いため）。
+   ボタンの ならびは、ほかの 欄と 同じ .set-actions に そろえる。 */
 function posterSectionHTML(){
   const cfg = posterCfg();
+  const here = !!posterURL;
+  let sent = null;
+  try{ sent = JSON.parse(getLocal(K_POSTER_SENT) || 'null'); }catch(e){}
   const state = !cfg.at ? 'まだ登録していません。'
-    : posterURL ? 'この端末に保存されています。'
-    : 'この端末には写真がありません。写真のある端末で「もう一度わたす」を押してください。';
-  const share = sharingOn()
-    ? '渡した写真は24時間だけ受け取れます。受け取ったかどうかは分からないため、届かないときはもう一度わたしてください。'
-    : '共有を使っていないため、この端末の中だけで使います。';
+    : here ? 'この端末に保存されています。'
+    : 'この端末には写真がありません。写真のある端末の同じ欄で「もう一度わたす」を押してください。';
+  const share = !sharingOn() ? '共有を使っていないため、この端末の中だけで使います。'
+    : here ? '渡した写真は24時間だけ受け取れます。受け取ったかどうかは分からないため、届かないときはもう一度わたしてください。'
+    : '';
+  const sentLine = (sent && sent.at)
+    ? `<p class="set-note">${sent.ok
+        ? '最後に渡したのは ' + esc(fmtDate(new Date(sent.at))) + ' ' + esc(fmtTime(new Date(sent.at))) + ' です。'
+        : '最後の受け渡しは失敗しました。共有の状態を確かめて、もう一度お試しください。'}</p>`
+    : '';
   return `
   <section class="sec config-sec"><div class="sec-head"><h2>宿題の一覧の写真</h2></div><div class="paper">
-    <p class="set-note">プリントや時間割、目標表などを1枚だけ持たせます。子ども画面のカウントダウンの右上に、開くボタンが出ます。写真は各端末の中に保存し、共有データには入れません。</p>
+    <p class="set-note">プリントや時間割、目標表などを1枚だけ持たせます。子ども画面の上の帯に、開くボタンが出ます。写真は各端末の中に保存し、共有データには入れません。</p>
     <div class="set-row"><label class="lab" for="posterLabel">ボタンの名前</label>
       <input type="text" id="posterLabel" maxlength="6" value="${esc(cfg.label)}"></div>
     <p class="set-note">4文字までにすると、子ども画面できれいに収まります。</p>
-    <div class="poster-actions">
+    <div class="set-actions">
       <label class="btn btn-go" for="posterFile">写真を選ぶ</label>
       <input type="file" id="posterFile" accept="image/*" hidden>
-      ${cfg.at ? '<button class="btn" id="posterSend" type="button">もう一度わたす</button>' : ''}
-      ${cfg.at ? '<button class="btn" id="posterClear" type="button">写真を消す</button>' : ''}
+      ${here ? '<button class="btn" id="posterSend" type="button">もう一度わたす</button>' : ''}
+      ${here ? '<button class="btn" id="posterClear" type="button">写真を消す</button>' : ''}
     </div>
     <p class="set-note">${esc(state)}${esc(share)}</p>
+    ${sentLine}
   </div></section>`;
 }
 
@@ -2167,7 +2216,7 @@ function viewHome(){
 
   return `
   <section class="count">
-    <p class="count-lead">なつやすみ おわりまで${posterChipHTML()}</p>
+    <p class="count-lead">なつやすみ おわりまで</p>
     <div id="cdBox"></div>
     ${paceHTML(o)}
   </section>
@@ -5335,6 +5384,7 @@ function render(opts){
   $('#appTitle').textContent = shownTitle;
   $('#appTitle').className = 'topband-title' + appTitleSizeClass(shownTitle);
   renderKinenbiButton(new Date());
+  renderPosterButton();
   document.title = shownTitle;
 
   const v = $('#view');
@@ -7438,6 +7488,9 @@ document.addEventListener('input', e=>{
 // タブを もどってきたら、どの画面でも上帯の日づけを更新する。
 document.addEventListener('visibilitychange', ()=>{
   if(document.hidden){ stopSR(); return; }
+  /* 裏から 戻った ときに 一度 見る。合図だけ 先に 届いて 空振りした ときの
+     立ち直り（同期の resumeSync と 同じ 考え方） */
+  checkPosterArrival();
   renderKinenbiButton(new Date());
   if(tab === 'home') render();
 });
@@ -7828,6 +7881,11 @@ render();
 noticeAdopted(); // 取り込みの直後なら、何が起きたのかを一言だけ残す
 checkForNewVersion(); // 描画を待たせない。結果は次の描画で静かに反映する
 /* 端末に ある 写真を 読んでから 描き直す。読めなくても 先に 画面は 出す */
-loadPoster().then(()=>{ if(posterURL) render({ keepScroll:true }); });
+loadPoster().then(()=>{
+  if(posterURL) render({ keepScroll:true });
+  /* 起動の たびに 一度 見る。**取りに 行くのは、印が この端末の ものより
+     新しい ときだけ**（比べるのは 端末の 中の 値なので、読み取りは 起きない） */
+  checkPosterArrival();
+});
 
 })();

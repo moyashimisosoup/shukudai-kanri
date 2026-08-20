@@ -957,6 +957,14 @@ async function handoffRef(){
 }
 
 /* 写真を 箱に 入れる。渡せたかどうかだけを 返す */
+/* 写真の やりとりの 失敗を 控える。**setStatus('error') を 呼ばないこと。**
+   noteTrouble() を つかうと、写真が 渡せなかっただけで 同期ぜんたいが
+   「つながりません」に なり、つなぎ直しまで 走ってしまう。
+   写真は 宿題の 記録とは 別の 話なので、控えるだけに する。 */
+function notePhotoTrouble(where, err){
+  lastTrouble = { at: Date.now(), where, detail: troubleDetail(err) };
+}
+
 async function putHandoff(dataURL){
   try{
     const ref = await handoffRef();
@@ -970,7 +978,7 @@ async function putHandoff(dataURL){
     });
     return true;
   }catch(err){
-    noteTrouble('写真の受け渡し', err);
+    notePhotoTrouble('写真の受け渡し', err);
     return false;
   }
 }
@@ -989,7 +997,7 @@ async function takeHandoff(){
     if(!isCiphertext(raw)) return null;
     return await decryptField('photo', getCode(), raw);
   }catch(err){
-    noteTrouble('写真の受け取り', err);
+    notePhotoTrouble('写真の受け取り', err);
     return null;
   }
 }
