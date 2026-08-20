@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.4.2';
+const RELEASE_VERSION = '1.4.3';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2190,7 +2190,8 @@ function posterSectionHTML(){
     : '';
   return `
   <section class="sec config-sec"><div class="sec-head"><h2>宿題の一覧の写真</h2></div><div class="paper">
-    <p class="set-note">プリントや時間割、目標表などを1枚だけ持たせます。子ども画面の上の帯に、開くボタンが出ます。写真は各端末の中に保存し、共有データには入れません。ボタンの名前は4文字までにすると、子ども画面できれいに収まります。</p>
+    <p class="set-note">プリントや時間割、目標表などを1枚だけ持たせます。子ども画面の上の帯に、開くボタンが出ます。写真は各端末の中に保存し、共有データには入れません。</p>
+    <p class="set-note">ボタンの名前は、写真を開いた画面の見出しに出ます。画面の広い端末では帯のボタンにも並ぶため、4文字までにすると収まりがよくなります。iPhoneの幅では帯の題名を守るため、ボタンは印だけになります。</p>
     <div class="set-row"><label class="lab" for="posterLabel">ボタンの名前</label>
       <input type="text" id="posterLabel" maxlength="6" value="${esc(cfg.label)}"></div>
     <div class="set-actions">
