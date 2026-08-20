@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.3.32';
+const RELEASE_VERSION = '1.3.33';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2000,8 +2000,7 @@ function viewHome(){
   const dailyAllDone = daily.length > 0 && daily.every(t => prog(t).isDone);
   const dailySec = daily.length
     ? sectionHTML('daily','まいにち すこしずつ',
-        dailyAllDone ? 'きょうは ぜんぶ できた！' : 'きょうの ぶん', daily,
-        { fold: dailyAllDone })
+        'きょうの ぶん', daily, { fold: dailyAllDone })
     : '';
 
   return `
@@ -2332,9 +2331,11 @@ function sectionHTML(kind, title, note, tasks, opts){
   const allDone = (kind === 'must' || kind === 'opt')
     && tasks.length > 0 && tasks.every(t=>prog(t).isDone);
   const fold = !!(opts && opts.fold);
-  const mark = (allDone || fold)
-    ? `<span class="sec-complete-mark"><span aria-hidden="true">✓</span>ぜんぶできた！</span>` : '';
-  const head = `<h2>${esc(title)}</h2><span class="sec-note">${esc(note)}</span>${mark}`;
+  /* スタンプと 但し書きは 同じことを 言う（「のこり 0しゅるい」「きょうは
+     ぜんぶ できた！」）。済んだ 欄では 但し書きを 出さず、スタンプに まかせる */
+  const done = allDone || fold;
+  const mark = done ? `<span class="sec-complete-mark">ぜんぶ できた</span>` : '';
+  const head = `<h2>${esc(title)}</h2>${done ? '' : `<span class="sec-note">${esc(note)}</span>`}${mark}`;
   const list = `<div class="task-list${kind==='daily' ? ' task-list--2up' : ''}">${tasks.map(taskHTML).join('')}</div>`;
   return `
   <section class="sec sec-${kind}${allDone || fold ? ' is-all-done' : ''}">

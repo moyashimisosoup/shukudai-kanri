@@ -548,20 +548,27 @@ button{ font:inherit; color:inherit; }
 /* 必須・任意の欄を完走した印。区分色は残し、紙に押した大きな緑の
    スタンプだけを足すことで、欄の意味と「全部終わった」を両立する。 */
 .sec-complete-mark{
-  margin-inline-start:auto; display:inline-flex; align-items:center; gap:7px;
-  padding:5px 13px; color:var(--wakaba); background:var(--kami);
+  margin-inline-start:auto; display:inline-flex; align-items:center;
+  padding:5px 15px; color:var(--wakaba); background:var(--kami);
   border:3px solid var(--wakaba); border-radius:var(--r-pill);
-  box-shadow:2px 2px 0 var(--ai); font-size:18px; font-weight:900;
-  line-height:1.15; white-space:nowrap; transform:rotate(-1.5deg);
-}
-.sec-complete-mark > span{
-  display:grid; place-items:center; width:22px; height:22px;
-  color:var(--kami); background:var(--wakaba); border-radius:50%;
+  /* はんこ の 二重枠。チェック印は 置かない（「ぜんぶ できた」と
+     同じことを 二度 言うことに なる。しるしは ひとつで 足りる） */
+  box-shadow:2px 2px 0 var(--ai),
+             inset 0 0 0 2px var(--kami), inset 0 0 0 4px var(--wakaba);
+  font-size:17px; font-weight:900; letter-spacing:.06em;
+  line-height:1.2; white-space:nowrap; transform:rotate(-3.5deg);
 }
 
 /* 済んだ「まいにち」は その場で 畳む。見出しが そのまま 取っ手に なるので、
    直しに 来た ときも 置き場所を さがさなくて よい。
    ▾ は 開けることの しるし。開くと 上下が 反転する */
+/* iPhone の 幅では、見出しと はんこで 1行に 収まらず 2行に なる。
+   畳んだ 欄が 2行に なると、縦を 節約する ために 畳んだ 意味が うすれる。
+   せまい ときだけ はんこを 小さくして 1行に 収める */
+@media (max-width:420px){
+  .sec-complete-mark{ padding:4px 10px; font-size:15px; letter-spacing:.02em; }
+}
+
 .sec-fold > summary.sec-head{ cursor:pointer; list-style:none; }
 .sec-fold > summary.sec-head::-webkit-details-marker{ display:none; }
 .sec-fold > summary.sec-head:focus-visible{ outline:3px solid var(--ai); outline-offset:2px; }
@@ -573,7 +580,7 @@ button{ font:inherit; color:inherit; }
 }
 .sec-fold[open] .sec-fold-mark{ transform:rotate(180deg); }
 /* 畳んで いる あいだは スタンプが その まとまりの ぜんぶに かかる */
-.sec-fold:not([open]) .sec-complete-mark{ transform:rotate(-2.5deg) scale(1.02); }
+.sec-fold:not([open]) .sec-complete-mark{ transform:rotate(-4.5deg) scale(1.04); }
 
 /* 「きょう やったこと」は記録のまとまりなので、保護者ページの
    「今日の記録」と同じ濃色の紙帯に白抜きでそろえる。 */
