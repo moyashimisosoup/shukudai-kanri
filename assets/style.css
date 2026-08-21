@@ -813,6 +813,15 @@ button{ font:inherit; color:inherit; }
 /* 写真の 一覧。**行では なく ます目。** 行に すると 1枚 95px（320px 実測）で、
    4枚で 380px に なり、設定の 欄 ひとつが 画面を 埋めて しまう。
    iPhone では 2列、広い 画面では 4列 */
+/* 「ボタンの名前」の 前に、その ボタンの 印を 出す。どの ボタンの 名前を
+   入れて いるのかが、字だけでは 分からない（依頼者の 指摘）。
+   帯の 入口（.topband-poster-ico）と 同じ 抜き型を 使う */
+.poster-lab-ico{
+  display:inline-block; vertical-align:-3px; margin-inline-end:6px;
+  width:18px; height:18px; background:currentColor;
+  -webkit-mask:url("sheet.svg?v=20260820a") center / contain no-repeat;
+  mask:url("sheet.svg?v=20260820a") center / contain no-repeat;
+}
 .poster-tiles{
   display:grid; grid-template-columns:repeat(2, minmax(0,1fr));
   gap:10px; padding:12px 16px;

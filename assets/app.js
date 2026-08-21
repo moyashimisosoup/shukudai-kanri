@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.6.3';
+const RELEASE_VERSION = '1.6.4';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2472,7 +2472,7 @@ function posterSectionHTML(){
       <button class="icon-btn sec-help-btn" id="posterHelp" type="button"
         title="使い方" aria-label="宿題の一覧の写真の使い方">?</button></div><div class="paper">
     <p class="set-note">学校のプリントや時間割を${POSTER_MAX}枚まで。子ども画面の帯のアイコンから見られます。${esc(how)}${here ? '写真をタップすると選び直せます。' : ''}</p>
-    <div class="set-row"><label class="lab" for="posterLabel">ボタンの名前</label>
+    <div class="set-row"><label class="lab" for="posterLabel"><span class="poster-lab-ico" aria-hidden="true"></span>ボタンの名前</label>
       <input type="text" id="posterLabel" maxlength="6" placeholder="なくてもかまいません" value="${esc(cfg.label)}"></div>
     <div class="poster-tiles">${tiles.join('')}${add}</div>
     <input type="file" id="posterFile" accept="image/*" class="offscreen">
