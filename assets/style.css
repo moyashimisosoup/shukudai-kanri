@@ -1502,6 +1502,30 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   padding:18px 20px 20px;
   background:linear-gradient(180deg,var(--fun-a),var(--fun-b));
 }
+/* ミニコンテンツは 画面の 上（まいにちの 上）に 置く。
+   きょうの ぶんを 読み切ったら **その場で 畳む**（下へ 送らない）。
+   置き場所が 動くと、毎日 おぼえた ところが 変わって しまう。 */
+.fun-fold > summary.fun-sum{
+  display:flex; align-items:center; gap:10px; cursor:pointer; list-style:none;
+}
+.fun-fold > summary.fun-sum::-webkit-details-marker{ display:none; }
+.fun-fold > summary.fun-sum:focus-visible{ outline:3px solid var(--ai); outline-offset:2px; }
+.fun-fold > summary .fun-tag{ margin-bottom:0; }
+.fun-sum-note{
+  flex:1 1 auto; min-width:0; font-size:15px; font-weight:700; color:var(--ai-usu);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.fun-fold-mark{
+  flex:none; width:22px; height:22px; background:var(--ai-usu);
+  transition:transform .15s ease;
+  -webkit-mask:url("chevron.svg?v=20260820a") center / contain no-repeat;
+  mask:url("chevron.svg?v=20260820a") center / contain no-repeat;
+}
+.fun-fold[open] .fun-fold-mark{ transform:rotate(180deg); }
+/* きょう 読んだ ぶんを たどる ボタン。新しくは 引かない */
+.fun-nav{ flex:none; min-width:52px; }
+.fun-nav[disabled]{ opacity:.4; }
+
 .fun-tag{
   display:inline-block; font-size:15px; font-weight:900;
   background:var(--ai); color:var(--kami);
@@ -1550,7 +1574,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   border-radius:var(--r-s); color:var(--ai);
 }
 .fun-fig svg{ display:block; width:100%; height:auto; }
-.fun-row{ display:flex; gap:10px; margin-top:14px; }
+.fun-row{ display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; align-items:center; }
 .fun-debug-list{ display:grid; gap:14px; }
 .fun-debug-card{ margin:0; }
 .fun-debug-tools{ padding:14px 16px; }

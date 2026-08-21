@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.4.5';
+const RELEASE_VERSION = '1.5.0';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -245,6 +245,12 @@ let openSyncDetails = false;
    iOS Safari はこのイベントを出さないため、同じボタンで手順案内へ切り替える。 */
 let deferredInstallPrompt = null;
 let funIdx = 0, funOpen = false;
+/* きょう 読んだ ぶんの どこを 見て いるか（funToday().seen の 添字）。
+   さいごが いまの 1件。◀ で 前に 読んだ ものへ 戻れる。
+   これが あると「読み終わったか」を 当てなくて よくなる。
+   新しく 引ける かずは これまで どおり 上限で しばるので、
+   たどれても 増えない。 */
+let funPos = -1;
 /* カレンダーが 見せている月（その月の1日）と、下にひらいている日。
    描き直しても 見ている場所が とばないよう、画面の外で おぼえておく */
 let calMonth = null;
@@ -593,7 +599,7 @@ function loadAll(){
      豆知識の確認URLでは、確認だけで日ごとの抽選履歴を動かさない。 */
   if(!DEBUG_CONTENT){
     const ft = funToday();
-    if(ft.seen.length) funIdx = ft.seen[ft.seen.length - 1];
+    if(ft.seen.length){ funIdx = ft.seen[ft.seen.length - 1]; funPos = ft.seen.length - 1; }
     else funPick();
   }
   funOpen = false;
@@ -2247,6 +2253,8 @@ function viewHome(){
 
   ${joinInstallTransferHTML()}
 
+  ${funHTML()}
+
   ${dailySec}
   ${sectionHTML('must','かならず やる','のこり '+mustLeft+'しゅるい', must)}
   ${opt.length   ? sectionHTML('opt','つぎに やる','のこり '+optLeft+'しゅるい', opt) : ''}
@@ -2256,7 +2264,6 @@ function viewHome(){
     <div class="paper today-list">${todayHTML()}</div>
   </section>
 
-  ${funHTML()}
   `;
 }
 
@@ -2815,6 +2822,7 @@ function funPick(){
   funOpen = false;
   f.seen.push(funIdx);
   f.history.push(funIdx);
+  funPos = f.seen.length - 1;
   saveSt();
 }
 
@@ -2826,40 +2834,58 @@ function didSomethingToday(){
 function funLimit(){ return FUN_MAX + (didSomethingToday() ? 1 : 0); }
 
 function funHTML(){
-  const f = FUN[funIdx % FUN.length];
-  const seenCount = funToday().seen.length;
+  const today = funToday();
+  const seen = today.seen || [];
+  /* たどっている 位置。範囲の 外なら さいごへ 寄せる */
+  const pos = seen.length ? clamp(funPos < 0 ? seen.length - 1 : funPos, 0, seen.length - 1) : -1;
+  const atEnd = pos < 0 || pos === seen.length - 1;
+  const idx = pos >= 0 ? seen[pos] : funIdx;
+  const f = FUN[idx % FUN.length];
+  const seenCount = seen.length;
   const bonus = didSomethingToday();
   const left = Math.max(0, funLimit() - seenCount);
   const isQuiz = f.t === 'なぞなぞ' || f.t === '頭のたいそう';
+  /* 前に 読んだ ものは もう 見た ものなので、答えまで 出す */
+  const shown = funOpen || !atEnd;
+  /* 新しく 引ける ぶんが 無い ときは 畳んで おく。**下へ 送らない**
+     （置き場所が 動くと、毎日 おぼえた ところが 変わって しまう）。
+     人が 開けば その ままに なる（data-details-key が 覚える） */
+  const openAttr = left > 0 ? ' open' : '';
+  const owari = left === 0
+    ? (!bonus && seenCount >= FUN_MAX
+        ? '「できた！」が ふえたら、もうひとつ 読めるよ。'
+        : 'きょうは ここまで。また あした！')
+    : '';
   return `
-  <section class="paper fun">
-    <span class="fun-tag">${esc(f.t)}</span>
+  <details class="paper fun fun-fold" data-details-key="funBox"${openAttr}>
+    <summary class="fun-sum">
+      <span class="fun-tag">${esc(f.t)}</span>
+      <span class="fun-sum-note">${esc(left > 0 ? 'きょうの おはなし' : owari)}</span>
+      <span class="fun-fold-mark" aria-hidden="true"></span>
+    </summary>
     ${f.t === 'むかしのことば'
       ? '<p class="fun-note">つかってみよう。ひみつの あんごうに なるかもね！</p>'
       : ''}
     <p class="fun-q" data-no-reading>${rubyHTML(f.q)}</p>
-    ${funOpen ? `<p class="fun-a" data-no-reading>${rubyHTML(f.a)}</p>${f.fig ? kanjiOriginHTML(f.fig) : ''}` : ''}
+    ${shown ? `<p class="fun-a" data-no-reading>${rubyHTML(f.a)}</p>${f.fig ? kanjiOriginHTML(f.fig) : ''}` : ''}
     <div class="fun-row">
-      ${funOpen ? '' : `<button class="btn btn-sm" data-fun="open" type="button">${
+      ${seenCount > 1 ? `<button class="btn btn-sm fun-nav" data-fun="prev" type="button"
+        aria-label="まえに よんだ はなし"${pos <= 0 ? ' disabled' : ''}>◀</button>` : ''}
+      ${seenCount > 1 ? `<button class="btn btn-sm fun-nav" data-fun="fwd" type="button"
+        aria-label="つぎに よんだ はなし"${atEnd ? ' disabled' : ''}>▶</button>` : ''}
+      ${shown ? '' : `<button class="btn btn-sm" data-fun="open" type="button">${
         isQuiz ? 'こたえを 見る' : (f.ask || 'つづきを 見る')}</button>`}
-      ${funOpen && left > 0
+      ${shown && atEnd && left > 0
         ? `<button class="btn btn-sm" data-fun="next" type="button">つぎの はなし（あと ${left}かい）</button>`
         : ''}
-      ${funOpen && left === 0 && !bonus && seenCount >= FUN_MAX
-        ? '<span class="fun-bonus">「できた！」が ふえたら、もうひとつ 読めるよ。</span>'
-        : ''}
-      ${funOpen && left === 0 && (bonus || seenCount < FUN_MAX)
-        ? '<span class="fun-owari">きょうは ここまで。また あした！</span>'
-        : ''}
+      ${/* おしまいの 一言は 畳んだ 見出しに 出している。中にも 出すと
+            同じことを 二度 言うことに なる */''}
     </div>
-    ${/* きほんの 3つを 読みおえ、ごほうびの 1つが のこっている ときだけ 出す。
-          説明と まぎれないよう、ボタンの 下に 小さく。
-          前は「3つ目に 出るはず」なのに 出かたが ずれて 見えていたので、
-          「のこりが あるか（left）」で 判断するように した */
-      funOpen && bonus && seenCount >= FUN_MAX && left > 0
+    ${/* きほんの 3つを 読みおえ、ごほうびの 1つが のこっている ときだけ 出す */
+      shown && atEnd && bonus && seenCount >= FUN_MAX && left > 0
       ? '<p class="fun-bonus--on">「できた！」が ふえたので、きょうは もうひとつ 読めるよ。</p>'
       : ''}
-  </section>`;
+  </details>`;
 }
 
 /* --- カウントダウン（1びょうごと） --- */
@@ -7441,7 +7467,14 @@ document.addEventListener('click', e=>{
 
   const fun = e.target.closest('[data-fun]');
   if(fun){
+    const seenNow = (funToday().seen || []);
     if(fun.dataset.fun === 'open'){ funOpen = true; pushRead(funIdx); }
+    else if(fun.dataset.fun === 'prev' || fun.dataset.fun === 'fwd'){
+      /* きょう 読んだ ぶんの 行き来。新しくは 引かないので、
+         上限にも ふれない（読み返しは いくらでも できる） */
+      const at = funPos < 0 ? seenNow.length - 1 : funPos;
+      funPos = clamp(fun.dataset.fun === 'prev' ? at - 1 : at + 1, 0, Math.max(0, seenNow.length - 1));
+    }
     else{
       /* 説明を 読むまで 次へは 進めない。1日に 引ける かずも ここで かぎる。
          ボタンは 上限で 消えるが、

@@ -2709,11 +2709,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260821c',
+    'assets/style.css': '20260821d',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260821e',
+    'assets/app.js': '20260821f',
     'assets/sync.js': '20260821a',
     'assets/photos.js': '20260820a'
   };
@@ -2737,19 +2737,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.4.5をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.4\.5';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.4\.5">/);
-  assert.equal(PACKAGE.version, '1.4.5');
-  assert.equal(PACKAGE_LOCK.version, '1.4.5');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.4.5');
+test('公開版番号v1.5.0をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.5\.0';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.5\.0">/);
+  assert.equal(PACKAGE.version, '1.5.0');
+  assert.equal(PACKAGE_LOCK.version, '1.5.0');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.5.0');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4588,6 +4588,24 @@ test('渡し直したら合図も更新し、手で受け取る道も残す', ()
   const check = grab(APP, 'checkPosterArrival');
   assert.match(check, /if\(!want \|\| \(!force && want <= posterHeldAt\(\)\)\) return 'skip';/);
   assert.match(check, /return 'empty';/, '箱が空のときは、そう分かる形で返すこと');
+});
+
+/* ミニコンテンツは カウントダウンの下（まいにちの上）に置き、きょうのぶんを
+   引き切ったら **その場で畳む**。下へ送らない（置き場所が動くと、毎日おぼえた
+   ところが変わる）。きょう読んだぶんは ◀▶ でたどれるので、「読み終わったか」を
+   当てる必要が無い。新しく引ける数は これまでどおり上限でしばる。 */
+test('ミニコンテンツは上に置き、引き切ったらその場で畳む', ()=>{
+  const home = grab(APP, 'viewHome');
+  const funAt = home.indexOf('${funHTML()}');
+  assert.ok(funAt > 0 && funAt < home.indexOf('${dailySec}'), 'まいにちより上に置くこと');
+  const fun = grab(APP, 'funHTML');
+  assert.match(fun, /const openAttr = left > 0 \? ' open' : '';/,
+    '引けるぶんが無いときは畳んでおくこと');
+  assert.match(fun, /data-details-key="funBox"/, '人が開いたら、描き直しても開いたままにすること');
+  assert.match(fun, /data-fun="prev"/, 'きょう読んだぶんをたどれること');
+  assert.match(fun, /const shown = funOpen \|\| !atEnd;/,
+    '前に読んだものは、答えまで出すこと');
+  assert.match(fun, /\$\{shown && atEnd && left > 0/, '新しく引くのは、さいごの1件を見ているときだけ');
 });
 
 /* しつもん（観察の観点）も宿題のノルマに数える。答えは state.questionAnswers に
