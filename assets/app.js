@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.5.0';
+const RELEASE_VERSION = '1.5.1';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2193,10 +2193,10 @@ function posterSectionHTML(){
   const state = !cfg.at ? 'まだ登録していません。'
     : here ? 'この端末に保存されています。'
     : sharingOn()
-      ? 'この端末にはまだ写真がありません。「写真を受け取る」を押すと取りに行きます。見つからないときは、写真のある端末の同じ欄で「もう一度わたす」を押してから、もう一度お試しください。'
+      ? 'この端末にはまだ写真がありません。「写真を受け取る」を押すと取りに行きます。見つからないときは、写真のある端末の同じ欄で「ほかの端末へ渡す」を押してから、もう一度お試しください。'
       : 'この端末には写真がありません。';
   const share = !sharingOn() ? '共有を使っていないため、この端末の中だけで使います。'
-    : here ? '渡した写真は24時間だけ受け取れます。受け取ったかどうかは分からないため、届かないときはもう一度わたしてください。'
+    : here ? 'この端末の写真を、共有しているほかの端末へ渡せます。渡した写真は24時間だけ受け取れます。受け取ったかどうかは分からないため、届かないときはもう一度渡してください。'
     : '';
   const sentLine = (sent && sent.at)
     ? `<p class="set-note">${sent.ok
@@ -2213,7 +2213,7 @@ function posterSectionHTML(){
     <div class="set-actions">
       <button class="btn btn-go" id="posterPick" type="button">写真を選ぶ</button>
       <input type="file" id="posterFile" accept="image/*" class="offscreen">
-      ${here ? '<button class="btn" id="posterSend" type="button">もう一度わたす</button>' : ''}
+      ${here && sharingOn() ? '<button class="btn" id="posterSend" type="button">ほかの端末へ渡す</button>' : ''}
       ${!here && cfg.at && sharingOn() ? '<button class="btn" id="posterTake" type="button">写真を受け取る</button>' : ''}
       ${here ? '<button class="btn" id="posterClear" type="button">写真を消す</button>' : ''}
     </div>
