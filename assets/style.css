@@ -222,9 +222,11 @@ button{ font:inherit; color:inherit; }
   .topband-date{ font-size:12px; }
   /* 一覧の写真の ボタンが 増えた ぶん、いちばん せまい 端末では
      題名が 1文字ぶん はみ出す（320px で 実測 14px 超過）。
-     帯を もう一段 つめて、その ぶんを 題名に まわす */
+     帯を もう一段 つめて、その ぶんを 題名に まわす。
+     ボタン自身の 詰めは、幅ごとの 指定が ならぶ **いちばん 後ろ**（下の
+     480px の ブロックの あと）に 置く。ここに 書くと 480px の 指定に
+     負けて 効かない */
   .topband-inner{ gap:6px; padding:10px 10px; }
-  .topband-poster{ padding:5px 5px; }
 }
 /* 帯を つめても、名前が 4文字 入るだけで 題名は 切れる（320px で 実測 17px 超過）。
    帯を 2行に しない かわりに、長い題名だけ 小さくして 出しきる。
@@ -629,11 +631,20 @@ button{ font:inherit; color:inherit; }
    「なつやすみ おわりまで」と つづけて 読めて しまい、何の ボタンか
    分からない という 指摘が あった。帯なら どの 画面でも 同じ ところに ある。
    タイトルは はみ出すと 三点リーダで 切れる 作りなので、押し出しても 壊れない。 */
+/* **帯の 中の 主従は 題名 ＞ 日づけ＝写真。** はじめは 白の 枠つきで 置いたので、
+   題名（--kami）と 同じ いちばん 強い 見え方に なり、日づけ（--on-band-muted）
+   だけが 一段 引いていた。押す 先が 3つ ある 帯で、いちばん 目に 入るのが
+   写真の ボタン、という 主従の 崩れ方に なっていた。
+   枠を 外し、色を 日づけと そろえて 落とす。届いた ことは 未読の 点が
+   受けもつので、平常時に 強い 必要は ない。 */
 .topband-poster{
   flex:none; display:inline-flex; align-items:center; gap:5px; position:relative;
-  min-height:38px; padding:5px 10px; border:2px solid var(--kami); border-radius:var(--r-pill);
-  background:transparent; color:var(--kami);
-  font-size:14px; font-weight:900; line-height:1.15; cursor:pointer;
+  min-height:38px; padding:5px 8px; border:0; border-radius:var(--r-s);
+  background:transparent; color:var(--on-band-muted);
+  font-size:14px; font-weight:700; line-height:1.15; cursor:pointer;
+}
+@media (hover:hover) and (pointer:fine){
+  .topband-poster:hover{ background:var(--on-band-muted); color:var(--band, var(--ai)); }
 }
 .topband-poster:active{ transform:translateY(1px); }
 .topband-poster:focus-visible{ outline:3px solid var(--kami); outline-offset:2px; }
@@ -643,6 +654,10 @@ button{ font:inherit; color:inherit; }
   mask:url("sheet.svg?v=20260820a") center / contain no-repeat;
 }
 .topband-poster-txt{ max-width:6em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* 名前は 任意。入れて いない 家庭では 印だけを 出す（空の 文字を 置くと
+   gap の ぶんだけ すきまが のこる） */
+.topband-poster-txt:empty{ display:none; }
+.topband-poster:not(.has-name){ gap:0; }
 /* 届いたばかりの しるし。日づけの 未読点と 同じ 考え方 */
 .topband-poster.has-unread::after{
   content:""; position:absolute; inset-block-start:-4px; inset-inline-end:-4px;
@@ -654,8 +669,13 @@ button{ font:inherit; color:inherit; }
    iPad では 言葉を 出す（押す 前に 何の ボタンか 分かる）。
    言葉は 開いた 中の 見出しにも 出るので、意味が 失われる ことは ない */
 @media (max-width:480px){
-  .topband-poster{ padding:5px 7px; }
+  .topband-poster{ padding:5px 6px; }
   .topband-poster-txt{ display:none; }
+}
+/* いちばん せまい 端末。**480px の ブロックより 後ろに 置くこと。**
+   前に 置くと 同じ 詳細度で 負けて、指定が まるごと 効かない */
+@media (max-width:360px){
+  .topband-poster{ padding:5px 4px; }
 }
 
 /* 画面には 出さないが、押せる 状態で 置いておく 入力欄。
@@ -667,11 +687,76 @@ button{ font:inherit; color:inherit; }
 
 /* 見出しの 右に 置く 小さな「使い方」。欄の 意味を 聞かれた ときに
    その場で 答えられる ようにする（画面を 増やさない） */
-.sec-help-btn{ margin-inline-start:auto; flex:none; font-size:15px; padding:4px 12px; }
-.poster-help{ width:min(94vw, 560px); }
-.poster-steps{ margin:0; padding-inline-start:1.4em; display:grid; gap:10px; }
-.poster-steps li{ font-size:16px; line-height:1.7; }
-.poster-note{ margin:14px 0 0; font-size:15px; line-height:1.7; color:var(--ai-usu); }
+/* 「使い方」の 3文字を「?」の 印に した。見出しの 帯は もともと 定員が
+   きびしく、語で 置くと 見出しが 先に 切れる。当たり判定は .icon-btn の
+   44px の まま 変えない（帯の 丈も btn-sm と 同じ 44px なので 伸びない） */
+.sec-help-btn{ margin-inline-start:auto; flex:none; }
+/* 面は 持たず、印だけ 置く（.icon-btn.del と 同じ 考え方）。白い 44px の
+   まるを 濃い帯に のせると、見出しより 明るい ものが 行の 中に できて
+   主従が 崩れる ―― 帯の 写真ボタンで 起きたのと 同じ 崩れ方。
+   色は 同じ 帯の 説明文（.sec-note）と そろえ、見出しより 一段 引く。
+   **枠は 消さずに 透明にする。** 太さを 残さないと 行の 丈が 変わる。
+   44px の 当たり判定は .icon-btn の まま 変えない */
+.icon-btn.sec-help-btn{
+  background:transparent; border-color:transparent; box-shadow:none;
+  color:var(--on-band-muted); font-size:22px;
+}
+.icon-btn.sec-help-btn:active{ transform:translateY(1px); }
+.icon-btn.sec-help-btn:focus-visible{ outline:3px solid var(--kami); outline-offset:2px; }
+@media (hover:hover) and (pointer:fine){
+  .icon-btn.sec-help-btn:hover{ background:var(--on-band-muted); color:var(--ai); }
+}
+/* **`.poster-dialog` を 名指しで 足す。** うしろに ある `.poster-dialog` の
+   `width:min(96vw,900px)` と 詳細度が 同じ ため、これだけでは 負けて
+   効いていなかった（768px で 実測 724px。読みやすい 幅を 大きく こえる） */
+.poster-dialog.poster-help{ width:min(94vw, 560px); }
+/* 中身が 1画面に 収まらない ので、**とじるは いつでも 押せる ところに 置く**。
+   上へ 戻らないと 閉じられない のは、読んでいる 途中で やめられない のと 同じ。
+   ダイアログの 内側の 余白（14px）ぶん 引き上げて、上端に ぴたりと 留める */
+.poster-help .poster-head{
+  position:sticky; inset-block-start:-14px; z-index:1;
+  padding-block:14px; margin-block:-14px 10px;
+  background:var(--kami);
+}
+/* 見出しは 自分たちの 文。320px でも 切らずに 折り返して 出しきる */
+.poster-help .poster-head h2{ white-space:normal; overflow:visible; text-overflow:clip; }
+.poster-lead{ margin:0 0 14px; font-size:16px; font-weight:700; line-height:1.7; }
+/* 3コマの 図。外部の 画像を 持たず、currentColor だけで 描く。
+   色を 決め打ちしないので、6つの テーマの どれでも 紙と 文字の 対で 成り立つ */
+.poster-figure{
+  margin:0 0 16px; padding:12px 8px;
+  border:2px dashed var(--hougan); border-radius:var(--r-s);
+  color:var(--ai);
+}
+.poster-flow{
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  max-width:460px; margin:0 auto;
+}
+.poster-flow-step{
+  flex:1 1 0; min-width:0; display:grid; justify-items:center; gap:2px; text-align:center;
+}
+.poster-flow-step b{ font-size:13px; font-weight:900; line-height:1.4; }
+.poster-flow-step small{ font-size:12px; font-weight:700; line-height:1.4; color:var(--ai-usu); }
+.poster-flow-ico{ display:block; width:auto; height:46px; }
+.poster-flow-arrow{ flex:none; width:18px; height:18px; }
+.poster-figure figcaption{
+  /* 図の 中身は 読み上げの 対象に しない（絵は aria-hidden）。
+     かわりに ここで 1文に して 伝える。目でも 読めるので 隠さない */
+  margin:8px 0 0; font-size:13px; font-weight:700; line-height:1.6; color:var(--ai-usu);
+}
+.poster-steps{ margin:0; padding:0; list-style:none; display:grid; gap:12px; }
+.poster-steps li{ display:flex; gap:12px; align-items:flex-start; min-width:0; }
+.poster-steps li > div{ min-width:0; }
+/* 番号は 初期設定の .welcome-num と 同じ 白抜きの 丸。同じ「順に すすむ」
+   案内なので、別の 形を 増やさない */
+.poster-step-num{
+  flex:0 0 28px; height:28px; margin-top:2px; display:grid; place-items:center;
+  color:var(--kami); background:var(--suika); border-radius:50%;
+  font-size:15px; font-weight:900;
+}
+.poster-steps b{ display:block; font-size:16px; font-weight:900; line-height:1.5; }
+.poster-steps p{ margin:2px 0 0; font-size:15px; font-weight:700; line-height:1.7; color:var(--ai-usu); }
+.poster-note{ margin:16px 0 0; font-size:15px; font-weight:700; line-height:1.7; color:var(--ai-usu); }
 
 .poster-dialog{
   width:min(96vw, 900px); max-height:92vh; padding:14px;
@@ -2038,6 +2123,9 @@ body.no-tabbar{ padding-bottom:0; }
 .icon-btn{
   flex:none; width:44px; height:44px; border-radius:10px;
   border:2px solid var(--ai); background:var(--kami);
+  /* **文字色は 自分で 持つこと。**（.btn と 同じ 落とし穴）
+     受け継ぐ ままだと、濃い帯の 中に 置いた ときに 白地へ 白文字が のる */
+  color:var(--ai);
   font-size:20px; font-weight:900; cursor:pointer;
 }
 /* 消すボタンは 枠なし。ゴミ箱の 図だけを 置く。

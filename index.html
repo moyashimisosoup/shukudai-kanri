@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="application-version" content="1.5.3">
+<meta name="application-version" content="1.5.4">
 <meta name="theme-color" content="#14375E">
 <!-- 招待リンクは ホーム画面に 追加させるため、しばらく URL に あいことばを のこす。
      そのあいだ 外部（Google Fonts など）へ アドレスを 渡さない。
@@ -24,7 +24,7 @@
 <!-- Webフォントの通信で初期描画を止めない。読み込み中は端末内の丸ゴシックを使う -->
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/style.css?v=20260821f">
+<link rel="stylesheet" href="assets/style.css?v=20260821g">
 <link rel="stylesheet" href="tokens.css?v=20260813a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
 </head>
@@ -65,19 +65,76 @@
   <button class="btn btn-go kinenbi-close" id="kinenbiClose" type="button">とじる</button>
 </dialog>
 
-<!-- 宿題の一覧の写真の使い方。保護者ページからだけ開く小さな案内 -->
+<!-- 宿題の一覧の写真の使い方。保護者ページの「?」からだけ開く小さな案内。
+     画面には操作だけを置き、説明はここへ寄せる（欄の縦を短く保つため） -->
 <dialog class="poster-dialog poster-help" id="posterHelpDialog" aria-labelledby="posterHelpTitle">
   <div class="poster-head">
-    <h2 id="posterHelpTitle">写真の渡し方</h2>
+    <h2 id="posterHelpTitle">宿題の一覧の写真</h2>
     <button class="btn btn-sm poster-close" id="posterHelpClose" type="button">とじる</button>
   </div>
+  <p class="poster-lead">学校からの宿題一覧や時間割、目標表などを貼っておける場所です。</p>
+  <!-- 3コマの 図。**文字は 文字の まま HTML に 置く。** SVG の 中に 入れると、
+       図を 画面幅に 合わせて 縮めた ぶん 字も 縮み、320px では 6px ほどに なって
+       読めなかった（実測）。絵だけを SVG に し、言葉は 折り返させる -->
+  <figure class="poster-figure">
+    <div class="poster-flow">
+      <div class="poster-flow-step">
+        <svg class="poster-flow-ico" viewBox="0 0 48 72" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="4" width="40" height="64" rx="8"/>
+            <line x1="18" y1="13" x2="30" y2="13"/>
+            <rect x="12" y="23" width="24" height="30" rx="3"/>
+            <line x1="17" y1="32" x2="31" y2="32"/>
+            <line x1="17" y1="39" x2="31" y2="39"/>
+            <line x1="17" y1="46" x2="26" y2="46"/>
+          </g>
+        </svg>
+        <b>保護者の端末</b>
+      </div>
+      <svg class="poster-flow-arrow" viewBox="0 0 24 24" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="12" x2="20" y2="12"/><polyline points="14,6 20,12 14,18"/>
+        </g>
+      </svg>
+      <div class="poster-flow-step">
+        <svg class="poster-flow-ico" viewBox="0 0 64 72" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="16" width="56" height="40" rx="5"/>
+            <line x1="4" y1="29" x2="60" y2="29"/>
+            <path d="M26 16v13M38 16v13"/>
+          </g>
+        </svg>
+        <b>あずかり箱</b><small>24時間で消える</small>
+      </div>
+      <svg class="poster-flow-arrow" viewBox="0 0 24 24" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="3" y1="12" x2="20" y2="12"/><polyline points="14,6 20,12 14,18"/>
+        </g>
+      </svg>
+      <div class="poster-flow-step">
+        <svg class="poster-flow-ico" viewBox="0 0 60 72" aria-hidden="true">
+          <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="6" width="54" height="60" rx="6"/>
+            <rect x="12" y="16" width="36" height="40" rx="3"/>
+            <line x1="18" y1="26" x2="42" y2="26"/>
+            <line x1="18" y1="34" x2="42" y2="34"/>
+            <line x1="18" y1="42" x2="34" y2="42"/>
+          </g>
+        </svg>
+        <b>子どもの端末</b>
+      </div>
+    </div>
+    <figcaption>保護者の端末で選んだ写真が、24時間だけ残るあずかり箱を通って、子どもの端末に届きます。</figcaption>
+  </figure>
   <ol class="poster-steps">
-    <li><b>この端末で「写真を選ぶ」</b>を押し、宿題の一覧や時間割を撮った写真を選びます。長い辺を小さくして保存するので、写真アプリの元の写真はそのままです。</li>
-    <li><b>「わたしました」と出たら送信できています。</b>共有していない場合は、この端末の中だけで使います。写真を持っている端末なら、どれからでも<b>「ほかの端末へ渡す」</b>で渡し直せます。</li>
-    <li><b>子どもの端末で受け取ります。</b>ふつうはアプリを開き直すと自動で届きます。届かないときは、子どもの端末の同じ欄にある<b>「写真を受け取る」</b>を押してください。</li>
-    <li><b>子ども画面の上の帯のボタン</b>から、いつでも開けます。</li>
+    <li><span class="poster-step-num" aria-hidden="true">1</span><div><b>写真を選ぶ</b>
+      <p>この端末の「写真を選ぶ」から。長い辺を小さくして保存するので、写真アプリの元の写真はそのままです。</p></div></li>
+    <li><span class="poster-step-num" aria-hidden="true">2</span><div><b>ほかの端末へ渡す</b>
+      <p>「わたしました」と出れば送れています。共有していないときは、この端末の中だけで使います。</p></div></li>
+    <li><span class="poster-step-num" aria-hidden="true">3</span><div><b>子ども画面の帯から開く</b>
+      <p>ふつうは開き直すと自動で届きます。届かないときは、その端末の同じ欄の「写真を受け取る」を押してください。</p></div></li>
   </ol>
-  <p class="poster-note">写真は各端末の中に保存します。共有データには入りません。渡した写真を受け取れるのは24時間までで、そのあとは消えます。もう一度渡せば、また受け取れます。</p>
+  <p class="poster-note">写真はこの端末のアプリの中に、写真アプリとは別に保存します。写真アプリから元の写真を消しても残ります。逆に、ブラウザの「Webサイトデータを削除」をすると、宿題の記録といっしょに消えます。大切なプリントは、写真アプリにも残しておいてください。</p>
 </dialog>
 
 <!-- 宿題の一覧の写真。画像は端末の中（IndexedDB）にあり、共有データには入れない -->
@@ -170,7 +227,7 @@ window.natsuBootProgress = function(value, label){
 <script>window.natsuBootProgress(88, 'この端末の記録を読み込んでいます');</script>
 <!-- 写真の置き場（端末ごと）。読めなくてもアプリはそのまま動く -->
 <script src="assets/photos.js?v=20260820a"></script>
-<script src="assets/app.js?v=20260821h"></script>
+<script src="assets/app.js?v=20260821i"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
 <script type="module" src="assets/sync.js?v=20260821a"></script>

@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.5.3';
+const RELEASE_VERSION = '1.5.4';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -330,8 +330,10 @@ function normalizeConfig(c){
      ここに画像を入れると1文書1MiBの上限にあたり、家庭ぜんぶの同期が止まる */
   const poster = c.poster && typeof c.poster === 'object' ? c.poster : {};
   const posterAt = Number(poster.at);
+  /* 名前は **任意**。空のままなら 帯には 印だけを 出す。
+     ここで 既定の 語を 入れて しまうと、消した つもりの 名前が 戻る */
   c.poster = {
-    label: String(poster.label || 'いちらん').slice(0, 6),
+    label: String(poster.label == null ? '' : poster.label).trim().slice(0, 6),
     at: posterAt > 0 ? posterAt : 0
   };
   /* 読める漢字。既存グループは、その端末に のこっている 値を 引きつぐ。
@@ -2030,8 +2032,12 @@ function photos(){ return window.NatsuPhotos || null; }
 function sync(){ return window.NatsuSync || null; }
 function posterCfg(){
   const p = config.poster && typeof config.poster === 'object' ? config.poster : {};
-  return { label: String(p.label || POSTER_LABEL_DEFAULT).slice(0, 6), at: ms(p.at) };
+  return { label: String(p.label == null ? '' : p.label).trim().slice(0, 6), at: ms(p.at) };
 }
+/* 名前を 入れて いない 家庭のための 言い方。**帯の ボタンには 使わない**
+   （入れて いない のに 語が 出ると、設定した ように 見える）。
+   読み上げと、開いた 画面の 見出しと、届いた ときの 知らせに だけ 使う */
+function posterWord(){ return posterCfg().label || POSTER_LABEL_DEFAULT; }
 function posterHeldAt(){ return ms(getLocal(K_POSTER_AT)); }
 
 /* 端末に ある ぶんを 出す。読めなくても アプリは そのまま 動く */
@@ -2076,7 +2082,7 @@ async function checkPosterArrival(opts){
     setLocal(K_POSTER_AT, String(want));
     await loadPoster();
     posterFresh = true;
-    toast('あたらしい ' + posterCfg().label + 'が とどいたよ');
+    toast('あたらしい ' + posterWord() + 'が とどいたよ');
     render({ keepScroll:true });
     if(typeof S.clearHandoff === 'function') S.clearHandoff();
     return 'got';
@@ -2164,7 +2170,8 @@ function renderPosterButton(){
   btn.hidden = !show;
   if(!show) return;
   text.textContent = cfg.label;
-  btn.setAttribute('aria-label', cfg.label + ' を 見る');
+  btn.classList.toggle('has-name', !!cfg.label);
+  btn.setAttribute('aria-label', posterWord() + ' を 見る');
   btn.classList.toggle('has-unread', posterFresh);
 }
 
@@ -2174,7 +2181,7 @@ function openPoster(){
   if(!dialog || !img) return;
   if(!posterURL){ toast('まだ とどいていないよ'); return; }
   img.src = posterURL;
-  $('#posterTitle').textContent = posterCfg().label;
+  $('#posterTitle').textContent = posterWord();
   posterFresh = false;
   if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
 }
@@ -2193,11 +2200,9 @@ function posterSectionHTML(){
   const state = !cfg.at ? 'まだ登録していません。'
     : here ? 'この端末に保存されています。'
     : sharingOn()
-      ? 'この端末にはまだ写真がありません。「写真を受け取る」を押すと取りに行きます。見つからないときは、写真のある端末の同じ欄で「ほかの端末へ渡す」を押してから、もう一度お試しください。'
+      ? 'この端末にはまだ写真がありません。「写真を受け取る」で取りに行けます。'
       : 'この端末には写真がありません。';
-  const share = !sharingOn() ? '共有を使っていないため、この端末の中だけで使います。'
-    : here ? 'この端末の写真を、共有しているほかの端末へ渡せます。渡した写真は24時間だけ受け取れます。受け取ったかどうかは分からないため、届かないときはもう一度渡してください。'
-    : '';
+  const share = !sharingOn() ? '共有を使っていないため、この端末の中だけで使います。' : '';
   const sentLine = (sent && sent.at)
     ? `<p class="set-note">${sent.ok
         ? '最後に渡したのは ' + esc(fmtDate(new Date(sent.at))) + ' ' + esc(fmtTime(new Date(sent.at))) + ' です。'
@@ -2205,16 +2210,16 @@ function posterSectionHTML(){
     : '';
   return `
   <section class="sec config-sec"><div class="sec-head"><h2>宿題の一覧の写真</h2>
-      <button class="btn btn-sm sec-help-btn" id="posterHelp" type="button">使い方</button></div><div class="paper">
-    <p class="set-note">プリントや時間割、目標表などを1枚だけ持たせます。子ども画面の上の帯に、開くボタンが出ます。写真は各端末の中に保存し、共有データには入れません。</p>
-    <p class="set-note">ボタンの名前は、写真を開いた画面の見出しに出ます。画面の広い端末では帯のボタンにも並ぶため、4文字までにすると収まりがよくなります。iPhoneの幅では帯の題名を守るため、ボタンは印だけになります。</p>
+      <button class="icon-btn sec-help-btn" id="posterHelp" type="button"
+        title="使い方" aria-label="宿題の一覧の写真の使い方">?</button></div><div class="paper">
+    <p class="set-note">プリントや時間割、目標表などを1枚だけ持たせます。子ども画面の上の帯に、開くボタンが出ます。</p>
     <div class="set-row"><label class="lab" for="posterLabel">ボタンの名前</label>
-      <input type="text" id="posterLabel" maxlength="6" value="${esc(cfg.label)}"></div>
+      <input type="text" id="posterLabel" maxlength="6" placeholder="なくてもかまいません" value="${esc(cfg.label)}"></div>
     <div class="set-actions">
       <button class="btn btn-go" id="posterPick" type="button">写真を選ぶ</button>
       <input type="file" id="posterFile" accept="image/*" class="offscreen">
       ${here && sharingOn() ? '<button class="btn" id="posterSend" type="button">ほかの端末へ渡す</button>' : ''}
-      ${!here && cfg.at && sharingOn() ? '<button class="btn" id="posterTake" type="button">写真を受け取る</button>' : ''}
+      ${cfg.at && sharingOn() ? '<button class="btn" id="posterTake" type="button">写真を受け取る</button>' : ''}
       ${here ? '<button class="btn" id="posterClear" type="button">写真を消す</button>' : ''}
     </div>
     <p class="set-note">${esc(state)}${esc(share)}</p>
@@ -6794,14 +6799,15 @@ function bindConfig(){
     const result = await checkPosterArrival({ force:true });
     if(result === 'got') return;
     toast(result === 'empty'
-      ? '写真が 見つかりません。渡した端末で「もう一度わたす」を押してください'
+      ? '写真が 見つかりません。写真のある端末で「ほかの端末へ渡す」を押してください'
       : '共有の状態を確かめてください');
   });
   on('#posterClear', 'click', ()=>{
     if(confirm('宿題の一覧の写真を消しますか？' + '\n' + 'この端末から消えます。')) removePoster();
   });
   on('#posterLabel', 'change', e=>{
-    const label = String(e.target.value || '').trim().slice(0, 6) || 'いちらん';
+    /* 空のままを 許す。**既定の 語で 埋め戻さないこと**（消しても 戻る） */
+    const label = String(e.target.value || '').trim().slice(0, 6);
     config.poster = { label, at: posterCfg().at };
     saveCfg();
     render({ keepScroll:true });

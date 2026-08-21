@@ -2709,11 +2709,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260821f',
+    'assets/style.css': '20260821g',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260821h',
+    'assets/app.js': '20260821i',
     'assets/sync.js': '20260821a',
     'assets/photos.js': '20260820a'
   };
@@ -2737,19 +2737,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.5.3をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.5\.3';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.5\.3">/);
-  assert.equal(PACKAGE.version, '1.5.3');
-  assert.equal(PACKAGE_LOCK.version, '1.5.3');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.5.3');
+test('公開版番号v1.5.4をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.5\.4';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.5\.4">/);
+  assert.equal(PACKAGE.version, '1.5.4');
+  assert.equal(PACKAGE_LOCK.version, '1.5.4');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.5.4');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4614,6 +4614,108 @@ test('ミニコンテンツは上に置き、引き切ったらその場で畳�
 test('ボタンは背景と文字色を対で持つ', ()=>{
   assert.match(STYLE, /\.btn\{[^}]*background:var\(--kami\);[\s\S]{0,200}color:var\(--ai\);/,
     '.btn は文字色も指定すること');
+  /* .icon-btn も 同じ 落とし穴を 持っていた（背景だけ 決めて 文字色は 親から）。
+     見出しの 帯へ「?」を 置いた ことで、実際に 当たる 位置に なった */
+  assert.match(STYLE, /\.icon-btn\{[^}]*background:var\(--kami\);[\s\S]{0,240}color:var\(--ai\);/,
+    '.icon-btn も文字色を指定すること');
+});
+
+/* 一覧の写真の ボタンの 名前は **任意**。入れて いない 家庭では 帯に 印だけを
+   出す。既定の 語で 埋め戻すと、消した つもりの 名前が 戻って くる。 */
+test('一覧の写真のボタンの名前は、空のままにできる', ()=>{
+  const out = normalizeConfigHarness({ poster: { at: 1755000000000 } });
+  assert.equal(out.poster.label, '', '入れていない名前を既定の語で埋めないこと');
+  assert.equal(normalizeConfigHarness({ poster: { label:'ぷりんと', at: 1 } }).poster.label, 'ぷりんと');
+  assert.doesNotMatch(grab(APP, 'posterCfg'), /POSTER_LABEL_DEFAULT/,
+    'posterCfg は 入っている値だけを返すこと');
+  assert.match(grab(APP, 'posterWord'), /posterCfg\(\)\.label \|\| POSTER_LABEL_DEFAULT/,
+    '読み上げ・見出し・知らせにだけ、既定の語を使うこと');
+  const render = grab(APP, 'renderPosterButton');
+  assert.match(render, /text\.textContent = cfg\.label;/, '帯には既定の語を出さないこと');
+  assert.match(render, /classList\.toggle\('has-name', !!cfg\.label\)/);
+  assert.match(STYLE, /\.topband-poster-txt:empty\{ display:none; \}/,
+    '名前が空のときは、言葉の欄ごと出さないこと');
+  const bind = grab(APP, 'bindConfig');
+  assert.match(bind, /const label = String\(e\.target\.value \|\| ''\)\.trim\(\)\.slice\(0, 6\);/,
+    '空欄のまま保存できること（既定の語で埋め戻さない）');
+});
+
+/* 差しかえた 写真を 手で 受け取れるように する。以前は「この端末に 写真が
+   無い」ときにしか ボタンを 出して いなかったので、**すでに 1枚 持っている
+   端末は 差しかえを 手で 取りに 行けなかった**（自動でしか 届かない）。 */
+test('写真を受け取るボタンは、共有中ならいつでも押せる', ()=>{
+  const sec = grab(APP, 'posterSectionHTML');
+  assert.match(sec, /\$\{cfg\.at && sharingOn\(\) \? '<button class="btn" id="posterTake"/,
+    'すでに写真を持っている端末にも出すこと');
+  assert.doesNotMatch(sec, /!here && cfg\.at && sharingOn\(\)/, '持っていない端末に限らないこと');
+  /* v1.5.1 で 名前を 変えた ボタンを、知らせの 文だけ 旧い ままに しない */
+  const bind = grab(APP, 'bindConfig');
+  assert.doesNotMatch(bind, /もう一度わたす/, '画面に無いボタンの名前で案内しないこと');
+  assert.match(bind, /「ほかの端末へ渡す」を押してください/);
+});
+
+/* 使い方は「?」の 印から 開く。中身は 丸数字の 3手順と、3コマの 図と、
+   **写真が どこに あるのか**の 一段。画面には 操作だけを 置き、説明は
+   ここへ 寄せる（欄の 縦を 短く 保つため）。 */
+test('一覧の写真の使い方は、丸数字と図と保存場所で伝える', ()=>{
+  assert.match(grab(APP, 'posterSectionHTML'),
+    /<button class="icon-btn sec-help-btn" id="posterHelp"[\s\S]{0,120}aria-label="宿題の一覧の写真の使い方">\?</,
+    '見出しの「使い方」は「?」の印にすること');
+  const help = INDEX.slice(INDEX.indexOf('id="posterHelpDialog"'), INDEX.indexOf('id="posterDialog"'));
+  const nums = help.match(/class="poster-step-num" aria-hidden="true">(\d)</g) || [];
+  assert.deepEqual(nums.length, 3, '手順は3つにすること');
+  /* 図の 中の 言葉は **HTML の まま** 置く。SVG の <text> に 入れると、
+     図を 画面幅に 合わせて 縮めた ぶん 字も 縮み、320px では 6px ほどに なって
+     読めなかった（実測 224px ／ 縮尺 0.49）。 */
+  const fig = help.slice(help.indexOf('<figure class="poster-figure">'), help.indexOf('</figure>'));
+  assert.ok(fig.length > 0, '3コマの図を置くこと');
+  assert.doesNotMatch(fig, /<text[\s>]/, '図の中の言葉を SVG の <text> に入れないこと（字まで縮む）');
+  assert.equal((fig.match(/<b>/g) || []).length, 3, '3つの場所の名前を HTML の文字で置くこと');
+  assert.equal((fig.match(/<svg /g) || []).length, 5, '絵（3つ）と矢印（2つ）だけを SVG にすること');
+  for(const one of fig.match(/<svg [\s\S]*?<\/svg>/g) || []){
+    assert.match(one, /aria-hidden="true"/, '絵は読み上げの対象にしないこと');
+  }
+  assert.match(fig, /<figcaption>[^<]{20,}/, '絵の代わりに読む1文を置くこと');
+  assert.match(fig, /stroke="currentColor"/, '図の色は currentColor だけで描くこと（6テーマに追従する）');
+  assert.doesNotMatch(help, /<image|xlink:href/, '外部の画像を読み込まないこと');
+  /* うしろに ある .poster-dialog と 詳細度が 同じ だと、幅の 指定が 負けて
+     効かない（768px で 実測 724px に なっていた） */
+  assert.match(STYLE, /\.poster-dialog\.poster-help\{ width:min\(94vw, 560px\); \}/,
+    '使い方の幅は .poster-dialog を名指しして勝たせること');
+  assert.match(STYLE, /\.poster-help \.poster-head\{[\s\S]{0,160}position:sticky/,
+    '1画面に収まらないので、とじるは上に留めること');
+  assert.match(help, /写真アプリとは別に保存します[\s\S]{0,200}写真アプリにも残しておいてください/,
+    '写真がどこにあるのかを書くこと（複製が無いので、消えたら戻せない）');
+  assert.match(STYLE, /\.poster-step-num\{[\s\S]{0,200}background:var\(--suika\)/,
+    '番号は初期設定（.welcome-num）と同じ白抜きの丸にそろえること');
+});
+
+/* CSSでは「規則が 在る」と「規則が 勝つ」は 別。同じ 詳細度なら 後ろが 勝つので、
+   狭い幅の 指定を 広い幅の 指定より 前に 置くと **まるごと 効かない**。
+   実際、360px の .topband-poster は 480px の ブロックに 負けて 死んでいた。 */
+test('帯のボタンの幅ごとの指定は、狭いほうを後ろに置く', ()=>{
+  const spots = [...STYLE.matchAll(/\.topband-poster\{/g)].map(m => m.index);
+  assert.equal(spots.length, 3,
+    '基本・480px・360px の3か所だけにすること（散らすと勝ち負けが読めなくなる）');
+  const [base, wide, narrow] = spots;
+  assert.equal(STYLE.lastIndexOf('@media', base) < STYLE.lastIndexOf('}\n', base), true,
+    '基本の指定は @media の外に置くこと');
+  assert.ok(STYLE.slice(0, wide).lastIndexOf('@media (max-width:480px)') >
+            STYLE.slice(0, wide).lastIndexOf('@media (max-width:360px)'),
+    '2つめは 480px のブロックに置くこと');
+  assert.ok(STYLE.slice(0, narrow).lastIndexOf('@media (max-width:360px)') >
+            STYLE.slice(0, narrow).lastIndexOf('@media (max-width:480px)'),
+    '狭い 360px の指定は、480px より後ろのブロックに置くこと');
+});
+
+/* 帯の 中の 主従は 題名 ＞ 日づけ＝写真。写真の ボタンを 白の 枠つきに すると、
+   題名と 同じ いちばん 強い 見え方に なり、日づけ だけが 一段 引く。 */
+test('帯の写真ボタンは、日づけと同じ強さに落とす', ()=>{
+  const rule = STYLE.slice(STYLE.indexOf('.topband-poster{'));
+  const block = rule.slice(0, rule.indexOf('}') + 1);
+  assert.match(block, /color:var\(--on-band-muted\)/, '日づけと同じ色にすること');
+  assert.match(block, /border:0/, '題名より強く見える枠を持たせないこと');
+  assert.doesNotMatch(block, /border:2px solid var\(--kami\)/);
 });
 
 /* しつもん（観察の観点）も宿題のノルマに数える。答えは state.questionAnswers に
