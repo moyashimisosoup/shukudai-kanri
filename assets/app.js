@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.5.4';
+const RELEASE_VERSION = '1.6.0';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -329,12 +329,24 @@ function normalizeConfig(c){
   /* 宿題の一覧の写真。**印だけ**を共有する（画像は端末の中）。
      ここに画像を入れると1文書1MiBの上限にあたり、家庭ぜんぶの同期が止まる */
   const poster = c.poster && typeof c.poster === 'object' ? c.poster : {};
-  const posterAt = Number(poster.at);
   /* 名前は **任意**。空のままなら 帯には 印だけを 出す。
-     ここで 既定の 語を 入れて しまうと、消した つもりの 名前が 戻る */
+     ここで 既定の 語を 入れて しまうと、消した つもりの 名前が 戻る。
+
+     枠ごとの 合図は `ats`（0〜3まいめ）。旧い 1枚だけの 設定（`at` だけ）は
+     0まいめと して 引きつぐ。`at` には **max(ats) を 入れない** ―― 旧い 版の
+     端末は `at` を 見て「これまでの ID（＝0まいめ）」を 取りに 行くので、
+     ほかの 枠の 時刻が 入ると 0まいめを 新しい ものと 取りちがえる */
+  const posterAts = [];
+  const rawAts = Array.isArray(poster.ats) ? poster.ats : [];
+  for(let i = 0; i < POSTER_MAX; i++){
+    const at = Number(rawAts[i]);
+    posterAts.push(at > 0 ? at : 0);
+  }
+  if(!posterAts[0]) posterAts[0] = Number(poster.at) > 0 ? Number(poster.at) : 0;
   c.poster = {
     label: String(poster.label == null ? '' : poster.label).trim().slice(0, 6),
-    at: posterAt > 0 ? posterAt : 0
+    at: posterAts[0],
+    ats: posterAts
   };
   /* 読める漢字。既存グループは、その端末に のこっている 値を 引きつぐ。
      0/1/2/9 だけだった 旧データも、この一覧に 入っているので そのまま通る。 */
@@ -2014,12 +2026,22 @@ function joinRolePickHTML(){
    ほかの端末へは、一時の 受け渡し箱（sync.js の 5.7）で 渡す。
    届いていない ときは「まだ とどいていない」と 出す。壊れて 見せない。
    --------------------------------------------------------- */
-const POSTER_ID = 'poster';
+/* 4枚まで。**枠は 0〜3 の 固定で、詰め直さない。** 2まいめを 消しても
+   3まいめは 3まいめの まま。詰めると 枠ごとの 合図が すべて ずれ、
+   関係の ない 端末が 全部を 取り直す。空き枠が 見えるほうが 安い。
+   足すときは いちばん 小さい 空き枠に 入る。 */
+const POSTER_MAX = 4;
+/* **0まいめの キーは これまでと 同じ `poster`。** すでに 1枚 持っている
+   家庭は、移行の 処理なしで そのまま 0まいめに なる */
+function posterId(slot){ const n = Number(slot) || 0; return n > 0 ? 'poster-' + n : 'poster'; }
 const POSTER_LABEL_DEFAULT = 'いちらん';
+/* 旧い 1枚だけの 控え。**消さずに 残す。** 0まいめの 控えは 新旧 両方へ 書く。
+   旧い 版へ もどった ときに、持っている 写真を 取り直さない ため */
 const K_POSTER_AT = TEST_MODE ? 'natsu.preview.poster.at.v1' : 'natsu.poster.at.v1';
+const K_POSTER_ATS = TEST_MODE ? 'natsu.preview.poster.ats.v1' : 'natsu.poster.ats.v1';
 /* さいごに 渡せたか どうか。端末ごとの 控えで、共有には 入れない */
 const K_POSTER_SENT = TEST_MODE ? 'natsu.preview.poster.sent.v1' : 'natsu.poster.sent.v1';
-let posterURL = '';        // 表示用。IndexedDB の Blob から 作る
+let posterURLs = [];       // 表示用。IndexedDB の Blob から 作る（枠ごと）
 let posterFresh = false;   // 届いたばかりの 印
 let posterBusy = false;    // 取りに行っている 最中（二重に 走らせない）
 
@@ -2032,22 +2054,67 @@ function photos(){ return window.NatsuPhotos || null; }
 function sync(){ return window.NatsuSync || null; }
 function posterCfg(){
   const p = config.poster && typeof config.poster === 'object' ? config.poster : {};
-  return { label: String(p.label == null ? '' : p.label).trim().slice(0, 6), at: ms(p.at) };
+  return {
+    label: String(p.label == null ? '' : p.label).trim().slice(0, 6),
+    at: ms(p.at),
+    ats: posterAtsFrom(p)
+  };
+}
+/* 枠ごとの 合図。旧い 1枚だけの 設定（at だけ）は 0まいめと して 引きつぐ */
+function posterAtsFrom(p){
+  const raw = Array.isArray(p && p.ats) ? p.ats : [];
+  const out = [];
+  for(let i = 0; i < POSTER_MAX; i++) out.push(ms(raw[i]));
+  if(!out[0]) out[0] = ms(p && p.at);
+  return out;
+}
+/* 共有へ 出す 形。**at には max(ats) を 入れない。** 旧い 端末は at を 見て
+   「これまでの ID（＝0まいめ）」を 取りに 行くので、at が ほかの 枠の 時刻だと
+   0まいめを 新しい ものと 取りちがえる */
+function posterCfgOut(label, ats){
+  return { label: String(label || '').trim().slice(0, 6), at: ms(ats[0]), ats: ats.map(ms) };
+}
+function posterHeldAts(){
+  let list = [];
+  try{ list = JSON.parse(getLocal(K_POSTER_ATS) || '[]'); }catch(e){}
+  if(!Array.isArray(list)) list = [];
+  const out = [];
+  for(let i = 0; i < POSTER_MAX; i++) out.push(ms(list[i]));
+  if(!out[0]) out[0] = ms(getLocal(K_POSTER_AT));
+  return out;
+}
+function setPosterHeldAt(slot, at){
+  const list = posterHeldAts();
+  list[Number(slot) || 0] = ms(at);
+  setLocal(K_POSTER_ATS, JSON.stringify(list));
+  /* 0まいめだけは 旧い キーにも 書く（旧い 版へ もどっても 取り直さない） */
+  if(!slot) setLocal(K_POSTER_AT, String(ms(at)));
 }
 /* 名前を 入れて いない 家庭のための 言い方。**帯の ボタンには 使わない**
    （入れて いない のに 語が 出ると、設定した ように 見える）。
    読み上げと、開いた 画面の 見出しと、届いた ときの 知らせに だけ 使う */
 function posterWord(){ return posterCfg().label || POSTER_LABEL_DEFAULT; }
-function posterHeldAt(){ return ms(getLocal(K_POSTER_AT)); }
 
 /* 端末に ある ぶんを 出す。読めなくても アプリは そのまま 動く */
 async function loadPoster(){
   const lib = photos();
   if(!lib) return;
-  const blob = await lib.get(POSTER_ID);
-  if(!blob){ posterURL = ''; return; }
-  if(posterURL) URL.revokeObjectURL(posterURL);
-  posterURL = URL.createObjectURL(blob);
+  posterURLs.forEach(u=>{ if(u) URL.revokeObjectURL(u); });
+  const next = [];
+  for(let slot = 0; slot < POSTER_MAX; slot++){
+    const blob = await lib.get(posterId(slot));
+    next.push(blob ? URL.createObjectURL(blob) : '');
+  }
+  posterURLs = next;
+}
+/* この端末に ある 枠 / 空いている いちばん 小さい 枠 */
+function posterHere(){ return posterURLs.filter(Boolean).length; }
+function posterFreeSlot(){
+  const cfg = posterCfg();
+  for(let slot = 0; slot < POSTER_MAX; slot++){
+    if(!posterURLs[slot] && !cfg.ats[slot]) return slot;
+  }
+  return -1;
 }
 
 /* グループの 印が この端末の ものより 新しければ、箱から 受け取る。
@@ -2058,14 +2125,55 @@ let posterTriedAt = 0;
    結果を 返す（'got' / 'empty' / 'skip'）。ふだんの 自動の 呼び出しは
    黙って 帰る。**自動だけに 頼らないこと。** 届かなかった ときに
    何が 起きたのか 人に 分からないと、直しようが ない。 */
+/* 消された 枠を、この端末からも 落とす。**これが 写真の 墓標にあたる。**
+   合図（ats[slot]）が 0 に なったのに 端末の 中の 写真を そのままに すると、
+   保護者が 消したのに 子どもの 画面には 出つづける。持っていない 端末では
+   何も 起きないので、呼びっぱなしで よい。
+
+   合図を 一度も 受け取って いない ときは 何も しない（控えが 0 の 枠は
+   「消された」ではなく「まだ 知らない」） */
+async function dropRemovedPosters(){
+  const lib = photos();
+  if(!lib) return false;
+  /* **共有していない 端末では 何も しない。** 手元の 設定は 自分で 書いた
+     ものなので、食いちがう ことが そもそも 無い。ここを 開けておくと、
+     設定が まだ 育っていない 場面（おためし・初期設定の 途中）で、
+     端末に ある 写真を 消して しまう。実機の 確認で 実際に 消えた。 */
+  const S = sync();
+  if(!sharingOn() || !S) return false;
+  /* **グループの 設定を 受け取る 前に 判断しない。** つないだ 直後の 1回は
+     こちらの 設定より グループの ほうが 勝つ 決まりに なっている。その 前の
+     初期値（写真の 印が 無い）を「消された」と 読むと、いま 撮った ばかりの
+     写真が 消える（saveCfg の 順番で 起きた 事故と 同じ 筋） */
+  if(typeof S.awaitingFirstSnapshot === 'function' && S.awaitingFirstSnapshot()) return false;
+  const cfg = posterCfg();
+  const held = posterHeldAts();
+  let dropped = false;
+  for(let slot = 0; slot < POSTER_MAX; slot++){
+    if(cfg.ats[slot] || !held[slot]) continue;
+    await lib.remove(posterId(slot));
+    setPosterHeldAt(slot, 0);
+    dropped = true;
+  }
+  if(dropped) await loadPoster();
+  return dropped;
+}
+
 async function checkPosterArrival(opts){
   const force = !!(opts && opts.force);
   const lib = photos();
   if(!lib || posterBusy) return 'skip';
-  const want = posterCfg().at;
+  if(await dropRemovedPosters()) render({ keepScroll:true });
+  const want = posterCfg().ats;
+  const held = posterHeldAts();
   /* くらべるのは 端末の 中の 値どうし。ここで 帰るときは 通信しない。
      人が 押した ときは、印が 同じでも いちおう 見にいく */
-  if(!want || (!force && want <= posterHeldAt())) return 'skip';
+  const slots = [];
+  for(let slot = 0; slot < POSTER_MAX; slot++){
+    if(!want[slot]) continue;
+    if(force || want[slot] > held[slot]) slots.push(slot);
+  }
+  if(!slots.length) return 'skip';
   const S = sync();
   if(!(S && typeof S.takeHandoff === 'function' && sharingOn())) return 'skip';
   /* 箱が まだ 空の ことは ある（渡す 途中など）。空振りを くり返して
@@ -2074,41 +2182,51 @@ async function checkPosterArrival(opts){
   posterTriedAt = Date.now();
   posterBusy = true;
   try{
-    const dataURL = await S.takeHandoff();
-    if(!dataURL) return 'empty';
-    const blob = await lib.fromDataURL(dataURL);
-    if(!blob) return 'empty';
-    await lib.put(POSTER_ID, blob);
-    setLocal(K_POSTER_AT, String(want));
+    let got = 0;
+    for(const slot of slots){
+      const dataURL = await S.takeHandoff(slot);
+      if(!dataURL) continue;
+      const blob = await lib.fromDataURL(dataURL);
+      if(!blob) continue;
+      await lib.put(posterId(slot), blob);
+      setPosterHeldAt(slot, want[slot]);
+      got++;
+      if(typeof S.clearHandoff === 'function') S.clearHandoff(slot);
+    }
+    if(!got) return 'empty';
     await loadPoster();
     posterFresh = true;
     toast('あたらしい ' + posterWord() + 'が とどいたよ');
     render({ keepScroll:true });
-    if(typeof S.clearHandoff === 'function') S.clearHandoff();
     return 'got';
   }finally{ posterBusy = false; }
 }
 
 /* 保護者の 端末で 選んだ ぶん。縮めてから 置き、印を 同期し、箱へ 入れる */
-async function savePosterFile(file){
+async function savePosterFile(file, slot){
   const lib = photos();
   if(!lib || !file) return;
+  const at = Number(slot);
+  const put = at >= 0 && at < POSTER_MAX ? at : posterFreeSlot();
+  if(put < 0){ toast('写真は' + POSTER_MAX + '枚までです。どれかを消してから足してください'); return; }
   toast('写真を用意しています…');
   const shrunk = await lib.shrink(file);
   if(!shrunk){
     toast('この写真は大きすぎます。もう少し小さく写してください');
     return;
   }
-  await lib.put(POSTER_ID, shrunk.blob);
+  await lib.put(posterId(put), shrunk.blob);
   const now = Date.now();
-  setLocal(K_POSTER_AT, String(now));
+  setPosterHeldAt(put, now);
   await loadPoster();
   posterFresh = false;
   /* **箱に 入れてから 合図を 出す。** 逆に すると、設定（合図）は すぐ 届くのに
      箱は まだ 空で、受け取り側が 空振りする。空振りの あとは 合図が 来ないので
      二度と 取りに 行かない、という 事故に なる */
-  await handPoster(shrunk.blob);
-  config.poster = { label: posterCfg().label, at: now };
+  await handPoster(put, shrunk.blob);
+  const ats = posterCfg().ats;
+  ats[put] = now;
+  config.poster = posterCfgOut(posterCfg().label, ats);
   saveCfg();
   render({ keepScroll:true });
 }
@@ -2119,10 +2237,16 @@ async function savePosterFile(file){
    **写真が この端末に 無いときは、渡しようが ない。** 以前は そのまま
    FileReader へ 渡して 例外に なり、押しても 何も 起きなかった。
    結果は 端末に 控えて 保護者ページに 出す（失敗を 黙って 飲みこまない）。 */
-async function handPoster(blob){
+async function handPoster(slot, blob){
   const lib = photos();
-  const photo = blob || (lib ? await lib.get(POSTER_ID) : null);
-  if(!photo){
+  const only = Number.isFinite(Number(slot)) && Number(slot) >= 0 ? Number(slot) : -1;
+  const targets = [];
+  for(let i = 0; i < POSTER_MAX; i++){
+    if(only >= 0 && i !== only) continue;
+    const photo = (only >= 0 && blob) ? blob : (lib ? await lib.get(posterId(i)) : null);
+    if(photo) targets.push({ slot:i, photo });
+  }
+  if(!targets.length){
     toast('この端末には 写真が ありません');
     return false;
   }
@@ -2131,24 +2255,36 @@ async function handPoster(blob){
     toast('この端末に 保存しました');
     return false;
   }
-  let ok = false;
-  try{
-    const dataURL = await lib.toDataURL(photo);
-    ok = !!dataURL && await S.putHandoff(dataURL);
-  }catch(e){ ok = false; }
-  setLocal(K_POSTER_SENT, JSON.stringify({ at: Date.now(), ok }));
-  toast(ok ? 'わたしました（24時間 ゆうこう）' : 'わたせませんでした');
+  let sent = 0;
+  for(const t of targets){
+    try{
+      const dataURL = await lib.toDataURL(t.photo);
+      if(dataURL && await S.putHandoff(dataURL, t.slot)) sent++;
+    }catch(e){}
+  }
+  const ok = sent === targets.length;
+  setLocal(K_POSTER_SENT, JSON.stringify({ at: Date.now(), ok, sent, of: targets.length }));
+  /* 一部だけ 渡せた ときに「わたしました」と 言わない。何枚 届くのかが
+     ちがうと、子どもの 画面と 食いちがった ままに なる */
+  toast(ok ? 'わたしました（24時間 ゆうこう）'
+    : sent ? sent + '枚だけ わたせました。もう一度お試しください'
+    : 'わたせませんでした');
   render({ keepScroll:true });
-  return ok;
+  return sent > 0;
 }
 
-async function removePoster(){
+/* **枠は 詰めない。** 2まいめを 消しても 3まいめは 3まいめの まま。
+   詰めると 枠ごとの 合図が すべて ずれ、関係の ない 端末が 全部を 取り直す */
+async function removePoster(slot){
   const lib = photos();
-  if(lib) await lib.remove(POSTER_ID);
-  if(posterURL){ URL.revokeObjectURL(posterURL); posterURL = ''; }
-  setLocal(K_POSTER_AT, '0');
-  config.poster = { label: posterCfg().label, at: 0 };
+  const n = Number(slot) || 0;
+  if(lib) await lib.remove(posterId(n));
+  setPosterHeldAt(n, 0);
+  const ats = posterCfg().ats;
+  ats[n] = 0;
+  config.poster = posterCfgOut(posterCfg().label, ats);
   saveCfg();
+  await loadPoster();
   render({ keepScroll:true });
 }
 
@@ -2161,7 +2297,7 @@ async function removePoster(){
 
    **この端末に 写真が 無い あいだは 出さない。** まだ 届いて いないのに
    ボタンだけ あると、押しても「まだ です」しか 出ず、まぎらわしい。 */
-function posterShown(){ return !!(posterURL && posterCfg().at); }
+function posterShown(){ return posterHere() > 0; }
 function renderPosterButton(){
   const btn = $('#posterOpen'), text = $('#posterOpenText');
   if(!btn || !text) return;
@@ -2175,12 +2311,21 @@ function renderPosterButton(){
   btn.classList.toggle('has-unread', posterFresh);
 }
 
+/* 開いた 中は **縦に ならべる だけ**。◀▶ の 送りは 付けない ―― 見るだけの
+   画面に 操作を 足さない。1枚の ときは これまでと 同じ 見え方に なる
+   （「Nまいめ」の 見出しも 出さない） */
 function openPoster(){
   const dialog = $('#posterDialog');
-  const img = $('#posterImg');
-  if(!dialog || !img) return;
-  if(!posterURL){ toast('まだ とどいていないよ'); return; }
-  img.src = posterURL;
+  const body = $('#posterBody');
+  if(!dialog || !body) return;
+  const here = posterURLs.map((url, slot)=>({ url, slot })).filter(one=> one.url);
+  if(!here.length){ toast('まだ とどいていないよ'); return; }
+  const many = here.length > 1;
+  body.innerHTML = here.map((one, i)=> (many
+      ? `<p class="poster-nth">${i + 1}まいめ</p>`
+      : '')
+    + `<img src="${esc(one.url)}" alt="しゅくだいの ${esc(posterWord())}${many ? ' ' + (i + 1) + 'まいめ' : ''}">`
+  ).join('');
   $('#posterTitle').textContent = posterWord();
   posterFresh = false;
   if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
@@ -2188,21 +2333,41 @@ function openPoster(){
 
 /* 保護者ページ「宿題を決める」の 欄。大人向けの 言い方で 書く。
 
-   **この端末に 写真が 無いときは「わたす」「消す」を 出さない。**
-   出していたので、まだ 受け取って いない 端末でも 押せてしまい、
-   押しても 何も 起きなかった（渡す ものが 無いため）。
+   **枠ごとに 1行。** 何枚あるか、どれが この端末に 来ていないかを、
+   数えなくても 分かる ように する。空いた 枠は 出さない（3まいめだけが
+   あるときは「3まいめ」だけが ならぶ ―― 枠は 詰めないので 番号は 動かない）。
    ボタンの ならびは、ほかの 欄と 同じ .set-actions に そろえる。 */
+function posterRowHTML(slot, cfg){
+  const here = !!posterURLs[slot];
+  const known = !!cfg.ats[slot];
+  if(!here && !known) return '';
+  const state = here ? 'この端末にあります'
+    : sharingOn() ? 'まだこの端末に来ていません' : 'この端末にはありません';
+  return `
+    <div class="poster-slot${here ? '' : ' is-away'}">
+      <b>${slot + 1}まいめ</b><span>${esc(state)}</span>
+      <span class="poster-slot-acts">
+        <button class="btn btn-sm" data-poster-pick="${slot}" type="button">えらび直す</button>
+        <button class="btn btn-sm" data-poster-clear="${slot}" type="button">消す</button>
+      </span>
+    </div>`;
+}
+
 function posterSectionHTML(){
   const cfg = posterCfg();
-  const here = !!posterURL;
+  const here = posterHere();
+  const free = posterFreeSlot();
+  const known = cfg.ats.filter(Boolean).length;
   let sent = null;
   try{ sent = JSON.parse(getLocal(K_POSTER_SENT) || 'null'); }catch(e){}
-  const state = !cfg.at ? 'まだ登録していません。'
-    : here ? 'この端末に保存されています。'
-    : sharingOn()
-      ? 'この端末にはまだ写真がありません。「写真を受け取る」で取りに行けます。'
-      : 'この端末には写真がありません。';
+  const rows = [];
+  for(let slot = 0; slot < POSTER_MAX; slot++) rows.push(posterRowHTML(slot, cfg));
+  const state = !known && !here ? 'まだ登録していません。'
+    : here < known && sharingOn()
+      ? 'この端末に来ていない写真は、「写真を受け取る」で取りに行けます。'
+      : '';
   const share = !sharingOn() ? '共有を使っていないため、この端末の中だけで使います。' : '';
+  const note = (state || share) ? `<p class="set-note">${esc(state)}${esc(share)}</p>` : '';
   const sentLine = (sent && sent.at)
     ? `<p class="set-note">${sent.ok
         ? '最後に渡したのは ' + esc(fmtDate(new Date(sent.at))) + ' ' + esc(fmtTime(new Date(sent.at))) + ' です。'
@@ -2212,17 +2377,17 @@ function posterSectionHTML(){
   <section class="sec config-sec"><div class="sec-head"><h2>宿題の一覧の写真</h2>
       <button class="icon-btn sec-help-btn" id="posterHelp" type="button"
         title="使い方" aria-label="宿題の一覧の写真の使い方">?</button></div><div class="paper">
-    <p class="set-note">プリントや時間割、目標表などを1枚だけ持たせます。子ども画面の上の帯に、開くボタンが出ます。</p>
+    <p class="set-note">プリントや時間割、目標表などを${POSTER_MAX}枚まで持たせます。子ども画面の上の帯に、開くボタンが出ます。</p>
     <div class="set-row"><label class="lab" for="posterLabel">ボタンの名前</label>
       <input type="text" id="posterLabel" maxlength="6" placeholder="なくてもかまいません" value="${esc(cfg.label)}"></div>
+    ${rows.join('') ? `<div class="poster-slots">${rows.join('')}</div>` : ''}
     <div class="set-actions">
-      <button class="btn btn-go" id="posterPick" type="button">写真を選ぶ</button>
+      ${free >= 0 ? `<button class="btn btn-go" id="posterPick" type="button">写真を${known || here ? '足す' : '選ぶ'}</button>` : ''}
       <input type="file" id="posterFile" accept="image/*" class="offscreen">
       ${here && sharingOn() ? '<button class="btn" id="posterSend" type="button">ほかの端末へ渡す</button>' : ''}
-      ${cfg.at && sharingOn() ? '<button class="btn" id="posterTake" type="button">写真を受け取る</button>' : ''}
-      ${here ? '<button class="btn" id="posterClear" type="button">写真を消す</button>' : ''}
+      ${known && sharingOn() ? '<button class="btn" id="posterTake" type="button">写真を受け取る</button>' : ''}
     </div>
-    <p class="set-note">${esc(state)}${esc(share)}</p>
+    ${note}
     ${sentLine}
   </div></section>`;
 }
@@ -6771,11 +6936,19 @@ function bindConfig(){
   /* iOS では、隠した 入力欄を <label for> で 押しても 一度目が 効かない
      ことが ある（実機で「2回 押さないと 出ない」）。ふつうの ボタンから
      input.click() を 呼ぶ。入力欄は display:none に せず、画面の 外へ 出す */
-  on('#posterPick', 'click', ()=>{ const f = $('#posterFile'); if(f) f.click(); });
+  /* どの 枠に 入れるかを 入力欄に 控えて おく。空なら いちばん 小さい 空き枠
+     （savePosterFile が 決める）。描き直しの たびに 要素は 作り直されるので、
+     ここで 直に つないで よい（#view へ つながない かぎり 積み重ならない） */
+  on('#posterPick', 'click', ()=>{ const f = $('#posterFile'); if(f){ f.dataset.slot = ''; f.click(); } });
+  $$('[data-poster-pick]').forEach(el=> el.addEventListener('click', ()=>{
+    const f = $('#posterFile');
+    if(f){ f.dataset.slot = el.dataset.posterPick; f.click(); }
+  }));
   on('#posterFile', 'change', e=>{
     const file = e.target.files && e.target.files[0];
+    const slot = e.target.dataset.slot === '' ? -1 : Number(e.target.dataset.slot);
     e.target.value = '';
-    if(file) savePosterFile(file);
+    if(file) savePosterFile(file, slot);
   });
   /* 渡し直したら **合図（印の時刻）も 更新する。** 更新しないと、相手の
      端末から 見て「新しい ものが ある」ことに ならず、自動では 取りに 行かない
@@ -6785,11 +6958,20 @@ function bindConfig(){
     if(!dialog) return;
     if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
   });
+  /* 渡し直したら **合図（印の時刻）も 更新する。** 更新しないと、相手の 端末から
+     見て「新しい ものが ある」ことに ならず、自動では 取りに 行かない。
+     進めるのは **この端末に ある 枠だけ**（持っていない 枠の 合図を 進めると、
+     ほかの 端末が 空の 箱を 取りに 行く） */
   on('#posterSend', 'click', async ()=>{
     if(!await handPoster()) return;
     const at = Date.now();
-    setLocal(K_POSTER_AT, String(at));
-    config.poster = { label: posterCfg().label, at };
+    const ats = posterCfg().ats;
+    for(let slot = 0; slot < POSTER_MAX; slot++){
+      if(!posterURLs[slot]) continue;
+      ats[slot] = at;
+      setPosterHeldAt(slot, at);
+    }
+    config.poster = posterCfgOut(posterCfg().label, ats);
     saveCfg();
     render({ keepScroll:true });
   });
@@ -6802,13 +6984,15 @@ function bindConfig(){
       ? '写真が 見つかりません。写真のある端末で「ほかの端末へ渡す」を押してください'
       : '共有の状態を確かめてください');
   });
-  on('#posterClear', 'click', ()=>{
-    if(confirm('宿題の一覧の写真を消しますか？' + '\n' + 'この端末から消えます。')) removePoster();
-  });
+  $$('[data-poster-clear]').forEach(el=> el.addEventListener('click', ()=>{
+    const slot = Number(el.dataset.posterClear) || 0;
+    if(confirm((slot + 1) + 'まいめの写真を消しますか？' + '\n'
+      + '共有しているときは、ほかの端末からも消えます。')) removePoster(slot);
+  }));
   on('#posterLabel', 'change', e=>{
     /* 空のままを 許す。**既定の 語で 埋め戻さないこと**（消しても 戻る） */
     const label = String(e.target.value || '').trim().slice(0, 6);
-    config.poster = { label, at: posterCfg().at };
+    config.poster = posterCfgOut(label, posterCfg().ats);
     saveCfg();
     render({ keepScroll:true });
   });
@@ -7983,7 +8167,7 @@ noticeAdopted(); // 取り込みの直後なら、何が起きたのかを一言
 checkForNewVersion(); // 描画を待たせない。結果は次の描画で静かに反映する
 /* 端末に ある 写真を 読んでから 描き直す。読めなくても 先に 画面は 出す */
 loadPoster().then(()=>{
-  if(posterURL) render({ keepScroll:true });
+  if(posterHere()) render({ keepScroll:true });
   /* 起動の たびに 一度 見る。**取りに 行くのは、印が この端末の ものより
      新しい ときだけ**（比べるのは 端末の 中の 値なので、読み取りは 起きない） */
   checkPosterArrival();

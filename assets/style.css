@@ -771,6 +771,27 @@ button{ font:inherit; color:inherit; }
 /* 写真は 端末の 幅に そろえる。文字が 小さくて 読めない ときは
    端末の 拡大（ピンチ）で 見る */
 .poster-body img{ display:block; width:100%; height:auto; border-radius:var(--r-s); }
+/* 2枚めから 下は、区切りが 分かる ように すきまを あける。
+   1枚の ときは これまでと まったく 同じ 見え方（見出しも 出さない） */
+.poster-body img + .poster-nth{ margin-top:18px; }
+.poster-nth{
+  margin:0 0 6px; font-size:15px; font-weight:900; color:var(--ai-usu);
+}
+
+/* 保護者ページの 枠の 一覧。**空いた 枠は 出さない。**
+   枠は 詰めないので、3まいめだけが あるときは「3まいめ」だけが ならぶ */
+.poster-slots{ display:grid; gap:8px; padding:12px 16px; }
+.poster-slot{
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px;
+  padding:8px 12px; border:2px dashed var(--hougan); border-radius:var(--r-s);
+  font-size:15px; font-weight:700;
+}
+.poster-slot b{ flex:none; font-size:16px; font-weight:900; }
+.poster-slot > span:first-of-type{ flex:1 1 8em; min-width:0; color:var(--ai-usu); }
+/* まだ この端末に 来ていない 枠も、うすくしない。うすくすると「使えない」と
+   読まれるが、実際には「えらび直す」で 差しかえられるし、「消す」は
+   共有ぜんたいから 外す 操作なので、写真を 持って いなくても 意味が ある */
+.poster-slot-acts{ flex:none; display:flex; gap:6px; }
 
 /* =========================================================
    シグネチャ 1 : マス目のカウントダウン

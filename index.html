@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="application-version" content="1.5.4">
+<meta name="application-version" content="1.6.0">
 <meta name="theme-color" content="#14375E">
 <!-- 招待リンクは ホーム画面に 追加させるため、しばらく URL に あいことばを のこす。
      そのあいだ 外部（Google Fonts など）へ アドレスを 渡さない。
@@ -24,7 +24,7 @@
 <!-- Webフォントの通信で初期描画を止めない。読み込み中は端末内の丸ゴシックを使う -->
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/style.css?v=20260821g">
+<link rel="stylesheet" href="assets/style.css?v=20260821h">
 <link rel="stylesheet" href="tokens.css?v=20260813a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
 </head>
@@ -72,7 +72,7 @@
     <h2 id="posterHelpTitle">宿題の一覧の写真</h2>
     <button class="btn btn-sm poster-close" id="posterHelpClose" type="button">とじる</button>
   </div>
-  <p class="poster-lead">学校からの宿題一覧や時間割、目標表などを貼っておける場所です。</p>
+  <p class="poster-lead">学校からの宿題一覧や時間割、目標表などを、4枚まで貼っておける場所です。</p>
   <!-- 3コマの 図。**文字は 文字の まま HTML に 置く。** SVG の 中に 入れると、
        図を 画面幅に 合わせて 縮めた ぶん 字も 縮み、320px では 6px ほどに なって
        読めなかった（実測）。絵だけを SVG に し、言葉は 折り返させる -->
@@ -128,11 +128,11 @@
   </figure>
   <ol class="poster-steps">
     <li><span class="poster-step-num" aria-hidden="true">1</span><div><b>写真を選ぶ</b>
-      <p>この端末の「写真を選ぶ」から。長い辺を小さくして保存するので、写真アプリの元の写真はそのままです。</p></div></li>
+      <p>この端末の「写真を選ぶ」から。プリントの裏面などは「写真を足す」で4枚まで足せます。長い辺を小さくして保存するので、写真アプリの元の写真はそのままです。</p></div></li>
     <li><span class="poster-step-num" aria-hidden="true">2</span><div><b>ほかの端末へ渡す</b>
       <p>「わたしました」と出れば送れています。共有していないときは、この端末の中だけで使います。</p></div></li>
     <li><span class="poster-step-num" aria-hidden="true">3</span><div><b>子ども画面の帯から開く</b>
-      <p>ふつうは開き直すと自動で届きます。届かないときは、その端末の同じ欄の「写真を受け取る」を押してください。</p></div></li>
+      <p>ふつうは開き直すと自動で届きます。届かないときは、その端末の同じ欄の「写真を受け取る」を押してください。開いた中に、足した順で縦に並びます。</p></div></li>
   </ol>
   <p class="poster-note">写真はこの端末のアプリの中に、写真アプリとは別に保存します。写真アプリから元の写真を消しても残ります。逆に、ブラウザの「Webサイトデータを削除」をすると、宿題の記録といっしょに消えます。大切なプリントは、写真アプリにも残しておいてください。</p>
 </dialog>
@@ -143,7 +143,9 @@
     <h2 id="posterTitle"></h2>
     <button class="btn btn-sm poster-close" id="posterClose" type="button">とじる</button>
   </div>
-  <div class="poster-body"><img id="posterImg" alt="しゅくだいの いちらん"></div>
+  <!-- 4枚まで 縦に ならぶ。中身は openPoster() が 入れる。
+       ◀▶ の 送りは 付けない ―― 見るだけの 画面に 操作を 足さない -->
+  <div class="poster-body" id="posterBody"></div>
 </dialog>
 
 <nav class="tabbar" aria-label="メニュー">
@@ -226,11 +228,11 @@ window.natsuBootProgress = function(value, label){
 <script>window.natsuBootProgress(75, '共有の準備をしています');</script>
 <script>window.natsuBootProgress(88, 'この端末の記録を読み込んでいます');</script>
 <!-- 写真の置き場（端末ごと）。読めなくてもアプリはそのまま動く -->
-<script src="assets/photos.js?v=20260820a"></script>
-<script src="assets/app.js?v=20260821i"></script>
+<script src="assets/photos.js?v=20260821a"></script>
+<script src="assets/app.js?v=20260821j"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
-<script type="module" src="assets/sync.js?v=20260821a"></script>
+<script type="module" src="assets/sync.js?v=20260821b"></script>
 <!-- Cloudflare Web Analytics: 利用者画面には表示せず、匿名のアクセス状況だけを計測する -->
 <script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "4844611a6258456f866196574e92a9e3"}'></script>
 </body>

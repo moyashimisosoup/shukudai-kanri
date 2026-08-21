@@ -26,6 +26,18 @@ service cloud.firestore {
       return id.matches('[0-9a-f]{64}');
     }
 
+    /* 写真の受け渡し箱は、1家庭あたり4つまで（0〜3まいめ）。
+       **0まいめは今までどおり houseId そのもの**にして、版が混ざっている
+       あいだも壊れないようにする。旧い端末は今までのIDだけを見るので、
+       1枚めは受け取れる（減るが壊れない）。 */
+    function validHandoffId(id) {
+      return id.matches('[0-9a-f]{64}(-[1-3])?');
+    }
+
+    function handoffHouse(id) {
+      return id.split('-')[0];
+    }
+
     /* 保存できる欄。保持期限の4項目はサーバーの activity trigger だけが
        書きこむ。クライアントは作成時に指定できず、更新時にも変更できない。 */
     function onlyKnownStoredFields() {
@@ -126,17 +138,17 @@ service cloud.firestore {
        **このパスだけ delete を許す。** ほかは全部禁止しているが、
        ここは受け取った側が自分で片づけられる必要がある。消し忘れても
        expiresAt の TTL が消す（Console で TTL を設定すること）。 */
-    match /photo_handoff/{houseId} {
-      allow get:            if request.auth != null && validHouseId(houseId);
+    match /photo_handoff/{boxId} {
+      allow get:            if request.auth != null && validHandoffId(boxId);
       allow list:           if false;
-      allow create, update: if request.auth != null && validHouseId(houseId)
-                            && notRetired(houseId)
+      allow create, update: if request.auth != null && validHandoffId(boxId)
+                            && notRetired(handoffHouse(boxId))
                             && request.resource.data.keys()
                                  .hasOnly(['photo', 'at', 'from', 'expiresAt'])
                             && request.resource.data.photo is string
                             && request.resource.data.photo.size() < 900000
                             && request.resource.data.expiresAt is timestamp;
-      allow delete:         if request.auth != null && validHouseId(houseId);
+      allow delete:         if request.auth != null && validHandoffId(boxId);
     }
 
     /* 上に書いていない場所は、すべて禁止 */

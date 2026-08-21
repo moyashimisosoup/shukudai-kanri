@@ -61,7 +61,16 @@
   }
 
   function put(id, blob){ return run('readwrite', store=> store.put(blob, String(id))); }
-  function get(id){ return run('readonly',  store=> store.get(String(id))); }
+  /* **無い ときは null。** run() は「書けた」を true で 返すので、
+     `req.result === undefined` の ときも true に なる。put / remove では
+     それで 正しいが、get では「キーが 無い」まで true に なって しまう。
+     1枚だけの ころは 当たらなかったが、4つの 枠を 順に 見にいくと
+     createObjectURL(true) で 表に 出た。ついでに handPoster も、写真が
+     無いのに「わたせませんでした」と 出す 道が 塞がる */
+  function get(id){
+    return run('readonly', store=> store.get(String(id)))
+      .then(v=> (typeof Blob !== 'undefined' && v instanceof Blob) ? v : null);
+  }
   function remove(id){ return run('readwrite', store=> store.delete(String(id))); }
 
   /* --- 形を そろえる ---------------------------------------

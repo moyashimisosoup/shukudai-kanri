@@ -944,8 +944,18 @@ async function getRegistrationCount(){
    この パスを 見ないので、TTL が 無いと 消し忘れが たまる。 */
 const HANDOFF_PATH = 'photo_handoff';
 const HANDOFF_MS = 24 * 60 * 60 * 1000;
+/* 1家庭あたり 4つまで（0〜3まいめ）。**0まいめの 箱の ID は、これまでと
+   同じ houseId そのもの。** 版が 混ざっている あいだ、旧い 端末は
+   この ID しか 見ないので、1枚めだけは 受け取れる（減るが 壊れない）。
+   ここを `-0` に すると、旧い 端末に 何も 届かなく なる。 */
+const HANDOFF_SLOTS = 4;
 
-async function handoffRef(){
+function handoffBoxId(houseId, slot){
+  const n = Number(slot) || 0;
+  return n > 0 ? houseId + '-' + n : houseId;
+}
+
+async function handoffRef(slot){
   const code = getCode();
   if(code.length < 8 || !configured()) return null;
   if(!db){
@@ -953,7 +963,7 @@ async function handoffRef(){
     await initPromise;
   }
   if(!db || !Sync._fs) return null;
-  return Sync._fs.doc(db, HANDOFF_PATH, await houseIdFor(code));
+  return Sync._fs.doc(db, HANDOFF_PATH, handoffBoxId(await houseIdFor(code), slot));
 }
 
 /* 写真を 箱に 入れる。渡せたかどうかだけを 返す */
@@ -965,9 +975,9 @@ function notePhotoTrouble(where, err){
   lastTrouble = { at: Date.now(), where, detail: troubleDetail(err) };
 }
 
-async function putHandoff(dataURL){
+async function putHandoff(dataURL, slot){
   try{
-    const ref = await handoffRef();
+    const ref = await handoffRef(slot);
     if(!ref) return false;
     const now = Date.now();
     await Sync._fs.setDoc(ref, {
@@ -985,9 +995,9 @@ async function putHandoff(dataURL){
 
 /* 箱を のぞく。空・読めない・切れている ときは null。
    呼ぶ側は「まだ とどいていない」と 出すこと（例外の 文言を 画面に 出さない） */
-async function takeHandoff(){
+async function takeHandoff(slot){
   try{
-    const ref = await handoffRef();
+    const ref = await handoffRef(slot);
     if(!ref) return null;
     const fs = Sync._fs;
     const read = typeof fs.getDocFromServer === 'function' ? fs.getDocFromServer : fs.getDoc;
@@ -1006,23 +1016,34 @@ async function takeHandoff(){
    TTL（Firebase コンソール側の 設定）は 安全網で、こちらが 本筋。
    期限より 古ければ 消し、消したかどうかを 返す。
    読めない・切れている ときは 何も しない（画面に 出す ことも しない） */
+/* **枠ぜんぶを 見る。** 見にいくのは 保護者ページを 開いた ときの 1回だけなので、
+   読み取りは 開くたび 4回。持っていない 枠の 箱は そもそも 無いので、
+   ほとんどは 空振りで 終わる。1つでも 消したら true */
 async function sweepHandoff(){
+  let swept = false;
+  for(let slot = 0; slot < HANDOFF_SLOTS; slot++){
+    if(await sweepHandoffSlot(slot)) swept = true;
+  }
+  return swept;
+}
+
+async function sweepHandoffSlot(slot){
   try{
-    const ref = await handoffRef();
+    const ref = await handoffRef(slot);
     if(!ref) return false;
     const fs = Sync._fs;
     const snap = await fs.getDoc(ref);
     if(!snap.exists()) return false;
     const at = Number((snap.data() || {}).at) || 0;
     if(at && Date.now() - at < HANDOFF_MS) return false;
-    return await clearHandoff();
+    return await clearHandoff(slot);
   }catch(e){ return false; }
 }
 
 /* 受け取った あとの 後始末。失敗しても 害は ない（古ければ sweepHandoff が 消す） */
-async function clearHandoff(){
+async function clearHandoff(slot){
   try{
-    const ref = await handoffRef();
+    const ref = await handoffRef(slot);
     if(!ref || typeof Sync._fs.deleteDoc !== 'function') return false;
     await Sync._fs.deleteDoc(ref);
     return true;
@@ -1057,7 +1078,7 @@ const Sync = {
   disconnect,
   verifyHousehold,
   registerHousehold,
-  putHandoff, takeHandoff, clearHandoff, sweepHandoff,
+  putHandoff, takeHandoff, clearHandoff, sweepHandoff, HANDOFF_SLOTS,
   getRegistrationCount,
   /* あいことばを 入れ替えて つなぎ直す */
   /* opts.joining … すでに ある グループへ 入るとき true。

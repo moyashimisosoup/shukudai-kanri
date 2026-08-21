@@ -2709,13 +2709,13 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260821g',
+    'assets/style.css': '20260821h',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260821i',
-    'assets/sync.js': '20260821a',
-    'assets/photos.js': '20260820a'
+    'assets/app.js': '20260821j',
+    'assets/sync.js': '20260821b',
+    'assets/photos.js': '20260821a'
   };
   for(const [file, version] of Object.entries(versions)){
     assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=' + version));
@@ -2737,19 +2737,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.5.4をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.5\.4';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.5\.4">/);
-  assert.equal(PACKAGE.version, '1.5.4');
-  assert.equal(PACKAGE_LOCK.version, '1.5.4');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.5.4');
+test('公開版番号v1.6.0をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.6\.0';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.6\.0">/);
+  assert.equal(PACKAGE.version, '1.6.0');
+  assert.equal(PACKAGE_LOCK.version, '1.6.0');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.6.0');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -3794,6 +3794,7 @@ function normalizeConfigHarness(input, legacyTheme, legacyGrade){
     function isGeneratedTitle(){ return false; }
     function defaultTitleFor(name){ return name ? name + 'の夏休みの宿題' : 'しゅくだいノート'; }
     ${grabConst(APP, 'READING_GRADE_OPTIONS')}
+    ${grabConst(APP, 'POSTER_MAX')}
     ${grab(APP, 'normalizeConfig')}
     return normalizeConfig(${JSON.stringify(input)});
   `)();
@@ -4508,13 +4509,157 @@ test('共有する設定には、写真の印だけを入れて画像は入れ�
   const out = normalizeConfigHarness({
     poster: { label:'いちらん', at: 1755000000000, photo:'data:image/jpeg;base64,AAAA' }
   });
-  assert.deepEqual(Object.keys(out.poster).sort(), ['at','label'],
+  assert.deepEqual(Object.keys(out.poster).sort(), ['at','ats','label'],
     '画像そのものを config に持ちこまないこと');
   assert.equal(out.poster.at, 1755000000000);
+  /* 旧い 1枚だけの 設定は 0まいめとして 引きつぐ（移行の処理を増やさない） */
+  assert.deepEqual(out.poster.ats, [1755000000000, 0, 0, 0]);
   const app = grab(APP, 'savePosterFile');
-  assert.match(app, /config\.poster = \{ label: posterCfg\(\)\.label, at: now \};/,
+  assert.match(app, /config\.poster = posterCfgOut\(posterCfg\(\)\.label, ats\);/,
     '保存するのは印だけにすること');
   assert.doesNotMatch(app, /config\.poster[^\n]*dataURL/, '設定に画像を入れないこと');
+});
+
+/* 枠は 0〜3 の固定で、消しても詰めない。詰めると枠ごとの合図がすべてずれ、
+   関係のない端末が全部の写真を取り直す。空き枠が見えるほうが安い。 */
+test('写真の枠は4つで、消しても詰めない', ()=>{
+  assert.match(grabConst(APP, 'POSTER_MAX'), /= 4;/, '4枠にすること');
+  const remove = grab(APP, 'removePoster');
+  assert.match(remove, /ats\[n\] = 0;/, '消した枠は空にするだけにすること');
+  assert.doesNotMatch(remove, /splice|filter|shift/, '枠を詰め直さないこと');
+  /* 0まいめのIDとキーは、これまでと同じ。版が混ざっても1枚めは通る */
+  assert.match(grab(APP, 'posterId'), /n > 0 \? 'poster-' \+ n : 'poster'/);
+  assert.match(grab(SYNC, 'handoffBoxId'), /n > 0 \? houseId \+ '-' \+ n : houseId/);
+  assert.match(RULES, /\[0-9a-f\]\{64\}\(-\[1-3\]\)\?/, 'ルールのIDの形も枝番を許すこと');
+  /* at に max(ats) を入れると、旧い端末が0まいめを新しいものと取りちがえる */
+  assert.match(grab(APP, 'posterCfgOut'), /at: ms\(ats\[0\]\)/,
+    'at は 0まいめの時刻にすること（max にしないこと）');
+  const out = normalizeConfigHarness({ poster: { ats: [0, 0, 30, 0] } });
+  assert.deepEqual(out.poster.ats, [0, 0, 30, 0], '前が空でも3まいめは3まいめのまま');
+  assert.equal(out.poster.at, 0);
+});
+
+/* 文字列を見るだけの検査は、**呼び出し経路の欠落を見つけられない**。
+   ここは実際に組み立てて、出てくる HTML を見る。 */
+function posterPanelHarness(urls, ats, sharing){
+  return new Function(`
+    let config = { poster: { label:'', at: ${JSON.stringify(ats[0] || 0)}, ats: ${JSON.stringify(ats)} } };
+    let posterURLs = ${JSON.stringify(urls)};
+    function ms(v){ const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; }
+    function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+    function sharingOn(){ return ${sharing ? 'true' : 'false'}; }
+    function getLocal(){ return ''; }
+    function fmtDate(){ return ''; }
+    function fmtTime(){ return ''; }
+    const K_POSTER_SENT = 'x';
+    ${grabConst(APP, 'POSTER_MAX')}
+    ${grabConst(APP, 'POSTER_LABEL_DEFAULT')}
+    ${grab(APP, 'posterCfg')}
+    ${grab(APP, 'posterAtsFrom')}
+    ${grab(APP, 'posterHere')}
+    ${grab(APP, 'posterFreeSlot')}
+    ${grab(APP, 'posterRowHTML')}
+    ${grab(APP, 'posterSectionHTML')}
+    return posterSectionHTML();
+  `)();
+}
+
+test('保護者ページの写真の欄は、枠ごとに1行だけ出す', ()=>{
+  const rows = html => (html.match(/まいめ/g) || []).length;
+
+  const none = posterPanelHarness(['', '', '', ''], [0, 0, 0, 0], true);
+  assert.equal(rows(none), 0, '1枚も無いときは行を出さないこと');
+  assert.match(none, /写真を選ぶ/, 'はじめの1枚は「選ぶ」にすること');
+  assert.doesNotMatch(none, /id="posterTake"/, '取りに行く先が無いときは出さないこと');
+
+  /* 3まいめだけが残っている＝2まいめを消したあと。**番号は動かない** */
+  const gap = posterPanelHarness(['', '', 'blob:c', ''], [0, 0, 30, 0], true);
+  assert.equal(rows(gap), 1, '空いた枠は出さないこと');
+  assert.match(gap, /<b>3まいめ<\/b>/, '前が空いても3まいめは3まいめのままにすること');
+  assert.match(gap, /写真を足す/, '2枚めからは「足す」にすること');
+
+  /* 満杯。押した先で断るしかない入口は出さない */
+  const full = posterPanelHarness(['a', 'b', 'c', 'd'], [1, 2, 3, 4], true);
+  assert.equal(rows(full), 4);
+  assert.doesNotMatch(full, /id="posterPick"/, '空き枠が無いときは足す入口を出さないこと');
+  assert.match(full, /id="posterSend"/);
+
+  /* 合図はあるが、この端末には来ていない枠 */
+  const away = posterPanelHarness(['a', '', '', ''], [1, 2, 0, 0], true);
+  assert.match(away, /is-away[\s\S]*?<b>2まいめ<\/b>[\s\S]*?まだこの端末に来ていません/,
+    '来ていない枠は、その旨を言葉で出すこと');
+  assert.match(away, /id="posterTake"/, '取りに行く道を出すこと');
+
+  /* 共有していない端末に、渡す・受け取るを出さない */
+  const solo = posterPanelHarness(['a', '', '', ''], [1, 0, 0, 0], false);
+  assert.doesNotMatch(solo, /id="posterSend"|id="posterTake"/);
+  assert.match(solo, /共有を使っていないため/);
+});
+
+/* 子ども画面の見え方も、実際に組み立てて見る。1枚のときに「1まいめ」が
+   出てしまうと、これまで1枚で使ってきた家庭の画面が勝手に変わる。 */
+function posterViewHarness(urls){
+  return new Function(`
+    let config = { poster: { label:'', at:0, ats:[0,0,0,0] } };
+    let posterURLs = ${JSON.stringify(urls)};
+    let posterFresh = true;
+    const body = { innerHTML:'' };
+    const title = { textContent:'' };
+    const dialog = { open:false, showModal(){ this.open = true; }, setAttribute(){} };
+    const toasts = [];
+    function $(sel){ return sel === '#posterDialog' ? dialog : sel === '#posterBody' ? body : title; }
+    function toast(t){ toasts.push(t); }
+    function ms(v){ const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; }
+    function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+    ${grabConst(APP, 'POSTER_MAX')}
+    ${grabConst(APP, 'POSTER_LABEL_DEFAULT')}
+    ${grab(APP, 'posterCfg')}
+    ${grab(APP, 'posterAtsFrom')}
+    ${grab(APP, 'posterWord')}
+    ${grab(APP, 'openPoster')}
+    openPoster();
+    return { html: body.innerHTML, opened: dialog.open, toasts, fresh: posterFresh };
+  `)();
+}
+
+test('子ども画面の写真は縦にならべ、1枚のときは見出しを出さない', ()=>{
+  const one = posterViewHarness(['blob:a', '', '', '']);
+  assert.equal((one.html.match(/<img /g) || []).length, 1);
+  assert.doesNotMatch(one.html, /まいめ/, '1枚のときは「1まいめ」を出さないこと');
+  assert.equal(one.opened, true);
+  assert.equal(one.fresh, false, '開いたら未読の印を落とすこと');
+
+  /* 2まいめが空でも、出るのは「1まいめ」「2まいめ」＝**見えている順**。
+     枠の番号ではなく、並んでいる順で数えないと、子どもが数えて食いちがう */
+  const gap = posterViewHarness(['blob:a', '', 'blob:c', '']);
+  assert.equal((gap.html.match(/<img /g) || []).length, 2);
+  assert.match(gap.html, /1まいめ[\s\S]*2まいめ/);
+  assert.doesNotMatch(gap.html, /3まいめ/);
+
+  const none = posterViewHarness(['', '', '', '']);
+  assert.equal(none.opened, false, '1枚も無いときは開かないこと');
+  assert.deepEqual(none.toasts, ['まだ とどいていないよ']);
+});
+
+/* 合図が 0 に戻ったのに端末の中の写真を残すと、保護者が消したのに
+   子どもの画面には出つづける。ここが写真の墓標にあたる。 */
+test('消された写真は、受け取り側の端末からも落とす', ()=>{
+  const drop = grab(APP, 'dropRemovedPosters');
+  assert.match(drop, /if\(cfg\.ats\[slot\] \|\| !held\[slot\]\) continue;/,
+    '控えが 0 の枠は「消された」ではなく「まだ知らない」として扱うこと');
+  /* 共有していない端末では、食いちがいがそもそも起きない。ここを開けておくと
+     設定がまだ育っていない場面で、端末にある写真を消す（実機で実際に消えた）。 */
+  assert.match(drop, /if\(!sharingOn\(\) \|\| !S\) return false;/,
+    '共有していない端末では何もしないこと');
+  /* つないだ直後の1回はグループの設定が勝つ決まり。その前の初期値（印が無い）を
+     「消された」と読むと、いま撮ったばかりの写真が消える。 */
+  assert.match(drop, /S\.awaitingFirstSnapshot\(\)\) return false;/,
+    'グループの設定を受け取る前に判断しないこと');
+  assert.match(drop, /const S = sync\(\);/,
+    '素の S を書かないこと（ReferenceError で関数が丸ごと止まる）');
+  assert.match(drop, /await lib\.remove\(posterId\(slot\)\)/);
+  assert.match(grab(APP, 'checkPosterArrival'), /await dropRemovedPosters\(\)/,
+    '受け取りの前に、消されたぶんを落とすこと');
 });
 
 test('受け渡し箱へ書くのは暗号文で、期限を必ず付ける', ()=>{
@@ -4523,9 +4668,23 @@ test('受け渡し箱へ書くのは暗号文で、期限を必ず付ける', ()
     '写真も合言葉の鍵で包むこと');
   assert.match(put, /expiresAt: new Date\(now \+ HANDOFF_MS\)/,
     '消し忘れが残らないよう、期限を必ず付けること');
-  assert.match(RULES, /match \/photo_handoff\/\{houseId\}/, 'ルールに受け渡し箱を足すこと');
-  assert.match(RULES, /allow delete:\s+if request\.auth != null && validHouseId\(houseId\);/,
+  assert.match(grab(SYNC, 'putHandoff'), /async function putHandoff\(dataURL, slot\)/,
+    '枠を受け取ること');
+  assert.match(RULES, /match \/photo_handoff\/\{boxId\}/, 'ルールに受け渡し箱を足すこと');
+  assert.match(RULES, /allow delete:\s+if request\.auth != null && validHandoffId\(boxId\);/,
     '受け取った側が片づけられるよう、この箱だけ delete を許すこと');
+  assert.match(RULES, /notRetired\(handoffHouse\(boxId\)\)/,
+    '枝番から グループIDを取り出して、墓標を見ること');
+});
+
+/* run() は「書けた」を true で返すので、req.result が undefined のときも
+   true になる。put / remove では正しいが、get では「キーが無い」まで true に
+   なる。1枚だけのころは当たらなかったが、4つの枠を順に見にいったとたん
+   createObjectURL(true) で表に出た。 */
+test('端末の中に無い写真は、あるふりをせず null で返す', ()=>{
+  assert.match(grab(PHOTOS, 'get'),
+    /\.then\(v=> \(typeof Blob !== 'undefined' && v instanceof Blob\) \? v : null\)/,
+    'Blob でないものは null にすること（run の true をそのまま通さない）');
 });
 
 test('縮めても収まらない写真は、荒くして通さずに断る', ()=>{
@@ -4553,10 +4712,12 @@ test('配信するスクリプトは、まるごと構文が通る', ()=>{
 /* 受け渡し箱は TTL（コンソール側の設定）にも守られるが、**TTL が無くても
    溜まらない**ようにする。権限などでTTLを作れない家庭でも運用できること。 */
 test('古い受け渡し箱は、アプリ側でも片づける', ()=>{
-  const sweep = grab(SYNC, 'sweepHandoff');
+  const sweep = grab(SYNC, 'sweepHandoffSlot');
   assert.match(sweep, /if\(at && Date\.now\(\) - at < HANDOFF_MS\) return false;/,
     '期限より新しい箱は消さないこと');
-  assert.match(sweep, /return await clearHandoff\(\);/);
+  assert.match(sweep, /return await clearHandoff\(slot\);/);
+  assert.match(grab(SYNC, 'sweepHandoff'),
+    /for\(let slot = 0; slot < HANDOFF_SLOTS; slot\+\+\)/, '枠ぜんぶを見ること');
   assert.match(grab(APP, 'bindConfig'),
     /if\(\$\('#posterFile'\) && posterSync && typeof posterSync\.sweepHandoff === 'function'\)/,
     '保護者ページを開いたときだけ、1回だけ見にいくこと');
@@ -4582,11 +4743,14 @@ test('同期を使う関数は、必ず S を宣言してから使う', ()=>{
    という形で出た。手で押す「写真を受け取る」も用意し、結果をそのまま伝える。 */
 test('渡し直したら合図も更新し、手で受け取る道も残す', ()=>{
   const bind = grab(APP, 'bindConfig');
-  assert.match(bind, /if\(!await handPoster\(\)\) return;[\s\S]{0,160}config\.poster = \{ label: posterCfg\(\)\.label, at \};[\s\S]{0,40}saveCfg\(\);/,
+  assert.match(bind, /if\(!await handPoster\(\)\) return;[\s\S]{0,460}config\.poster = posterCfgOut\(posterCfg\(\)\.label, ats\);[\s\S]{0,40}saveCfg\(\);/,
     '渡せたときは印の時刻も更新すること');
+  /* 持っていない枠の合図を進めると、ほかの端末が空の箱を取りに行く */
+  assert.match(bind, /if\(!posterURLs\[slot\]\) continue;/,
+    '進めるのは、この端末にある枠だけにすること');
   assert.match(bind, /checkPosterArrival\(\{ force:true \}\)/, '手で押したときは間引きを飛ばすこと');
   const check = grab(APP, 'checkPosterArrival');
-  assert.match(check, /if\(!want \|\| \(!force && want <= posterHeldAt\(\)\)\) return 'skip';/);
+  assert.match(check, /if\(force \|\| want\[slot\] > held\[slot\]\) slots\.push\(slot\);/);
   assert.match(check, /return 'empty';/, '箱が空のときは、そう分かる形で返すこと');
 });
 
@@ -4632,12 +4796,17 @@ test('一覧の写真のボタンの名前は、空のままにできる', ()=>{
     '読み上げ・見出し・知らせにだけ、既定の語を使うこと');
   const render = grab(APP, 'renderPosterButton');
   assert.match(render, /text\.textContent = cfg\.label;/, '帯には既定の語を出さないこと');
+  const open = grab(APP, 'openPoster');
+  assert.match(open, /const many = here\.length > 1;/, '1枚のときは、これまでと同じ見え方にすること');
+  assert.match(open, /まいめ/, '2枚以上のときだけ、何まいめかを出すこと');
   assert.match(render, /classList\.toggle\('has-name', !!cfg\.label\)/);
   assert.match(STYLE, /\.topband-poster-txt:empty\{ display:none; \}/,
     '名前が空のときは、言葉の欄ごと出さないこと');
   const bind = grab(APP, 'bindConfig');
   assert.match(bind, /const label = String\(e\.target\.value \|\| ''\)\.trim\(\)\.slice\(0, 6\);/,
     '空欄のまま保存できること（既定の語で埋め戻さない）');
+  assert.match(bind, /config\.poster = posterCfgOut\(label, posterCfg\(\)\.ats\);/,
+    '名前だけ変えたときに、枠ごとの合図を落とさないこと');
 });
 
 /* 差しかえた 写真を 手で 受け取れるように する。以前は「この端末に 写真が
@@ -4645,9 +4814,11 @@ test('一覧の写真のボタンの名前は、空のままにできる', ()=>{
    端末は 差しかえを 手で 取りに 行けなかった**（自動でしか 届かない）。 */
 test('写真を受け取るボタンは、共有中ならいつでも押せる', ()=>{
   const sec = grab(APP, 'posterSectionHTML');
-  assert.match(sec, /\$\{cfg\.at && sharingOn\(\) \? '<button class="btn" id="posterTake"/,
+  assert.match(sec, /\$\{known && sharingOn\(\) \? '<button class="btn" id="posterTake"/,
     'すでに写真を持っている端末にも出すこと');
   assert.doesNotMatch(sec, /!here && cfg\.at && sharingOn\(\)/, '持っていない端末に限らないこと');
+  /* 空き枠が無いときに「足す」を出しても、押した先で断るしかない */
+  assert.match(sec, /\$\{free >= 0 \?/, '空き枠があるときだけ、足す入口を出すこと');
   /* v1.5.1 で 名前を 変えた ボタンを、知らせの 文だけ 旧い ままに しない */
   const bind = grab(APP, 'bindConfig');
   assert.doesNotMatch(bind, /もう一度わたす/, '画面に無いボタンの名前で案内しないこと');
