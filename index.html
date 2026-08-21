@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="application-version" content="1.6.0">
+<meta name="application-version" content="1.6.1">
 <meta name="theme-color" content="#14375E">
 <!-- 招待リンクは ホーム画面に 追加させるため、しばらく URL に あいことばを のこす。
      そのあいだ 外部（Google Fonts など）へ アドレスを 渡さない。
@@ -24,7 +24,7 @@
 <!-- Webフォントの通信で初期描画を止めない。読み込み中は端末内の丸ゴシックを使う -->
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/style.css?v=20260821h">
+<link rel="stylesheet" href="assets/style.css?v=20260821i">
 <link rel="stylesheet" href="tokens.css?v=20260813a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
 </head>
@@ -134,7 +134,20 @@
     <li><span class="poster-step-num" aria-hidden="true">3</span><div><b>子ども画面の帯から開く</b>
       <p>ふつうは開き直すと自動で届きます。届かないときは、その端末の同じ欄の「写真を受け取る」を押してください。開いた中に、足した順で縦に並びます。</p></div></li>
   </ol>
-  <p class="poster-note">写真はこの端末のアプリの中に、写真アプリとは別に保存します。写真アプリから元の写真を消しても残ります。逆に、ブラウザの「Webサイトデータを削除」をすると、宿題の記録といっしょに消えます。大切なプリントは、写真アプリにも残しておいてください。</p>
+  <!-- ここから下は 読みものなので たたんで おく。手順と 図を 読むために
+       1890px（320px幅の実測）を スクロールさせない。summary は 問いの 形に して、
+       探している 人が 見つけられる ように する -->
+  <details class="poster-more">
+    <summary>この2つのボタンは、どんなときに使うのか</summary>
+    <p class="poster-note"><b>ふだんは自動で届きます。</b>どちらのボタンも、うまくいかないときのためのものです。預かり箱は<b>24時間で空になる</b>ので、前に登録した写真や、あとから増やした端末には自動では届きません。</p>
+    <p class="poster-note"><b>ほかの端末へ渡す</b>…この端末にある写真を、預かり箱に入れ直します。<br>
+      <b>写真を受け取る</b>…待たずに、いま取りに行きます。足りないぶんを一度にまとめて受け取ります。</p>
+  </details>
+  <details class="poster-more">
+    <summary>写真はどこにあるのか。ほかの人に見られないか</summary>
+    <p class="poster-note">写真はこの端末のアプリの中に、写真アプリとは別に保存します。写真アプリから元の写真を消しても残ります。逆に、ブラウザの「Webサイトデータを削除」をすると、宿題の記録といっしょに消えます。大切なプリントは、写真アプリにも残しておいてください。</p>
+    <p class="poster-note">ほかの端末へ渡すあいだだけ、写真は預かり箱に置かれます。置くときに<b>合言葉から作った鍵で暗号化</b>してからにするので、鍵を持たない人は開けません。鍵も合言葉も預かり箱には送らないため、<b>このアプリの管理者にも中身は見えません</b>。いっしょに残るのは、預けた時刻・端末ごとのランダムな番号・期限だけです。合言葉が短かったり推測しやすかったりすると、この守りは弱くなります。</p>
+  </details>
 </dialog>
 
 <!-- 宿題の一覧の写真。画像は端末の中（IndexedDB）にあり、共有データには入れない -->
@@ -229,7 +242,7 @@ window.natsuBootProgress = function(value, label){
 <script>window.natsuBootProgress(88, 'この端末の記録を読み込んでいます');</script>
 <!-- 写真の置き場（端末ごと）。読めなくてもアプリはそのまま動く -->
 <script src="assets/photos.js?v=20260821a"></script>
-<script src="assets/app.js?v=20260821j"></script>
+<script src="assets/app.js?v=20260821k"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
 <script type="module" src="assets/sync.js?v=20260821b"></script>

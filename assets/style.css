@@ -757,6 +757,15 @@ button{ font:inherit; color:inherit; }
 .poster-steps b{ display:block; font-size:16px; font-weight:900; line-height:1.5; }
 .poster-steps p{ margin:2px 0 0; font-size:15px; font-weight:700; line-height:1.7; color:var(--ai-usu); }
 .poster-note{ margin:16px 0 0; font-size:15px; font-weight:700; line-height:1.7; color:var(--ai-usu); }
+/* 読みものは たたんで おく。summary は 問いの 形なので、
+   探している 人は 開く 前に 見つけられる */
+.poster-more{ margin-top:16px; border-top:2px dashed var(--hougan); padding-top:12px; }
+.poster-more > summary{
+  cursor:pointer; font-size:16px; font-weight:900; line-height:1.5; color:var(--ai);
+  padding:6px 0; min-height:32px;
+}
+.poster-more > summary:focus-visible{ outline:3px solid var(--focus); outline-offset:2px; }
+.poster-more > .poster-note:first-of-type{ margin-top:8px; }
 
 .poster-dialog{
   width:min(96vw, 900px); max-height:92vh; padding:14px;
@@ -780,6 +789,13 @@ button{ font:inherit; color:inherit; }
 
 /* 保護者ページの 枠の 一覧。**空いた 枠は 出さない。**
    枠は 詰めないので、3まいめだけが あるときは「3まいめ」だけが ならぶ */
+/* 来ていない ぶんが あることは、ふつうの 説明文より 一段 強く 出す。
+   ここだけは「読まなくても いい 但し書き」では なく、次の 操作の 案内 */
+.poster-behind{
+  margin:0 16px 12px; padding:10px 12px;
+  border:2px solid var(--suika); border-radius:var(--r-s);
+  color:var(--ai);
+}
 .poster-slots{ display:grid; gap:8px; padding:12px 16px; }
 .poster-slot{
   display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px;
