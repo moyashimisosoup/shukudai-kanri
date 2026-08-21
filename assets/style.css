@@ -1499,7 +1499,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
    なぞなぞ / まめちしき
    ========================================================= */
 .fun{
-  padding:18px 20px 20px;
+  padding:14px 16px 16px;
   background:linear-gradient(180deg,var(--fun-a),var(--fun-b));
 }
 /* ミニコンテンツは 画面の 上（まいにちの 上）に 置く。
@@ -1508,6 +1508,13 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .fun-fold > summary.fun-sum{
   display:flex; align-items:center; gap:10px; cursor:pointer; list-style:none;
 }
+/* 見出しの行では 札を 折り返さない。入らない ぶんは … で 切る
+   （札が 3行に なって 見出しが 74px に なっていた） */
+.fun-fold > summary .fun-tag{
+  flex:0 1 auto; min-width:0; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; overflow-wrap:normal;
+}
+.fun-tag--body{ margin-top:10px; }
 .fun-fold > summary.fun-sum::-webkit-details-marker{ display:none; }
 .fun-fold > summary.fun-sum:focus-visible{ outline:3px solid var(--ai); outline-offset:2px; }
 .fun-fold > summary .fun-tag{ margin-bottom:0; }
@@ -1515,6 +1522,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   flex:1 1 auto; min-width:0; font-size:15px; font-weight:700; color:var(--ai-usu);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
+.fun-fold-mark{ margin-inline-start:auto; }
 .fun-fold-mark{
   flex:none; width:22px; height:22px; background:var(--ai-usu);
   transition:transform .15s ease;
@@ -1574,7 +1582,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   border-radius:var(--r-s); color:var(--ai);
 }
 .fun-fig svg{ display:block; width:100%; height:auto; }
-.fun-row{ display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; align-items:center; }
+.fun-row{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center; }
 .fun-debug-list{ display:grid; gap:14px; }
 .fun-debug-card{ margin:0; }
 .fun-debug-tools{ padding:14px 16px; }

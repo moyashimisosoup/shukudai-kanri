@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.5.1';
+const RELEASE_VERSION = '1.5.2';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2858,11 +2858,17 @@ function funHTML(){
     : '';
   return `
   <details class="paper fun fun-fold" data-details-key="funBox"${openAttr}>
+    ${/* 見出しの行に 出すのは **ひとつだけ**。札と 説明を ならべると、
+          せまい 画面で 札が 3行に 折り返し、説明も 切れた（320pxで実測）。
+          読める ぶんが ある あいだは 札（何の はなしか）、
+          読み切ったら おしまいの 一言に 入れかわる。 */''}
     <summary class="fun-sum">
-      <span class="fun-tag">${esc(f.t)}</span>
-      <span class="fun-sum-note">${esc(left > 0 ? 'きょうの おはなし' : owari)}</span>
+      ${left > 0
+        ? `<span class="fun-tag">${esc(f.t)}</span>`
+        : `<span class="fun-sum-note">${esc(owari)}</span>`}
       <span class="fun-fold-mark" aria-hidden="true"></span>
     </summary>
+    ${left > 0 ? '' : `<span class="fun-tag fun-tag--body">${esc(f.t)}</span>`}
     ${f.t === 'むかしのことば'
       ? '<p class="fun-note">つかってみよう。ひみつの あんごうに なるかもね！</p>'
       : ''}
