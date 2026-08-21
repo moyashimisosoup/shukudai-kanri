@@ -1163,6 +1163,9 @@ select{ appearance:auto; -webkit-appearance:menulist; }
   border:var(--line) solid var(--ai);
   border-radius:14px;
   background:var(--kami);
+  /* **文字色は 自分で 持つこと。** 受け継ぐ ままだと、濃い帯の 中に 置いた
+     ときに 白地へ 白文字が のって 消える（「使い方」で 実際に 起きた） */
+  color:var(--ai);
   box-shadow:var(--shadow);
   transition:transform .08s, box-shadow .08s;
 }
