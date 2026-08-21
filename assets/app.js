@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.6.2';
+const RELEASE_VERSION = '1.6.3';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2471,7 +2471,7 @@ function posterSectionHTML(){
   <section class="sec config-sec"><div class="sec-head has-help"><h2>宿題の一覧の写真</h2>
       <button class="icon-btn sec-help-btn" id="posterHelp" type="button"
         title="使い方" aria-label="宿題の一覧の写真の使い方">?</button></div><div class="paper">
-    <p class="set-note">学校のプリントや時間割を${POSTER_MAX}枚まで。${esc(how)}${here ? '写真をタップすると選び直せます。' : ''}</p>
+    <p class="set-note">学校のプリントや時間割を${POSTER_MAX}枚まで。子ども画面の帯のアイコンから見られます。${esc(how)}${here ? '写真をタップすると選び直せます。' : ''}</p>
     <div class="set-row"><label class="lab" for="posterLabel">ボタンの名前</label>
       <input type="text" id="posterLabel" maxlength="6" placeholder="なくてもかまいません" value="${esc(cfg.label)}"></div>
     <div class="poster-tiles">${tiles.join('')}${add}</div>

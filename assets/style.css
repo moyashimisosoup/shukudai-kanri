@@ -766,6 +766,20 @@ button{ font:inherit; color:inherit; }
 .poster-note{ margin:16px 0 0; font-size:15px; font-weight:700; line-height:1.7; color:var(--ai-usu); }
 /* 読みものは たたんで おく。summary は 問いの 形なので、
    探している 人は 開く 前に 見つけられる */
+/* 「ほかの人に 見られないか」への 答えは、いちばん 先に、一行で。
+   読み進めないと 分からない ところに 置かない */
+.poster-seal{
+  margin:12px 0 0; padding:10px 12px;
+  border:2px solid var(--suika); border-radius:var(--r-s);
+  color:var(--suika); font-size:15px; line-height:1.6;
+}
+.poster-sub{ margin:22px 0 0; font-size:16px; font-weight:900; line-height:1.5; color:var(--ai); }
+.poster-facts{
+  margin:8px 0 0; padding-inline-start:1.3em;
+  font-size:15px; font-weight:700; line-height:1.7; color:var(--ai-usu);
+}
+.poster-facts li{ margin-top:6px; }
+.poster-facts b{ color:var(--ai); }
 .poster-more{ margin-top:16px; border-top:2px dashed var(--hougan); padding-top:12px; }
 .poster-more > summary{
   cursor:pointer; font-size:16px; font-weight:900; line-height:1.5; color:var(--ai);

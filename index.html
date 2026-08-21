@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="application-version" content="1.6.2">
+<meta name="application-version" content="1.6.3">
 <meta name="theme-color" content="#14375E">
 <!-- 招待リンクは ホーム画面に 追加させるため、しばらく URL に あいことばを のこす。
      そのあいだ 外部（Google Fonts など）へ アドレスを 渡さない。
@@ -24,7 +24,7 @@
 <!-- Webフォントの通信で初期描画を止めない。読み込み中は端末内の丸ゴシックを使う -->
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/style.css?v=20260821j">
+<link rel="stylesheet" href="assets/style.css?v=20260821k">
 <link rel="stylesheet" href="tokens.css?v=20260813a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
 </head>
@@ -73,6 +73,9 @@
     <button class="btn btn-sm poster-close" id="posterHelpClose" type="button">とじる</button>
   </div>
   <p class="poster-lead">学校からの宿題一覧や時間割、目標表などを、4枚まで貼っておける場所です。</p>
+  <!-- **いちばん先に 答える。** 「ほかの人に 見られないか」は、読み進めないと
+       分からない ところに 置かない（依頼者の 指示） -->
+  <p class="poster-seal"><b>写真は暗号化して送ります。管理側からも中身は見えません。</b></p>
   <!-- 3コマの 図。**文字は 文字の まま HTML に 置く。** SVG の 中に 入れると、
        図を 画面幅に 合わせて 縮めた ぶん 字も 縮み、320px では 6px ほどに なって
        読めなかった（実測）。絵だけを SVG に し、言葉は 折り返させる -->
@@ -104,7 +107,7 @@
             <path d="M26 16v13M38 16v13"/>
           </g>
         </svg>
-        <b>あずかり箱</b><small>24時間で消える</small>
+        <b>クラウド</b><small>暗号化ずみ</small>
       </div>
       <svg class="poster-flow-arrow" viewBox="0 0 24 24" aria-hidden="true">
         <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -124,22 +127,23 @@
         <b>子どもの端末</b>
       </div>
     </div>
-    <figcaption>保護者の端末で選んだ写真が、24時間だけ残るあずかり箱を通って、子どもの端末に届きます。</figcaption>
+    <figcaption>保護者の端末で選んだ写真が、暗号化されてクラウドを通り、子どもの端末に届きます。</figcaption>
   </figure>
   <ol class="poster-steps">
     <li><span class="poster-step-num" aria-hidden="true">1</span><div><b>写真を選ぶ</b>
       <p>この端末の「写真を選ぶ」から。プリントの裏面などは「写真を足す」で4枚まで足せます。長い辺を小さくして保存するので、写真アプリの元の写真はそのままです。</p></div></li>
-    <li><span class="poster-step-num" aria-hidden="true">2</span><div><b>ほかの端末へ渡す</b>
-      <p>「わたしました」と出れば送れています。共有していないときは、この端末の中だけで使います。</p></div></li>
-    <li><span class="poster-step-num" aria-hidden="true">3</span><div><b>子ども画面の帯から開く</b>
-      <p>ふつうは開き直すと自動で届きます。届かないときは、その端末の同じ欄の「写真を受け取る」を押してください。開いた中に、足した順で縦に並びます。</p></div></li>
+    <li><span class="poster-step-num" aria-hidden="true">2</span><div><b>ひとりでに届きます</b>
+      <p>共有していれば、ほかの端末へ自動で渡ります。届くまで少し時間がかかることがあります。共有していないときは、この端末の中だけで使います。</p></div></li>
+    <li><span class="poster-step-num" aria-hidden="true">3</span><div><b>子ども画面の帯のアイコンから見られます</b>
+      <p>押すと、足した順に縦に並びます。</p></div></li>
   </ol>
-  <!-- **暗号化のことは たたまない。** 「ほかの人に 見られないか」は 開く 前に
-       答えが 出ている べき ものなので、本文に 出す（依頼者の 指示） -->
-  <h3 class="poster-sub">写真はどこにあるのか。ほかの人に見られないか</h3>
-  <p class="poster-note">写真はこの端末のアプリの中に、写真アプリとは別に保存します。写真アプリから元の写真を消しても残ります。逆に、ブラウザの「Webサイトデータを削除」をすると、宿題の記録といっしょに消えます。大切なプリントは、写真アプリにも残しておいてください。</p>
-  <p class="poster-note">共有しているあいだ、写真はほかの端末へ渡すためにクラウドにも置かれます。置くときに<b>合言葉から作った鍵で暗号化</b>してからにするので、鍵を持たない人には開けません。鍵も合言葉もクラウドへは送らないため、<b>このアプリの管理者にも中身は読み取れません</b>。いっしょに残るのは、預けた時刻・端末ごとのランダムな番号・期限だけです。共有をやめるか写真を消せば、24時間以内にクラウドからも消えます。</p>
-  <p class="poster-note">ただし、合言葉が短かったり推測しやすかったりすると、この守りは弱くなります。合言葉は人に見えるところへ書かないでください。</p>
+  <h3 class="poster-sub">写真はどこにあるのか</h3>
+  <ul class="poster-facts">
+    <li>この端末のアプリの中。<b>写真アプリとは別</b>なので、元の写真を消しても残ります</li>
+    <li>渡すあいだはクラウドにも。<b>暗号化ずみ</b>で、共有をやめるか写真を消せば24時間以内に消えます</li>
+    <li>ブラウザの「Webサイトデータを削除」をすると、<b>宿題の記録といっしょに消えます</b></li>
+    <li>守りは合言葉しだいです。<b>合言葉は人に見えるところへ書かないでください</b></li>
+  </ul>
 
   <!-- ふだんは 使わない。**平常の 画面に 出さず、ここへ 置く。**
        押す ものが 増えると、どれが ふだんの 操作か 分からなくなる -->
@@ -247,7 +251,7 @@ window.natsuBootProgress = function(value, label){
 <script>window.natsuBootProgress(88, 'この端末の記録を読み込んでいます');</script>
 <!-- 写真の置き場（端末ごと）。読めなくてもアプリはそのまま動く -->
 <script src="assets/photos.js?v=20260821a"></script>
-<script src="assets/app.js?v=20260821m"></script>
+<script src="assets/app.js?v=20260821n"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
 <script type="module" src="assets/sync.js?v=20260821c"></script>
