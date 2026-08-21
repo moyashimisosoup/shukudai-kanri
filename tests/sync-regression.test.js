@@ -2709,11 +2709,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260821m',
+    'assets/style.css': '20260821n',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260821p',
+    'assets/app.js': '20260821q',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
@@ -2737,19 +2737,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.6.4をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.6\.4';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.6\.4">/);
-  assert.equal(PACKAGE.version, '1.6.4');
-  assert.equal(PACKAGE_LOCK.version, '1.6.4');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.6.4');
+test('公開版番号v1.6.5をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.6\.5';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.6\.5">/);
+  assert.equal(PACKAGE.version, '1.6.5');
+  assert.equal(PACKAGE_LOCK.version, '1.6.5');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.6.5');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.6.4', '1.6.3', '1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.6.5', '1.6.4', '1.6.3', '1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4900,7 +4900,11 @@ test('一覧の写真の使い方は、丸数字と図と保存場所で伝え�
   for(const one of fig.match(/<svg [\s\S]*?<\/svg>/g) || []){
     assert.match(one, /aria-hidden="true"/, '絵は読み上げの対象にしないこと');
   }
-  assert.match(fig, /<figcaption>[^<]{20,}/, '絵の代わりに読む1文を置くこと');
+  /* 絵は aria-hidden だが、**3つの場所の名前は HTML の文字**なので
+     読み上げでも中身は伝わる。図の下に同じ話を重ねて置かない。 */
+  assert.doesNotMatch(fig, /<figcaption>/, '図の下に、絵と同じ話を重ねて書かないこと');
+  assert.match(fig, /<b>保護者の端末<\/b>[\s\S]*<b>クラウド<\/b>[\s\S]*<b>子どもの端末<\/b>/,
+    '経路の3つの場所を、文字で置くこと');
   /* 利用者は「箱に入れる」という実質の動作を関知しない。図でも仕組みの名前を
      出さず、要点の一覧と同じ「クラウド」で通す（依頼者の指示）。 */
   assert.doesNotMatch(help, /あずかり箱|預かり箱/, '仕組みの名前を画面に出さないこと');
@@ -4933,23 +4937,30 @@ test('一覧の写真の使い方は、丸数字と図と保存場所で伝え�
   /* 要点だけ。段落で長く書かない */
   assert.match(help, /<h3 class="poster-sub">写真はどこにあるのか<\/h3>/);
   const facts = help.slice(help.indexOf('<ul class="poster-facts">'), help.indexOf('</ul>'));
-  assert.equal((facts.match(/<li>/g) || []).length, 4, '要点は4つに収めること');
+  assert.equal((facts.match(/<li>/g) || []).length, 3, '要点は3つに収めること');
   for(const one of facts.split('<li>').slice(1)){
     assert.ok(one.replace(/<[^>]+>/g, '').trim().length <= 60, '1行は短く保つこと: ' + one);
   }
-  assert.match(facts, /共有をやめるか写真を消せば24時間以内に消えます/,
-    'クラウドにも置かれることと、いつ消えるかを書くこと');
-  assert.match(facts, /合言葉は人に見えるところへ書かないでください/,
-    '守りが合言葉しだいであることも書くこと（言い切りっぱなしにしない）');
-  /* 子どもがどこから見るのかを、保護者ページにも一言 */
-  assert.match(grab(APP, 'posterSectionHTML'), /子ども画面の帯のアイコンから見られます/);
+  assert.match(facts, /共有をやめるか写真を消せば、<b>24時間以内に消えます<\/b>/,
+    'いつ消えるかを書くこと');
+  /* **同じ話を、赤枠・図・箇条書きの3か所に置かない。** 要点だけに絞る */
+  assert.doesNotMatch(help, /暗号化ずみ/, '「ずみ」まで書かない');
+  assert.doesNotMatch(help, /合言葉は人に見えるところへ書かないでください/,
+    '合言葉の注意は共有の設定の側が持つ話なので、ここには置かない');
+  assert.doesNotMatch(help, /長い辺を小さくして保存するので/, '仕組みの説明は書かない');
+  /* 子どもがどこから見るのかを、保護者ページにも一言。**どのアイコンかを
+     字だけで言わない。**帯の入口と同じ印を文の中に置く */
+  assert.match(grab(APP, 'posterSectionHTML'),
+    /子ども画面の帯の<span class="poster-lab-ico" aria-hidden="true"><\/span>アイコンから見られます/);
   /* 「ボタンの名前」だけでは、どのボタンのことか字から分からない。
      帯の入口と同じ印を、名前の欄の前に出す。 */
   assert.match(grab(APP, 'posterSectionHTML'),
     /<span class="poster-lab-ico" aria-hidden="true"><\/span>ボタンの名前/);
   assert.match(STYLE, /\.poster-lab-ico\{[\s\S]{0,220}sheet\.svg/,
     '帯の入口と同じ抜き型を使うこと');
-  assert.match(help, /子ども画面の帯のアイコンから見られます/);
+  assert.match(help, /子ども画面の帯の<span class="poster-lab-ico" aria-hidden="true"><\/span>アイコンから見られます/);
+  /* 赤枠と、下の図の枠がくっついていた（実測 0px） */
+  assert.match(STYLE, /\.poster-seal\{\s*\n\s*margin:12px 0 14px;/, '赤枠の下に一段あけること');
   /* ふだん使わない立て直しの操作は、たたんだ中へ */
   assert.equal((help.match(/<details class="poster-more">/g) || []).length, 1);
   assert.match(help, /<summary>うまく届かないとき<\/summary>/);

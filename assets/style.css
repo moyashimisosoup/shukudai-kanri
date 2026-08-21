@@ -769,7 +769,7 @@ button{ font:inherit; color:inherit; }
 /* 「ほかの人に 見られないか」への 答えは、いちばん 先に、一行で。
    読み進めないと 分からない ところに 置かない */
 .poster-seal{
-  margin:12px 0 0; padding:10px 12px;
+  margin:12px 0 14px; padding:10px 12px;
   border:2px solid var(--suika); border-radius:var(--r-s);
   color:var(--suika); font-size:15px; line-height:1.6;
 }
