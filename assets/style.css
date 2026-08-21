@@ -687,9 +687,16 @@ button{ font:inherit; color:inherit; }
 
 /* 見出しの 右に 置く 小さな「使い方」。欄の 意味を 聞かれた ときに
    その場で 答えられる ようにする（画面を 増やさない） */
-/* 「使い方」の 3文字を「?」の 印に した。見出しの 帯は もともと 定員が
-   きびしく、語で 置くと 見出しが 先に 切れる。当たり判定は .icon-btn の
-   44px の まま 変えない（帯の 丈も btn-sm と 同じ 44px なので 伸びない） */
+/* 「使い方」の 3文字を「?」の 印に した。当たり判定は .icon-btn の 44px の まま。
+
+   **ただし 帯の 丈を 押し広げさせない。** 44px の ボタンを 行に 置くと、
+   この 欄の 見出しだけ 66px に なり、ほかの 欄（46.75px 実測）より 太く 見える。
+   帯の 中で 浮かせて、丈は 見出しの 字だけで 決まる ように する */
+.sec-head.has-help{ position:relative; padding-inline-end:52px; }
+.sec-head.has-help .sec-help-btn{
+  position:absolute; inset-inline-end:6px; inset-block-start:50%;
+  transform:translateY(-50%); margin:0;
+}
 .sec-help-btn{ margin-inline-start:auto; flex:none; }
 /* 面は 持たず、印だけ 置く（.icon-btn.del と 同じ 考え方）。白い 44px の
    まるを 濃い帯に のせると、見出しより 明るい ものが 行の 中に できて
@@ -789,29 +796,61 @@ button{ font:inherit; color:inherit; }
 
 /* 保護者ページの 枠の 一覧。**空いた 枠は 出さない。**
    枠は 詰めないので、3まいめだけが あるときは「3まいめ」だけが ならぶ */
-/* 来ていない ぶんが あることは、ふつうの 説明文より 一段 強く 出す。
-   ここだけは「読まなくても いい 但し書き」では なく、次の 操作の 案内 */
-.poster-behind{
-  margin:0 16px 12px; padding:10px 12px;
-  border:2px solid var(--suika); border-radius:var(--r-s);
-  color:var(--ai);
+/* 写真の 一覧。**行では なく ます目。** 行に すると 1枚 95px（320px 実測）で、
+   4枚で 380px に なり、設定の 欄 ひとつが 画面を 埋めて しまう。
+   iPhone では 2列、広い 画面では 4列 */
+.poster-tiles{
+  display:grid; grid-template-columns:repeat(2, minmax(0,1fr));
+  gap:10px; padding:12px 16px;
 }
-.poster-slots{ display:grid; gap:8px; padding:12px 16px; }
-.poster-slot{
-  display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px;
-  padding:8px 12px; border:2px dashed var(--hougan); border-radius:var(--r-s);
-  font-size:15px; font-weight:700;
+@media (min-width:600px){ .poster-tiles{ grid-template-columns:repeat(4, minmax(0,1fr)); } }
+.poster-tile{ position:relative; margin:0; min-width:0; }
+/* 絵そのものを 押す 先に する。ボタンを 別に 並べない */
+.poster-tile-pic{
+  position:relative; display:grid; place-items:center;
+  width:100%; aspect-ratio:4 / 3;
+  padding:0; overflow:hidden; cursor:pointer;
+  border:2px solid var(--ai); border-radius:var(--r-s);
+  background:var(--kami); color:var(--ai);
 }
-.poster-slot b{ flex:none; font-size:16px; font-weight:900; }
-.poster-slot > span:first-of-type{ flex:1 1 8em; min-width:0; color:var(--ai-usu); }
-/* まだ この端末に 来ていない 枠も、うすくしない。うすくすると「使えない」と
-   読まれるが、実際には「えらび直す」で 差しかえられるし、「消す」は
-   共有ぜんたいから 外す 操作なので、写真を 持って いなくても 意味が ある */
-.poster-slot-acts{ flex:none; display:flex; gap:6px; }
-
-/* =========================================================
-   シグネチャ 1 : マス目のカウントダウン
-   ========================================================= */
+.poster-tile-pic img{ width:100%; height:100%; object-fit:cover; display:block; }
+.poster-tile-pic:active{ transform:translateY(1px); }
+.poster-tile-pic:focus-visible{ outline:3px solid var(--focus); outline-offset:2px; }
+/* まだ 来ていない 枠。押せる ように 見せない（押しても 待つ しか ない） */
+.poster-tile-wait{
+  border-style:dashed; cursor:default;
+  font-size:13px; font-weight:700; line-height:1.5; text-align:center;
+  color:var(--ai-usu);
+}
+/* 番号は 写真の 上。どんな 写真の 上でも 読めるよう、紙の 面を 敷く */
+.poster-tile-nth{
+  position:absolute; inset-block-end:4px; inset-inline-start:4px;
+  padding:2px 8px; border-radius:var(--r-pill);
+  background:var(--kami); color:var(--ai);
+  font-size:13px; font-weight:900; line-height:1.4;
+}
+/* 44px の 当たり判定は .icon-btn の まま。絵は 20px に 落とす。
+   写真の 上に のせるので、面と 影を 付けて 見失わない ように する */
+/* **ますの 内側に 収めること。** はみ出させると figure が 横に あふれ、
+   grid の ます目から こぼれる（実測で あふれを 確認した） */
+.poster-tile-del{
+  position:absolute; inset-block-start:0; inset-inline-end:0;
+  background:var(--kami); border-radius:50%; box-shadow:var(--shadow);
+}
+.poster-tile-del .codex-icon{ width:20px; height:20px; }
+/* 足す ます。写真の ます目と 同じ 大きさに そろえる */
+.poster-tile-add{
+  display:grid; place-items:center; gap:2px; width:100%; aspect-ratio:4 / 3;
+  padding:4px; cursor:pointer;
+  border:2px dashed var(--ai); border-radius:var(--r-s);
+  background:var(--kami); color:var(--ai);
+  font-size:14px; font-weight:900; line-height:1.3; text-align:center;
+}
+.poster-tile-add:active{ transform:translateY(1px); }
+.poster-tile-add:focus-visible{ outline:3px solid var(--focus); outline-offset:2px; }
+.poster-tile-plus{ font-size:26px; line-height:1; }
+/* 使い方の 中の 立て直し用。ふだんは たたまれている */
+.poster-fix{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
 .count{
   padding:20px 18px 22px;
   text-align:center;

@@ -2709,12 +2709,12 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260821i',
+    'assets/style.css': '20260821j',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260821k',
-    'assets/sync.js': '20260821b',
+    'assets/app.js': '20260821m',
+    'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -2737,19 +2737,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.6.1をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.6\.1';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.6\.1">/);
-  assert.equal(PACKAGE.version, '1.6.1');
-  assert.equal(PACKAGE_LOCK.version, '1.6.1');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.6.1');
+test('公開版番号v1.6.2をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.6\.2';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.6\.2">/);
+  assert.equal(PACKAGE.version, '1.6.2');
+  assert.equal(PACKAGE_LOCK.version, '1.6.2');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.6.2');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4558,49 +4558,60 @@ function posterPanelHarness(urls, ats, sharing){
     ${grab(APP, 'posterAtsFrom')}
     ${grab(APP, 'posterHere')}
     ${grab(APP, 'posterFreeSlot')}
-    ${grab(APP, 'posterRowHTML')}
+    function icon(){ return '<svg></svg>'; }
+    ${grab(APP, 'posterTileHTML')}
     ${grab(APP, 'posterSectionHTML')}
     return posterSectionHTML();
   `)();
 }
 
-test('保護者ページの写真の欄は、枠ごとに1行だけ出す', ()=>{
-  /* 大人が読むページなので「枚目」。「まいめ」は子ども画面だけ（実機の指摘） */
-  const rows = html => (html.match(/枚目/g) || []).length;
+test('保護者ページの写真は、ます目で見せて縦を使いすぎない', ()=>{
+  /* 行にすると1枚95px（320px 実測）で、4枚で380px。設定の欄ひとつに
+     その縦は使えない。ます目にして、押す先は絵とゴミ箱の2つだけにする。 */
+  const tiles = html => (html.match(/<figure class="poster-tile/g) || []).length;
 
   const none = posterPanelHarness(['', '', '', ''], [0, 0, 0, 0], true);
-  assert.equal(rows(none), 0, '1枚も無いときは行を出さないこと');
-  assert.match(none, /写真を選ぶ/, 'はじめの1枚は「選ぶ」にすること');
-  assert.doesNotMatch(none, /id="posterTake"/, '取りに行く先が無いときは出さないこと');
+  assert.equal(tiles(none), 0, '1枚も無いときは、ます目を出さないこと');
+  /* 番号とゴミ箱は写真の上にかさねる。下に並べると1ますが158pxになり
+     （375px 実測）、行で出していたころより縦を食う。 */
+  assert.match(STYLE, /\.poster-tile-nth\{[\s\S]{0,120}position:absolute/);
+  assert.match(STYLE, /\.poster-tile-del\{[\s\S]{0,160}position:absolute/);
+  assert.match(none, /id="posterPick"[\s\S]{0,160}写真を選ぶ/, 'はじめの1枚は「選ぶ」にすること');
 
-  /* 3まいめだけが残っている＝2まいめを消したあと。**番号は動かない** */
+  /* 3枚目だけが残っている＝2枚目を消したあと。**番号は動かない** */
   const gap = posterPanelHarness(['', '', 'blob:c', ''], [0, 0, 30, 0], true);
-  assert.equal(rows(gap), 1, '空いた枠は出さないこと');
-  assert.match(gap, /<b>3枚目<\/b>/, '前が空いても3枚目は3枚目のままにすること');
+  assert.equal(tiles(gap), 1, '空いた枠は出さないこと');
+  assert.match(gap, /class="poster-tile-nth">3枚目</, '前が空いても3枚目は3枚目のままにすること');
   assert.doesNotMatch(gap, /まいめ/, '保護者ページに子ども画面のかな表記を持ちこまないこと');
   assert.match(gap, /写真を足す/, '2枚めからは「足す」にすること');
 
   /* 満杯。押した先で断るしかない入口は出さない */
   const full = posterPanelHarness(['a', 'b', 'c', 'd'], [1, 2, 3, 4], true);
-  assert.equal(rows(full), 4);
+  assert.equal(tiles(full), 4);
   assert.doesNotMatch(full, /id="posterPick"/, '空き枠が無いときは足す入口を出さないこと');
-  assert.match(full, /id="posterSend"/);
 
-  /* 合図はあるが、この端末には来ていない枠 */
+  /* まだ来ていない枠は、押せるように見せない（押しても待つしかない） */
   const away = posterPanelHarness(['a', '', '', ''], [1, 2, 0, 0], true);
-  assert.match(away, /is-away[\s\S]*?<b>2枚目<\/b>[\s\S]*?まだこの端末に来ていません/,
-    '来ていない枠は、その旨を言葉で出すこと');
-  assert.match(away, /id="posterTake"/, '取りに行く道を出すこと');
-  /* トーストだけにすると、何をすればいいのかが押したあとにしか分からない */
-  assert.match(away, /この端末に来ていない写真が1枚あります/, '足りないことを常に画面へ出すこと');
-  assert.match(away, /写真を受け取る（1枚）/);
-  assert.match(away, /ふだんは自動で届きます/, '2つのボタンをいつ使うのか書くこと');
-  assert.doesNotMatch(full, /この端末に来ていない写真が/, 'そろっているときは出さないこと');
+  assert.match(away, /is-away[\s\S]{0,200}poster-tile-wait/, '来ていない枠は待ちの印にすること');
+  assert.doesNotMatch(away, /data-poster-pick="1"/, '来ていない枠を押せるように見せないこと');
 
-  /* 共有していない端末に、渡す・受け取るを出さない */
+  /* **平常の画面に、渡す・受け取るを出さない。** ふだんは自動で届く。
+     立て直しの操作は使い方ウインドウの「うまく届かないとき」にある。 */
+  for(const html of [none, gap, full, away]){
+    assert.doesNotMatch(html, /id="posterSend"|id="posterTake"/,
+      '平常の画面に、うまくいかないとき用のボタンを出さないこと');
+    assert.doesNotMatch(html, /預かり箱/, '利用者が知らなくてよい仕組みの名前を出さないこと');
+  }
+
+  /* 「共有されるのか」「いつ届くのか」だけを言う */
+  assert.match(away, /共有しているほかの端末へ自動で届きます/);
   const solo = posterPanelHarness(['a', '', '', ''], [1, 0, 0, 0], false);
-  assert.doesNotMatch(solo, /id="posterSend"|id="posterTake"/);
-  assert.match(solo, /共有を使っていないため/);
+  assert.match(solo, /共有を使っていないため、この端末の中だけで使います/);
+
+  /* 見出しの帯を、ほかの欄と同じ丈に保つ（44px のボタンで押し広げない） */
+  assert.match(full, /<div class="sec-head has-help">/);
+  assert.match(STYLE, /\.sec-head\.has-help \.sec-help-btn\{[\s\S]{0,120}position:absolute/,
+    '「?」は帯の中で浮かせて、丈を見出しの字だけで決めること');
 });
 
 /* 子ども画面の見え方も、実際に組み立てて見る。1枚のときに「1まいめ」が
@@ -4725,9 +4736,22 @@ test('古い受け渡し箱は、アプリ側でも片づける', ()=>{
   assert.match(sweep, /return await clearHandoff\(slot\);/);
   assert.match(grab(SYNC, 'sweepHandoff'),
     /for\(let slot = 0; slot < HANDOFF_SLOTS; slot\+\+\)/, '枠ぜんぶを見ること');
-  assert.match(grab(APP, 'bindConfig'),
-    /if\(\$\('#posterFile'\) && posterSync && typeof posterSync\.sweepHandoff === 'function'\)/,
-    '保護者ページを開いたときだけ、1回だけ見にいくこと');
+  /* **「渡す」を人に押させないための仕組み。** 保護者ページを開いたときに、
+     この端末が持っていて箱に無いぶんを入れ直す。これで箱はいつでも埋まり、
+     どの端末でも開けば届く（＝即時と要操作の分かれ道が消える）。 */
+  const refresh = grab(APP, 'refreshHandoff');
+  assert.match(refresh, /boxes = await S\.handoffAts\(\)/, '4つの枠の状態を1度に見ること');
+  assert.match(refresh, /if\(at > 0 && !stale\) continue;/, 'まだ生きている箱に書かないこと');
+  assert.match(refresh, /if\(dataURL\) await S\.putHandoff\(dataURL, slot\);/);
+  assert.match(refresh, /if\(!cfg\.ats\[slot\]\)\{[\s\S]{0,180}clearHandoff\(slot\)/,
+    '共有から外れた枠の箱は片づけること');
+  assert.match(grab(APP, 'bindConfig'), /if\(\$\('#posterFile'\)\) refreshHandoff\(\);/,
+    '保護者ページを開いたときだけ走らせること');
+  /* 受け取っても消さない。消すと、まだ受け取っていない端末が取り逃がす。 */
+  assert.doesNotMatch(grab(APP, 'posterArrivalRun'), /clearHandoff/,
+    '受け取った側が箱を消さないこと（期限と入れ直しに任せる）');
+  assert.match(grab(SYNC, 'handoffAts'), /at = Number\(\(snap\.data\(\) \|\| \{\}\)\.at\) \|\| 0;/,
+    '中身は読まず、いつ入れたかだけを見ること');
 });
 
 /* このコードベースの `S` はグローバルではなく、使う関数ごとに
@@ -4750,13 +4774,26 @@ test('同期を使う関数は、必ず S を宣言してから使う', ()=>{
    という形で出た。手で押す「写真を受け取る」も用意し、結果をそのまま伝える。 */
 test('渡し直したら合図も更新し、手で受け取る道も残す', ()=>{
   const bind = grab(APP, 'bindConfig');
-  assert.match(bind, /if\(!await handPoster\(\)\) return;[\s\S]{0,460}config\.poster = posterCfgOut\(posterCfg\(\)\.label, ats\);[\s\S]{0,40}saveCfg\(\);/,
+  const hand = grab(APP, 'posterHandAll');
+  assert.match(hand, /if\(!await handPoster\(\)\) return;[\s\S]{0,460}config\.poster = posterCfgOut\(posterCfg\(\)\.label, ats\);[\s\S]{0,40}saveCfg\(\);/,
     '渡せたときは印の時刻も更新すること');
   /* 持っていない枠の合図を進めると、ほかの端末が空の箱を取りに行く */
-  assert.match(bind, /if\(!posterURLs\[slot\]\) continue;/,
+  assert.match(hand, /if\(!posterURLs\[slot\]\) continue;/,
     '進めるのは、この端末にある枠だけにすること');
-  assert.match(bind, /checkPosterArrival\(\{ force:true, quiet:true \}\)/,
+  const take = grab(APP, 'posterTakeAll');
+  assert.match(take, /checkPosterArrival\(\{ force:true, quiet:true \}\)/,
     '手で押したときは間引きを飛ばし、知らせは大人向けの言い方で呼んだ側が出すこと');
+  assert.match(take, /写真を' \+ r\.got \+ '枚 受け取りました/, '結果は枚数で言うこと');
+  assert.match(take, /写真のある端末でこの画面を開いてから/,
+    '見つからないときは、次にすることをその場で言うこと');
+  assert.doesNotMatch(take, /預かり箱/, '利用者が知らなくてよい仕組みの名前を出さないこと');
+  /* **bindConfig で つながないこと。** ダイアログは描き直しで作り直されないので、
+     束ねが積み重なり、1回のタップで何度も走る。document へ一度だけ。 */
+  assert.doesNotMatch(bind, /#posterSend|#posterTake/,
+    'ダイアログのボタンを、描き直しのたびに走る場所でつながないこと');
+  assert.match(APP, /if\(e\.target\.closest\('#posterSend'\)\)\{ posterHandAll\(\); return; \}/);
+  assert.match(APP, /if\(e\.target\.closest\('#posterTake'\)\)\{ posterTakeAll\(\); return; \}/);
+  assert.doesNotMatch(APP, /もう一度わたす/, '画面に無いボタンの名前で案内しないこと');
   const check = grab(APP, 'posterArrivalRun');
   assert.match(check, /if\(force \|\| want\[slot\] > held\[slot\]\) slots\.push\(slot\);/);
   assert.match(check, /return \{ status:'empty', got:0, missing:slots\.length \};/,
@@ -4765,10 +4802,6 @@ test('渡し直したら合図も更新し、手で受け取る道も残す', ()
      枠が4つになって1回が4往復になり、この窓が4倍ひろがった。 */
   assert.match(grab(APP, 'checkPosterArrival'), /try\{ await posterRun; \}catch\(e\)\{\}/,
     '人が押したときは、走っているぶんを待ってからやり直すこと');
-  /* 「とどいたよ」だけでは何が起きたか分からない。枚数で言う。 */
-  assert.match(bind, /写真を' \+ r\.got \+ '枚 受け取りました/, '結果は枚数で言うこと');
-  assert.match(bind, /預かり箱が空です。写真のある端末で「ほかの端末へ渡す」/,
-    '空だったときは、次にすることをその場で言うこと');
 });
 
 /* ミニコンテンツは カウントダウンの下（まいにちの上）に置き、きょうのぶんを
@@ -4829,20 +4862,15 @@ test('一覧の写真のボタンの名前は、空のままにできる', ()=>{
 /* 差しかえた 写真を 手で 受け取れるように する。以前は「この端末に 写真が
    無い」ときにしか ボタンを 出して いなかったので、**すでに 1枚 持っている
    端末は 差しかえを 手で 取りに 行けなかった**（自動でしか 届かない）。 */
-test('写真を受け取るボタンは、共有中ならいつでも押せる', ()=>{
-  const sec = grab(APP, 'posterSectionHTML');
-  assert.match(sec, /known && sharingOn\(\) \? '<button class="btn" id="posterTake"/,
-    'すでに写真を持っている端末にも出すこと');
-  /* 何枚 足りないかを、押す前に見せる。押した回数を数えさせない */
-  assert.match(sec, /写真を受け取る（\$\{behind\}枚）/, '足りない枚数をボタンに出すこと');
-  assert.match(sec, /const behind = sharingOn\(\) \? cfg\.ats\.filter\(\(at, i\)=> at && !posterURLs\[i\]\)\.length : 0;/);
-  assert.doesNotMatch(sec, /!here && cfg\.at && sharingOn\(\)/, '持っていない端末に限らないこと');
-  /* 空き枠が無いときに「足す」を出しても、押した先で断るしかない */
-  assert.match(sec, /\$\{free >= 0 \?/, '空き枠があるときだけ、足す入口を出すこと');
-  /* v1.5.1 で 名前を 変えた ボタンを、知らせの 文だけ 旧い ままに しない */
-  const bind = grab(APP, 'bindConfig');
-  assert.doesNotMatch(bind, /もう一度わたす/, '画面に無いボタンの名前で案内しないこと');
-  assert.match(bind, /「ほかの端末へ渡す」を押してから、もう一度お試しください/);
+test('受け取りは、足りないぶんを一度にまとめて扱う', ()=>{
+  /* 何回押せばいいのかを数えさせない（実機の指摘）。以前は「この端末に写真が
+     無いとき」しか道が無く、差しかえを手で取りに行けなかった。 */
+  const check = grab(APP, 'posterArrivalRun');
+  assert.match(check, /for\(const slot of slots\)\{/, '足りない枠をまとめて見にいくこと');
+  assert.doesNotMatch(grab(APP, 'posterSectionHTML'), /!here && cfg\.at && sharingOn\(\)/,
+    '持っていない端末に限らないこと');
+  assert.match(grab(APP, 'posterSectionHTML'), /const add = free >= 0/,
+    '空き枠があるときだけ、足す入口を出すこと');
 });
 
 /* 使い方は「?」の 印から 開く。中身は 丸数字の 3手順と、3コマの 図と、
@@ -4852,6 +4880,12 @@ test('一覧の写真の使い方は、丸数字と図と保存場所で伝え�
   assert.match(grab(APP, 'posterSectionHTML'),
     /<button class="icon-btn sec-help-btn" id="posterHelp"[\s\S]{0,120}aria-label="宿題の一覧の写真の使い方">\?</,
     '見出しの「使い方」は「?」の印にすること');
+  /* **押したら 開くこと。** 欄を 整理したときに 開く側の束ねだけが消え、
+     形は正しいのに 押しても開かない、という状態を実機で踏んだ。
+     「関数が正しい」と「関数が呼ばれる」は別。開閉と中身は同じ場所にまとめる。 */
+  assert.match(APP, /if\(e\.target\.closest\('#posterHelp'\)\)\{[\s\S]{0,200}showModal/,
+    '「?」から開く道を、開閉と同じ場所に置くこと');
+  assert.match(APP, /if\(e\.target\.closest\('#posterHelpClose'\)\)\{/);
   const help = INDEX.slice(INDEX.indexOf('id="posterHelpDialog"'), INDEX.indexOf('id="posterDialog"'));
   const nums = help.match(/class="poster-step-num" aria-hidden="true">(\d)</g) || [];
   assert.deepEqual(nums.length, 3, '手順は3つにすること');
@@ -4886,13 +4920,22 @@ test('一覧の写真の使い方は、丸数字と図と保存場所で伝え�
     '鍵は合言葉から作ること（サーバへ送らない）');
   assert.doesNotMatch(grab(SYNC, 'putHandoff'), /code:|passphrase|getCode\(\),\s*\n\s*at:/,
     '合言葉そのものを預かり箱へ送らないこと');
-  assert.match(help, /管理者にも中身は見えません/, '見えないと言い切れることを書くこと');
+  /* **暗号化のことはたたまない**（依頼者の指示）。「ほかの人に見られないか」は、
+     開く前に答えが出ているべきもの。見出しごと本文に出す。 */
+  assert.match(help, /<h3 class="poster-sub">写真はどこにあるのか。ほかの人に見られないか<\/h3>/,
+    '暗号化の一節は、たたまずに本文へ出すこと');
+  const folded = help.slice(help.indexOf('<details class="poster-more">'));
+  assert.doesNotMatch(folded, /管理者にも中身は読み取れません/, 'たたんだ中へ入れないこと');
+  assert.match(help, /管理者にも中身は読み取れません/, '読み取れないと言い切れることを書くこと');
   assert.match(help, /合言葉が短かったり推測しやすかったりすると/,
     '守りが弱くなる条件も併せて書くこと（言い切りっぱなしにしない）');
-  /* 読みものはたたむ。手順と図を読むために 1890px（320px幅の実測）を
-     スクロールさせない。summary は問いの形にして、探している人が見つけられるように。 */
-  assert.equal((help.match(/<details class="poster-more">/g) || []).length, 2);
-  assert.match(help, /<summary>写真はどこにあるのか。ほかの人に見られないか<\/summary>/);
+  assert.match(help, /共有をやめるか写真を消せば、24時間以内にクラウドからも消えます/,
+    '共有中はクラウドにも置かれることと、いつ消えるかを書くこと');
+  /* ふだん使わない立て直しの操作は、たたんだ中へ */
+  assert.equal((help.match(/<details class="poster-more">/g) || []).length, 1);
+  assert.match(help, /<summary>うまく届かないとき<\/summary>/);
+  assert.match(folded, /id="posterSend"[\s\S]{0,200}id="posterTake"/,
+    '立て直しのボタンは、たたんだ中に置くこと');
   assert.match(STYLE, /\.poster-step-num\{[\s\S]{0,200}background:var\(--suika\)/,
     '番号は初期設定（.welcome-num）と同じ白抜きの丸にそろえること');
 });

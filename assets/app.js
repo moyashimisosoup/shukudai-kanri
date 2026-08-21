@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.6.1';
+const RELEASE_VERSION = '1.6.2';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -2132,6 +2132,70 @@ let posterTriedAt = 0;
 
    合図を 一度も 受け取って いない ときは 何も しない（控えが 0 の 枠は
    「消された」ではなく「まだ 知らない」） */
+/* **「渡す」を 人に 押させない ための 仕組み。**
+
+   これまでは、写真を 選んだ その 場でしか 預かり箱に 入らなかった。箱は 24時間で
+   空に なるので、前に 登録した 写真や、あとから 増えた 端末には 自動では 届かず、
+   「ほかの端末へ渡す」を 押す 必要が あった。**その 分かれ道を 無くす。**
+
+   保護者ページを 開いた ときに 一度だけ、4つの 枠の 状態を 見て、
+   この端末が 持っている ぶんで 箱に 無い ものを 入れ直す。こうすると
+   箱は いつでも 埋まっているので、**どの 端末でも 開けば 届く。**
+
+   引きかえに、共有している あいだ 写真は ほぼ いつも 箱に ある（暗号化ずみ）。
+   使い方には「共有をやめるか写真を消せば24時間以内に消えます」と 書くこと。 */
+async function refreshHandoff(){
+  const S = sync(), lib = photos();
+  if(!S || !lib || !sharingOn() || typeof S.handoffAts !== 'function') return;
+  const cfg = posterCfg();
+  const span = Number(S.HANDOFF_MS) || 24 * 60 * 60 * 1000;
+  let boxes = [];
+  try{ boxes = await S.handoffAts(); }catch(e){ return; }
+  for(let slot = 0; slot < POSTER_MAX; slot++){
+    const at = Number(boxes[slot]) || 0;
+    const stale = at > 0 && Date.now() - at >= span;
+    /* 共有から 外れた 枠の 箱は 片づける（持っていても 入れ直さない） */
+    if(!cfg.ats[slot]){
+      if(at > 0 && typeof S.clearHandoff === 'function') await S.clearHandoff(slot);
+      continue;
+    }
+    if(!posterURLs[slot]){
+      if(stale && typeof S.clearHandoff === 'function') await S.clearHandoff(slot);
+      continue;
+    }
+    if(at > 0 && !stale) continue;         // まだ 生きている。書かない
+    const blob = await lib.get(posterId(slot));
+    if(!blob) continue;
+    const dataURL = await lib.toDataURL(blob);
+    if(dataURL) await S.putHandoff(dataURL, slot);
+  }
+}
+
+/* 使い方ウインドウの「うまく届かないとき」から 呼ぶ。結果は 枚数で 言う */
+async function posterHandAll(){
+  if(!await handPoster()) return;
+  const at = Date.now();
+  const ats = posterCfg().ats;
+  for(let slot = 0; slot < POSTER_MAX; slot++){
+    if(!posterURLs[slot]) continue;
+    ats[slot] = at;
+    setPosterHeldAt(slot, at);
+  }
+  config.poster = posterCfgOut(posterCfg().label, ats);
+  saveCfg();
+  render({ keepScroll:true });
+}
+
+async function posterTakeAll(){
+  toast('写真をさがしています…');
+  const r = await checkPosterArrival({ force:true, quiet:true });
+  if(r.got && !r.missing){ toast('写真を' + r.got + '枚 受け取りました'); return; }
+  if(r.got){ toast('写真を' + r.got + '枚 受け取りました。あと' + r.missing + '枚は見つかりません'); return; }
+  if(r.status === 'offline'){ toast('共有につながっていません。通信を確かめてください'); return; }
+  if(r.status === 'skip'){ toast('受け取る写真はありません'); return; }
+  toast('見つかりません。写真のある端末でこの画面を開いてから、もう一度お試しください');
+}
+
 async function dropRemovedPosters(){
   const lib = photos();
   if(!lib) return false;
@@ -2211,7 +2275,8 @@ async function posterArrivalRun(opts){
     await lib.put(posterId(slot), blob);
     setPosterHeldAt(slot, want[slot]);
     got++;
-    if(typeof S.clearHandoff === 'function') S.clearHandoff(slot);
+    /* **受け取っても 消さない。** 消すと、まだ 受け取って いない 端末が
+       取り逃がす。期限（24時間）と、下の refreshHandoff() が 面倒を みる */
   }
   if(!got) return { status:'empty', got:0, missing:slots.length };
   await loadPoster();
@@ -2358,20 +2423,27 @@ function openPoster(){
    数えなくても 分かる ように する。空いた 枠は 出さない（3まいめだけが
    あるときは「3まいめ」だけが ならぶ ―― 枠は 詰めないので 番号は 動かない）。
    ボタンの ならびは、ほかの 欄と 同じ .set-actions に そろえる。 */
-function posterRowHTML(slot, cfg){
-  const here = !!posterURLs[slot];
+/* **写真は 一覧の 形で 見せる。** 行に すると 1枚 95px（320px 実測）で、
+   4枚で 380px。設定の 欄 ひとつに その 縦は 使えない。iPhone では 2列、
+   広い 画面では 4列。押す 先は 絵そのもの（選び直す）と、ゴミ箱（消す）の 2つだけ */
+function posterTileHTML(slot, cfg){
+  const url = posterURLs[slot];
   const known = !!cfg.ats[slot];
-  if(!here && !known) return '';
-  const state = here ? 'この端末にあります'
-    : sharingOn() ? 'まだこの端末に来ていません' : 'この端末にはありません';
-  return `
-    <div class="poster-slot${here ? '' : ' is-away'}">
-      <b>${slot + 1}枚目</b><span>${esc(state)}</span>
-      <span class="poster-slot-acts">
-        <button class="btn btn-sm" data-poster-pick="${slot}" type="button">えらび直す</button>
-        <button class="btn btn-sm" data-poster-clear="${slot}" type="button">消す</button>
-      </span>
-    </div>`;
+  if(!url && !known) return '';
+  const n = slot + 1;
+  /* 番号と ゴミ箱は **写真の 上に かさねる**。下に 並べると 1ますが
+     158px に なり（375px 実測）、行で 出して いた ころより 縦を 食う。
+     かさねれば ますの 丈は 写真の ぶんだけ（110px）で 済む */
+  const nth = `<span class="poster-tile-nth">${n}枚目</span>`;
+  const del = `<button class="icon-btn del poster-tile-del" data-poster-clear="${slot}" type="button"
+      title="${n}枚目を消す" aria-label="${n}枚目を消す">${icon('trash')}</button>`;
+  const pic = url
+    ? `<button class="poster-tile-pic" data-poster-pick="${slot}" type="button"
+        aria-label="${n}枚目を選び直す"><img src="${esc(url)}" alt="">${nth}</button>`
+    /* まだ 来ていない 枠。**ボタンに しない。** 押せる ように 見せると、
+       押した ときに 何も 起きない（届くのを 待つ しか ない） */
+    : `<span class="poster-tile-pic poster-tile-wait">まもなく<br>とどきます${nth}</span>`;
+  return `<figure class="poster-tile${url ? '' : ' is-away'}">${pic}${del}</figure>`;
 }
 
 function posterSectionHTML(){
@@ -2379,47 +2451,31 @@ function posterSectionHTML(){
   const here = posterHere();
   const free = posterFreeSlot();
   const known = cfg.ats.filter(Boolean).length;
-  let sent = null;
-  try{ sent = JSON.parse(getLocal(K_POSTER_SENT) || 'null'); }catch(e){}
-  const rows = [];
-  for(let slot = 0; slot < POSTER_MAX; slot++) rows.push(posterRowHTML(slot, cfg));
-  /* **来ていない ぶんが あることを、常に 画面へ 出す。** トーストだけに すると、
-     何を すれば いいのかが 押した あとにしか 分からない（実機の 指摘：
-     「どこを 操作したら いいか わからない」）。何枚 足りないかも 数で 言う */
-  const behind = sharingOn() ? cfg.ats.filter((at, i)=> at && !posterURLs[i]).length : 0;
-  const state = !known && !here ? 'まだ登録していません。' : '';
-  const share = !sharingOn() ? '共有を使っていないため、この端末の中だけで使います。' : '';
-  const note = (state || share) ? `<p class="set-note">${esc(state)}${esc(share)}</p>` : '';
-  const behindNote = behind ? `<p class="set-note poster-behind">この端末に来ていない写真が${behind}枚あります。下の「写真を受け取る（${behind}枚）」を押してください。</p>` : '';
-  /* 2つとも「うまくいかない ときの ボタン」。ふだんは 自動で 届くので、
-     いつ 使う ものかを 一言で 書く（実機の 指摘：使いどころが 分からない） */
-  const howNote = sharingOn() && (here || known)
-    ? '<p class="set-note">ふだんは自動で届きます。この2つは、届かないときや端末を増やしたときに使います。預かり箱は24時間で空になるので、前に登録した写真は「ほかの端末へ渡す」で入れ直してください。</p>'
+  const tiles = [];
+  for(let slot = 0; slot < POSTER_MAX; slot++) tiles.push(posterTileHTML(slot, cfg));
+  /* 足す 入口は **一覧の さいごの ます**。ボタンを 別に 並べない
+     （実機の 指摘：ボタンが 多すぎる・縦を 使いすぎ） */
+  const add = free >= 0
+    ? `<button class="poster-tile poster-tile-add" id="posterPick" type="button">
+        <span class="poster-tile-plus" aria-hidden="true">＋</span>
+        <span>写真を${known || here ? '足す' : '選ぶ'}</span></button>`
     : '';
-  const sentLine = (sent && sent.at)
-    ? `<p class="set-note">${sent.ok
-        ? '最後に渡したのは ' + esc(fmtDate(new Date(sent.at))) + ' ' + esc(fmtTime(new Date(sent.at))) + ' です。'
-        : '最後の受け渡しは失敗しました。共有の状態を確かめて、もう一度お試しください。'}</p>`
-    : '';
+  /* **「共有されるのか」「いつ 届くのか」だけを 言う。**
+     預かり箱の ことは 書かない ―― 利用者は そこを 知らなくて よい */
+  /* **短く。** 実測で、この一段だけが 375px で 126px（4行）を 使っていた。
+     「子ども画面の帯から開ける」は 使い方ウインドウの 手順3に 同じ話が ある */
+  const how = !sharingOn()
+    ? '共有を使っていないため、この端末の中だけで使います。'
+    : '共有しているほかの端末へ自動で届きます。';
   return `
-  <section class="sec config-sec"><div class="sec-head"><h2>宿題の一覧の写真</h2>
+  <section class="sec config-sec"><div class="sec-head has-help"><h2>宿題の一覧の写真</h2>
       <button class="icon-btn sec-help-btn" id="posterHelp" type="button"
         title="使い方" aria-label="宿題の一覧の写真の使い方">?</button></div><div class="paper">
-    <p class="set-note">プリントや時間割、目標表などを${POSTER_MAX}枚まで持たせます。子ども画面の上の帯に、開くボタンが出ます。</p>
+    <p class="set-note">学校のプリントや時間割を${POSTER_MAX}枚まで。${esc(how)}${here ? '写真をタップすると選び直せます。' : ''}</p>
     <div class="set-row"><label class="lab" for="posterLabel">ボタンの名前</label>
       <input type="text" id="posterLabel" maxlength="6" placeholder="なくてもかまいません" value="${esc(cfg.label)}"></div>
-    ${rows.join('') ? `<div class="poster-slots">${rows.join('')}</div>` : ''}
-    <div class="set-actions">
-      ${free >= 0 ? `<button class="btn btn-go" id="posterPick" type="button">写真を${known || here ? '足す' : '選ぶ'}</button>` : ''}
-      <input type="file" id="posterFile" accept="image/*" class="offscreen">
-      ${here && sharingOn() ? '<button class="btn" id="posterSend" type="button">ほかの端末へ渡す</button>' : ''}
-      ${behind ? `<button class="btn${behind ? ' btn-go' : ''}" id="posterTake" type="button">写真を受け取る（${behind}枚）</button>`
-        : known && sharingOn() ? '<button class="btn" id="posterTake" type="button">写真を受け取る</button>' : ''}
-    </div>
-    ${behindNote}
-    ${note}
-    ${howNote}
-    ${sentLine}
+    <div class="poster-tiles">${tiles.join('')}${add}</div>
+    <input type="file" id="posterFile" accept="image/*" class="offscreen">
   </div></section>`;
 }
 
@@ -6959,11 +7015,10 @@ function bindSync(){
 function bindConfig(){
   /* 宿題の一覧の写真。画像は端末の中に置き、共有には印だけを流す。
 
-     ページを開いたついでに、24時間より古い受け渡し箱を片づける。
-     TTL（コンソール側の設定）が無くても溜まらないようにするためで、
-     読み取りは開くたび1回だけ。子どもの画面では走らせない。 */
-  const posterSync = sync();
-  if($('#posterFile') && posterSync && typeof posterSync.sweepHandoff === 'function') posterSync.sweepHandoff();
+     ページを開いたついでに、受け渡しの箱を整える（古いものを片づけ、
+     この端末にある写真で欠けているぶんを入れ直す）。読み取りは開くたび4回、
+     書き込みは欠けている枠のぶんだけ。子どもの画面では走らせない。 */
+  if($('#posterFile')) refreshHandoff();
   /* iOS では、隠した 入力欄を <label for> で 押しても 一度目が 効かない
      ことが ある（実機で「2回 押さないと 出ない」）。ふつうの ボタンから
      input.click() を 呼ぶ。入力欄は display:none に せず、画面の 外へ 出す */
@@ -6980,44 +7035,6 @@ function bindConfig(){
     const slot = e.target.dataset.slot === '' ? -1 : Number(e.target.dataset.slot);
     e.target.value = '';
     if(file) savePosterFile(file, slot);
-  });
-  /* 渡し直したら **合図（印の時刻）も 更新する。** 更新しないと、相手の
-     端末から 見て「新しい ものが ある」ことに ならず、自動では 取りに 行かない
-     （実機で、渡せているのに 子端末が 受け取らない、という 形で 出た） */
-  on('#posterHelp', 'click', ()=>{
-    const dialog = $('#posterHelpDialog');
-    if(!dialog) return;
-    if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
-  });
-  /* 渡し直したら **合図（印の時刻）も 更新する。** 更新しないと、相手の 端末から
-     見て「新しい ものが ある」ことに ならず、自動では 取りに 行かない。
-     進めるのは **この端末に ある 枠だけ**（持っていない 枠の 合図を 進めると、
-     ほかの 端末が 空の 箱を 取りに 行く） */
-  on('#posterSend', 'click', async ()=>{
-    if(!await handPoster()) return;
-    const at = Date.now();
-    const ats = posterCfg().ats;
-    for(let slot = 0; slot < POSTER_MAX; slot++){
-      if(!posterURLs[slot]) continue;
-      ats[slot] = at;
-      setPosterHeldAt(slot, at);
-    }
-    config.poster = posterCfgOut(posterCfg().label, ats);
-    saveCfg();
-    render({ keepScroll:true });
-  });
-  /* 手で 取りに 行く。**一度に ぜんぶ 見にいく。**（押す 回数を 数えさせない）
-     結果は 枚数で 言う。「とどいたよ」だけでは 何が 起きたのか 分からない */
-  on('#posterTake', 'click', async ()=>{
-    toast('写真をさがしています…');
-    const r = await checkPosterArrival({ force:true, quiet:true });
-    if(r.got && !r.missing){ toast('写真を' + r.got + '枚 受け取りました'); return; }
-    if(r.got){ toast('写真を' + r.got + '枚 受け取りました。あと' + r.missing + '枚は預かり箱にありません'); return; }
-    if(r.status === 'offline'){ toast('共有につながっていません。通信を確かめてください'); return; }
-    if(r.status === 'skip'){ toast('受け取る写真はありません'); return; }
-    /* いちばん多い 道。**箱は 24時間で 消える**ので、前に 登録した ぶんは
-       たいてい ここに 来る。何を すれば いいかを その場で 言う */
-    toast('預かり箱が空です。写真のある端末で「ほかの端末へ渡す」を押してから、もう一度お試しください');
   });
   $$('[data-poster-clear]').forEach(el=> el.addEventListener('click', ()=>{
     const slot = Number(el.dataset.posterClear) || 0;
@@ -7546,6 +7563,21 @@ document.addEventListener('click', e=>{
   if(e.target.closest('#todayLabel')){ openKinenbi(new Date()); return; }
   if(e.target.closest('#kinenbiClose')){ closeKinenbi(); return; }
   if(e.target.closest('#posterOpen')){ openPoster(); render({ keepScroll:true }); return; }
+  /* 「渡す」「受け取る」は **使い方ウインドウの「うまく届かないとき」の中**に 置く。
+     ふだんは 自動で 届くので、平常の 画面には 出さない。
+     **ここ（document）へ 一度だけ つなぐ。** bindConfig は 描き直しの たびに
+     走るので、そこで つなぐと ダイアログの ボタンに 束ねが 積み重なる
+     （1回の タップで 何度も 走る。並べかえの ▲▼ で 実際に 起きた事故と 同じ） */
+  /* 「?」から 開く。**ここ（document）に 置く。** bindConfig に 置いても よいが、
+     開く・閉じる・中の 2つの ボタンが 別々の 場所に 散ると、片方を 消した ときに
+     気づけない（実際、欄の 整理で 開く 側だけ 消えて、押しても 開かなく なった） */
+  if(e.target.closest('#posterHelp')){
+    const dialog = $('#posterHelpDialog');
+    if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+    return;
+  }
+  if(e.target.closest('#posterSend')){ posterHandAll(); return; }
+  if(e.target.closest('#posterTake')){ posterTakeAll(); return; }
   if(e.target.closest('#posterHelpClose')){
     const dialog = $('#posterHelpDialog');
     if(typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open');

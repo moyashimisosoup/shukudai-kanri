@@ -993,6 +993,25 @@ async function putHandoff(dataURL, slot){
   }
 }
 
+/* 枠ごとの「箱に いつ 入れたか」。**中身は 読まない**（復号もしない）ので、
+   片づけと 入れ直しの 判断だけに 使う。無い 枠は 0。
+   読み取りは 4回で、保護者ページを 開いた ときの 1回だけ 走らせる。 */
+async function handoffAts(){
+  const out = [];
+  for(let slot = 0; slot < HANDOFF_SLOTS; slot++){
+    let at = 0;
+    try{
+      const ref = await handoffRef(slot);
+      if(ref){
+        const snap = await Sync._fs.getDoc(ref);
+        if(snap.exists()) at = Number((snap.data() || {}).at) || 0;
+      }
+    }catch(e){ notePhotoTrouble('写真の状態の確認', e); }
+    out.push(at);
+  }
+  return out;
+}
+
 /* 箱を のぞく。空・読めない・切れている ときは null。
    呼ぶ側は「まだ とどいていない」と 出すこと（例外の 文言を 画面に 出さない） */
 async function takeHandoff(slot){
@@ -1078,7 +1097,7 @@ const Sync = {
   disconnect,
   verifyHousehold,
   registerHousehold,
-  putHandoff, takeHandoff, clearHandoff, sweepHandoff, HANDOFF_SLOTS,
+  putHandoff, takeHandoff, clearHandoff, sweepHandoff, handoffAts, HANDOFF_SLOTS, HANDOFF_MS,
   getRegistrationCount,
   /* あいことばを 入れ替えて つなぎ直す */
   /* opts.joining … すでに ある グループへ 入るとき true。
