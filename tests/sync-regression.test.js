@@ -4808,6 +4808,49 @@ test('渡し直したら合図も更新し、手で受け取る道も残す', ()
    引き切ったら **その場で畳む**。下へ送らない（置き場所が動くと、毎日おぼえた
    ところが変わる）。きょう読んだぶんは ◀▶ でたどれるので、「読み終わったか」を
    当てる必要が無い。新しく引ける数は これまでどおり上限でしばる。 */
+/* 実機で2度 報告された道を、そのまま組み立てて確かめる。
+
+   きょうのぶんを読み切った状態（left === 0）で「どんないきものかな？」を押すと、
+   カードが差し替わる。このとき open を left で決めていたため、**開いて見ていた
+   カードが畳まれた**。◀▶ も同じ場面でしか押されないので、同じように畳まれる。
+   文字列を見るだけの検査では、この「組み立て直したら閉じている」は捕まらない。 */
+function funOpenStateHarness(left, cardOpen){
+  return new Function(`
+    const FUN = [{t:'めずらしい生きもの', q:'とい', a:'こたえ', ask:'どんないきものかな？'},
+                 {t:'まめちしき', q:'とい2', a:'こたえ2'},
+                 {t:'ことば', q:'とい3', a:'こたえ3'}];
+    const FUN_MAX = 3;
+    let funIdx = 0, funOpen = true, funPos = -1;
+    const seen = [0, 1, 2];
+    function funToday(){ return { seen, history:seen }; }
+    function funLimit(){ return seen.length + ${Number(left)}; }
+    function didSomethingToday(){ return false; }
+    function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
+    function esc(x){ return String(x); }
+    function rubyHTML(x){ return String(x); }
+    function kanjiOriginHTML(){ return ''; }
+    const document = { querySelector(){ return ${cardOpen === null ? 'null' : '{ open: ' + (cardOpen ? 'true' : 'false') + ' }'}; } };
+    ${grab(APP, 'funHTML')}
+    return funHTML();
+  `)();
+}
+
+test('読み切ったあとに答えを見ても、箱は畳まれない', ()=>{
+  const hasOpen = html => /^\s*<details class="paper fun fun-fold" data-details-key="funBox" open>/.test(html);
+
+  /* 実機の道：きょうのぶんを読み切って（left = 0）、開いたまま見ている */
+  assert.equal(hasOpen(funOpenStateHarness(0, true)), true,
+    '開いて見ているなら、引けるぶんが無くても開いたままにすること');
+  /* 人が畳んだのなら畳んだまま */
+  assert.equal(hasOpen(funOpenStateHarness(0, false)), false,
+    '人が畳んだものを、勝手に開かないこと');
+  /* はじめて描くとき（カードがまだ無い）だけ、引けるぶんで決める */
+  assert.equal(hasOpen(funOpenStateHarness(1, null)), true,
+    'まだ引けるぶんがあれば、はじめから開いておくこと');
+  assert.equal(hasOpen(funOpenStateHarness(0, null)), false,
+    '引けるぶんが無ければ、はじめは畳んでおくこと');
+});
+
 test('ミニコンテンツは上に置き、引き切ったらその場で畳む', ()=>{
   const home = grab(APP, 'viewHome');
   const funAt = home.indexOf('${funHTML()}');
