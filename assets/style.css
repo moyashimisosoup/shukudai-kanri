@@ -1718,8 +1718,30 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 }
 .fun-fold[open] .fun-fold-mark{ transform:rotate(180deg); }
 /* きょう 読んだ ぶんを たどる ボタン。新しくは 引かない */
-.fun-nav{ flex:none; min-width:52px; }
-.fun-nav[disabled]{ opacity:.4; }
+/* 送りの 印。**面を 持たない。** 四角い ボタンに 三角を のせると、紙の
+   カードの 上で 面が 2つ 並び、何の ボタンか 分からないまま 場所を とる。
+   畳みの 印（.fun-fold-mark）と 同じ 山形を 回して 使う。
+   押せる 幅は .icon-btn の 44px の まま */
+.fun-pager{ flex:none; display:inline-flex; align-items:center; }
+.fun-nav{
+  flex:none; background:transparent; border-color:transparent; box-shadow:none;
+  display:grid; place-items:center; color:var(--ai);
+}
+.fun-nav:active{ transform:translateY(1px); }
+.fun-nav:focus-visible{ outline:3px solid var(--focus); outline-offset:2px; }
+.fun-nav-mark{
+  width:20px; height:20px; background:currentColor; transform:rotate(90deg);
+  -webkit-mask:url("chevron.svg?v=20260820a") center / contain no-repeat;
+  mask:url("chevron.svg?v=20260820a") center / contain no-repeat;
+}
+.fun-nav--fwd .fun-nav-mark{ transform:rotate(-90deg); }
+.fun-nav[disabled]{ opacity:.3; }
+/* いま 何番目かを、送りの あいだに 置く。1行の 中なので 縦は 増えない */
+.fun-pos{
+  min-width:3.2em; text-align:center;
+  font-size:14px; font-weight:900; color:var(--ai-usu);
+  font-variant-numeric:tabular-nums;
+}
 
 .fun-tag{
   display:inline-block; font-size:15px; font-weight:900;

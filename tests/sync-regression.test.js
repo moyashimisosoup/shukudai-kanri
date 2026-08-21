@@ -2709,11 +2709,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260821n',
+    'assets/style.css': '20260822a',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260821q',
+    'assets/app.js': '20260822a',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
@@ -2737,19 +2737,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.6.5をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.6\.5';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.6\.5">/);
-  assert.equal(PACKAGE.version, '1.6.5');
-  assert.equal(PACKAGE_LOCK.version, '1.6.5');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.6.5');
+test('公開版番号v1.6.6をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.6\.6';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.6\.6">/);
+  assert.equal(PACKAGE.version, '1.6.6');
+  assert.equal(PACKAGE_LOCK.version, '1.6.6');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.6.6');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.6.5', '1.6.4', '1.6.3', '1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.6.6', '1.6.5', '1.6.4', '1.6.3', '1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4813,10 +4813,30 @@ test('ミニコンテンツは上に置き、引き切ったらその場で畳�
   const funAt = home.indexOf('${funHTML()}');
   assert.ok(funAt > 0 && funAt < home.indexOf('${dailySec}'), 'まいにちより上に置くこと');
   const fun = grab(APP, 'funHTML');
-  assert.match(fun, /const openAttr = left > 0 \? ' open' : '';/,
-    '引けるぶんが無いときは畳んでおくこと');
+  /* **開閉は画面の事実から取る。** 「あと何回引けるか」で決めると、きょうのぶんを
+     読み切った瞬間に left が 0 になり、次に組み直したときに畳まれる。読み返しの
+     ◀▶ はまさにその場面で押される。はじめて描くときだけ left で決める。 */
+  assert.match(fun, /const openAttr = \(shownCard \? shownCard\.open : left > 0\) \? ' open' : '';/,
+    '出ているカードが開いていれば、開いたままにすること');
+  assert.match(fun, /const shownCard = typeof document !== 'undefined' \? document\.querySelector\('\.fun'\) : null;/);
   assert.match(fun, /data-details-key="funBox"/, '人が開いたら、描き直しても開いたままにすること');
   assert.match(fun, /data-fun="prev"/, 'きょう読んだぶんをたどれること');
+  /* **開いているかどうかを引きつぐこと。** funHTML() の open は「新しく引ける
+     ぶんがあるか」だけで決まるので、きょうのぶんを読み切ったあと（left === 0）に
+     差し替えると、開いて見ていたカードが畳まれる。実機で「さいごの話の答えを
+     見ようとすると畳まれる」という形で出た。detailsKey の記憶は render() の
+     ときしか働かないので、ここでは自分で引きつぐ。 */
+  assert.match(APP, /const wasOpen = card\.open;\s*\n\s*card\.outerHTML = funHTML\(\);\s*\n\s*const next = \$\('\.fun'\);\s*\n\s*if\(next\) next\.open = wasOpen;/,
+    'カードを差し替えるときに、開いた状態を引きつぐこと');
+  /* 四角いボタンに三角をのせない。紙のカードの上で面が2つ並ぶと、
+     何のボタンか分からないまま場所をとる（実機の指摘）。 */
+  assert.doesNotMatch(fun, /fun-nav[^>]*>◀|fun-nav[^>]*>▶/, '三角の字をボタンに置かないこと');
+  assert.match(fun, /<span class="fun-nav-mark" aria-hidden="true"><\/span>/);
+  assert.match(fun, /<span class="fun-pos">/, 'いま何番目かを出すこと');
+  assert.match(STYLE, /\.fun-nav\{[\s\S]{0,200}background:transparent;[\s\S]{0,60}border-color:transparent/,
+    '送りの印は面を持たないこと');
+  assert.match(STYLE, /\.fun-nav-mark\{[\s\S]{0,200}chevron\.svg/,
+    '畳みの印と同じ山形を回して使うこと（形を増やさない）');
   assert.match(fun, /const shown = funOpen \|\| !atEnd;/,
     '前に読んだものは、答えまで出すこと');
   assert.match(fun, /\$\{shown && atEnd && left > 0/, '新しく引くのは、さいごの1件を見ているときだけ');

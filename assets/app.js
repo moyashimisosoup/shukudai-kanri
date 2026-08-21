@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.6.5';
+const RELEASE_VERSION = '1.6.6';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -3106,8 +3106,15 @@ function funHTML(){
   const shown = funOpen || !atEnd;
   /* 新しく 引ける ぶんが 無い ときは 畳んで おく。**下へ 送らない**
      （置き場所が 動くと、毎日 おぼえた ところが 変わって しまう）。
-     人が 開けば その ままに なる（data-details-key が 覚える） */
-  const openAttr = left > 0 ? ' open' : '';
+
+     **ただし、いま 画面に 出ている ものが 開いて いれば 開いた まま。**
+     「あと 何回 引けるか」で 開閉を 決めて しまうと、きょうの ぶんを 読み
+     切った 瞬間に left が 0 に なり、次に 組み直した ときに 畳まれる。
+     読み返しの ◀▶ は まさに その 場面で 押される（実機で「さいごの 話の
+     答えを 見ようと すると 畳まれる」）。**開閉は 画面の 事実から 取る。**
+     はじめて 描くとき（カードが まだ 無い）だけ left で 決める。 */
+  const shownCard = typeof document !== 'undefined' ? document.querySelector('.fun') : null;
+  const openAttr = (shownCard ? shownCard.open : left > 0) ? ' open' : '';
   const owari = left === 0
     ? (!bonus && seenCount >= FUN_MAX
         ? '「できた！」が ふえたら、もうひとつ 読めるよ。'
@@ -3132,10 +3139,19 @@ function funHTML(){
     <p class="fun-q" data-no-reading>${rubyHTML(f.q)}</p>
     ${shown ? `<p class="fun-a" data-no-reading>${rubyHTML(f.a)}</p>${f.fig ? kanjiOriginHTML(f.fig) : ''}` : ''}
     <div class="fun-row">
-      ${seenCount > 1 ? `<button class="btn btn-sm fun-nav" data-fun="prev" type="button"
-        aria-label="まえに よんだ はなし"${pos <= 0 ? ' disabled' : ''}>◀</button>` : ''}
-      ${seenCount > 1 ? `<button class="btn btn-sm fun-nav" data-fun="fwd" type="button"
-        aria-label="つぎに よんだ はなし"${atEnd ? ' disabled' : ''}>▶</button>` : ''}
+      ${/* きょう 読んだ ぶんの 行き来。**四角い ボタンに 三角を のせない。**
+            紙の カードの 上で 面が 2つ 並ぶと、何の ボタンか 分からないまま
+            場所だけ とる（実機の 指摘）。面を 持たない 山形の 印に して、
+            あいだに「いま 何番目か」を 出す。押せる 幅は 44px の まま */''}
+      ${seenCount > 1 ? `<span class="fun-pager">
+        <button class="icon-btn fun-nav" data-fun="prev" type="button"
+          aria-label="まえに よんだ はなし"${pos <= 0 ? ' disabled' : ''}
+          ><span class="fun-nav-mark" aria-hidden="true"></span></button
+        ><span class="fun-pos">${(pos < 0 ? seenCount : pos + 1)}／${seenCount}</span
+        ><button class="icon-btn fun-nav fun-nav--fwd" data-fun="fwd" type="button"
+          aria-label="つぎに よんだ はなし"${atEnd ? ' disabled' : ''}
+          ><span class="fun-nav-mark" aria-hidden="true"></span></button>
+      </span>` : ''}
       ${shown ? '' : `<button class="btn btn-sm" data-fun="open" type="button">${
         isQuiz ? 'こたえを 見る' : (f.ask || 'つづきを 見る')}</button>`}
       ${shown && atEnd && left > 0
@@ -7745,9 +7761,21 @@ document.addEventListener('click', e=>{
       if(!funOpen || funToday().seen.length >= funLimit()) return;
       funPick();
     }
-    // カードだけ差し替える。ページは動かない
+    /* カードだけ差し替える。ページは動かない。
+
+       **開いているかどうかを 引きつぐこと。** funHTML() の open は
+       「新しく 引ける ぶんが あるか」だけで 決まるので、きょうの ぶんを
+       読み切った あと（left === 0）に 差し替えると、開いて 見ていた カードが
+       畳まれる。実機で「さいごの 話の 答えを 見ようとすると 畳まれる」と
+       いう 形で 出た。開き直しの 記憶（detailsKey）は render() のときしか
+       働かないので、ここでは 自分で 引きつぐ */
     const card = $('.fun');
-    if(card) card.outerHTML = funHTML();
+    if(card){
+      const wasOpen = card.open;
+      card.outerHTML = funHTML();
+      const next = $('.fun');
+      if(next) next.open = wasOpen;
+    }
     else render({ keepScroll:true });
     return;
   }
