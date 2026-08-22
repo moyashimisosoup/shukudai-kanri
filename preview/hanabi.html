@@ -1,0 +1,742 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="ja" data-theme="notebook" data-motion="auto">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>花火のかたち 5案</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ------------------------------------------------------------------
+   検討用のサンプル。どこからもリンクせず noindex。
+   採用が決まったら preview/ ごと消してよい。
+
+   前回の4案（と強度ちがい3案）は、中身がぜんぶ同じ仕組みだった。
+   「ランダムな位置に小さいものが N個わいて、動いて、消える」。
+   変えていたのは 数・大きさ・秒数 という つまみ だけで、
+   形は一度も変わっていなかった。
+
+   ここでは **粒の動きかたの仕組みから** 5つに分ける。
+   色はすべて tokens.css の5色から作る（テーマ適合監査ずみ）。
+   ------------------------------------------------------------------ */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+html,body{overflow-x:clip}
+body{
+  min-height:100vh;margin:0;
+  color:var(--ai);background-color:var(--sora);
+  font-family:var(--font-body);line-height:1.55;
+}
+button,select{font:inherit;color:inherit}
+button:focus-visible,select:focus-visible{outline:4px solid var(--focus);outline-offset:3px}
+
+:root{
+  --v1:var(--himawari); --v2:var(--asagao); --v3:var(--wakaba);
+  --v4:var(--suika);    --v5:var(--ai);
+}
+/* oklch(from …) の l/c/h は数値に解決される（L は 0〜1）。
+   clamp(42%,l,86%) のように % と混ぜると式ごと無効になり色が落ちる。
+   黄だけ上限を下げているのは、6テーマとも L≒.78 で紙（L≒.99）に
+   埋もれるため。監査の結論は docs/completion-animation-design.md。 */
+@supports (color: oklch(from white l c h)){
+  :root{
+    --v1:oklch(from var(--himawari) clamp(.42,l,.74) calc(c * 1.35) h);
+    --v2:oklch(from var(--asagao)   clamp(.48,l,.86) calc(c * 1.35) h);
+    --v3:oklch(from var(--wakaba)   clamp(.48,l,.86) calc(c * 1.35) h);
+    --v4:oklch(from var(--suika)    clamp(.48,l,.86) calc(c * 1.35) h);
+    --v5:oklch(from var(--ai)       clamp(.46,l,.86) calc(c * 1.9)  h);
+  }
+}
+
+.page{width:min(1180px,calc(100% - 28px));margin-inline:auto;padding:var(--space-lg) 0 var(--space-2xl)}
+.eyebrow{margin:0 0 var(--space-2xs);color:var(--ai-usu);font-size:var(--text-xs);font-weight:900;letter-spacing:.08em}
+h1{margin:0;font-family:var(--font-display);font-size:clamp(1.7rem,4.6vw,3rem);font-weight:900;line-height:1.1;letter-spacing:-.03em}
+.lead{max-width:52rem;margin:var(--space-sm) 0 0;color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+.lead a{color:var(--asagao)}
+
+.bar{
+  position:sticky;top:0;z-index:40;
+  display:flex;flex-wrap:wrap;gap:var(--space-xs);align-items:center;
+  margin:var(--space-lg) 0;padding:var(--space-sm) var(--space-md);
+  background:var(--kami);border:var(--line) solid var(--ai);
+  border-radius:var(--r-s);box-shadow:var(--shadow);
+}
+.bar-lab{color:var(--ai-usu);font-size:var(--text-xs);font-weight:900}
+.bar select,.bar .mini{
+  min-height:44px;padding:0 var(--space-sm);
+  background:var(--surface-soft);border:2px solid var(--ai);
+  border-radius:var(--r-button);font-weight:800;cursor:pointer;
+}
+.bar .mini{background:var(--asagao-usu)}
+.bar .spacer{flex:1 1 auto}
+
+.mock{position:relative;padding:var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.mock-band{
+  margin:calc(var(--space-md) * -1) calc(var(--space-md) * -1) var(--space-md);
+  padding:var(--space-sm) var(--space-md);
+  background:var(--band,var(--ai));color:var(--kami);
+  border-radius:var(--r) var(--r) 0 0;font-family:var(--font-display);font-weight:900;
+}
+.mock-count{display:flex;gap:var(--space-xs);align-items:baseline;margin:0;font-family:var(--font-num);font-weight:900}
+.mock-count b{font-size:clamp(2rem,7vw,3rem);line-height:1}
+.mock-track{height:16px;margin:var(--space-sm) 0;background:var(--bar-track);border:2px solid var(--ai);border-radius:var(--r-pill);overflow:hidden}
+.mock-fill{height:100%;width:78%;background:var(--wakaba)}
+.mock-list{display:grid;gap:var(--space-2xs);margin:var(--space-sm) 0 0;padding:0;list-style:none}
+.mock-list li{display:flex;gap:var(--space-xs);align-items:center;padding:var(--space-xs) var(--space-sm);background:var(--surface-soft);border:2px solid var(--hougan);border-radius:var(--r-s);font-weight:800}
+.mock-list li b{margin-left:auto;color:var(--ai-usu);font-size:var(--text-xs)}
+.mock-list li.done{background:var(--wakaba-usu);border-color:var(--wakaba)}
+.status{margin:var(--space-sm) 0 0;min-height:1.5em;color:var(--ai-usu);font-size:var(--text-xs);font-weight:900}
+
+h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);font-size:var(--text-lg);font-weight:900}
+.sec-note{margin:0 0 var(--space-md);max-width:56rem;color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:var(--space-md)}
+.card{min-width:0;padding:var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.card h3{margin:0 0 var(--space-2xs);font-family:var(--font-display);font-size:var(--text-md);font-weight:900}
+.card .why{margin:0 0 var(--space-xs);color:var(--ai);font-size:var(--text-sm);font-weight:900}
+.card p{margin:0 0 var(--space-sm);color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+.card .how{
+  margin:0 0 var(--space-sm);padding:var(--space-xs) var(--space-sm);
+  background:var(--surface-soft);border-left:5px solid var(--asagao);border-radius:var(--r-s);
+  color:var(--ai-usu);font-size:var(--text-xs);font-weight:700;
+}
+.badge{display:inline-block;padding:1px var(--space-xs);margin-bottom:var(--space-xs);background:var(--himawari-usu);border:2px solid var(--himawari);border-radius:var(--r-pill);color:var(--on-option);font-size:var(--text-xs);font-weight:900}
+.play{
+  width:100%;min-height:50px;padding:0 var(--space-md);
+  color:var(--kami);background:var(--wakaba);
+  border:var(--line) solid var(--ai);border-radius:var(--r-button);
+  font-weight:900;cursor:pointer;box-shadow:0 4px 0 var(--ai);
+  transition:transform var(--dur-short) var(--ease-out),box-shadow var(--dur-short) var(--ease-out);
+}
+.play:hover{transform:translateY(-2px)}
+.play:active{transform:translateY(3px);box-shadow:none}
+.shapes{display:flex;flex-wrap:wrap;gap:var(--space-2xs);margin-bottom:var(--space-xs)}
+.shapes button{flex:1 1 0;min-width:0;min-height:44px;background:var(--surface-soft);border:2px solid var(--hougan);border-radius:var(--r-s);font-weight:900;cursor:pointer}
+.shapes button[aria-pressed="true"]{background:var(--himawari-usu);border-color:var(--himawari)}
+
+/* 演出のレイヤー。全面・操作を邪魔しない */
+.fx{position:fixed;inset:0;z-index:60;pointer-events:none}
+.fx canvas{position:absolute;inset:0;width:100%;height:100%}
+.fx-close{position:fixed;right:12px;top:12px;z-index:61;min-height:44px;padding:0 var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r-button);font-weight:900;cursor:pointer}
+.still{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:grid;gap:var(--space-2xs);place-items:center;
+  padding:var(--space-md) var(--space-lg);
+  color:var(--kami);background:var(--wakaba);
+  border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow-lift);
+  font-family:var(--font-display);font-weight:900;font-size:var(--text-lg);
+}
+.still span{font-size:2.6rem;line-height:1}
+
+.memo{margin-top:var(--space-md);padding:var(--space-md) var(--space-lg);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.memo h3{margin:var(--space-md) 0 var(--space-2xs);font-size:var(--text-md);font-weight:900}
+.memo h3:first-child{margin-top:0}
+.memo p,.memo li{font-size:var(--text-sm);font-weight:700;color:var(--ai-usu)}
+.memo strong{color:var(--ai)}
+.memo ul{margin:var(--space-2xs) 0;padding-left:1.2em}
+@media(max-width:620px){.bar{position:static}}
+</style>
+</head>
+<body>
+<main class="page">
+  <header>
+    <p class="eyebrow">検討用のサンプル · しゅくだいノート本体の画面ではありません</p>
+    <h1>花火のかたち、5案。</h1>
+    <p class="lead">
+      前の案がどれも似て見えたのは、中身がぜんぶ同じ仕組みだったからです。
+      「ランダムな位置に小さいものがわいて、動いて、消える」。変えていたのは数と秒数だけでした。
+      ここでは <strong>粒の動きかたの仕組みそのもの</strong> を5つに分けています。
+    </p>
+    <p class="lead">
+      きらきらの案は前のページのままです →
+      <a href="anim-lab.html">きらきら・完全制覇のページ</a>　／　本体は
+      <a href="../start/">しゅくだいノートの紹介</a>
+    </p>
+  </header>
+
+  <div class="bar">
+    <span class="bar-lab">テーマ</span>
+    <select id="theme" aria-label="テーマ">
+      <option value="notebook">ノート</option>
+      <option value="sunny">おひさま</option>
+      <option value="soda">ソーダ</option>
+      <option value="berry">ベリー</option>
+      <option value="block">ブロック</option>
+      <option value="cat">ネコ</option>
+    </select>
+    <span class="spacer"></span>
+    <span class="bar-lab" id="motionState">動き：OS設定に従う</span>
+    <button class="mini" id="motion" type="button">軽減表示を試す</button>
+  </div>
+
+  <div class="mock">
+    <div class="mock-band">なつやすみ おわりまで</div>
+    <p class="mock-count"><b>12</b>にち <b>7</b>じかん</p>
+    <div class="mock-track"><div class="mock-fill"></div></div>
+    <ul class="mock-list">
+      <li class="done">✓ かんじドリル <b>おわり</b></li>
+      <li class="done">✓ けいさんドリル <b>おわり</b></li>
+      <li>・ どくしょかんそうぶん <b>のこり1</b></li>
+    </ul>
+  </div>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <h2 class="sec">5つの案</h2>
+  <p class="sec-note">
+    どれも画面の全面に出ます。スマホで、上のテーマを切りかえながら見くらべてください。
+    「しくみ」の行が、その案をほかと分けているものです。
+  </p>
+
+  <div class="cards">
+    <article class="card">
+      <span class="badge">H1</span>
+      <h3>線香花火</h3>
+      <p class="why">静かなのに、いちばん目が離せない。</p>
+      <p>
+        一点に火の玉が下がり、そこから細い枝が<strong>枝分かれしながら</strong>伸びます。
+        牡丹 → 松葉 → 散り菊 と勢いが移り、最後に玉が落ちて終わります。
+      </p>
+      <div class="how"><strong>しくみ：</strong>粒が子どもの粒を産む（再帰的な枝分かれ）。ほかの4案には無い。</div>
+      <button class="play" type="button" data-run="senko">再生する（約4.6秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">H2</span>
+      <h3>打ち上げ花火（間と二段咲き）</h3>
+      <p class="why">前の案に足りなかったのは「間」でした。</p>
+      <p>
+        下から一筋のぼって、<strong>いったん何も無くなり</strong>、それから開きます。
+        さらに開いた粒のいくつかが、落ちながらもう一度小さく割れます。
+      </p>
+      <div class="how"><strong>しくみ：</strong>上昇 → 空白 → 開花 → 小割 の4段。空白の0.15秒が全部を作る。</div>
+      <button class="play" type="button" data-run="rise">再生する（約2.9秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">H3</span>
+      <h3>柳（しだれ）</h3>
+      <p class="why">点ではなく、線で描く花火。</p>
+      <p>
+        高いところで開き、<strong>長い尾を引きながら</strong>ゆっくり垂れて落ちます。
+        粒が丸ではなく筋に見えるので、同じ数でもずっと豪華に見えます。
+      </p>
+      <div class="how"><strong>しくみ：</strong>前のコマを消さずに薄める（残像）。丸ではなく軌跡が見える唯一の案。</div>
+      <button class="play" type="button" data-run="willow">再生する（約2.9秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">H4</span>
+      <h3>型抜き花火</h3>
+      <p class="why">円でなくてもいい、と気づく案。</p>
+      <p>
+        粒が円ではなく、<strong>形を保ったまま</strong>開きます。
+        はなまる ◎ ／ ほし ★ ／ ハート の3つを切りかえられます。
+      </p>
+      <div class="shapes" role="group" aria-label="かたち">
+        <button type="button" data-shape="maru" aria-pressed="true">はなまる</button>
+        <button type="button" data-shape="star" aria-pressed="false">ほし</button>
+        <button type="button" data-shape="heart" aria-pressed="false">ハート</button>
+      </div>
+      <div class="how"><strong>しくみ：</strong>粒の初速を形の輪郭から取る。全部が同じ速さなので形が崩れない。</div>
+      <button class="play" type="button" data-run="shape">再生する（約2.4秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">H5</span>
+      <h3>文字花火</h3>
+      <p class="why">意外性はこれがいちばん強い。</p>
+      <p>
+        ふつうに開いたと思ったら、散った粒が引き返して集まり、
+        <strong>「できた！」の形になって</strong>から崩れ落ちます。
+      </p>
+      <div class="how"><strong>しくみ：</strong>文字を裏の canvas に描いて点を採り、粒をそこへ引き寄せる。開く→集まる→崩れる。</div>
+      <button class="play" type="button" data-run="text">再生する（約3.4秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">比較</span>
+      <h3>5案を続けて再生</h3>
+      <p class="why">並べると差がはっきりします。</p>
+      <p>H1 → H2 → H3 → H4 → H5 の順に、間をあけて自動で流します。どれが残るかで選んでください。</p>
+      <button class="play" type="button" data-run="all">続けて再生（約20秒）</button>
+    </article>
+  </div>
+
+  <h2 class="sec">見るときのポイント</h2>
+  <div class="memo">
+    <h3>この5案を分けているもの</h3>
+    <ul>
+      <li><strong>H1 線香花火</strong>… 粒が粒を産む。ほかの4案は最初に決めた数だけで終わる。</li>
+      <li><strong>H2 打ち上げ</strong>… 時間に段がある。ほかは一気に始まって一気に終わる。</li>
+      <li><strong>H3 柳</strong>… 見えているのが点ではなく線。残像を使う唯一の案。</li>
+      <li><strong>H4 型抜き</strong>… 初速が乱数ではなく形から来る。散らばりに意味がある。</li>
+      <li><strong>H5 文字花火</strong>… 途中で向きが逆になる。散ったものが戻ってくる。</li>
+    </ul>
+
+    <h3>選ぶときに効きそうな観点</h3>
+    <ul>
+      <li><strong>毎回見て飽きないか。</strong> 中くらいの達成は1日に数回出ます。
+        H1 と H3 は毎回わずかに違う形になるので飽きにくく、H5 は毎回同じ形です。</li>
+      <li><strong>完全制覇に回すならどれか。</strong> H5 は文字が出るぶん一度きり向きです。
+        H1 は長いので、中くらいの達成には向きません。</li>
+      <li><strong>文字が読めなくならないか。</strong> うしろの「なつやすみ おわりまで」と
+        課題の名前が、演出の最中も読めるかを見てください。H3 は残像が面で残るので、
+        ここがいちばん厳しいはずです。</li>
+      <li><strong>古い端末で重くないか。</strong> H3 と H5 は粒が多めです。
+        カクつくようなら、その案は粒数を落とす設計が要ります。</li>
+    </ul>
+
+    <h3>まだ決めていないこと</h3>
+    <p>
+      きらきらの案は前のページのままです。花火の形が決まってから、
+      「中くらいの達成＝きらきら＋花火のランダム」にするのか、
+      「花火1本に絞る」のかを決めます。
+      <strong>この5案は仕組みが違うだけで、色と reduced-motion の扱いは監査ずみの共通のものを使っています。</strong>
+    </p>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const root = document.documentElement;
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const status = document.querySelector('#status');
+  const themeSel = document.querySelector('#theme');
+  const MODES = ['auto','reduce','full'];
+  const MODE_TEXT = {
+    auto:['動き：OS設定に従う','軽減表示を試す'],
+    reduce:['動き：軽減を強制','通常表示を試す'],
+    full:['動き：通常を強制（比較用）','OS設定に戻す']
+  };
+  let mode = 'auto';
+  const reduced = () => mode === 'reduce' || (mode === 'auto' && mq.matches);
+  const rand = (a,b) => a + Math.random() * (b - a);
+  const say = t => { status.textContent = t; };
+
+  /* ---- 色。canvas は CSS変数も oklch(from …) も読めないので sRGB へ解く。
+     getComputedStyle().getPropertyValue() は oklch(0.48 0.16 150) の形で
+     返り rgb() にはならない。そこから数を3つ拾って RGB として扱うと
+     全部の色が同じ嘘の値になる（前のページで実際に踏んだ）。 ---- */
+  const probe = document.createElement('span');
+  probe.style.display = 'none';
+  document.body.append(probe);
+  const px = document.createElement('canvas');
+  px.width = px.height = 1;
+  const pxCtx = px.getContext('2d', { willReadFrequently:true });
+  function rgb(v) {
+    probe.style.color = ''; probe.style.color = v;
+    pxCtx.fillStyle = '#000';
+    pxCtx.fillStyle = getComputedStyle(probe).color;
+    pxCtx.fillRect(0,0,1,1);
+    const d = pxCtx.getImageData(0,0,1,1).data;
+    return [d[0], d[1], d[2]];
+  }
+  const palette = () => ['--v1','--v2','--v3','--v4','--v5'].map(n => rgb(`var(${n})`));
+  const inkRGB = () => rgb('var(--ai)');
+
+  /* ================= ちいさな粒エンジン =================
+     5案の違いは、この engine の使いかたの違いだけにしてある。
+     - trail … 前のコマを消さずに薄める（H3 柳）
+     - branch … 粒が子どもの粒を産む（H1 線香花火）
+     - pull … 目標点へ引き寄せる（H5 文字花火）
+     ===================================================== */
+  let layer = null, closeBtn = null, raf = 0, timers = [];
+  /* S … 画面の短いほう。速さも重力も全部これに対する割合で書く。
+     px で直に書くと、スマホでは同じ演出が画面外まで飛び、
+     デスクトップでは真ん中に固まる。 */
+  let ctx = null, W = 0, H = 0, S = 0, parts = [], t0 = 0, endAt = 0, trailFade = 0, ink = [0,0,0];
+  let stages = [];
+
+  function stop() {
+    timers.forEach(clearTimeout); timers = [];
+    if (raf) cancelAnimationFrame(raf); raf = 0;
+    if (layer) layer.remove();
+    if (closeBtn) closeBtn.remove();
+    layer = null; closeBtn = null; parts = []; stages = [];
+  }
+  function open() {
+    stop();
+    layer = document.createElement('div');
+    layer.className = 'fx';
+    document.body.append(layer);
+    closeBtn = document.createElement('button');
+    closeBtn.className = 'fx-close';
+    closeBtn.type = 'button';
+    closeBtn.textContent = '閉じる';
+    closeBtn.addEventListener('click', stop);
+    document.body.append(closeBtn);
+    const cv = document.createElement('canvas');
+    layer.append(cv);
+    const r = Math.min(window.devicePixelRatio || 1, 2);
+    W = layer.clientWidth; H = layer.clientHeight; S = Math.min(W, H);
+    cv.width = Math.round(W * r); cv.height = Math.round(H * r);
+    ctx = cv.getContext('2d');
+    ctx.setTransform(r, 0, 0, r, 0, 0);
+    ink = inkRGB();
+    return layer;
+  }
+  function still(text) {
+    const box = open();
+    const el = document.createElement('div');
+    el.className = 'still';
+    el.innerHTML = `<span aria-hidden="true">✓</span>${text}`;
+    box.append(el);
+    timers.push(setTimeout(stop, 1500));
+  }
+  /* 粒。x,y は px、v は px/秒。life は秒 */
+  function add(o) {
+    parts.push(Object.assign({
+      x:0, y:0, vx:0, vy:0, g:0, drag:.1, life:1, age:0,
+      size:3, color:'#000', depth:0, branch:0, spawn:0, pull:null, pullAt:9e9, trail:0
+    }, o));
+  }
+  function begin(durationSec, fade) {
+    trailFade = fade || 0;
+    t0 = performance.now();
+    endAt = t0 + durationSec * 1000;
+    raf = requestAnimationFrame(frame);
+    timers.push(setTimeout(stop, durationSec * 1000 + 350));
+  }
+  let last = 0;
+  function frame(now) {
+    if (!ctx) return;
+    const dt = Math.min((now - (last || now)) / 1000, .05);
+    last = now;
+    const el = (now - t0) / 1000;
+
+    /* 段のある案（H2 打ち上げ、H5 文字花火）はここで次の段へ進む */
+    while (stages.length && el >= stages[0].at) stages.shift().run(el);
+
+    if (trailFade) {
+      /* 前のコマを「黒で塗る」のではなく「削る」。透明なレイヤーの上で
+         塗って薄めると、画面ぜんたいが色かぶりする */
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = `rgba(0,0,0,${trailFade})`;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+    } else {
+      ctx.clearRect(0, 0, W, H);
+    }
+
+    /* 明るい粒（とくに黄）は紙の上でほぼ消える。うすい輪郭で浮かせる。
+       テーマ適合監査の結論。canvas には filter が無いので影で付ける */
+    ctx.shadowColor = `rgba(${ink[0]},${ink[1]},${ink[2]},.5)`;
+    ctx.shadowBlur = 2;
+
+    const born = [];
+    for (const p of parts) {
+      p.age += dt;
+      if (p.age >= p.life) continue;
+
+      if (p.pull && p.age >= p.pullAt) {
+        /* 目標点へ引き寄せる。ばねではなく、残り時間で割った素直な補間。
+           ばねにすると行きすぎて文字が読めない */
+        p.x += (p.pull[0] - p.x) * Math.min(1, dt * 7);
+        p.y += (p.pull[1] - p.y) * Math.min(1, dt * 7);
+        p.vx *= .7; p.vy *= .7;
+      } else {
+        p.vy += p.g * dt;
+        /* drag は「1秒後に残る速さの割合」。コマ単位で掛けると、
+           速さは端末の fps 次第で変わるうえ、.9 でも 1秒で 1/1000 まで
+           落ちて粒が30pxしか飛ばない（最初これで全部が中央に固まった）。
+           止まるまでの距離は およそ v0 / ln(1/drag)。 */
+        const k = Math.pow(p.drag, dt);
+        p.vx *= k; p.vy *= k;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      }
+
+      /* 枝分かれ。線香花火だけが使う。深いほど産みにくく、細くする */
+      if (p.branch > 0 && p.depth < 3 && Math.random() < p.spawn * dt) {
+        const n = 2;
+        for (let i = 0; i < n; i++) {
+          const a = Math.atan2(p.vy, p.vx) + rand(-.9, .9);
+          const s = Math.hypot(p.vx, p.vy) * rand(.55, .85);
+          born.push({
+            x:p.x, y:p.y, vx:Math.cos(a)*s, vy:Math.sin(a)*s,
+            g:p.g, drag:p.drag, life:p.life * rand(.35,.6), size:p.size * .78,
+            color:p.color, depth:p.depth + 1, branch:p.branch, spawn:p.spawn * .7
+          });
+        }
+        p.branch = 0;
+      }
+
+      const k = 1 - p.age / p.life;
+      ctx.globalAlpha = Math.max(0, Math.min(1, k * 1.6));
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(.4, p.size * (.35 + k * .65)), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    born.forEach(add);
+    parts = parts.filter(p => p.age < p.life);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+
+    if (now < endAt || parts.length) raf = requestAnimationFrame(frame);
+  }
+
+  /* ================= H1 線香花火 =================
+     一点から枝が枝分かれして伸びる。牡丹→松葉→散り菊→落下。
+     ほかの4案と違い、粒の総数は最初に決まらない。 */
+  function senko() {
+    open();
+    const C = palette();
+    const cx = W / 2, cy = H * .38;
+    const gold = C[0], warm = [C[0], C[3], C[1]];
+    /* 火の玉。ここに下がったまま動かない。ゆらぎだけ持たせる */
+    add({ x:cx, y:cy, vx:0, vy:0, g:0, drag:.5, life:4.4, size:S * .014, color:gold });
+
+    /* speed は S に対する割合。止まるまでの距離は およそ speed/ln(1/drag)。
+       drag .02 なら ln(1/.02)=3.9 なので、1.15 → 画面短辺の約0.30 まで飛ぶ */
+    const burst = (n, speed, life, spawn) => {
+      for (let i = 0; i < n; i++) {
+        const a = rand(0, Math.PI * 2);
+        const s = speed * S * rand(.55, 1);
+        add({
+          x:cx, y:cy + rand(-3,3),
+          vx:Math.cos(a) * s, vy:Math.sin(a) * s,
+          g:S * .55, drag:.02, life:life * rand(.7,1.2), size:S * rand(.003,.005),
+          color:warm[i % warm.length], branch:1, spawn, depth:0
+        });
+      }
+    };
+    stages = [
+      /* 牡丹：おずおずと、短く */
+      { at:.35, run:()=>burst(14, .40, .55, 2.2) },
+      { at:.7,  run:()=>burst(18, .55, .6, 2.6) },
+      /* 松葉：ここが山。長く、よく枝分かれする */
+      { at:1.15, run:()=>burst(34, 1.05, .85, 5.5) },
+      { at:1.5,  run:()=>burst(38, 1.20, .9, 6) },
+      { at:1.9,  run:()=>burst(36, 1.15, .9, 6) },
+      { at:2.3,  run:()=>burst(30, 1.00, .85, 5) },
+      /* 散り菊：勢いが落ち、下へ垂れる */
+      { at:2.75, run:()=>burst(18, .62, 1.1, 2) },
+      { at:3.15, run:()=>burst(12, .45, 1.2, 1.2) },
+      { at:3.55, run:()=>burst(7, .34, 1.3, .6) },
+      /* 落下：玉が落ちる */
+      { at:4.0, run:()=>add({ x:cx, y:cy, vx:rand(-.02,.02) * S, vy:S * .1, g:S * 1.1, drag:.9, life:.6, size:S * .012, color:gold }) }
+    ];
+    begin(4.6, 0);
+  }
+
+  /* ================= H2 打ち上げ（間と二段咲き） =================
+     上昇 → 空白 → 開花 → 小割。空白の0.15秒がこの案の全部。 */
+  function rise() {
+    open();
+    const C = palette();
+    const sx = W * rand(.35, .65), sy = H * rand(.22, .34);
+    const main = C[Math.floor(rand(0, C.length))];
+    /* 1. 下からのぼる。尾を引くので細かく置く */
+    /* のぼる筋。到達点が決まっているので、ここだけ実寸で速さを決める */
+    for (let i = 0; i < 26; i++) {
+      add({
+        x:sx + rand(-2,2), y:H + 10 + i * (S * .006), vx:rand(-.01,.01) * S, vy:-(H - sy) / .55,
+        g:S * .3, drag:.55, life:.62 - i * .012, size:S * rand(.003,.005), color:C[0]
+      });
+    }
+    const bloom = (x, y, n, speed, life, size, colors) => {
+      for (let i = 0; i < n; i++) {
+        const a = Math.PI * 2 * i / n + rand(-.05, .05);
+        const s = speed * S * rand(.82, 1);
+        add({
+          x, y, vx:Math.cos(a) * s, vy:Math.sin(a) * s,
+          g:S * .4, drag:.05, life:life * rand(.8,1.15), size:S * size * rand(.75,1.2),
+          color:colors[i % colors.length]
+        });
+      }
+    };
+    stages = [
+      /* 2. 空白。ここで何も起きない0.15秒 */
+      /* 3. 開花。drag .05 → ln(1/.05)=3.0 なので 1.25 は画面短辺の約0.42まで開く */
+      { at:.75, run:()=>bloom(sx, sy, 76, 1.25, 1.15, .0048, [main, C[4]]) },
+      /* 4. 小割：開いた粒のいくつかが、落ちながらもう一度割れる */
+      { at:1.45, run:()=>{
+          for (let k = 0; k < 7; k++) {
+            const a = Math.PI * 2 * k / 7;
+            bloom(sx + Math.cos(a) * S * .3, sy + Math.sin(a) * S * .3 + S * .13, 16, .34, .8, .0032, [C[(k + 1) % C.length]]);
+          }
+        } }
+    ];
+    begin(2.9, 0);
+  }
+
+  /* ================= H3 柳（しだれ） =================
+     残像を使う唯一の案。見えているのは点ではなく線。 */
+  function willow() {
+    open();
+    const C = palette();
+    const cx = W / 2, cy = H * .3;
+    for (let i = 0; i < 88; i++) {
+      const a = Math.PI * 2 * i / 88 + rand(-.04, .04);
+      const s = rand(.62, .95) * S;
+      add({
+        x:cx, y:cy, vx:Math.cos(a) * s, vy:Math.sin(a) * s * .8 - S * .07,
+        /* 抵抗はゆるく（drag .3 → 画面短辺の約0.6まで届く）、
+           そのぶん重力を強くして、上がってすぐ垂れさせる。これが柳 */
+        g:S * .62, drag:.3, life:rand(2.1, 2.9), size:S * rand(.003, .005),
+        color:i % 5 === 0 ? C[3] : C[0]
+      });
+    }
+    /* 0.18 … 弱いほど尾が長い。0.3 を超えると点に見えて柳でなくなる */
+    begin(2.9, .18);
+  }
+
+  /* ================= H4 型抜き =================
+     初速が乱数ではなく形の輪郭から来る。全部が同じ速さなので崩れない。 */
+  const SHAPES = {
+    /* はなまる：二重丸。外周と内周の2本 */
+    maru: n => Array.from({ length:n }, (_, i) => {
+      const a = Math.PI * 2 * i / n;
+      const r = i % 2 ? 1 : .62;
+      return [Math.cos(a) * r, Math.sin(a) * r];
+    }),
+    star: n => Array.from({ length:n }, (_, i) => {
+      const t = i / n * Math.PI * 2;
+      /* 5つの角。cos(5t) で外周を波打たせる */
+      const r = .62 + .38 * Math.cos(5 * t - Math.PI / 2);
+      return [Math.cos(t - Math.PI / 2) * r, Math.sin(t - Math.PI / 2) * r];
+    }),
+    heart: n => Array.from({ length:n }, (_, i) => {
+      const t = i / n * Math.PI * 2;
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+      return [x / 17, y / 17];
+    })
+  };
+  let shape = 'maru';
+  function shaped() {
+    open();
+    const C = palette();
+    const cx = W / 2, cy = H * .42;
+    const pts = SHAPES[shape](96);
+    /* 全部おなじ速さ・おなじ抵抗にするのが肝。1粒でも違うと形が溶ける */
+    const speed = S * .78;
+    pts.forEach(([ux, uy], i) => {
+      add({
+        x:cx, y:cy, vx:ux * speed, vy:uy * speed,
+        /* 重力は弱く。強いと形が崩れて円と見分けが付かなくなる */
+        g:S * .13, drag:.1, life:rand(1.5, 1.9), size:S * rand(.004, .006),
+        color:C[i % 2 ? 3 : 0]
+      });
+    });
+    /* 中心に芯を残すと、形が「開いた」ことが分かりやすい */
+    for (let i = 0; i < 20; i++) {
+      const a = rand(0, Math.PI * 2);
+      add({ x:cx, y:cy, vx:Math.cos(a)*rand(.05,.2)*S, vy:Math.sin(a)*rand(.05,.2)*S,
+            g:S * .2, drag:.06, life:rand(.5,.9), size:S * rand(.0025,.004), color:C[1] });
+    }
+    begin(2.4, 0);
+  }
+
+  /* ================= H5 文字花火 =================
+     途中で向きが逆になる。散ったものが戻って文字になる。 */
+  function textFirework() {
+    open();
+    const C = palette();
+    const cx = W / 2, cy = H * .42;
+
+    /* 文字を裏の canvas に描いて、不透明な画素を拾う */
+    const off = document.createElement('canvas');
+    const fs = Math.min(W * .17, H * .2, 128);
+    off.width = Math.ceil(fs * 5.2); off.height = Math.ceil(fs * 1.6);
+    const oc = off.getContext('2d', { willReadFrequently:true });
+    oc.fillStyle = '#fff';
+    oc.font = `900 ${fs}px "Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif`;
+    oc.textAlign = 'center'; oc.textBaseline = 'middle';
+    oc.fillText('できた！', off.width / 2, off.height / 2);
+    const img = oc.getImageData(0, 0, off.width, off.height).data;
+    const targets = [];
+    const step = Math.max(2, Math.round(fs / 16));
+    for (let y = 0; y < off.height; y += step) {
+      for (let x = 0; x < off.width; x += step) {
+        if (img[(y * off.width + x) * 4 + 3] > 128) {
+          targets.push([cx - off.width / 2 + x, cy - off.height / 2 + y]);
+        }
+      }
+    }
+    /* 文字の点が取れなかったとき（フォント未読込など）は
+       ふつうの開花で終わらせる。何も出ないより良い */
+    if (targets.length < 30) { stop(); rise(); say('文字の点が取れなかったので、打ち上げで代替しました'); return; }
+
+    /* 1. まずふつうに開く。ここでは「文字が出る」と思わせない */
+    for (let i = 0; i < targets.length; i++) {
+      const a = Math.PI * 2 * i / targets.length + rand(-.06, .06);
+      const s = rand(.55, .8) * S;
+      add({
+        x:cx, y:cy, vx:Math.cos(a) * s, vy:Math.sin(a) * s,
+        g:S * .22, drag:.08, life:3.1, size:S * rand(.0035, .005),
+        color:C[i % C.length],
+        /* 2. 0.85秒後に向きが逆になり、文字の点へ集まる */
+        pull:targets[i], pullAt:.85
+      });
+    }
+    /* 3. 集まりきったところで引き寄せをやめ、崩れ落ちる */
+    stages = [{ at:2.35, run:()=>{
+      for (const p of parts) {
+        p.pull = null;
+        p.vx = rand(-.12, .12) * S; p.vy = rand(-.06, .08) * S;
+        p.g = S * 1.1; p.drag = .8;
+      }
+    } }];
+    begin(3.4, 0);
+  }
+
+  /* ================= 入口 ================= */
+  const RUN = { senko, rise, willow, shape:shaped, text:textFirework };
+  const NAME = { senko:'H1 線香花火', rise:'H2 打ち上げ', willow:'H3 柳', shape:'H4 型抜き', text:'H5 文字花火' };
+  const LEN  = { senko:4.9, rise:3.2, willow:3.2, shape:2.7, text:3.7 };
+
+  function play(kind) {
+    if (reduced()) { still('できた！'); say(`${NAME[kind] || ''} … 軽減表示（静止の印）`); return; }
+    RUN[kind]();
+    say(`${NAME[kind]} を再生しました`);
+  }
+
+  /* 連続再生の送りは timers に入れない。RUN の中の open() が stop() を
+     呼んで timers を空にするため、同じ配列に入れると1案目で止まる */
+  let chain = 0;
+  document.querySelectorAll('[data-run]').forEach(b => b.addEventListener('click', () => {
+    clearTimeout(chain);
+    const kind = b.dataset.run;
+    if (kind !== 'all') { play(kind); return; }
+    const order = ['senko','rise','willow','shape','text'];
+    let i = 0;
+    const next = () => {
+      play(order[i]);
+      say(`続けて再生 ${i + 1}/${order.length}：${NAME[order[i]]}`);
+      const wait = (LEN[order[i]] + .8) * 1000;
+      if (++i < order.length) chain = setTimeout(next, wait);
+    };
+    next();
+  }));
+
+  document.querySelectorAll('[data-shape]').forEach(b => b.addEventListener('click', () => {
+    shape = b.dataset.shape;
+    document.querySelectorAll('[data-shape]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+    play('shape');
+  }));
+
+  const motionBtn = document.querySelector('#motion');
+  const motionState = document.querySelector('#motionState');
+  function syncMotion() {
+    root.dataset.motion = mode;
+    const [a, b] = MODE_TEXT[mode];
+    motionState.textContent = a + (mode === 'auto' ? (mq.matches ? '（軽減中）' : '（通常）') : '');
+    motionBtn.textContent = b;
+  }
+  motionBtn.addEventListener('click', () => {
+    mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+    clearTimeout(chain); stop(); syncMotion();
+  });
+  mq.addEventListener?.('change', syncMotion);
+  themeSel.addEventListener('change', () => { root.dataset.theme = themeSel.value; clearTimeout(chain); stop(); });
+
+  syncMotion();
+})();
+</script>
+</body>
+</html>
