@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.6.6';
+const RELEASE_VERSION = '1.6.7';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -454,24 +454,37 @@ function pushRead(i){
   const now = new Date();
   const id = 'r' + now.getTime() + '-' + i;
   if(state.reads.some(r=> r.id === id)) return;
-  state.reads.push({ id, at: now.toISOString(), t: f.t, q: f.q });
+  /* **だれが 読んだか。** `state.fun`（あと何回 引けるか）は stripLocal で
+     同期から 外して 端末ごとに 数えているのに、`reads` は 共有される。
+     そのため 保護者が 自分の 端末で 読んだ ぶんまで、子どもの カレンダーに
+     ならんで いた。記録（logs）の `by` と 同じ 決めかたに そろえる */
+  state.reads.push({ id, at: now.toISOString(), t: f.t, q: f.q, by: logBy() });
   if(state.reads.length > READS_MAX) state.reads = state.reads.slice(-READS_MAX);
   saveSt();
 }
-function readsOf(key){
-  return (state.reads || []).filter(r => dayKey(new Date(r.at)) === key);
+/* 子ども画面（やったこと・カレンダー）は **子どもの ぶんだけ**。
+   保護者が 自分の 端末で 読んだ ものを、子どもの ふりかえりに 混ぜない。
+   古い ひかえには `by` が 無いので、その ぶんは 子ども あつかいに する
+   （いまの 見え方を 変えない）。 */
+function readsOf(key, adult){
+  return (state.reads || []).filter(r =>
+    dayKey(new Date(r.at)) === key && (adult || r.by !== 'parent'));
 }
-/* その日に 読んだ ぶんの 一覧。読んだ ものが ない 日は 何も 出さない */
-function readsHTML(key){
-  const rows = readsOf(key);
+/* その日に 読んだ ぶんの 一覧。読んだ ものが ない 日は 何も 出さない。
+   `adult` の ときだけ 保護者の ぶんも 出し、そちらに 印を 付ける
+   （子どもの ぶんは "ふつう" なので 無印。logs の logByLabel と 同じ規則） */
+function readsHTML(key, adult){
+  const rows = readsOf(key, adult);
   if(!rows.length) return '';
+  const head = adult ? '読んだミニコンテンツ' : 'よんだ ミニコンテンツ';
   return `
   <div class="paper reads">
-    <p class="reads-head">よんだ ミニコンテンツ<span class="reads-cnt">${rows.length}こ</span></p>
+    <p class="reads-head">${esc(head)}<span class="reads-cnt">${rows.length}こ</span></p>
     ${rows.map(r=>`
       <div class="reads-row">
         <span class="reads-tag">${esc(r.t)}</span>
         <span class="reads-q" data-no-reading>${rubyHTML(r.q)}</span>
+        ${r.by === 'parent' ? '<span class="reads-by">（親）</span>' : ''}
       </div>`).join('')}
   </div>`;
 }
@@ -2942,6 +2955,9 @@ function parentTodayLogsHTML(){
     <div class="paper today-list">${rows.length
       ? rows.slice().reverse().map(logRowHTML).join('')
       : '<p class="empty">本日の記録はまだありません。</p>'}</div>
+    ${/* 読んだ ものは ここにだけ 両方 出す。カレンダーの 日別は 子ども画面
+          という 前提なので、そちらへは 出さない（依頼者の 裁定） */''}
+    ${readsHTML(k, true)}
     <p class="set-note parent-log-help">保護者が直したぶんも、ここに残ります。${
       config.allowLogDelete ? ''
         : '<button type="button" class="linkish" id="logCareJump">1件ずつ消せるようにする</button>'}</p>

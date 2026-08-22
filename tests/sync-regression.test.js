@@ -2709,11 +2709,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260822a',
+    'assets/style.css': '20260822b',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822a',
+    'assets/app.js': '20260822b',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
@@ -2737,19 +2737,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.6.6をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.6\.6';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.6\.6">/);
-  assert.equal(PACKAGE.version, '1.6.6');
-  assert.equal(PACKAGE_LOCK.version, '1.6.6');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.6.6');
+test('公開版番号v1.6.7をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.6\.7';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.6\.7">/);
+  assert.equal(PACKAGE.version, '1.6.7');
+  assert.equal(PACKAGE_LOCK.version, '1.6.7');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.6.7');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.6.6', '1.6.5', '1.6.4', '1.6.3', '1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.6.7', '1.6.6', '1.6.5', '1.6.4', '1.6.3', '1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4082,7 +4082,7 @@ test('使い方ページは最初に目次を出し、各項目へ飛べる', ()
     'アプリの説明は紹介ページにあると案内すること');
 
   const links = [...GUIDE.matchAll(/<li><a href="#([\w-]+)">/g)].map(m=>m[1]);
-  assert.equal(links.length, 10, '目次は本文の10項目ぶんを並べること');
+  assert.equal(links.length, 11, '目次は本文の11項目ぶんを並べること');
   links.forEach(id=>{
     assert.match(GUIDE, new RegExp('<h2 id="' + id + '">'),
       '目次の ' + id + ' に対応する見出しがあること');
@@ -4093,6 +4093,51 @@ test('使い方ページは最初に目次を出し、各項目へ飛べる', ()
 
   assert.match(DOCS_STYLE, /html:has\(body\.guide-legacy\)\s*\{[^}]*scroll-padding-top: calc\(var\(--nav-bar-height\) \+ var\(--space-lg\)\)/,
     '告知帯の無い案内ページでは、飛んだ見出しの上に1画面ぶん空けないこと');
+});
+
+/* 目次は 11項目に なった。平らに ならべると 縦に 伸びて、
+   どこに 何が あるか 一目で 取れない。枝ごとに まとめ、1項目は 1行に 詰める。
+   **枝の 見出しは h3。** h2 を 名乗ると 本文の 見出しと 見分けが つかなくなる
+   （上の テストが h2 id= で 本文の 並びを 取っている）。 */
+test('使い方ページの目次は、枝ごとにまとめて出す', ()=>{
+  const nav = GUIDE.slice(GUIDE.indexOf('<nav class="guide-menu"'), GUIDE.indexOf('<h2 id="open">'));
+  const groups = [...nav.matchAll(/<h3 class="guide-menu__branch">([^<]+)<\/h3>/g)].map(m=>m[1]);
+  assert.deepEqual(groups, ['はじめる', '宿題を用意する', '毎日つかう', '家族とデータ'],
+    '目次を4つの枝に分けること');
+  assert.equal((nav.match(/class="guide-menu__group"/g) || []).length, 4,
+    '枝ごとに guide-menu__group でまとめること');
+  assert.doesNotMatch(nav.slice(nav.indexOf('guide-menu__branch')), /<h2[ >]/,
+    '枝の見出しに h2 をつかわないこと');
+
+  const perGroup = nav.split('class="guide-menu__group"').slice(1)
+    .map(part => (part.match(/<li><a href="#/g) || []).length);
+  assert.deepEqual(perGroup, [3, 2, 3, 3], '枝ごとの項目数を保つこと');
+
+  assert.match(DOCS_STYLE, /\.guide-menu__group \.guide-menu__list \{[^}]*border-inline-start/,
+    '枝の縦罫を出すこと');
+  assert.match(DOCS_STYLE, /\.guide-menu__list li::before \{/,
+    '各項目へ枝の横罫を出すこと');
+  assert.match(DOCS_STYLE, /\.guide-menu__list a \{[^}]*flex-wrap: wrap/,
+    '題名と手がかりを1行に詰め、狭いときだけ折り返すこと');
+});
+
+/* 写真の 説明は アプリ内の 使い方ウインドウが 持っている。
+   ページ側は 「何が できるか」まで。**操作の 細部を 二重に 持たない。** */
+test('使い方ページは、宿題の一覧の写真を宿題の登録のすぐ後に置く', ()=>{
+  assert.ok(GUIDE.indexOf('<h2 id="add-tasks">') < GUIDE.indexOf('<h2 id="photo">'),
+    '宿題の登録の後に置くこと');
+  assert.ok(GUIDE.indexOf('<h2 id="photo">') < GUIDE.indexOf('<h2 id="daily">'),
+    '毎日することの前に置くこと');
+
+  const sec = GUIDE.slice(GUIDE.indexOf('<h2 id="photo">'), GUIDE.indexOf('<h2 id="daily">'));
+  assert.match(sec, /4枚まで/, '置ける枚数を書くこと');
+  assert.match(sec, /暗号/, '見られないかへの答えを書くこと');
+  assert.match(sec, /写真アプリとは別/, '元の写真とは別だと書くこと');
+  assert.match(sec, /24時間以内/, '消したあとの扱いを書くこと');
+  assert.match(sec, /「\?」/, 'アプリ内の案内への導線を置くこと');
+
+  assert.doesNotMatch(sec, /ほかの端末へ渡す|写真を受け取る|写真を足す/,
+    '届かないときの操作はアプリ内の案内が持つ（二重に書かない）');
 });
 
 test('案内・変更履歴ページの上帯のボタンを、紺地に紺字で消さない', ()=>{
@@ -4834,6 +4879,68 @@ function funOpenStateHarness(left, cardOpen){
     return funHTML();
   `)();
 }
+
+/* `state.fun`（あと何回引けるか）は stripLocal で同期から外して端末ごとに数えて
+   いるのに、`reads` は共有される。この非対称のせいで、保護者が自分の端末で読んだ
+   ぶんまで子どものカレンダーに並んでいた（実機の指摘）。記録（logs）の by と
+   同じ決めかたにそろえ、子ども画面は子どものぶんだけにする。 */
+function readsHarness(rows, key, adult){
+  return new Function(`
+    let state = { reads: ${JSON.stringify(rows)} };
+    function dayKey(d){ return d.toISOString().slice(0, 10); }
+    function esc(x){ return String(x); }
+    function rubyHTML(x){ return String(x); }
+    ${grab(APP, 'readsOf')}
+    ${grab(APP, 'readsHTML')}
+    return readsHTML(${JSON.stringify(key)}, ${adult ? 'true' : 'false'});
+  `)();
+}
+
+test('読んだものは、子ども画面には子どものぶんだけ出す', ()=>{
+  const day = '2026-08-22';
+  const rows = [
+    { id:'a', at: day + 'T01:00:00.000Z', t:'まめちしき', q:'こどもが読んだ', by:'child' },
+    { id:'b', at: day + 'T02:00:00.000Z', t:'ことば',     q:'おやが読んだ',   by:'parent' },
+    { id:'c', at: day + 'T03:00:00.000Z', t:'なぞなぞ',   q:'むかしの記録' },
+    { id:'d', at: '2026-08-21T01:00:00.000Z', t:'ことば', q:'べつの日',      by:'child' }
+  ];
+
+  const child = readsHarness(rows, day, false);
+  assert.match(child, /こどもが読んだ/);
+  assert.doesNotMatch(child, /おやが読んだ/, '保護者が読んだぶんを子ども画面に混ぜないこと');
+  assert.match(child, /むかしの記録/, '古いひかえ（by が無い）は子どもあつかいにすること');
+  assert.doesNotMatch(child, /べつの日/, 'その日のぶんだけ出すこと');
+  assert.match(child, /<span class="reads-cnt">2こ<\/span>/);
+  /* 出す相手を決めるのは readsOf、印の付けかたを決めるのは readsHTML。
+     決めごとを2か所に持たないので、子ども画面には保護者の行そのものが来ない。 */
+  assert.doesNotMatch(child, /reads-by/, '子ども画面に「だれが」の印を出さないこと');
+
+  const adult = readsHarness(rows, day, true);
+  assert.match(adult, /こどもが読んだ/);
+  assert.match(adult, /おやが読んだ/, '保護者ページには両方出すこと');
+  assert.match(adult, /<span class="reads-cnt">3こ<\/span>/);
+  /* 子どものぶんが "ふつう" なので、印を付けるのは保護者のぶんだけ
+     （全行に印がならぶと、かえって読みにくい。logs の logByLabel と同じ規則） */
+  assert.equal((adult.match(/reads-by/g) || []).length, 1, '印は保護者のぶんだけにすること');
+  assert.match(adult, /おやが読んだ[\s\S]{0,80}<span class="reads-by">（親）<\/span>/);
+
+  /* 記録するときに、その端末の役割を残す */
+  assert.match(grab(APP, 'pushRead'), /by: logBy\(\)/, '記録と同じ決めかたで by を残すこと');
+  /* 子ども画面の2か所は、どちらも子どものぶんだけ。カレンダーの日別詳細は
+     子ども画面という前提なので、保護者のぶんは出さない（依頼者の裁定）。 */
+  assert.match(grab(APP, 'viewLog'), /\$\{readsHTML\(k\)\}/);
+  assert.match(grab(APP, 'calDetailHTML'), /const reads = readsHTML\(key\);/);
+  assert.match(grab(APP, 'parentTodayLogsHTML'), /\$\{readsHTML\(k, true\)\}/,
+    '保護者ページの「今日の記録」にだけ、両方を出すこと');
+});
+
+/* 送りだけのときは行の右に117px（320px 実測）が空き、印が左に取り残されて見える。 */
+test('送りの印は、ひとつだけのときは中央に置く', ()=>{
+  assert.match(STYLE, /\.fun-row > \.fun-pager:only-child\{ margin-inline:auto; \}/,
+    '送りだけのときは中央にすること');
+  assert.match(STYLE, /\.fun-row\{[\s\S]{0,200}justify-content:space-between/,
+    '「つぎの はなし」もあるときは、送りを左・すすむ先を右に振り分けること');
+});
 
 test('読み切ったあとに答えを見ても、箱は畳まれない', ()=>{
   const hasOpen = html => /^\s*<details class="paper fun fun-fold" data-details-key="funBox" open>/.test(html);

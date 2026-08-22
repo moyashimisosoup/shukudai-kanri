@@ -458,6 +458,10 @@ button{ font:inherit; color:inherit; }
   border-radius:var(--r-pill); padding:1px 9px;
 }
 .reads-q{ font-size:16px; font-weight:700; overflow-wrap:anywhere; min-width:0; }
+/* だれが 読んだかの 印。**保護者の ぶんにだけ 付ける**（子どもの ぶんが
+   ふつうなので、そちらに 印を 付けると 全行に ならんで 読みにくい）。
+   記録の .ti-by と 同じ 見え方に そろえる */
+.reads-by{ flex:none; font-size:12px; font-weight:700; color:var(--ai-usu); }
 
 /* 記録1行ごとの 消すボタン */
 .ti-del{ align-self:start; flex:none; }
@@ -1791,7 +1795,14 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   border-radius:var(--r-s); color:var(--ai);
 }
 .fun-fig svg{ display:block; width:100%; height:auto; }
-.fun-row{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center; }
+/* 送りだけの ときは 行の 右に 117px（320px 実測）が 空き、印が 左に
+   取り残されて 見える。**ひとつだけなら 中央**、「つぎの はなし」も あるなら
+   送りは 左・すすむ先は 右、と 役割で 振り分ける */
+.fun-row{
+  display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center;
+  justify-content:space-between;
+}
+.fun-row > .fun-pager:only-child{ margin-inline:auto; }
 .fun-debug-list{ display:grid; gap:14px; }
 .fun-debug-card{ margin:0; }
 .fun-debug-tools{ padding:14px 16px; }

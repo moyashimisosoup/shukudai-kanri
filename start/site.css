@@ -1637,29 +1637,60 @@ blockquote {
   font-size: var(--text-sm);
 }
 
-.guide-legacy .guide-menu__list {
+/* 目次は 11項目。平らに ならべると 縦に 伸びるので、枝ごとに まとめ、
+   1項目を 1行に 詰める。枝は 縦罫（ol の border）＋ 横罫（li::before）だけで
+   描き、新しい 部品を 増やさない。 */
+.guide-legacy .guide-menu__tree {
   display: grid;
-  gap: var(--space-xs);
+  gap: var(--space-lg);
+}
+
+.guide-legacy .guide-menu__branch {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-sm);
+  font-family: var(--font-display);
+  letter-spacing: .04em;
+  color: var(--color-ink-soft);
+}
+
+.guide-legacy .guide-menu__group .guide-menu__list {
+  display: grid;
+  gap: var(--space-3xs);
   margin: 0;
   padding: 0;
+  padding-inline-start: var(--space-md);
+  border-inline-start: var(--rule-hair) solid var(--color-rule-strong);
   list-style: none;
 }
 
+/* 枝の 横罫。縦罫から 項目へ 1本 出す。
+   ol の padding ぶんだけ 左へ 出し、行の 高さの まん中で 止める。 */
+.guide-legacy .guide-menu__list li {
+  position: relative;
+}
+
+.guide-legacy .guide-menu__list li::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 1.15em;
+  inset-inline-start: calc(var(--space-md) * -1);
+  width: var(--space-sm);
+  border-block-start: var(--rule-hair) solid var(--color-rule-strong);
+}
+
 .guide-legacy .guide-menu__list a {
-  display: grid;
-  gap: var(--space-2xs);
-  align-content: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs) var(--space-xs);
+  align-items: baseline;
   min-height: 2.75rem;
-  padding: var(--space-sm) var(--space-md);
-  border: var(--rule-hair) solid var(--color-rule);
+  padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-md);
-  background: var(--color-paper);
   color: var(--color-navy-deep);
   text-decoration: none;
 }
 
 .guide-legacy .guide-menu__list a:hover {
-  border-color: var(--color-navy);
   background: var(--color-paper-blue);
 }
 
@@ -1687,8 +1718,8 @@ html:has(body.guide-legacy) {
   scroll-padding-top: calc(var(--nav-bar-height) + var(--space-lg));
 }
 
-@media (min-width: 40rem) {
-  .guide-legacy .guide-menu__list {
+@media (min-width: 48rem) {
+  .guide-legacy .guide-menu__tree {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
