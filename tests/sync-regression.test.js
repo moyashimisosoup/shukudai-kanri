@@ -2978,7 +2978,7 @@ test('宿題を足すと、押したボタンの欄に入る', ()=>{
 
 test('「よゆう」は全体と必須の両方が夏休みより大幅に進んだときだけ出す', ()=>{
   const start = APP.indexOf('const PACE_MESSAGES');
-  const end = APP.indexOf('/* 夏休みの経過率', start);
+  const end = APP.indexOf('/* 設定した期間の経過率', start);
   const pace = new Function(APP.slice(start, end) + '; return { verdictOf, paceMessage, paceVerdictSizeClass, paceVisualWidth, PACE_MESSAGES, PACE_MESSAGES_ADULT };')();
 
   const roomy = pace.verdictOf(12, 10);
@@ -3083,7 +3083,8 @@ test('設定の宿題名は、狭い画面では1行まるごと使って切ら�
 });
 
 test('励まし文と「あと」は狭い画面でも一続きに読める', ()=>{
-  assert.match(APP, /<p class="count-lead">なつやすみ おわりまで<\/p>/);
+  assert.match(APP, /<p class="count-lead">\$\{esc\(deadlineWord\(true\)\)\}まで<\/p>/,
+    'カウントダウン見出しは表示語の組み立て層を通すこと');
   assert.match(APP, /big \? '<span class="cd-prefix">あと<\/span>' : ''/,
     '「あと」は日数の数字盤に結びつける');
   assert.match(STYLE, /\.cd-unit--big\{ position:relative; \}/);
@@ -3385,11 +3386,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260822p',
+    'assets/style.css': '20260822q',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822s',
+    'assets/app.js': '20260822t',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a'
   };
@@ -4493,6 +4494,11 @@ function normalizeConfigHarness(input, legacyTheme, legacyGrade){
     function defaultTitleFor(name){ return name ? name + 'の夏休みの宿題' : 'しゅくだいノート'; }
     ${grabConst(APP, 'READING_GRADE_OPTIONS')}
     ${grabConst(APP, 'POSTER_MAX')}
+    ${grabConst(APP, 'LABEL_DEFAULTS')}
+    ${grabConst(APP, 'LABEL_KEYS')}
+    ${grabConst(APP, 'LABEL_MAX')}
+    ${grab(APP, 'normalizeLabel')}
+    ${grab(APP, 'normalizeLabelConfig')}
     ${grab(APP, 'normalizeConfig')}
     return normalizeConfig(${JSON.stringify(input)});
   `)();
@@ -5983,4 +5989,169 @@ test('しつもんの残りは、カードと「つぎは」に出す', ()=>{
     'しあげが済んでいるときに空の行き先を返さないこと');
   assert.match(next, /p\.numDone && \(p\.qDone \|\| 0\) < \(p\.qTotal \|\| 0\)/);
   assert.match(next, /wording\('しつもんに こたえる', '問いに答える'\)/);
+});
+
+/* 2026-08-22 期間・目標日の呼び名（第一段階）。
+   既定値は「今までと1文字も変わらない」ことが最優先の要件なので、
+   組み立てた結果の文字列そのものを固定する。 */
+const LABEL_WORD_DEFAULTS = {
+  periodLabel:       '夏休み',
+  periodLabelKana:   'なつやすみ',
+  deadlineLabel:     '夏休み終了',
+  deadlineLabelKana: 'なつやすみ おわり'
+};
+function labelWords(config){
+  return new Function('config', 'LABEL_DEFAULTS', `
+    ${grab(APP, 'periodWord')}
+    ${grab(APP, 'deadlineWord')}
+    return { periodWord, deadlineWord };
+  `)(config, LABEL_WORD_DEFAULTS);
+}
+function labelNormalizer(){
+  return new Function('LABEL_KEYS', 'LABEL_DEFAULTS', 'LABEL_MAX', `
+    ${grab(APP, 'normalizeLabel')}
+    ${grab(APP, 'normalizeLabelConfig')}
+    return normalizeLabelConfig;
+  `)(Object.keys(LABEL_WORD_DEFAULTS), LABEL_WORD_DEFAULTS, 12);
+}
+
+test('表示のことばの既定は今までの画面と同じ語を組み立てる', ()=>{
+  assert.match(APP, /periodLabel:\s+'夏休み',/);
+  assert.match(APP, /periodLabelKana:\s+'なつやすみ',/);
+  assert.match(APP, /deadlineLabel:\s+'夏休み終了',/);
+  assert.match(APP, /deadlineLabelKana:\s+'なつやすみ おわり'/);
+
+  const w = labelWords(Object.assign({}, LABEL_WORD_DEFAULTS));
+  assert.equal(w.deadlineWord(true) + 'まで', 'なつやすみ おわりまで', '子どものカウントダウン見出し');
+  assert.equal(w.periodWord(true), 'なつやすみ', '子どものペース行');
+  assert.equal(w.periodWord(true) + 'は おわりました 🎒', 'なつやすみは おわりました 🎒', '子どもの終了後表示');
+  assert.equal(w.periodWord(false) + 'の残り', '夏休みの残り', '保護者ページの残り時間');
+  assert.equal(w.periodWord(false) + 'の経過', '夏休みの経過', '保護者ページの経過率');
+  assert.equal(w.deadlineWord(false) + 'まで', '夏休み終了まで', '要約のカウントダウン');
+  assert.equal(w.periodWord(false) + 'は終了しました', '夏休みは終了しました', '要約の終了後表示');
+});
+
+test('呼び名の設定は子ども画面のよみと保護者ページの漢字を分ける', ()=>{
+  const w = labelWords({
+    periodLabel:'受験勉強', periodLabelKana:'じゅけんべんきょう',
+    deadlineLabel:'入試当日', deadlineLabelKana:'にゅうしとうじつ'
+  });
+  assert.equal(w.deadlineWord(true) + 'まで', 'にゅうしとうじつまで');
+  assert.equal(w.periodWord(true), 'じゅけんべんきょう');
+  assert.equal(w.deadlineWord(false) + 'まで', '入試当日まで');
+  assert.equal(w.periodWord(false) + 'の経過', '受験勉強の経過');
+
+  /* よみを空にしても保存できる。読みを機械で作らない代わりに、
+     そのときだけ漢字表記をそのまま出す（画面が空欄にならないこと） */
+  const noKana = labelWords({ periodLabel:'受験勉強', periodLabelKana:'', deadlineLabel:'入試当日', deadlineLabelKana:'' });
+  assert.equal(noKana.periodWord(true), '受験勉強');
+  assert.equal(noKana.deadlineWord(true), '入試当日');
+});
+
+test('呼び名を持たない旧データには既定を補い、空欄だけを既定へ戻す', ()=>{
+  const normalize = labelNormalizer();
+
+  /* 欄そのものが無い旧設定。ここで既定を補わないと、
+     よみが空になって子ども画面だけ漢字へ変わる */
+  assert.deepEqual(normalize({}), LABEL_WORD_DEFAULTS, '旧データは今までと同じ表示のままにすること');
+
+  /* 利用者が消した場合。漢字は既定へ戻し、よみは空を許す */
+  const cleared = normalize({ periodLabel:'', periodLabelKana:'', deadlineLabel:'', deadlineLabelKana:'' });
+  assert.equal(cleared.periodLabel, '夏休み');
+  assert.equal(cleared.deadlineLabel, '夏休み終了');
+  assert.equal(cleared.periodLabelKana, '');
+  assert.equal(cleared.deadlineLabelKana, '');
+
+  /* 前後の空白・改行・全角空白は1つの空白へ寄せる。
+     せまい画面ではみ出さないよう長さも切る */
+  const messy = normalize({ periodLabel:'  受験\n勉強　まっさかり  ', periodLabelKana:'あ'.repeat(40) });
+  assert.equal(messy.periodLabel, '受験 勉強 まっさかり');
+  assert.equal(messy.periodLabelKana.length, 12, '長すぎる表示語は12文字で切ること');
+
+  /* 既存の設定は触らない。表示語の追加でスキーマ番号は上げない */
+  assert.match(DATA, /const SCHEMA = 6;/, '欄の追加だけでスキーマ番号を上げないこと');
+  assert.match(grab(APP, 'normalizeConfig'), /normalizeLabelConfig\(c\);/);
+  assert.doesNotMatch(grab(APP, 'normalizeLabelConfig'), /saveCfg|push\(/,
+    '読み込んだだけで保存・同期をしないこと');
+});
+
+test('期間・目標日の表示は組み立て層だけを通す', ()=>{
+  assert.match(APP, /<p class="count-lead">\$\{esc\(deadlineWord\(true\)\)\}まで<\/p>/);
+  assert.match(APP, /<span class="pace-name">\$\{esc\(periodWord\(true\)\)\}<\/span>/);
+  assert.match(APP, /class="count-over">\$\{esc\(periodWord\(true\)\)\}は おわりました/);
+  assert.match(APP, /<span class="pstat-lab">\$\{esc\(periodWord\(false\)\)\}の残り<\/span>/);
+  assert.match(APP, /pstatRow\(periodWord\(false\) \+ 'の経過', nat/);
+  assert.match(APP, /L\.push\(deadlineWord\(false\) \+ 'まで {2}あと '/);
+  assert.match(APP, /L\.push\(periodWord\(false\) \+ 'は終了しました'\);/);
+  assert.match(APP, /L\.push\(periodWord\(false\) \+ 'の経過 {2}'/);
+
+  /* 画面へ出る「夏休み」の直書きを残さない。
+     `defaultTitleFor()` と `isGeneratedTitle()` の文字列は、既存タイトルを
+     見分けるための移行判定なので**わざと残す** */
+  assert.doesNotMatch(APP, /class="count-lead">なつやすみ/);
+  assert.doesNotMatch(APP, /class="pace-name">なつやすみ</);
+  assert.doesNotMatch(APP, /'夏休みの経過'/);
+  assert.doesNotMatch(APP, /'夏休み終了まで/);
+  assert.doesNotMatch(APP, /'夏休みは終了しました'/);
+  assert.match(APP, /return name \? name \+ 'の夏休みの宿題' : 'しゅくだいノート';/,
+    '既存タイトルの移行判定に使う文字列は残すこと');
+  assert.match(grab(APP, 'isGeneratedTitle'), /'はじめ夏休みの宿題'/);
+
+  /* ミニコンテンツの引用解説は利用者設定と連動させない */
+  assert.match(DATA, /みじかい 夏休みの 一日も/);
+});
+
+test('表示のことばは共有・トレース・元に戻すの一覧へそろえて足す', ()=>{
+  const shared = APP.slice(APP.indexOf('const SHARED_CONFIG_KEYS'), APP.indexOf('const SHARED_STATE_KEYS'));
+  ['periodLabel', 'periodLabelKana', 'deadlineLabel', 'deadlineLabelKana'].forEach(key=>{
+    assert.match(shared, new RegExp("'" + key + "'"), key + ' を共有allowlistへ入れること');
+    assert.match(APP, new RegExp('const TRACE_CONFIG_FIELDS[\\s\\S]{0,200}' + key));
+    assert.match(APP, new RegExp(key + ":\\['" + key + "'\\]"), key + ' を「元に戻す」の対応表へ入れること');
+  });
+});
+
+test('表示のことばは基本設定の折りたたみに置き、URLのhashを汚さない', ()=>{
+  assert.match(APP, /<input type="datetime-local" id="cfgEnd"[^\n]*\n\s*\$\{labelSettingsHTML\(mark\)\}/,
+    '終了日のすぐ下、基本設定の中に置くこと');
+  const fold = grab(APP, 'labelSettingsHTML');
+  assert.match(fold, /data-details-key="displayWords"/,
+    '見出しの文字を鍵にすると同じ文の折りたたみが巻きぞえで開く');
+  assert.match(fold, /<summary>表示のことば<\/summary>/);
+  assert.match(fold, /maxlength="\$\{LABEL_MAX\}"/);
+  assert.doesNotMatch(fold, /href="#|pushState|replaceState/, 'URLの#を書きかえないこと');
+  ['cfgPeriodLabel', 'cfgPeriodLabelKana', 'cfgDeadlineLabel', 'cfgDeadlineLabelKana'].forEach(id=>{
+    assert.match(fold, new RegExp("'" + id + "'"), id + ' の欄を出すこと');
+  });
+  /* 入力は正規化してから保存する。四つとも同じ作法で束ねる */
+  assert.match(APP, /const id = '#cfg' \+ key\.charAt\(0\)\.toUpperCase\(\) \+ key\.slice\(1\);/);
+  assert.match(APP, /config\[key\] = e\.target\.value;\s*\n\s*normalizeConfig\(config\);\s*\n\s*saveCfg\(\);/);
+  /* せまい端末で横へあふれさせない */
+  assert.match(STYLE, /\.pace-name\{[^}]*overflow-wrap:anywhere/);
+  assert.match(STYLE, /\.pstat-lab\{[^}]*overflow-wrap:anywhere/);
+});
+
+test('進捗サマリーは必須・任意・毎日で区分名をそろえる', ()=>{
+  assert.match(APP, /const GROUP_LABEL = \{ must:'必須の宿題', option:'任意の宿題', daily:'毎日の項目' \};/);
+  assert.match(APP, /pstatRow\('必須の宿題', s\.pct/);
+  assert.match(APP, /pstatRow\('任意の宿題', so\.pct/);
+  assert.match(APP, /\$\{group\('must','必須の宿題'\)\}/);
+  assert.match(APP, /\$\{group\('option','任意の宿題'\)\}/);
+  assert.doesNotMatch(APP, /pstatRow\('つぎに やる'/, '保護者ページの区分名に子ども向けの語を残さないこと');
+
+  const summary = grab(APP, 'buildSummary');
+  assert.match(summary, /L\.push\('必須の宿題 {4}'/);
+  assert.match(summary, /L\.push\('任意の宿題 {4}'/);
+  assert.doesNotMatch(summary, /'つぎに やる/);
+  /* 存在しない区分を出さない。任意は0件なら行ごと、各区分は課題が無ければ見出しごと落とす */
+  assert.match(summary, /if\(so\.total\) L\.push\('任意の宿題/);
+  assert.match(summary, /\['must','option','daily'\]\.forEach\(g=>\{[\s\S]{0,160}if\(!list\.length\) return;/);
+  /* 表示語を変えても件数の計算はそのまま */
+  assert.match(summary, /const s = overall\('must'\);/);
+  assert.match(summary, /const so = overall\('option'\);/);
+
+  /* 子ども画面の語は変えない */
+  assert.match(APP, /sectionHTML\('must','かならず やる'/);
+  assert.match(APP, /sectionHTML\('opt','つぎに やる'/);
+  assert.match(APP, /sectionHTML\('daily','まいにち すこしずつ'/);
+  assert.match(APP, /<span class="pace-key pace-key--opt"><\/span>つぎに やる/);
 });

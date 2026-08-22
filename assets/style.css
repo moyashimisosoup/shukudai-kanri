@@ -789,7 +789,7 @@ button{ font:inherit; color:inherit; }
 /* 宿題の 一覧の 写真を 開く ボタン。**帯（タイトル行）の 日づけの 左**に 置く。
 
    はじめは カウントダウンの 見出し行に 同居させて いたが、
-   「なつやすみ おわりまで」と つづけて 読めて しまい、何の ボタンか
+   カウントダウンの 見出しと つづけて 読めて しまい、何の ボタンか
    分からない という 指摘が あった。帯なら どの 画面でも 同じ ところに ある。
    タイトルは はみ出すと 三点リーダで 切れる 作りなので、押し出しても 壊れない。 */
 /* **帯の 中の 主従は 題名 ＞ 日づけ＝写真。** はじめは 白の 枠つきで 置いたので、
@@ -1068,7 +1068,8 @@ button{ font:inherit; color:inherit; }
   display:grid; grid-template-columns:104px 1fr 68px;
   align-items:center; gap:10px; margin-bottom:10px;
 }
-.pace-name{ font-size:16px; font-weight:900; text-align:right; }
+/* 期間の呼び名は 利用者が 決める。104px の 枠から 横へ あふれさせない */
+.pace-name{ font-size:16px; font-weight:900; text-align:right; overflow-wrap:anywhere; }
 .pace-pct{
   font-size:19px; font-weight:900; text-align:left;
   font-variant-numeric:tabular-nums;
@@ -2382,9 +2383,10 @@ body.no-tabbar{ padding-bottom:0; }
 @media (max-width:420px){
   .pstat-row{ grid-template-columns:minmax(72px,auto) minmax(0,1fr) minmax(54px,auto); gap:8px; }
   .pstat-row-lab{ font-size:13px; }
+  .pstat-row-lab, .pstat-lab{ overflow-wrap:anywhere; }
 }
 
-.pstat-lab{ display:block; font-size:14px; font-weight:900; color:var(--ai-usu); }
+.pstat-lab{ display:block; font-size:14px; font-weight:900; color:var(--ai-usu); overflow-wrap:anywhere; }
 .pstat-val{
   display:block; font-size:28px; font-weight:900; line-height:1.2;
   font-variant-numeric:tabular-nums; margin-top:2px;
@@ -2645,7 +2647,7 @@ body.no-tabbar{ padding-bottom:0; }
   display:grid; place-items:center;
 }
 .cal-nav-icon{ width:24px; height:24px; stroke-width:2.8; }
-/* 夏休みの外へは いけない、と 見ただけで わかるように */
+/* 設定期間の外へは いけない、と 見ただけで わかるように */
 .cal-nav .btn:disabled{ opacity:.35; cursor:default; box-shadow:none; transform:none; }
 
 .cal-paper{ padding:10px 8px 12px; }

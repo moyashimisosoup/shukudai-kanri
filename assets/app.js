@@ -189,7 +189,9 @@ const TASK_FIELD_KEYS = {
    端末だけの欄も、開いたときの控えとこの対応で比べれば同じ作法で戻せる。 */
 const CONFIG_FIELD_KEYS = {
   childName:['childName'], readingGrade:['readingGrade'], theme:['theme'],
-  title:['title'], startAt:['startAt'], endAt:['endAt']
+  title:['title'], startAt:['startAt'], endAt:['endAt'],
+  periodLabel:['periodLabel'], periodLabelKana:['periodLabelKana'],
+  deadlineLabel:['deadlineLabel'], deadlineLabelKana:['deadlineLabelKana']
 };
 /* いま その課題で 画面に出ている欄の 名前一覧。taskEditorRow の
    分岐と そろえてある。「何か所 変えたか」を 数えるときに使う
@@ -336,6 +338,48 @@ const TRASH_MAX = 50;
 function freshConfig(){
   return normalizeConfig(deepCopy(DEFAULT_CONFIG));
 }
+/* 期間・目標日の呼び名。既定は これまでの 表示と 同じ 語なので、
+   設定を さわらない 家庭の 見え方は 1文字も 変わらない。
+   漢字は 保護者ページ、かなは 子ども画面で 使う。読みは 機械で 作らず、
+   対で 入れて もらう（人名・固有名詞は 正しく 読めないため）。 */
+const LABEL_DEFAULTS = {
+  periodLabel:       '夏休み',
+  periodLabelKana:   'なつやすみ',
+  deadlineLabel:     '夏休み終了',
+  deadlineLabelKana: 'なつやすみ おわり'
+};
+const LABEL_KEYS = ['periodLabel','periodLabelKana','deadlineLabel','deadlineLabelKana'];
+/* せまい端末（320px）でも 折り返しで 収まる 長さに 切る。
+   .pace-name は 104px の 枠なので、これ以上は 行数が ふえて 読みにくい */
+const LABEL_MAX = 12;
+function normalizeLabel(value, fallback){
+  const s = String(value == null ? '' : value).replace(/\s+/g, ' ').trim().slice(0, LABEL_MAX);
+  return s || fallback;
+}
+/* 表示のことばを ととのえる。**欄が 無い 旧データには 既定を 補う**
+   （補わないと、かなが 空に なって 子ども画面が 漢字に 変わって しまう）。
+   欄が あって 空なら、利用者が 消したという ことなので、漢字は 既定へ
+   もどし、かなは 空のまま 残して 表示のときに 漢字へ 落とす。
+   ここでは 保存も 同期も しない。起動しただけで ほかの端末の 設定を
+   まき戻さないため、保存は 利用者が 何かを 変えた ときだけに する */
+function normalizeLabelConfig(c){
+  LABEL_KEYS.forEach(key=>{
+    if(!Object.prototype.hasOwnProperty.call(c, key)){ c[key] = LABEL_DEFAULTS[key]; return; }
+    c[key] = normalizeLabel(c[key], key.endsWith('Kana') ? '' : LABEL_DEFAULTS[key]);
+  });
+  return c;
+}
+/* 表示語は ここだけで 組み立てる。各画面が 自前で つなぐと、
+   助詞と 終了後の 文型が また 分かれる。
+   かなが 空のときは 漢字表記を そのまま 出す（保存できない 状態を 作らない） */
+function periodWord(kana){
+  const base = config.periodLabel || LABEL_DEFAULTS.periodLabel;
+  return kana ? (config.periodLabelKana || base) : base;
+}
+function deadlineWord(kana){
+  const base = config.deadlineLabel || LABEL_DEFAULTS.deadlineLabel;
+  return kana ? (config.deadlineLabelKana || base) : base;
+}
 function defaultTitleFor(childName){
   const name = String(childName || '').trim();
   return name ? name + 'の夏休みの宿題' : 'しゅくだいノート';
@@ -359,6 +403,8 @@ function normalizeConfig(c){
     c.theme = THEME_IDS.includes(legacyTheme) ? legacyTheme : 'notebook';
   }
   if(typeof c.showDaily !== 'boolean') c.showDaily = false;
+  /* 表示のことば（期間名・目標日名）。旧データの補いは normalizeLabelConfig() */
+  normalizeLabelConfig(c);
   /* 宿題の一覧の写真。**印だけ**を共有する（画像は端末の中）。
      ここに画像を入れると1文書1MiBの上限にあたり、家庭ぜんぶの同期が止まる */
   const poster = c.poster && typeof c.poster === 'object' ? c.poster : {};
@@ -573,7 +619,8 @@ function deviceLabelOf(id){
 /* 設定を グループ側で 置きかえた ときの ようす。
    設定は 合流できず「まるごと どちらか」なので、採否の 理由が 分からないと
    デザインや 題名が 戻る 事故を 追えない。目に 見える 欄だけ のこす。 */
-const TRACE_CONFIG_FIELDS = ['theme','title','childName','readingGrade','showDaily'];
+const TRACE_CONFIG_FIELDS = ['theme','title','childName','readingGrade','showDaily',
+  'periodLabel','periodLabelKana','deadlineLabel','deadlineLabelKana'];
 /* 課題そのものは 長すぎて そのままでは のこせない。
    「いくつ あったか」を 欄に して のこす。まいにちの 項目が
    グループぜんたいから 消えた ときに、どちら側の 値が 勝ったのかを
@@ -1086,7 +1133,8 @@ function resetSharedState(when){
    positive allowlistで新しいオブジェクトへ移し、端末専用・未知欄を送らない。 */
 const SHARED_CONFIG_KEYS = [
   'schema','title','childName','readingGrade','theme','startAt','endAt',
-  'tasks','showDaily','poster','parentMessage','parentMessageMoved'
+  'tasks','showDaily','poster','parentMessage','parentMessageMoved',
+  'periodLabel','periodLabelKana','deadlineLabel','deadlineLabelKana'
 ];
 const SHARED_STATE_KEYS = [
   'schema','resetAt','progress','logs','books','trash','gone','messages',
@@ -2512,7 +2560,7 @@ async function removePoster(slot){
 
 /* 子ども画面の 入口は **帯（タイトル行）**に 置く。
 
-   カウントダウンの 見出し行に 同居させて いたが、「なつやすみ おわりまで」と
+   カウントダウンの 見出し行に 同居させて いたが、その 見出しと
    となりあって 読めて しまい、何の ボタンか 分からない という 指摘が あった。
    帯は どの 画面でも 出ている ところなので、置き場所としても 分かりやすい。
    タイトルは もともと はみ出すと 三点リーダで 切れるので、押し出しても 壊れない。
@@ -2629,7 +2677,7 @@ function viewHome(){
 
   return `
   <section class="count">
-    <p class="count-lead">なつやすみ おわりまで</p>
+    <p class="count-lead">${esc(deadlineWord(true))}まで</p>
     <div id="cdBox"></div>
     ${paceHTML(o)}
   </section>
@@ -2722,7 +2770,7 @@ function parentMessageHTML(){
   </section>`;
 }
 
-/* 宿題の進捗率 − 夏休みの経過率 から、進み具合を判定する。
+/* 宿題の進捗率 − 期間の経過率 から、進み具合を判定する。
    「よゆう」は全体と必須の両方が十分に先行しているときだけにする。
    任意だけを先に進めても、必須の遅れを隠さないため。 */
 const PACE_MESSAGES = {
@@ -2811,7 +2859,7 @@ function verdictOf(overallGap, mustGap){
   return { cls:'v-ok', msg:paceMessage('steady', overallGap, mustGap) };
 }
 
-/* 夏休みの経過率（％） */
+/* 設定した期間の経過率（％） */
 function natsuPct(){
   const st = parseLocal(config.startAt), en = parseLocal(config.endAt);
   const span = en - st;
@@ -2924,7 +2972,7 @@ function paceHTML(o){
   return `
   <div class="pace">
     <div class="pace-row">
-      <span class="pace-name">なつやすみ</span>
+      <span class="pace-name">${esc(periodWord(true))}</span>
       <div class="bar"><div class="bar-fill bar-fill--natsu" style="width:${natsu.toFixed(1)}%"></div></div>
       <span class="pace-pct">${Math.round(natsu)}%</span>
     </div>
@@ -3312,7 +3360,7 @@ function renderCountdown(){
   const en = parseLocal(config.endAt);
   let ms = en - new Date();
   if(!(ms === ms)){ box.innerHTML = `<p class="count-over">おわりの日を せっていしてね</p>`; return; }
-  if(ms <= 0){ box.innerHTML = `<p class="count-over">なつやすみは おわりました 🎒</p>`; return; }
+  if(ms <= 0){ box.innerHTML = `<p class="count-over">${esc(periodWord(true))}は おわりました 🎒</p>`; return; }
 
   const d = Math.floor(ms/86400000);
   const h = Math.floor(ms/3600000) % 24;
@@ -3605,7 +3653,7 @@ function calLogsOf(key){
   return state.logs.filter(l => dayKey(new Date(l.at)) === key);
 }
 
-/* 夏休みの はじめ／おわり。日づけだけを見たいので 0:00 に そろえる。
+/* 設定した期間の はじめ／おわり。日づけだけを見たいので 0:00 に そろえる。
    せっていが 空のときは null（＝かぎをかけない） */
 function calRange(){
   const cut = s=>{
@@ -3653,7 +3701,7 @@ function viewCalendar(){
   const y = top.getFullYear(), m = top.getMonth();
   const lastDate = new Date(y, m+1, 0).getDate();
 
-  // 夏休みの外の月へは いかせない（せっていが 空なら 自由に うごける）
+  // 設定期間の外の月へは いかせない（せっていが 空なら 自由に うごける）
   const canPrev = !r.start || top > calMonthTop(r.start);
   const canNext = !r.end   || top < calMonthTop(r.end);
 
@@ -3827,7 +3875,7 @@ function viewParent(){
   <section class="paper pstat">
     <div class="pstat-left">
       ${canRefreshShared ? `<button class="icon-btn pstat-refresh" id="parentSyncRefresh" type="button" title="共有データを更新" aria-label="共有データを更新">${icon('refresh')}</button>` : ''}
-      <span class="pstat-lab">夏休みの残り</span>
+      <span class="pstat-lab">${esc(periodWord(false))}の残り</span>
       <span class="pstat-val">${ms > 0
         ? `<span class="pstat-num">${Math.floor(ms/86400000)}</span><small class="pstat-unit">日</small><span class="pstat-num">${Math.floor(ms/3600000)%24}</span><small class="pstat-unit">時間</small>`
         : '終了'}</span>
@@ -3836,10 +3884,10 @@ function viewParent(){
     <div class="pstat-bars">
       ${/* 経過とすぐ見くらべたいのは「全体」なので、経過の真下に置く。
             必須・つぎにやる は その内わけとして 下に つづける */''}
-      ${pstatRow('夏休みの経過', nat, '', 'natsu')}
+      ${pstatRow(periodWord(false) + 'の経過', nat, '', 'natsu')}
       ${pstatRow('全体の進捗', allTotal ? allDone/allTotal*100 : 0, `${allDone}/${allTotal}`, 'all', allTotal ? s.done/allTotal*100 : 0)}
       ${pstatRow('必須の宿題', s.pct, `${s.done}/${s.total}`, 'must')}
-      ${so.total ? pstatRow('つぎに やる', so.pct, `${so.done}/${so.total}`, 'opt') : ''}
+      ${so.total ? pstatRow('任意の宿題', so.pct, `${so.done}/${so.total}`, 'opt') : ''}
     </div>
   </section>
   ${childActivity ? `<span class="pstat-child-updated">${esc(childActivity)}</span>` : ''}
@@ -3849,8 +3897,8 @@ function viewParent(){
 
   ${parentTodayLogsHTML()}
 
-  ${group('must','必ずやる')}
-  ${group('option','つぎに やる')}
+  ${group('must','必須の宿題')}
+  ${group('option','任意の宿題')}
   ${bookSectionHTML()}
   ${trashSectionHTML()}
 
@@ -6451,6 +6499,27 @@ function viewTasks(){
   `;
 }
 
+/* 期間・目標日の呼び名。ふだんの家庭は さわらないので たたんで おく。
+   `data-details-key` を 付けないと detailsKey() が 見出しの 文字を 鍵に して、
+   同じ 文の 折りたたみが 巻きぞえで 開く */
+function labelSettingsHTML(mark){
+  const row = (id, key, label)=> `
+      <div class="set-row"><label class="lab" for="${id}">${label}${mark(key)}</label>
+        <input type="text" id="${id}" maxlength="${LABEL_MAX}" value="${esc(config[key] == null ? '' : config[key])}" placeholder="${esc(LABEL_DEFAULTS[key])}" aria-describedby="displayWordsNote">
+      </div>`;
+  return `
+    <details class="set-advanced set-words" data-details-key="displayWords">
+      <summary>表示のことば</summary>
+      <div class="set-advanced-body">
+        <p class="set-note" id="displayWordsNote">冬休み・学期末・発表会・入試などにも使えます。保護者ページは漢字、子ども画面はよみを表示します。よみは自動で作らないので、手で入れてください。空にすると、呼び名は既定に戻り、よみは漢字のまま表示します。</p>
+        ${row('cfgPeriodLabel', 'periodLabel', '期間の呼び名')}
+        ${row('cfgPeriodLabelKana', 'periodLabelKana', '期間のよみ')}
+        ${row('cfgDeadlineLabel', 'deadlineLabel', '目標日の呼び名')}
+        ${row('cfgDeadlineLabelKana', 'deadlineLabelKana', '目標日のよみ')}
+      </div>
+    </details>`;
+}
+
 function viewConfig(){
   if(!configBase) configBase = deepCopy(config);
   const mark = name => {
@@ -6472,10 +6541,11 @@ function viewConfig(){
   </div></section>
 
   <section class="sec config-sec"${adultSectionHelpAttr(
-    'アプリのタイトルと夏休みの期間を設定します。日付は残り時間と完了予測の計算に使います。')}><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
+    'アプリのタイトルと期間・目標日を設定します。日付は残り時間と完了予測の計算に使います。「表示のことば」で夏休み以外の呼び名にもできます。')}><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
     <div class="set-row"><label class="lab" for="cfgTitle">タイトル${mark('title')}</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
     <div class="set-row"><label class="lab" for="cfgStart">開始日${mark('startAt')}</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
     <div class="set-row"><label class="lab" for="cfgEnd">終了日${mark('endAt')}</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
+    ${labelSettingsHTML(mark)}
   </div></section>
 
   ${syncSectionHTML({ openDetails:openShareSettings })}
@@ -7403,6 +7473,17 @@ function bindConfig(){
   });
   on('#cfgStart', 'change', e=>{ config.startAt = e.target.value; saveCfg(); render({ keepScroll:true, discardFormDraft:true }); });
   on('#cfgEnd', 'change',   e=>{ config.endAt   = e.target.value; saveCfg(); render({ keepScroll:true, discardFormDraft:true }); });
+  /* 表示のことばは 長さと 空白を そろえてから 保存する。
+     normalizeConfig() を 通すのは、空欄の 既定もどしを 1か所に まとめるため */
+  LABEL_KEYS.forEach(key=>{
+    const id = '#cfg' + key.charAt(0).toUpperCase() + key.slice(1);
+    on(id, 'change', e=>{
+      config[key] = e.target.value;
+      normalizeConfig(config);
+      saveCfg();
+      render({ keepScroll:true, discardFormDraft:true });
+    });
+  });
 
   $$('.theme-choice input[name="theme"]').forEach(input=>input.addEventListener('change', e=>{
     if(!THEME_IDS.includes(e.target.value)) return;
@@ -7682,7 +7763,10 @@ function bindConfig(){
 /* ---------------------------------------------------------
    進捗サマリー（保護者向けのテキスト出力）
    --------------------------------------------------------- */
-const GROUP_LABEL = { must:'かならず やる', option:'つぎに やる', daily:'まいにち' };
+/* 要約は 保護者だけが 読む。子ども画面の「かならず やる／つぎに やる／まいにち」
+   とは わざと 別の 語に して、必須／任意／毎日 で そろえる。
+   課題が 無い 区分は buildSummary() が 見出しごと 出さない */
+const GROUP_LABEL = { must:'必須の宿題', option:'任意の宿題', daily:'毎日の項目' };
 
 function summaryLine(t){
   const p = prog(t);
@@ -7714,14 +7798,14 @@ function buildSummary(logDays){
   L.push('');
 
   if(ms > 0){
-    L.push('夏休み終了まで  あと ' + Math.floor(ms/86400000) + '日'
+    L.push(deadlineWord(false) + 'まで  あと ' + Math.floor(ms/86400000) + '日'
          + (Math.floor(ms/3600000) % 24) + '時間');
   }else{
-    L.push('夏休みは終了しました');
+    L.push(periodWord(false) + 'は終了しました');
   }
-  L.push('夏休みの経過  ' + Math.round(o) + '%');
+  L.push(periodWord(false) + 'の経過  ' + Math.round(o) + '%');
   L.push('必須の宿題    ' + Math.round(s.pct) + '%  (' + s.done + '/' + s.total + ')');
-  if(so.total) L.push('つぎに やる  ' + Math.round(so.pct) + '%  (' + so.done + '/' + so.total + ')');
+  if(so.total) L.push('任意の宿題    ' + Math.round(so.pct) + '%  (' + so.done + '/' + so.total + ')');
 
   ['must','option','daily'].forEach(g=>{
     const list = config.tasks.filter(t=>t.group===g);
