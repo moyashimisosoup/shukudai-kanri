@@ -5914,7 +5914,7 @@ function taskEditorRow(t, i){
   };
   const groupField = kind === 'daily' ? '' : `
     <label class="set-field"><span>表示する場所${mark('group')}</span><select data-f="group">
-      ${opt('must',t.group,'必ず行う')}${opt('option',t.group,'次に行う')}
+      ${opt('must',t.group,'必須')}${opt('option',t.group,'任意')}
     </select></label>`;
 
   let fields = '';
@@ -5991,8 +5991,8 @@ function taskGroupHTML(rows, empty){
 
    追加ボタンを 紙の中の いちばん下に 置くのは、押したとき どの欄に
    足されるのかを ボタンの 居場所そのもので 示すため。
-   前は「必ず行う宿題」の 紙の外に 1つだけ 出ていて、しかも 押すと
-   「次に行う宿題」に 足されていた。見えている場所と 足される場所が
+   前は「必須の宿題」の 紙の外に 1つだけ 出ていて、しかも 押すと
+   「任意の宿題」に 足されていた。見えている場所と 足される場所が
    ちがうと、どう直せばよいか 画面から 読みとれない。 */
 function taskSectionHTML(o){
   return `
@@ -6127,7 +6127,7 @@ function adultHeadHTML(current, lead){
 }
 
 /* 宿題そのものを決めるページ。
-   「必ず行う」「次に行う」は 独立した 欄では なく、課題ごとの group。
+   「必須」「任意」は 独立した 欄では なく、課題ごとの group。
    ならべかえの まとまり（taskOrderBucket）も group 単位なので、
    画面も 分けた ほうが 実際の 動きと そろう。 */
 function viewTasks(){
@@ -6146,18 +6146,18 @@ function viewTasks(){
   ${posterSectionHTML()}
 
   ${taskSectionHTML({
-    title:'必ず行う宿題', rows:must, editorId:'mustTaskEditor',
-    note:'子ども画面の「かならず やる」に出ます。上へ・下へで順番を変更できます。「表示する場所」を変えると、下の「次に行う宿題」へ移ります。',
-    empty:'まだ項目はありません。', addId:'addMustTask', addLabel:'必ず行う宿題を追加' })}
+    title:'必須の宿題', rows:must, editorId:'mustTaskEditor',
+    note:'子ども画面の「かならず やる」に出ます。「表示する場所」を変えると、下の「任意の宿題」へ移ります。',
+    empty:'まだ項目はありません。', addId:'addMustTask', addLabel:'必須の宿題を追加' })}
 
   ${taskSectionHTML({
-    title:'次に行う宿題', rows:option, editorId:'optionTaskEditor',
-    note:'必ず行う宿題が終わってから取り組む欄です。進みぐあいの判定には数えません。',
-    empty:'まだ項目はありません。', addId:'addOptionTask', addLabel:'次に行う宿題を追加' })}
+    title:'任意の宿題', rows:option, editorId:'optionTaskEditor',
+    note:'必須の宿題が終わってから取り組む欄です。進みぐあいにも反映します。',
+    empty:'まだ項目はありません。', addId:'addOptionTask', addLabel:'任意の宿題を追加' })}
 
   ${taskSectionHTML({
     title:'読書の記録', rows:books, editorId:'bookTaskEditor',
-    note:'本の名前・読んだ日・一言を1冊ずつ残す読書専用の項目です。上へ・下へで順番を変更できます。',
+    note:'本の名前・読んだ日・一言を1冊ずつ残す読書専用の項目です。',
     empty:'読書の記録を使わないときは、空のままで構いません。', addId:'addBookTask', addLabel:'読書を追加' })}
 
   ${taskSectionHTML({
@@ -6176,7 +6176,6 @@ function viewConfig(){
 
   <section class="sec config-sec"><div class="sec-head"><h2>名前と画面の設定</h2></div><div class="paper">
     <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（任意・グループで共有）</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
-    <p class="set-note">入力しなくても使えます。共有中に入力した場合は、保護者・子どもの端末で同じ名前を表示します。</p>
     <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
     <p class="set-note">名前と読める漢字は、グループの設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
     <fieldset class="theme-picker"><legend>色とデザイン（グループで共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>

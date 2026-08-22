@@ -2713,7 +2713,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822b',
+    'assets/app.js': '20260822c',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
