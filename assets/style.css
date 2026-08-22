@@ -629,9 +629,9 @@ button{ font:inherit; color:inherit; }
 .adult-view .sec-head{ border-radius:var(--r); }
 @media (max-width:400px){ .adult-view .sec-head h2{ font-size:19px; } }
 
-/* Hallmark · component: in-page navigation · genre: playful · theme: existing app tokens
- * states: default · hover · focus · active · current · hidden
- * contrast: pass (46–50) · pre-emit critique: P5 H5 E5 S5 R5 V4
+/* Hallmark · component: in-page navigation + section utilities · genre: playful · theme: existing app tokens
+ * states: default · hover · focus · active · disabled · loading · error · success · current · hidden
+ * contrast: pass (40–41) · mobile: pass (34, 49, 50–57) · pre-emit critique: P5 H5 E5 S5 R5 V5
  */
 /* 保護者画面だけの、実在する節から作るページ内目次。ページ切替タブと
    取り違えない開閉式にし、閉じた高さを52pxに抑える。 */
@@ -683,28 +683,39 @@ button{ font:inherit; color:inherit; }
 .adult-section-toc-links a[aria-current="location"]{ font-weight:900; background:var(--sora); box-shadow:inset 4px 0 0 var(--ai); }
 .adult-section-toc-target{ scroll-margin-top:var(--space-md); }
 
-/* 各節の濃色帯に置く「目次へ」。アイコンは小さく、操作面は44pxを守る。
-   帯の高さを押し広げず、入力欄や本文にも重ならない。 */
-.adult-view .sec-head.has-toc-back{ position:relative; padding-inline-end:52px; }
-.adult-view .sec-head.has-help.has-toc-back{ padding-inline-end:96px; }
-.adult-section-back{
-  position:absolute; inset-block-start:50%; inset-inline-end:4px;
-  width:44px; height:44px; display:grid; place-items:center;
-  border:2px solid transparent; border-radius:var(--r-pill);
-  color:var(--on-band-muted); background:transparent; box-shadow:none;
-  font-size:12px; line-height:1; text-decoration:none;
-  transform:translateY(-50%);
-  transition:transform var(--dur-short) var(--ease-out),background-color var(--dur-short) var(--ease-out);
+/* 見出し帯は題名専用に戻す。目次とヘルプは内容の紙の末尾に
+   静かな補助操作としてまとめ、見た目より広い44pxの操作面を保つ。 */
+.adult-section-tools{
+  min-height:44px; display:flex; justify-content:flex-end; align-items:center; gap:2px;
+  padding-inline:6px; border-top:1px dashed var(--hougan); background:var(--surface-soft);
 }
-.adult-view .sec-head.has-help.has-toc-back .adult-section-back{ inset-inline-end:48px; }
+.adult-section-tools[hidden],.adult-section-tool[hidden]{ display:none; }
+.adult-section-tool{
+  width:44px; height:44px; display:grid; place-items:center; flex:none;
+  padding:0; border:0; border-radius:var(--r-pill); color:var(--ai);
+  background:transparent; box-shadow:none; cursor:pointer; font:inherit;
+  line-height:1; text-decoration:none;
+  transition:transform var(--dur-short) var(--ease-out),background-color var(--dur-short) var(--ease-out),color var(--dur-short) var(--ease-out);
+}
+.adult-section-back span{ font-size:12px; }
+.adult-section-info-icon{
+  width:19px; height:19px; display:grid; place-items:center;
+  border-radius:var(--r-pill); color:var(--kami); background:var(--ai);
+  font-family:var(--font-num); font-size:13px; font-weight:900; line-height:1;
+}
 @media (hover:hover) and (pointer:fine){
-  .adult-section-back:hover{ background:var(--on-band-muted); color:var(--ai); }
+  .adult-section-tool:hover{ background:var(--sora); color:var(--ai); }
+  .adult-section-tool:hover .adult-section-info-icon{ background:var(--ai); }
 }
-.adult-section-back:active{ transform:translateY(calc(-50% + 1px)); }
-.adult-section-back:focus-visible{ outline:3px solid var(--kami); outline-offset:0; }
+.adult-section-tool:active{ transform:translateY(1px); }
+.adult-section-tool:focus-visible{ outline:3px solid var(--focus); outline-offset:-3px; }
+.adult-section-tool:disabled,.adult-section-tool[aria-disabled="true"]{ opacity:.45; cursor:not-allowed; }
+.adult-section-tool[aria-busy="true"]{ cursor:progress; }
+.adult-section-tool.is-error{ color:var(--suika); }
+.adult-section-tool.is-success{ color:var(--wakaba); }
 @media (prefers-reduced-motion:reduce){
   .adult-section-toc-disclosure > summary,.adult-section-toc-disclosure > summary i,
-  .adult-section-toc-links a,.adult-section-back{ transition:none; }
+  .adult-section-toc-links a,.adult-section-tool{ transition:none; }
 }
 
 /* 宿題の 一覧の 写真を 開く ボタン。**帯（タイトル行）の 日づけの 左**に 置く。
@@ -767,34 +778,6 @@ button{ font:inherit; color:inherit; }
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
 }
 
-/* 見出しの 右に 置く 小さな「使い方」。欄の 意味を 聞かれた ときに
-   その場で 答えられる ようにする（画面を 増やさない） */
-/* 「使い方」の 3文字を「?」の 印に した。当たり判定は .icon-btn の 44px の まま。
-
-   **ただし 帯の 丈を 押し広げさせない。** 44px の ボタンを 行に 置くと、
-   この 欄の 見出しだけ 66px に なり、ほかの 欄（46.75px 実測）より 太く 見える。
-   帯の 中で 浮かせて、丈は 見出しの 字だけで 決まる ように する */
-.sec-head.has-help{ position:relative; padding-inline-end:52px; }
-.sec-head.has-help .sec-help-btn{
-  position:absolute; inset-inline-end:6px; inset-block-start:50%;
-  transform:translateY(-50%); margin:0;
-}
-.sec-help-btn{ margin-inline-start:auto; flex:none; }
-/* 面は 持たず、印だけ 置く（.icon-btn.del と 同じ 考え方）。白い 44px の
-   まるを 濃い帯に のせると、見出しより 明るい ものが 行の 中に できて
-   主従が 崩れる ―― 帯の 写真ボタンで 起きたのと 同じ 崩れ方。
-   色は 同じ 帯の 説明文（.sec-note）と そろえ、見出しより 一段 引く。
-   **枠は 消さずに 透明にする。** 太さを 残さないと 行の 丈が 変わる。
-   44px の 当たり判定は .icon-btn の まま 変えない */
-.icon-btn.sec-help-btn{
-  background:transparent; border-color:transparent; box-shadow:none;
-  color:var(--on-band-muted); font-size:22px;
-}
-.icon-btn.sec-help-btn:active{ transform:translateY(1px); }
-.icon-btn.sec-help-btn:focus-visible{ outline:3px solid var(--kami); outline-offset:2px; }
-@media (hover:hover) and (pointer:fine){
-  .icon-btn.sec-help-btn:hover{ background:var(--on-band-muted); color:var(--ai); }
-}
 /* **`.poster-dialog` を 名指しで 足す。** うしろに ある `.poster-dialog` の
    `width:min(96vw,900px)` と 詳細度が 同じ ため、これだけでは 負けて
    効いていなかった（768px で 実測 724px。読みやすい 幅を 大きく こえる） */
@@ -1230,22 +1213,8 @@ button{ font:inherit; color:inherit; }
 /* 宿題の4つの欄は、同じ紙の中に 案内・一覧・追加ボタンを まとめる。
    角を丸めた紙から 中身がはみ出さないように clip する */
 .task-settings{ overflow:clip; }
-.task-settings-fold-summary{
-  display:block; padding:16px; cursor:pointer; font-size:16px; font-weight:900;
-  background:var(--surface-soft);
-}
-.task-settings-fold-summary::marker{ color:var(--ai); }
-.task-settings-fold[open] > .task-settings-fold-summary{ border-bottom:2px dashed var(--hougan); }
-.book-task-order{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:14px 16px; }
-.book-task-order > span{ font-size:15px; font-weight:900; margin-right:2px; }
-.book-task-order .is-on{ background:var(--ai); color:var(--kami); }
-.book-task-records{ border-bottom:2px dashed var(--hougan); }
-.book-task-records-title{ margin:0; padding:12px 16px 4px; font-size:15px; font-weight:900; color:var(--ai-usu); }
-.book-task-record{ display:flex; justify-content:space-between; gap:12px; padding:8px 16px; font-size:15px; font-weight:700; }
-.book-task-record-title{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.book-task-record-date{ flex:none; color:var(--ai-usu); font-variant-numeric:tabular-nums; }
 /* 追加ボタンは その欄の 末尾。上の一覧と 地続きに 見えないよう 線で 区切る */
-.task-settings > .set-actions, .task-settings-fold-body > .set-actions{ border-top:2px dashed var(--hougan); }
+.task-settings > .set-actions{ border-top:2px dashed var(--hougan); }
 .daily-switch{
   display:flex; gap:12px; align-items:flex-start; padding:16px;
   background:var(--asagao-usu); border-bottom:2px dashed var(--asagao); cursor:pointer;
@@ -1709,7 +1678,27 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   display:flex; align-items:flex-start; gap:12px;
   padding:14px 16px; border-bottom:2px dashed var(--hougan);
 }
-.book-row:last-of-type{ border-bottom:none; }
+.parent-book-head > .book-row:last-child,
+.parent-book-more-list > .book-row:last-child{ border-bottom:none; }
+.parent-book-toolbar{
+  display:flex; align-items:center; justify-content:flex-end; padding:4px 8px;
+  border-bottom:2px dashed var(--hougan); background:var(--surface-soft);
+}
+.parent-book-order{
+  min-height:44px; padding:4px 8px; border:0; border-radius:var(--r-s);
+  color:var(--ai-usu); background:transparent; font:inherit; font-size:13px; font-weight:900;
+  cursor:pointer; white-space:nowrap;
+}
+.parent-book-order:hover,.parent-book-order:active{ color:var(--ai); background:var(--sora); }
+.parent-book-more{ border-top:2px dashed var(--hougan); }
+.parent-book-more > summary{
+  min-height:44px; padding:8px 16px; cursor:pointer;
+  color:var(--ai-usu); font-size:15px; font-weight:900; list-style-position:inside;
+}
+.parent-book-more[open] > summary{ border-bottom:2px dashed var(--hougan); }
+.parent-book-more-open{ display:none; }
+.parent-book-more[open] .parent-book-more-closed{ display:none; }
+.parent-book-more[open] .parent-book-more-open{ display:inline; }
 .book-no{
   flex:none; width:auto; min-width:34px; height:34px; padding:0 8px; border-radius:var(--r-pill);
   display:grid; place-items:center;

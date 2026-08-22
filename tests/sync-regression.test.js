@@ -89,10 +89,16 @@ test('保護者の3ページだけ、描画済みの節見出しからページ�
     '飛び先の見出しを上帯の下に出すこと');
   assert.match(toc, /back\.setAttribute\('aria-label', 'このページの目次へ戻る'\)/,
     '各節には意味の分かる名前を持つ目次への戻り口を用意すること');
-  assert.match(STYLE, /\.adult-section-back\{[\s\S]{0,160}width:44px; height:44px/,
+  assert.match(STYLE, /\.adult-section-tool\{[\s\S]{0,160}width:44px; height:44px/,
     '戻りの印は小さく見せても44pxの操作面を保つこと');
-  assert.match(toc, /if\(!head \|\| head\.tagName === 'SUMMARY'\) return;/,
+  assert.match(toc, /if\(!head \|\| head\.tagName === 'SUMMARY' \|\| !section\) return;/,
     '開閉見出しの中に別の操作を入れ子にしないこと');
+  assert.match(toc, /classList\.contains\('paper'\)/,
+    '目次への戻り口は見出し帯ではなく内容の紙に置くこと');
+  assert.match(toc, /back\.hidden = true/,
+    '戻り口は目次から移動した節だけに出すこと');
+  assert.doesNotMatch(toc, /head\.classList\.add\('has-toc-back'\)/,
+    '長い見出しの可読幅を戻り口で削らないこと');
   assert.match(toc, /const returnToToc = e=>\{[\s\S]{0,180}disclosure\.open = true;[\s\S]{0,100}summary\.focus\(\{ preventScroll:true \}\)/,
     '戻り口は目次を開き、開閉行へ読み上げ位置を戻すこと');
   assert.doesNotMatch(grab(APP, 'viewHome'), /adult-section-toc/,
@@ -1279,27 +1285,41 @@ test('保護者ページから開いた読書記録だけ、大人向けの完�
     '子ども画面から開いたときは従来の完了表示を使うこと');
 });
 
-test('保護者の読書の記録は畳み、新しい項目を上にして並び順を端末に覚える', ()=>{
-  const order = new Function('getLocal', `
-    const K_BOOK_TASK_ORDER = 'book-order';
-    ${grab(APP, 'bookTaskOrder')}
-    ${grab(APP, 'bookTaskRows')}
-    ${grab(APP, 'bookRecordRows')}
-    return { bookTaskOrder, bookTaskRows, bookRecordRows };
-  `)(key => key === 'book-order' ? '' : '');
-  assert.equal(order.bookTaskOrder(), 'desc', '既定は新しい項目が上の降順にすること');
-  assert.deepEqual(order.bookTaskRows([{i:1},{i:3},{i:2}]).map(row=>row.i), [3,2,1]);
-  assert.deepEqual(order.bookRecordRows([{date:'2026-08-20',nth:1},{date:'2026-08-22',nth:2}]).map(row=>row.nth), [2,1],
-    '新しく記録した本を上に並べること');
-  assert.match(grab(APP, 'bookTaskOrderHTML'), /data-book-task-order="desc"[\s\S]{0,160}data-book-task-order="asc"/,
-    '欄の中で新しい順・古い順を切り替えられること');
-  const view = grab(APP, 'viewTasks');
-  assert.match(view, /const books\s*= bookTaskRows\(rows\.filter\(\(\{t\}\)=>taskKind\(t\)==='book'\)\);/,
-    '読書の記録だけを並び替え、子ども画面の一覧には影響させないこと');
-  assert.match(view, /title:'読書の記録',[\s\S]{0,180}folded:true/,
-    '読書の記録の欄は初期状態で畳むこと');
-  assert.match(grab(APP, 'bindConfig'), /\[data-book-task-order\][\s\S]{0,240}setLocal\(K_BOOK_TASK_ORDER, order\)/,
-    '選んだ昇順・降順を端末内に保存すること');
+test('保護者の本の記録は最新3冊を見せ、残りと並び順を控えめに切り替える', ()=>{
+  const makeOrder = stored => new Function('getLocal', `
+    const K_PARENT_BOOK_ORDER = 'book-order';
+    ${grab(APP, 'parentBookOrder')}
+    ${grab(APP, 'parentBookRows')}
+    return { parentBookOrder, parentBookRows };
+  `)(()=>stored);
+  const source = [{date:'2026-08-20',nth:1},{date:'2026-08-22',nth:2}];
+  assert.deepEqual(makeOrder('').parentBookRows(source).map(row=>row.nth), [2,1],
+    '既定は新しい本が上の降順にすること');
+  assert.deepEqual(makeOrder('asc').parentBookRows(source).map(row=>row.nth), [1,2],
+    '端末に古い順を保存したときは昇順にすること');
+  const section = grab(APP, 'bookSectionHTML');
+  assert.match(section, /const shown = rows\.slice\(0, 3\), rest = rows\.slice\(3\);/,
+    '常時表示はスマホで長くなりすぎない3冊にすること');
+  assert.match(section, /data-details-key="parentBooksMore"[\s\S]{0,120}残り\$\{rest\.length\}冊を見る/,
+    '4冊目以降は残り冊数が分かる折りたたみに入れること');
+  assert.equal((section.match(/data-parent-book-order=/g) || []).length, 1,
+    '並び順は大きな2ボタンでなく、単一の小さな切り替えにすること');
+  assert.match(grab(APP, 'bindParent'), /setLocal\(K_PARENT_BOOK_ORDER, order\)/,
+    '並び順は共有せず端末内に覚えること');
+  assert.match(STYLE, /\.parent-book-order\{[\s\S]{0,180}min-height:44px[\s\S]{0,180}font-size:13px/,
+    '見た目は控えめでもタップ領域は44pxを保つこと');
+});
+
+test('宿題設定に本の記録を混ぜず、子どもの本一覧の並びも変えない', ()=>{
+  const tasks = grab(APP, 'viewTasks');
+  assert.match(tasks, /const books\s*= rows\.filter\(\(\{t\}\)=>taskKind\(t\)==='book'\);/,
+    '読書課題はほかの宿題と同じ設定順にすること');
+  assert.doesNotMatch(tasks, /state\.books|bookTaskOrder|bookTaskRecords|folded:true|parentBook/,
+    '#tasks の読書欄へ記録一覧や専用の折りたたみを置かないこと');
+  assert.doesNotMatch(grab(APP, 'taskSectionHTML'), /o\.folded|task-settings-fold/,
+    '必須・任意・読書・毎日の設定欄は同じ骨組みを保つこと');
+  assert.match(grab(APP, 'viewBooks'), /state\.books\.slice\(\)\.sort\(\(a,b\)=> a\.nth - b\.nth\)/,
+    '子ども画面の本一覧は従来の冊数順を保つこと');
 });
 
 /* QRで入った端末だけ デザインが 初期値の まま だった。
@@ -2796,11 +2816,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260822f',
+    'assets/style.css': '20260822h',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822j',
+    'assets/app.js': '20260822l',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
@@ -4770,10 +4790,11 @@ test('保護者ページの写真は、ます目で見せて縦を使いすぎ�
   const solo = posterPanelHarness(['a', '', '', ''], [1, 0, 0, 0], false);
   assert.match(solo, /共有を使っていないため、この端末の中だけで使います/);
 
-  /* 見出しの帯を、ほかの欄と同じ丈に保つ（44px のボタンで押し広げない） */
-  assert.match(full, /<div class="sec-head has-help">/);
-  assert.match(STYLE, /\.sec-head\.has-help \.sec-help-btn\{[\s\S]{0,120}position:absolute/,
-    '「?」は帯の中で浮かせて、丈を見出しの字だけで決めること');
+  /* 見出し帯は題名専用。ヘルプは内容の紙の末尾に置く */
+  assert.match(full, /<div class="sec-head"><h2>宿題の一覧の写真<\/h2><\/div><div class="paper">/);
+  assert.match(full, /<div class="adult-section-tools">[\s\S]{0,240}id="posterHelp"/);
+  assert.doesNotMatch(full, /sec-head has-help/,
+    'ヘルプで見出しの可読幅を削らないこと');
 });
 
 /* 子ども画面の見え方も、実際に組み立てて見る。1枚のときに「1まいめ」が
@@ -5160,13 +5181,13 @@ test('受け取りは、足りないぶんを一度にまとめて扱う', ()=>{
     '空き枠があるときだけ、足す入口を出すこと');
 });
 
-/* 使い方は「?」の 印から 開く。中身は 丸数字の 3手順と、3コマの 図と、
+/* 使い方は円内の i の印から開く。中身は 丸数字の 3手順と、3コマの 図と、
    **写真が どこに あるのか**の 一段。画面には 操作だけを 置き、説明は
    ここへ 寄せる（欄の 縦を 短く 保つため）。 */
 test('一覧の写真の使い方は、丸数字と図と保存場所で伝える', ()=>{
   assert.match(grab(APP, 'posterSectionHTML'),
-    /<button class="icon-btn sec-help-btn" id="posterHelp"[\s\S]{0,120}aria-label="宿題の一覧の写真の使い方">\?</,
-    '見出しの「使い方」は「?」の印にすること');
+    /<button class="adult-section-tool adult-section-help" id="posterHelp"[\s\S]{0,180}aria-label="宿題の一覧の写真の使い方"><span class="adult-section-info-icon" aria-hidden="true">i<\/span>/,
+    'ヘルプは「?」ではなく、円内の i で示すこと');
   /* **押したら 開くこと。** 欄を 整理したときに 開く側の束ねだけが消え、
      形は正しいのに 押しても開かない、という状態を実機で踏んだ。
      「関数が正しい」と「関数が呼ばれる」は別。開閉と中身は同じ場所にまとめる。 */

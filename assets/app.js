@@ -82,9 +82,9 @@ const K_KINENBI_VIEWED = TEST_MODE ? 'natsu.preview.kinenbi.viewed.v1' : 'natsu.
    保護者と子どもは別の端末を見ているので、しるしも別にする。 */
 const K_SAMPLE_PARENT = TEST_MODE ? 'natsu.preview.sample.parent.v1' : 'natsu.sample.parent.v1';
 const K_SAMPLE_CHILD  = TEST_MODE ? 'natsu.preview.sample.child.v1'  : 'natsu.sample.child.v1';
-/* 「宿題を決める」の読書項目だけの並び順。課題の設定は共有しても、
-   見やすい順番は端末ごとの好みなので共有データには入れない。 */
-const K_BOOK_TASK_ORDER = TEST_MODE ? 'natsu.preview.book.task.order.v1' : 'natsu.book.task.order.v1';
+/* 保護者の本一覧だけの並び順。端末ごとの見やすさなので共有データには
+   入れない。キー文字列は前の配信で選んだ向きを引き継ぐため変えない。 */
+const K_PARENT_BOOK_ORDER = TEST_MODE ? 'natsu.preview.book.task.order.v1' : 'natsu.book.task.order.v1';
 /* 保護者ページの共有・ホーム画面追加の案内を、今は使わない人が閉じたしるし。
    端末ごとの選択なので config / state には入れない。共有データを変更すると
    90日の保持期限に影響し、1台で閉じた案内が家族全員から消えてしまう。 */
@@ -2493,14 +2493,16 @@ function posterSectionHTML(){
     ? '共有を使っていないため、この端末の中だけで使います。'
     : '共有しているほかの端末へ自動で届きます。';
   return `
-  <section class="sec config-sec"><div class="sec-head has-help"><h2>宿題の一覧の写真</h2>
-      <button class="icon-btn sec-help-btn" id="posterHelp" type="button"
-        title="使い方" aria-label="宿題の一覧の写真の使い方">?</button></div><div class="paper">
+  <section class="sec config-sec"><div class="sec-head"><h2>宿題の一覧の写真</h2></div><div class="paper">
     <p class="set-note">学校のプリントや時間割を${POSTER_MAX}枚まで。子ども画面の帯の<span class="poster-lab-ico" aria-hidden="true"></span>アイコンから見られます。${esc(how)}${here ? '写真をタップすると選び直せます。' : ''}</p>
     <div class="set-row"><label class="lab" for="posterLabel"><span class="poster-lab-ico" aria-hidden="true"></span>ボタンの名前</label>
       <input type="text" id="posterLabel" maxlength="6" placeholder="なくてもかまいません" value="${esc(cfg.label)}"></div>
     <div class="poster-tiles">${tiles.join('')}${add}</div>
     <input type="file" id="posterFile" accept="image/*" class="offscreen">
+    <div class="adult-section-tools">
+      <button class="adult-section-tool adult-section-help" id="posterHelp" type="button"
+        title="写真の使い方" aria-label="宿題の一覧の写真の使い方"><span class="adult-section-info-icon" aria-hidden="true">i</span></button>
+    </div>
   </div></section>`;
 }
 
@@ -4541,30 +4543,51 @@ function syncTraceHTML(){
   </section>`;
 }
 
-/* 保護者ページの本の記録一覧。書名や読んだ日はここから訂正できる */
+function parentBookOrder(){ return getLocal(K_PARENT_BOOK_ORDER) === 'asc' ? 'asc' : 'desc'; }
+function parentBookRows(rows){
+  const order = parentBookOrder();
+  const compare = (a,b)=> String(a.date || '').localeCompare(String(b.date || '')) || (a.nth|0) - (b.nth|0);
+  return rows.slice().sort((a,b)=> order === 'asc' ? compare(a,b) : compare(b,a));
+}
+function parentBookRowHTML(b){
+  return `<div class="book-row">
+    <span class="book-no">${bookOrdinal(b.nth, true)}</span>
+    <div class="book-main">
+      <div class="book-title">${esc(b.title)}</div>
+      <div class="book-sub">${[
+        b.date, b.author, b.publisher,
+        b.rating ? '★'.repeat(b.rating) : ''
+      ].filter(Boolean).map(esc).join('　')}</div>
+      ${b.memoOut || b.memo ? `<div class="book-memo">${esc(b.memoOut || b.memo)}</div>` : ''}
+    </div>
+    <button class="btn btn-sm" data-open="${esc(b.taskId)}" data-book="${esc(b.id)}" type="button">編集</button>
+    <button class="icon-btn del" data-delbook="${esc(b.id)}" title="削除" aria-label="この本の記録を消す" type="button">${icon('trash')}</button>
+  </div>`;
+}
+
+/* 保護者ページの本の記録一覧。直近3冊を見せ、残りは必要なときだけ開く */
 function bookSectionHTML(){
   if(!config.tasks.some(isBook)) return '';
-  const rows = state.books.slice().sort((a,b)=> (b.date||'').localeCompare(a.date||'') || b.nth - a.nth);
+  const rows = parentBookRows(state.books || []);
+  const shown = rows.slice(0, 3), rest = rows.slice(3);
+  const order = parentBookOrder(), nextOrder = order === 'desc' ? 'asc' : 'desc';
 
   return `
   <section class="sec">
     <div class="sec-head"><h2>本の記録</h2><span class="sec-note">${rows.length}冊</span></div>
-    <div class="paper">
-      ${rows.length ? rows.map(b=>`
-        <div class="book-row">
-          <span class="book-no">${bookOrdinal(b.nth, true)}</span>
-          <div class="book-main">
-            <div class="book-title">${esc(b.title)}</div>
-            <div class="book-sub">${[
-              b.date, b.author, b.publisher,
-              b.rating ? '★'.repeat(b.rating) : ''
-            ].filter(Boolean).map(esc).join('　')}</div>
-            ${b.memoOut || b.memo ? `<div class="book-memo">${esc(b.memoOut || b.memo)}</div>` : ''}
-          </div>
-          <button class="btn btn-sm" data-open="${esc(b.taskId)}" data-book="${esc(b.id)}" type="button">編集</button>
-          <button class="icon-btn del" data-delbook="${esc(b.id)}" title="削除" aria-label="この本の記録を消す" type="button">${icon('trash')}</button>
-        </div>`).join('')
-      : `<p class="empty">まだ記録がありません。</p>`}
+    <div class="paper parent-book-list">
+      ${rows.length > 1 ? `<div class="parent-book-toolbar">
+        <button class="parent-book-order" data-parent-book-order="${nextOrder}" type="button"
+          aria-label="現在は${order === 'desc' ? '新しい順。古い順' : '古い順。新しい順'}に切り替える">
+          ${order === 'desc' ? '新しい順 ↓' : '古い順 ↑'}
+        </button>
+      </div>` : ''}
+      ${shown.length ? `<div class="parent-book-head">${shown.map(parentBookRowHTML).join('')}</div>`
+        : `<p class="empty">まだ記録がありません。</p>`}
+      ${rest.length ? `<details class="parent-book-more" data-details-key="parentBooksMore">
+        <summary><span class="parent-book-more-closed">残り${rest.length}冊を見る</span><span class="parent-book-more-open">閉じる</span></summary>
+        <div class="parent-book-more-list">${rest.map(parentBookRowHTML).join('')}</div>
+      </details>` : ''}
       <p class="set-note">「編集」で書名・読んだ日・感想を訂正できます。削除すると冊数も1つ戻ります。</p>
     </div>
   </section>`;
@@ -6009,34 +6032,6 @@ function taskGroupHTML(rows, empty){
   return rows.length ? rows.map(({t,i})=>taskEditorRow(t,i)).join('') : `<p class="set-empty">${esc(empty)}</p>`;
 }
 
-function bookTaskOrder(){ return getLocal(K_BOOK_TASK_ORDER) === 'asc' ? 'asc' : 'desc'; }
-function bookTaskRows(rows){
-  const order = bookTaskOrder();
-  return rows.slice().sort((a,b)=> order === 'asc' ? a.i - b.i : b.i - a.i);
-}
-function bookRecordRows(rows){
-  const order = bookTaskOrder();
-  const compare = (a,b)=> String(a.date || '').localeCompare(String(b.date || '')) || (a.nth|0) - (b.nth|0);
-  return rows.slice().sort((a,b)=> order === 'asc' ? compare(a,b) : compare(b,a));
-}
-function bookTaskOrderHTML(){
-  const order = bookTaskOrder();
-  return `<div class="book-task-order" aria-label="読書の記録の並び順">
-    <span>並び順</span>
-    <button class="btn btn-sm${order === 'desc' ? ' is-on' : ''}" data-book-task-order="desc" type="button" aria-pressed="${order === 'desc'}">新しい順</button>
-    <button class="btn btn-sm${order === 'asc' ? ' is-on' : ''}" data-book-task-order="asc" type="button" aria-pressed="${order === 'asc'}">古い順</button>
-  </div>`;
-}
-function bookTaskRecordsHTML(){
-  const rows = bookRecordRows(state.books || []);
-  return `<div class="book-task-records">
-    <p class="book-task-records-title">記録した本</p>
-    ${rows.length ? rows.map(b=>`<div class="book-task-record">
-      <span class="book-task-record-title">${esc(b.title)}</span><span class="book-task-record-date">${esc(b.date || '')}</span>
-    </div>`).join('') : '<p class="set-empty">まだ本の記録はありません。</p>'}
-  </div>`;
-}
-
 /* 宿題の欄は4つとも この1つの型で 組む。
    案内（必要な欄だけ）→（毎日の項目だけ スイッチ）→ 一覧 → 追加ボタン、の順。
 
@@ -6046,21 +6041,15 @@ function bookTaskRecordsHTML(){
    「任意の宿題」に 足されていた。見えている場所と 足される場所が
    ちがうと、どう直せばよいか 画面から 読みとれない。 */
 function taskSectionHTML(o){
-  const body = `
-      ${o.head || ''}
-      ${o.note ? `<p class="config-section-note">${esc(o.note)}</p>` : ''}
-      <div class="task-editor" id="${o.editorId}">${taskGroupHTML(o.rows, o.empty)}</div>
-      <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="${o.addId}" type="button">${icon('plus')}<span>${esc(o.addLabel)}</span></button></div>`;
-  const paper = o.folded
-    ? `<details class="paper task-settings task-settings-fold" data-details-key="${esc(o.detailsKey || o.editorId)}">
-        <summary class="task-settings-fold-summary">この欄を開く</summary>
-        <div class="task-settings-fold-body">${body}</div>
-      </details>`
-    : `<div class="paper task-settings">${body}</div>`;
   return `
   <section class="sec config-sec">
     <div class="sec-head"><h2>${esc(o.title)}</h2><span class="sec-note">${o.rows.length}件</span></div>
-    ${paper}
+    <div class="paper task-settings">
+      ${o.head || ''}
+      ${o.note ? `<p class="config-section-note">${esc(o.note)}</p>` : ''}
+      <div class="task-editor" id="${o.editorId}">${taskGroupHTML(o.rows, o.empty)}</div>
+      <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="${o.addId}" type="button">${icon('plus')}<span>${esc(o.addLabel)}</span></button></div>
+    </div>
   </section>`;
 }
 
@@ -6204,26 +6193,43 @@ function buildAdultSectionToc(){
   toc.hidden = false;
   const disclosure = $('.adult-section-toc-disclosure', toc);
   const summary = $('summary', toc);
+  const hideSectionBacks = ()=>{
+    $$('.adult-section-back', $('#view')).forEach(back=>{ back.hidden = true; });
+    $$('.adult-section-tools', $('#view')).forEach(actions=>{
+      actions.hidden = !$('.adult-section-help', actions);
+    });
+  };
   const returnToToc = e=>{
     e.preventDefault();
+    hideSectionBacks();
     disclosure.open = true;
     toc.scrollIntoView({ block:'start' });
     summary.focus({ preventScroll:true });
   };
-  /* summary の中へ別のリンクを入れると操作が入れ子になる。大人ページの
-     通常の見出し帯だけに、見た目は小さく操作面は44pxの戻り口を足す。 */
+  /* 見出し帯は題名だけに使う。戻り口は内容の紙の末尾に置き、目次から
+     移動した節だけに出す。長い題名を押し縮めず、ページも伸ばし続けない。 */
   headings.forEach(heading=>{
     const head = heading.parentElement;
-    if(!head || head.tagName === 'SUMMARY') return;
-    head.classList.add('has-toc-back');
+    const section = heading.closest('.sec');
+    if(!head || head.tagName === 'SUMMARY' || !section) return;
+    const surface = Array.from(section.children).find(el=>el.classList && el.classList.contains('paper'));
+    if(!surface) return;
+    let actions = $('.adult-section-tools', surface);
+    if(!actions){
+      actions = document.createElement('div');
+      actions.className = 'adult-section-tools';
+      actions.hidden = true;
+      surface.appendChild(actions);
+    }
     const back = document.createElement('a');
-    back.className = 'adult-section-back';
+    back.className = 'adult-section-tool adult-section-back';
     back.href = '#adultPageToc';
     back.setAttribute('aria-label', 'このページの目次へ戻る');
     back.title = '目次へ戻る';
     back.innerHTML = '<span aria-hidden="true">▲</span>';
+    back.hidden = true;
     back.addEventListener('click', returnToToc);
-    head.appendChild(back);
+    actions.appendChild(back);
   });
   $$('.adult-section-toc-links a', toc).forEach(link=>link.addEventListener('click', e=>{
     const target = document.getElementById(link.getAttribute('href').slice(1));
@@ -6236,6 +6242,16 @@ function buildAdultSectionToc(){
     $$('.adult-section-toc-links a', toc).forEach(a=>a.removeAttribute('aria-current'));
     link.setAttribute('aria-current', 'location');
     disclosure.open = false;
+    hideSectionBacks();
+    const section = target.closest('.sec');
+    const surface = section && Array.from(section.children).find(el=>el.classList && el.classList.contains('paper'));
+    const actions = surface && $('.adult-section-tools', surface);
+    const back = actions && $('.adult-section-back', actions);
+    if(surface && surface.tagName === 'DETAILS') surface.open = true;
+    if(actions && back){
+      actions.hidden = false;
+      back.hidden = false;
+    }
     target.scrollIntoView({ block:'start' });
     /* 既定の移動なら 見出しへ 移る 読み上げの 位置を、自分で 移す */
     target.setAttribute('tabindex', '-1');
@@ -6251,7 +6267,7 @@ function viewTasks(){
   const rows = config.tasks.map((t,i)=>({t,i}));
   const must   = rows.filter(({t})=>taskKind(t)==='normal' && t.group === 'must');
   const option = rows.filter(({t})=>taskKind(t)==='normal' && t.group !== 'must');
-  const books  = bookTaskRows(rows.filter(({t})=>taskKind(t)==='book'));
+  const books  = rows.filter(({t})=>taskKind(t)==='book');
   const daily  = rows.filter(({t})=>taskKind(t)==='daily');
   /* 「子ども画面に表示する」は 毎日の項目 だけの もの。
      ほかの3つには 対応する 切りかえが 無いので、この欄にだけ 足す */
@@ -6273,8 +6289,7 @@ function viewTasks(){
     empty:'まだ項目はありません。', addId:'addOptionTask', addLabel:'任意の宿題を追加' })}
 
   ${taskSectionHTML({
-    title:'読書の記録', rows:books, editorId:'bookTaskEditor', head:bookTaskOrderHTML() + bookTaskRecordsHTML(), folded:true,
-    detailsKey:'bookTaskSettings',
+    title:'読書の記録', rows:books, editorId:'bookTaskEditor',
     note:'本の名前・読んだ日・一言を1冊ずつ残す読書専用の項目です。',
     empty:'読書の記録を使わないときは、空のままで構いません。', addId:'addBookTask', addLabel:'読書を追加' })}
 
@@ -6847,6 +6862,13 @@ function bindParent(){
     });
   }
   bindParentShareBadge();
+  const bookOrder = $('[data-parent-book-order]');
+  if(bookOrder) bookOrder.addEventListener('click', ()=>{
+    const order = bookOrder.dataset.parentBookOrder;
+    if(order !== 'asc' && order !== 'desc') return;
+    setLocal(K_PARENT_BOOK_ORDER, order);
+    render({ keepScroll:true });
+  });
   const homeInstall = $('#homeInstallBtn');
   if(homeInstall) homeInstall.addEventListener('click', async ()=>{
     /* Android Chrome / Edge などが利用可能なときだけ、OSの確認を直接出せる。
@@ -7441,12 +7463,6 @@ function bindConfig(){
   }
   on('#addMustTask',   'click', ()=>addNormalTask('must'));
   on('#addOptionTask', 'click', ()=>addNormalTask('option'));
-  $$('[data-book-task-order]').forEach(btn=>btn.addEventListener('click', ()=>{
-    const order = btn.dataset.bookTaskOrder;
-    if(order !== 'asc' && order !== 'desc') return;
-    setLocal(K_BOOK_TASK_ORDER, order);
-    render({ keepScroll:true });
-  }));
   on('#addBookTask', 'click', ()=>{
     const added = { id:'book-'+Date.now(), group:'must', type:'count', recordStyle:'book',
       name:'読書の きろく', total:10, unit:'さつ', numbered:true,
