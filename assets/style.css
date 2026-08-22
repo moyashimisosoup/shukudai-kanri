@@ -629,23 +629,83 @@ button{ font:inherit; color:inherit; }
 .adult-view .sec-head{ border-radius:var(--r); }
 @media (max-width:400px){ .adult-view .sec-head h2{ font-size:19px; } }
 
-/* 保護者画面だけの、実在する節から作るページ内目次。項目を縦に増やさず、
-   1行を横に送るので、iPhone SE 幅でも画面の大半を取らない。 */
+/* Hallmark · component: in-page navigation · genre: playful · theme: existing app tokens
+ * states: default · hover · focus · active · current · hidden
+ * contrast: pass (46–50) · pre-emit critique: P5 H5 E5 S5 R5 V4
+ */
+/* 保護者画面だけの、実在する節から作るページ内目次。ページ切替タブと
+   取り違えない開閉式にし、閉じた高さを52pxに抑える。 */
 .adult-section-toc{
-  display:flex; gap:6px; overflow-x:auto; overscroll-behavior-inline:contain;
-  margin:0 0 16px; padding:6px; border:var(--line) solid var(--ai);
-  border-radius:var(--r); background:var(--kami); box-shadow:var(--shadow);
-  scrollbar-width:thin;
+  margin:0;
+  border:2px solid var(--hougan); border-radius:var(--r-s);
+  overflow:hidden; background:var(--surface-soft); box-shadow:none;
 }
-.adult-section-toc a{
-  flex:0 0 auto; min-height:38px; display:flex; align-items:center;
-  padding:0 12px; border-radius:var(--r-pill); color:var(--ai);
-  background:var(--ai-usu); font-size:14px; font-weight:900;
-  line-height:1.2; text-decoration:none; white-space:nowrap;
+.adult-section-toc-disclosure > summary{
+  min-height:48px; display:flex; align-items:center; gap:8px;
+  padding:0 12px; color:var(--ai); cursor:pointer; list-style:none;
+  font-size:15px; font-weight:900; line-height:1.25;
+  transition:background-color var(--dur-short) var(--ease-out);
 }
-.adult-section-toc a:hover,.adult-section-toc a:active{ background:var(--ai); color:var(--kami); }
-.adult-section-toc a:focus-visible{ outline:3px solid var(--himawari); outline-offset:2px; }
-.adult-section-toc-target{ scroll-margin-top:88px; }
+.adult-section-toc-disclosure > summary::-webkit-details-marker{ display:none; }
+.adult-section-toc-disclosure > summary small{
+  margin-inline-start:auto; color:var(--ai-usu); font-size:13px;
+  font-weight:700; white-space:nowrap;
+}
+.adult-section-toc-disclosure > summary i{
+  flex:none; width:10px; height:10px; border-inline-end:2px solid currentColor;
+  border-block-end:2px solid currentColor; transform:rotate(45deg) translate(-2px,-2px);
+  transition:transform var(--dur-short) var(--ease-out);
+}
+.adult-section-toc-disclosure[open] > summary i{ transform:rotate(225deg) translate(-1px,-1px); }
+@media (hover:hover) and (pointer:fine){
+  .adult-section-toc-disclosure > summary:hover{ background:var(--sora); }
+}
+.adult-section-toc-disclosure > summary:active{ background:var(--sora); }
+.adult-section-toc-disclosure > summary:focus-visible{ outline:3px solid var(--focus); outline-offset:-3px; }
+.adult-section-toc-links{ background:var(--kami); border-top:2px solid var(--hougan); }
+.adult-section-toc-links a{
+  min-height:44px; display:flex; align-items:center; gap:10px;
+  padding:0 16px; color:var(--ai); background:transparent;
+  border-bottom:1px solid var(--hougan); font-size:14px; font-weight:700;
+  line-height:1.25; text-decoration:none;
+  transition:transform var(--dur-short) var(--ease-out),background-color var(--dur-short) var(--ease-out),border-color var(--dur-short) var(--ease-out);
+}
+.adult-section-toc-links a:last-child{ border-bottom:0; }
+.adult-section-toc-links a::before{
+  content:""; flex:none; width:5px; height:5px; border-radius:var(--r-pill);
+  background:var(--ai-usu);
+}
+@media (hover:hover) and (pointer:fine){
+  .adult-section-toc-links a:hover{ background:var(--surface-soft); }
+}
+.adult-section-toc-links a:active{ background:var(--sora); }
+.adult-section-toc-links a:focus-visible{ outline:3px solid var(--focus); outline-offset:-3px; }
+.adult-section-toc-links a[aria-current="location"]{ font-weight:900; background:var(--sora); box-shadow:inset 4px 0 0 var(--ai); }
+.adult-section-toc-target{ scroll-margin-top:var(--space-md); }
+
+/* 各節の濃色帯に置く「目次へ」。アイコンは小さく、操作面は44pxを守る。
+   帯の高さを押し広げず、入力欄や本文にも重ならない。 */
+.adult-view .sec-head.has-toc-back{ position:relative; padding-inline-end:52px; }
+.adult-view .sec-head.has-help.has-toc-back{ padding-inline-end:96px; }
+.adult-section-back{
+  position:absolute; inset-block-start:50%; inset-inline-end:4px;
+  width:44px; height:44px; display:grid; place-items:center;
+  border:2px solid transparent; border-radius:var(--r-pill);
+  color:var(--on-band-muted); background:transparent; box-shadow:none;
+  font-size:12px; line-height:1; text-decoration:none;
+  transform:translateY(-50%);
+  transition:transform var(--dur-short) var(--ease-out),background-color var(--dur-short) var(--ease-out);
+}
+.adult-view .sec-head.has-help.has-toc-back .adult-section-back{ inset-inline-end:48px; }
+@media (hover:hover) and (pointer:fine){
+  .adult-section-back:hover{ background:var(--on-band-muted); color:var(--ai); }
+}
+.adult-section-back:active{ transform:translateY(calc(-50% + 1px)); }
+.adult-section-back:focus-visible{ outline:3px solid var(--kami); outline-offset:0; }
+@media (prefers-reduced-motion:reduce){
+  .adult-section-toc-disclosure > summary,.adult-section-toc-disclosure > summary i,
+  .adult-section-toc-links a,.adult-section-back{ transition:none; }
+}
 
 /* 宿題の 一覧の 写真を 開く ボタン。**帯（タイトル行）の 日づけの 左**に 置く。
 

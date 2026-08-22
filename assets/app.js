@@ -3701,7 +3701,7 @@ function viewParent(){
       <div class="parent-head-title"><h2>保護者用ページ</h2>${parentShareBadgeHTML()}</div>
     </div>
   </div>
-  <nav class="adult-section-toc" aria-label="このページの目次" hidden></nav>
+  ${adultSectionNavHTML()}
 
   ${sampleResetNoticeHTML()}
 
@@ -5739,7 +5739,10 @@ function render(opts){
   /* 同期の到着などで画面を描き直しても、保護者が入力途中の内容を
      消さない。保存前のメッセージ、サマリー、チェックの状態も含めて
      同じ id の欄へ戻す。 */
-  const formDraft = captureFormDraft();
+  /* 「元に戻す」など、値をプログラムで確定して描き直すときは、直前の
+     入力欄の表示を控えとして上書きしない。とくに select は古い選択が
+     見た目だけ残り、戻せていないように見えてしまう。 */
+  const formDraft = opts && opts.discardFormDraft ? {} : captureFormDraft();
   const openDetails = captureOpenDetails();
 
   const shownTitle = TEST_MODE && (!getLocal(K_ONBOARD) || DEBUG_PARENT) ? 'おためし用の設定' : config.title;
@@ -6178,11 +6181,14 @@ function adultHeadHTML(current, lead, extra){
   ${adultNavHTML(current)}
   <div class="paper parent-head config-head"><div><div class="parent-head-title"><h2>${esc(page.title)}</h2>${extra || ''}</div>${lead ? `<p>${esc(lead)}</p>` : ''}</div>
     ${lead ? '<span class="autosave" aria-live="polite">自動保存</span>' : ''}</div>
-  <nav class="adult-section-toc" aria-label="このページの目次" hidden></nav>`;
+  ${adultSectionNavHTML()}`;
 }
 
 /* 保護者向けの画面では、実際に描かれた節見出しだけを目次にする。
    条件で出たり消えたりする案内や共有欄を、別の一覧として保ち続けないため。 */
+function adultSectionNavHTML(){
+  return `<nav class="adult-section-toc" id="adultPageToc" aria-label="このページの目次" hidden></nav>`;
+}
 function buildAdultSectionToc(){
   const toc = $('.adult-section-toc');
   if(!toc) return;
@@ -6192,10 +6198,34 @@ function buildAdultSectionToc(){
     if(!heading.id) heading.id = 'adult-section-heading-' + (i + 1);
     heading.classList.add('adult-section-toc-target');
   });
-  toc.innerHTML = headings.map(heading =>
-    `<a href="#${esc(heading.id)}">${esc(heading.textContent)}</a>`).join('');
+  toc.innerHTML = `<details class="adult-section-toc-disclosure"><summary><span>このページの目次</span><small>全${headings.length}項目</small><i aria-hidden="true"></i></summary>
+    <div class="adult-section-toc-links">${headings.map(heading =>
+      `<a href="#${esc(heading.id)}">${esc(heading.textContent)}</a>`).join('')}</div></details>`;
   toc.hidden = false;
-  $$('a', toc).forEach(link=>link.addEventListener('click', e=>{
+  const disclosure = $('.adult-section-toc-disclosure', toc);
+  const summary = $('summary', toc);
+  const returnToToc = e=>{
+    e.preventDefault();
+    disclosure.open = true;
+    toc.scrollIntoView({ block:'start' });
+    summary.focus({ preventScroll:true });
+  };
+  /* summary の中へ別のリンクを入れると操作が入れ子になる。大人ページの
+     通常の見出し帯だけに、見た目は小さく操作面は44pxの戻り口を足す。 */
+  headings.forEach(heading=>{
+    const head = heading.parentElement;
+    if(!head || head.tagName === 'SUMMARY') return;
+    head.classList.add('has-toc-back');
+    const back = document.createElement('a');
+    back.className = 'adult-section-back';
+    back.href = '#adultPageToc';
+    back.setAttribute('aria-label', 'このページの目次へ戻る');
+    back.title = '目次へ戻る';
+    back.innerHTML = '<span aria-hidden="true">▲</span>';
+    back.addEventListener('click', returnToToc);
+    head.appendChild(back);
+  });
+  $$('.adult-section-toc-links a', toc).forEach(link=>link.addEventListener('click', e=>{
     const target = document.getElementById(link.getAttribute('href').slice(1));
     if(!target) return;
     /* URL の # は 画面の 切りかえに 使っている。見出しの id を そこへ
@@ -6203,6 +6233,9 @@ function buildAdultSectionToc(){
        落とすので、戻る・再読みこみ・ホーム画面から 開き直すと 保護者が
        子ども画面へ 飛ばされる。だから # は さわらず、動かすだけに する。 */
     e.preventDefault();
+    $$('.adult-section-toc-links a', toc).forEach(a=>a.removeAttribute('aria-current'));
+    link.setAttribute('aria-current', 'location');
+    disclosure.open = false;
     target.scrollIntoView({ block:'start' });
     /* 既定の移動なら 見出しへ 移る 読み上げの 位置を、自分で 移す */
     target.setAttribute('tabindex', '-1');
@@ -7183,11 +7216,11 @@ function bindConfig(){
   };
   on('#cfgChildName', 'change', e=>{
     setConfigChildName(e.target.value);
-    render({ keepScroll:true });
+    render({ keepScroll:true, discardFormDraft:true });
   });
   on('#cfgTitle', 'change', e=>{
     config.title = e.target.value.trim() || defaultTitleFor(config.childName);
-    saveCfg(); render({ keepScroll:true });
+    saveCfg(); render({ keepScroll:true, discardFormDraft:true });
   });
   on('#cfgReadingGrade', 'change', e=>{
     const grade = Number(e.target.value);
@@ -7197,16 +7230,16 @@ function bindConfig(){
     setLocal(K_READING, grade);          // 古い版の端末との つなぎ
     if(typeof setReadingGrade === 'function') setReadingGrade(grade);
     saveCfg();
-    render({ keepScroll:true });
+    render({ keepScroll:true, discardFormDraft:true });
   });
-  on('#cfgStart', 'change', e=>{ config.startAt = e.target.value; saveCfg(); render({ keepScroll:true }); });
-  on('#cfgEnd', 'change',   e=>{ config.endAt   = e.target.value; saveCfg(); render({ keepScroll:true }); });
+  on('#cfgStart', 'change', e=>{ config.startAt = e.target.value; saveCfg(); render({ keepScroll:true, discardFormDraft:true }); });
+  on('#cfgEnd', 'change',   e=>{ config.endAt   = e.target.value; saveCfg(); render({ keepScroll:true, discardFormDraft:true }); });
 
   $$('.theme-choice input[name="theme"]').forEach(input=>input.addEventListener('change', e=>{
     if(!THEME_IDS.includes(e.target.value)) return;
     config.theme = e.target.value;
     saveCfg();
-    render({ keepScroll:true });
+    render({ keepScroll:true, discardFormDraft:true });
   }));
   $$('[data-config-revert]').forEach(button=>button.addEventListener('click', ()=>{
     if(!configBase) return;
@@ -7224,7 +7257,7 @@ function bindConfig(){
       CONFIG_FIELD_KEYS[name].forEach(k=>{ config[k] = deepCopy(snap[k]); });
       saveCfg();
     }
-    render({ keepScroll:true });
+    render({ keepScroll:true, discardFormDraft:true });
   }));
   on('#cfgShowDaily', 'change', e=>{
     config.showDaily = e.target.checked;

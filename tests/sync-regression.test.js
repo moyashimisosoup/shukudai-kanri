@@ -62,9 +62,11 @@ test('保護者ナビは起動URLが残っていても設定ページへ移動�
 test('保護者の3ページだけ、描画済みの節見出しからページ内目次を作る', ()=>{
   const head = grab(APP, 'adultHeadHTML');
   const toc = grab(APP, 'buildAdultSectionToc');
-  assert.match(head, /<nav class="adult-section-toc" aria-label="このページの目次" hidden><\/nav>/,
+  const nav = grab(APP, 'adultSectionNavHTML');
+  assert.match(head, /adultSectionNavHTML\(\)/,
     '見出しの紙の直後に、読み上げで用途が分かるナビを置くこと');
-  assert.match(grab(APP, 'viewParent'), /<nav class="adult-section-toc" aria-label="このページの目次" hidden><\/nav>/);
+  assert.match(nav, /<nav class="adult-section-toc" id="adultPageToc" aria-label="このページの目次"/);
+  assert.match(grab(APP, 'viewParent'), /adultSectionNavHTML\(\)/);
   assert.match(grab(APP, 'viewTasks'), /adultHeadHTML\('tasks',/);
   assert.match(grab(APP, 'viewConfig'), /adultHeadHTML\('config',/);
   assert.match(toc, /\$\$\('\.sec-head > h2', \$\('#view'\)\)/,
@@ -73,12 +75,26 @@ test('保護者の3ページだけ、描画済みの節見出しからページ�
     '節が1つだけなら目次を出さないこと');
   assert.match(toc, /heading\.textContent/,
     '目次の項目名は見出し本文を使うこと');
+  assert.match(toc, /<small>全\$\{headings\.length\}項目<\/small>/,
+    '閉じたままでも節の総数が分かること');
   assert.match(toc, /target\.scrollIntoView\(\{ block:'start' \}\)/,
     'キーボードで選んだリンクも節へ移動できること');
-  assert.match(STYLE, /\.adult-section-toc\{[\s\S]{0,180}overflow-x:auto/,
-    '狭い画面で項目を縦に増やさず横へ送ること');
-  assert.match(STYLE, /\.adult-section-toc-target\{ scroll-margin-top:88px; \}/,
+  assert.match(toc, /<details class="adult-section-toc-disclosure"><summary>/,
+    '目次は既定で閉じ、必要なときだけ開くこと');
+  assert.match(STYLE, /\.adult-section-toc-disclosure > summary\{[\s\S]{0,80}min-height:48px/,
+    '閉じた目次は1行で収まり、行全体を操作面にすること');
+  assert.match(STYLE, /\.adult-section-toc-links a\{[\s\S]{0,80}min-height:44px/,
+    '開いた目次の各リンクは44pxの操作面を持つこと');
+  assert.match(STYLE, /\.adult-section-toc-target\{ scroll-margin-top:var\(--space-md\); \}/,
     '飛び先の見出しを上帯の下に出すこと');
+  assert.match(toc, /back\.setAttribute\('aria-label', 'このページの目次へ戻る'\)/,
+    '各節には意味の分かる名前を持つ目次への戻り口を用意すること');
+  assert.match(STYLE, /\.adult-section-back\{[\s\S]{0,160}width:44px; height:44px/,
+    '戻りの印は小さく見せても44pxの操作面を保つこと');
+  assert.match(toc, /if\(!head \|\| head\.tagName === 'SUMMARY'\) return;/,
+    '開閉見出しの中に別の操作を入れ子にしないこと');
+  assert.match(toc, /const returnToToc = e=>\{[\s\S]{0,180}disclosure\.open = true;[\s\S]{0,100}summary\.focus\(\{ preventScroll:true \}\)/,
+    '戻り口は目次を開き、開閉行へ読み上げ位置を戻すこと');
   assert.doesNotMatch(grab(APP, 'viewHome'), /adult-section-toc/,
     '子ども画面には目次を置かないこと');
   /* URL の # は画面の切りかえに使う。見出しの id をそこへ入れると
@@ -2780,11 +2796,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260822e',
+    'assets/style.css': '20260822f',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822h',
+    'assets/app.js': '20260822j',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
@@ -3725,8 +3741,10 @@ test('アプリの設定でも、開いた時点から変えた値の欄だけ�
   }
   assert.match(cfg, /class="set-changed" aria-label="変更しました">✓<\/em><button class="set-revert" data-config-revert=/,
     '宿題ページと同じ✓・元に戻すの部品を使うこと');
-  assert.match(bind, /\$\$\('\[data-config-revert\]'\)[\s\S]{0,900}saveCfg\(\);[\s\S]{0,120}render\(\{ keepScroll:true \}\);/,
-    '元に戻すも通常の保存経路を通し、共有設定として送れること');
+  assert.match(bind, /\$\$\('\[data-config-revert\]'\)[\s\S]{0,900}saveCfg\(\);[\s\S]{0,120}render\(\{ keepScroll:true, discardFormDraft:true \}\);/,
+    '元に戻すも通常の保存経路を通し、古い入力欄の表示で復元値を上書きしないこと');
+  assert.match(grab(APP, 'render'), /opts && opts\.discardFormDraft \? \{\} : captureFormDraft\(\)/,
+    '復元時だけ入力途中の控えを使わず、設定値から表示し直すこと');
   assert.match(grab(APP, 'render'), /if\(tab !== 'config'\) configBase = null;/,
     '別ページへ出た後は次に開いた時点を新しい戻り先にすること');
 });
