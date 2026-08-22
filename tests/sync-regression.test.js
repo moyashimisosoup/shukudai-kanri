@@ -1202,10 +1202,12 @@ test('音声入力は古い終了イベントに新しい認識を消されず�
   assert.equal(harness.current(), null);
 });
 
-test('読書記録の基本入力はマイクを折り返さず、戻る前に音声入力を止める', ()=>{
+test('読書記録の基本入力は、狭い画面でも本の名前の入力幅を守り、戻る前に音声入力を止める', ()=>{
   const book = grab(APP, 'openBookSheet');
-  assert.match(book, /class="field book-entry-field"[\s\S]{0,500}mic-row/,
-    '本の名前は見出し・入力欄・マイクを同じ行に置くこと');
+  assert.match(book, /class="field book-entry-field book-title-entry"[\s\S]{0,500}mic-row/,
+    '本の名前だけを狭い画面で縦並びに切り替えられること');
+  assert.match(STYLE, /@media \(max-width:560px\)\{\s*\.book-title-entry\{\s*grid-template-columns:minmax\(0,1fr\);[\s\S]{0,180}\.book-title-entry > \.need-msg\{ grid-column:auto; \}/,
+    'iPhone幅では本の名前の札を含む見出しで入力欄を狭めず、必須メッセージも下に置くこと');
   assert.match(book, /class="field book-entry-field"[\s\S]{0,220}id="bkDate"/,
     '読んだ日は見出しと入力欄を同じ行に置くこと');
   assert.match(STYLE, /\.mic-row > input\[type=text\][\s\S]{0,120}flex:1 1 0/,
@@ -1213,6 +1215,42 @@ test('読書記録の基本入力はマイクを折り返さず、戻る前に�
   const close = grab(APP, 'closeSheet');
   assert.ok(close.indexOf('stopSR();') < close.indexOf("$('#sheetWrap').hidden = true"),
     '戻る操作ではシートを隠す前にマイクを止めること');
+});
+
+test('保護者ページから開いた読書記録だけ、大人向けの完了表示にする', ()=>{
+  const open = grab(APP, 'openSheet');
+  const save = grab(APP, 'saveBookSheet');
+  assert.match(grab(APP, 'isAdultTab'), /t === 'settings' \|\| t === 'tasks' \|\| t === 'config'/,
+    '#settings・#tasks・#config だけを保護者ページとして扱うこと');
+  assert.match(open, /sheetAdultOrigin = isAdultTab\(tab\);/,
+    'シートを開いたページで保護者向けかを決め、記録データでは判定しないこと');
+  assert.match(save, /const adultOrigin = sheetAdultOrigin;[\s\S]{0,160}stamp\(adultOrigin \? '修正が完了しました'/,
+    '保護者ページから開いた読書記録には、漢字のまま大人向けの完了表示を出すこと');
+  assert.match(save, /adultOrigin \? '修正が完了しました' : sheetBookId \? wording\('なおしたよ'/,
+    '子ども画面から開いたときは従来の完了表示を使うこと');
+});
+
+test('保護者の読書の記録は畳み、新しい項目を上にして並び順を端末に覚える', ()=>{
+  const order = new Function('getLocal', `
+    const K_BOOK_TASK_ORDER = 'book-order';
+    ${grab(APP, 'bookTaskOrder')}
+    ${grab(APP, 'bookTaskRows')}
+    ${grab(APP, 'bookRecordRows')}
+    return { bookTaskOrder, bookTaskRows, bookRecordRows };
+  `)(key => key === 'book-order' ? '' : '');
+  assert.equal(order.bookTaskOrder(), 'desc', '既定は新しい項目が上の降順にすること');
+  assert.deepEqual(order.bookTaskRows([{i:1},{i:3},{i:2}]).map(row=>row.i), [3,2,1]);
+  assert.deepEqual(order.bookRecordRows([{date:'2026-08-20',nth:1},{date:'2026-08-22',nth:2}]).map(row=>row.nth), [2,1],
+    '新しく記録した本を上に並べること');
+  assert.match(grab(APP, 'bookTaskOrderHTML'), /data-book-task-order="desc"[\s\S]{0,160}data-book-task-order="asc"/,
+    '欄の中で新しい順・古い順を切り替えられること');
+  const view = grab(APP, 'viewTasks');
+  assert.match(view, /const books\s*= bookTaskRows\(rows\.filter\(\(\{t\}\)=>taskKind\(t\)==='book'\)\);/,
+    '読書の記録だけを並び替え、子ども画面の一覧には影響させないこと');
+  assert.match(view, /title:'読書の記録',[\s\S]{0,180}folded:true/,
+    '読書の記録の欄は初期状態で畳むこと');
+  assert.match(grab(APP, 'bindConfig'), /\[data-book-task-order\][\s\S]{0,240}setLocal\(K_BOOK_TASK_ORDER, order\)/,
+    '選んだ昇順・降順を端末内に保存すること');
 });
 
 /* QRで入った端末だけ デザインが 初期値の まま だった。
@@ -2709,11 +2747,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260822b',
+    'assets/style.css': '20260822d',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822c',
+    'assets/app.js': '20260822f',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
@@ -3641,6 +3679,25 @@ test('「元に戻す」ボタンは44pxのタップ領域を持つ', ()=>{
     'ほかの押せるボタンと同じ44pxの当たり判定を確保すること');
 });
 
+test('アプリの設定でも、開いた時点から変えた値の欄だけを元に戻せる', ()=>{
+  const cfg = grab(APP, 'viewConfig');
+  const bind = grab(APP, 'bindConfig');
+
+  assert.match(APP, /const CONFIG_FIELD_KEYS = \{[\s\S]*childName:\['childName'\][\s\S]*readingGrade:\['readingGrade'\][\s\S]*theme:\['theme'\][\s\S]*title:\['title'\][\s\S]*startAt:\['startAt'\][\s\S]*endAt:\['endAt'\]/,
+    '対象となる値を持つ設定欄を、比較対象としてひとまとめにすること');
+  assert.match(cfg, /if\(!configBase\) configBase = deepCopy\(config\);/,
+    'ページを開いた時点の設定を、描き直しをまたいで控えること');
+  for(const name of ['childName', 'readingGrade', 'theme', 'title', 'startAt', 'endAt']){
+    assert.match(cfg, new RegExp("mark\\('" + name + "'\\)"), name + ' の見出しにだけ変更印を置けること');
+  }
+  assert.match(cfg, /class="set-changed" aria-label="変更しました">✓<\/em><button class="set-revert" data-config-revert=/,
+    '宿題ページと同じ✓・元に戻すの部品を使うこと');
+  assert.match(bind, /\$\$\('\[data-config-revert\]'\)[\s\S]{0,900}saveCfg\(\);[\s\S]{0,120}render\(\{ keepScroll:true \}\);/,
+    '元に戻すも通常の保存経路を通し、共有設定として送れること');
+  assert.match(grab(APP, 'render'), /if\(tab !== 'config'\) configBase = null;/,
+    '別ページへ出た後は次に開いた時点を新しい戻り先にすること');
+});
+
 /* 作ったばかりの課題では、名前を入れるのは「変更」ではなく初めて書くこと。
    戻り先が既定の名前（あたらしい しゅくだい）では意味がないので印を出さない。 */
 test('作ったばかりの宿題には、まだ✓と「元に戻す」を出さない', ()=>{
@@ -4050,7 +4107,7 @@ test('大人びた言い方のスタンプは行為をまたいで集約し、�
   assert.match(APP, /stamp\(wording\('かけたね！', 'できた'\)\)/,
     '作文のスタンプも「できた」に集約すること');
   assert.match(APP,
-    /stamp\(sheetBookId \? wording\('なおしたよ', 'なおした'\)\s*\n\s*: \(done \? wording\('ぜんぶ よんだ！', '完了！'\) : wording\('よめたね！', 'できた'\)\)\);/,
+    /stamp\(adultOrigin \? '修正が完了しました' : sheetBookId \? wording\('なおしたよ', 'なおした'\)\s*\n\s*: \(done \? wording\('ぜんぶ よんだ！', '完了！'\) : wording\('よめたね！', 'できた'\)\)\);/,
     '読書は記録・完読を「できた」「完了！」に集約しつつ、訂正だけ「なおした」に分けること');
 });
 

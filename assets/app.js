@@ -82,6 +82,9 @@ const K_KINENBI_VIEWED = TEST_MODE ? 'natsu.preview.kinenbi.viewed.v1' : 'natsu.
    保護者と子どもは別の端末を見ているので、しるしも別にする。 */
 const K_SAMPLE_PARENT = TEST_MODE ? 'natsu.preview.sample.parent.v1' : 'natsu.sample.parent.v1';
 const K_SAMPLE_CHILD  = TEST_MODE ? 'natsu.preview.sample.child.v1'  : 'natsu.sample.child.v1';
+/* 「宿題を決める」の読書項目だけの並び順。課題の設定は共有しても、
+   見やすい順番は端末ごとの好みなので共有データには入れない。 */
+const K_BOOK_TASK_ORDER = TEST_MODE ? 'natsu.preview.book.task.order.v1' : 'natsu.book.task.order.v1';
 /* 保護者ページの共有・ホーム画面追加の案内を、今は使わない人が閉じたしるし。
    端末ごとの選択なので config / state には入れない。共有データを変更すると
    90日の保持期限に影響し、1台で閉じた案内が家族全員から消えてしまう。 */
@@ -160,6 +163,12 @@ const TASK_FIELD_KEYS = {
   questions:['questions'], memoLabel:['memoLabel'], freeHint:['freeHint'], target:['target'],
   targetUnitPreset:['targetUnit'], targetUnitCustom:['targetUnit'],
   recordStyle:['recordStyle','bookFields'], bookFields:['bookFields']
+};
+/* 「アプリの設定」で見せる欄と、設定の中で持つ値の対応。共有する欄も
+   端末だけの欄も、開いたときの控えとこの対応で比べれば同じ作法で戻せる。 */
+const CONFIG_FIELD_KEYS = {
+  childName:['childName'], readingGrade:['readingGrade'], theme:['theme'],
+  title:['title'], startAt:['startAt'], endAt:['endAt']
 };
 /* いま その課題で 画面に出ている欄の 名前一覧。taskEditorRow の
    分岐と そろえてある。「何か所 変えたか」を 数えるときに使う
@@ -260,6 +269,9 @@ let openConfigTaskId = null;
    最初の 変更の 直前の スナップショットを 1課題ぶんだけ 持つ。
    別の課題を いじったら、そちらに 置きかわる（1課題ぶんで 足りる） */
 let configTaskBase = null;
+/* 「アプリの設定」を開いた時点の控え。画面を描き直しても残し、別ページへ
+   出たら render() で手放すので、「元に戻す」はこのページを開いた時点へ戻る。 */
+let configBase = null;
 /* いま 作ったばかりで、まだ 一度も 行を 閉じていない 課題。
    作った 直後の 入力は「変更」ではなく「はじめて 書く」ことなので、
    ✓ と「元に戻す」は 出さない。戻り先が 既定の 名前では 意味がない */
@@ -4562,6 +4574,8 @@ function bookSectionHTML(){
    --------------------------------------------------------- */
 let sheetTask = null, sheetSel = null, sheetSteps = null, sheetWrap = null;
 let sheetRating = 0, sheetBookId = null;
+/* シートを開いた入口。記録データではなく、保存時の案内だけを分ける。 */
+let sheetAdultOrigin = false;
 /* まいにち型を 開いた ときの「きょうの きろく」。減らしたかどうかの 判定に つかう */
 let sheetDailyToday = 0;
 /* 開いたときの 答えと、それが 専用欄に 入っているか。
@@ -4858,6 +4872,7 @@ function openSheet(id, editBookId){
   const t = config.tasks.find(x=>x.id===id);
   if(!t) return;
   sheetTask = t;
+  sheetAdultOrigin = isAdultTab(tab);
   const p = prog(t);
 
   if(isBook(t)){ openBookSheet(t, p, editBookId); return; }
@@ -4981,7 +4996,7 @@ function openBookSheet(t, p, editBookId){
   const body = `
   <p class="book-nth"><strong>${bookOrdinal(nth)}の本</strong></p>
 
-  <div class="field book-entry-field">
+  <div class="field book-entry-field book-title-entry">
     <span class="lab">本の なまえ<span class="need-mark">かならず 入れてね</span></span>
     <div class="mic-row">
       <input type="text" id="bkTitle" value="${val('title')}" placeholder="れい：あばれネコ">
@@ -5218,8 +5233,9 @@ function saveBookSheet(){
   saveSt();
 
   const done = prog(t).isDone;
+  const adultOrigin = sheetAdultOrigin;
   closeSheet();
-  stamp(sheetBookId ? wording('なおしたよ', 'なおした')
+  stamp(adultOrigin ? '修正が完了しました' : sheetBookId ? wording('なおしたよ', 'なおした')
     : (done ? wording('ぜんぶ よんだ！', '完了！') : wording('よめたね！', 'できた')));
   setTimeout(()=> render({ keepScroll:true }), 60);
 }
@@ -5360,6 +5376,7 @@ function closeSheet(){
   document.body.style.overflow = '';
   sheetTask = null; sheetSel = null; sheetSteps = null; sheetWrap = null;
   sheetRating = 0; sheetBookId = null;
+  sheetAdultOrigin = false;
   sheetQBase = null; sheetQStored = null;
   sheetSavedAnswers = [];
   sheetDailyToday = 0;
@@ -5716,6 +5733,7 @@ function render(opts){
   /* 描き直しで入力欄が消える前に、アプリ側・キーボード側の音声入力を止める。 */
   stopSR();
   const keepScroll = !!(opts && opts.keepScroll);
+  if(tab !== 'config') configBase = null;
   const y = scrollBox().scrollTop;
   /* 同期の到着などで画面を描き直しても、保護者が入力途中の内容を
      消さない。保存前のメッセージ、サマリー、チェックの状態も含めて
@@ -5986,6 +6004,34 @@ function taskGroupHTML(rows, empty){
   return rows.length ? rows.map(({t,i})=>taskEditorRow(t,i)).join('') : `<p class="set-empty">${esc(empty)}</p>`;
 }
 
+function bookTaskOrder(){ return getLocal(K_BOOK_TASK_ORDER) === 'asc' ? 'asc' : 'desc'; }
+function bookTaskRows(rows){
+  const order = bookTaskOrder();
+  return rows.slice().sort((a,b)=> order === 'asc' ? a.i - b.i : b.i - a.i);
+}
+function bookRecordRows(rows){
+  const order = bookTaskOrder();
+  const compare = (a,b)=> String(a.date || '').localeCompare(String(b.date || '')) || (a.nth|0) - (b.nth|0);
+  return rows.slice().sort((a,b)=> order === 'asc' ? compare(a,b) : compare(b,a));
+}
+function bookTaskOrderHTML(){
+  const order = bookTaskOrder();
+  return `<div class="book-task-order" aria-label="読書の記録の並び順">
+    <span>並び順</span>
+    <button class="btn btn-sm${order === 'desc' ? ' is-on' : ''}" data-book-task-order="desc" type="button" aria-pressed="${order === 'desc'}">新しい順</button>
+    <button class="btn btn-sm${order === 'asc' ? ' is-on' : ''}" data-book-task-order="asc" type="button" aria-pressed="${order === 'asc'}">古い順</button>
+  </div>`;
+}
+function bookTaskRecordsHTML(){
+  const rows = bookRecordRows(state.books || []);
+  return `<div class="book-task-records">
+    <p class="book-task-records-title">記録した本</p>
+    ${rows.length ? rows.map(b=>`<div class="book-task-record">
+      <span class="book-task-record-title">${esc(b.title)}</span><span class="book-task-record-date">${esc(b.date || '')}</span>
+    </div>`).join('') : '<p class="set-empty">まだ本の記録はありません。</p>'}
+  </div>`;
+}
+
 /* 宿題の欄は4つとも この1つの型で 組む。
    案内（必要な欄だけ）→（毎日の項目だけ スイッチ）→ 一覧 → 追加ボタン、の順。
 
@@ -5995,15 +6041,21 @@ function taskGroupHTML(rows, empty){
    「任意の宿題」に 足されていた。見えている場所と 足される場所が
    ちがうと、どう直せばよいか 画面から 読みとれない。 */
 function taskSectionHTML(o){
-  return `
-  <section class="sec config-sec">
-    <div class="sec-head"><h2>${esc(o.title)}</h2><span class="sec-note">${o.rows.length}件</span></div>
-    <div class="paper task-settings">
+  const body = `
       ${o.head || ''}
       ${o.note ? `<p class="config-section-note">${esc(o.note)}</p>` : ''}
       <div class="task-editor" id="${o.editorId}">${taskGroupHTML(o.rows, o.empty)}</div>
-      <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="${o.addId}" type="button">${icon('plus')}<span>${esc(o.addLabel)}</span></button></div>
-    </div>
+      <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="${o.addId}" type="button">${icon('plus')}<span>${esc(o.addLabel)}</span></button></div>`;
+  const paper = o.folded
+    ? `<details class="paper task-settings task-settings-fold" data-details-key="${esc(o.detailsKey || o.editorId)}">
+        <summary class="task-settings-fold-summary">この欄を開く</summary>
+        <div class="task-settings-fold-body">${body}</div>
+      </details>`
+    : `<div class="paper task-settings">${body}</div>`;
+  return `
+  <section class="sec config-sec">
+    <div class="sec-head"><h2>${esc(o.title)}</h2><span class="sec-note">${o.rows.length}件</span></div>
+    ${paper}
   </section>`;
 }
 
@@ -6134,7 +6186,7 @@ function viewTasks(){
   const rows = config.tasks.map((t,i)=>({t,i}));
   const must   = rows.filter(({t})=>taskKind(t)==='normal' && t.group === 'must');
   const option = rows.filter(({t})=>taskKind(t)==='normal' && t.group !== 'must');
-  const books  = rows.filter(({t})=>taskKind(t)==='book');
+  const books  = bookTaskRows(rows.filter(({t})=>taskKind(t)==='book'));
   const daily  = rows.filter(({t})=>taskKind(t)==='daily');
   /* 「子ども画面に表示する」は 毎日の項目 だけの もの。
      ほかの3つには 対応する 切りかえが 無いので、この欄にだけ 足す */
@@ -6156,7 +6208,8 @@ function viewTasks(){
     empty:'まだ項目はありません。', addId:'addOptionTask', addLabel:'任意の宿題を追加' })}
 
   ${taskSectionHTML({
-    title:'読書の記録', rows:books, editorId:'bookTaskEditor',
+    title:'読書の記録', rows:books, editorId:'bookTaskEditor', head:bookTaskOrderHTML() + bookTaskRecordsHTML(), folded:true,
+    detailsKey:'bookTaskSettings',
     note:'本の名前・読んだ日・一言を1冊ずつ残す読書専用の項目です。',
     empty:'読書の記録を使わないときは、空のままで構いません。', addId:'addBookTask', addLabel:'読書を追加' })}
 
@@ -6169,23 +6222,30 @@ function viewTasks(){
 }
 
 function viewConfig(){
+  if(!configBase) configBase = deepCopy(config);
+  const mark = name => {
+    const changed = CONFIG_FIELD_KEYS[name].some(k =>
+      JSON.stringify(configBase[k]) !== JSON.stringify(config[k])
+    );
+    return changed ? ` <em class="set-changed" aria-label="変更しました">✓</em><button class="set-revert" data-config-revert="${name}" type="button">元に戻す</button>` : '';
+  };
   const openShareSettings = openSyncDetails;
   openSyncDetails = false;
   return `
   ${adultHeadHTML('config', '変更はすぐに保存されます。')}
 
   <section class="sec config-sec"><div class="sec-head"><h2>名前と画面の設定</h2></div><div class="paper">
-    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（任意・グループで共有）</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
-    <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
+    <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（任意・グループで共有）${mark('childName')}</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
+    <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字${mark('readingGrade')}</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
     <p class="set-note">名前と読める漢字は、グループの設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
-    <fieldset class="theme-picker"><legend>色とデザイン（グループで共有）</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
+    <fieldset class="theme-picker"><legend>色とデザイン（グループで共有）${mark('theme')}</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
     <p class="set-note">このページで変更すると、共有中の子ども端末のデザインも変更されます。</p>
   </div></section>
 
   <section class="sec config-sec"><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
-    <div class="set-row"><label class="lab" for="cfgTitle">タイトル</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
-    <div class="set-row"><label class="lab" for="cfgStart">開始日</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
-    <div class="set-row"><label class="lab" for="cfgEnd">終了日</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
+    <div class="set-row"><label class="lab" for="cfgTitle">タイトル${mark('title')}</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
+    <div class="set-row"><label class="lab" for="cfgStart">開始日${mark('startAt')}</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
+    <div class="set-row"><label class="lab" for="cfgEnd">終了日${mark('endAt')}</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
     <p class="set-note">日付はカウントダウンとペースの計算に使います。</p>
   </div></section>
 
@@ -7080,14 +7140,18 @@ function bindConfig(){
     render({ keepScroll:true });
   });
 
-  on('#cfgChildName', 'change', e=>{
-    const name = e.target.value.trim();
+  const setConfigChildName = value=>{
+    const name = String(value || '').trim();
     const oldName = config.childName;
     const titleWasGenerated = isGeneratedTitle(config.title, oldName);
     config.childName = name;
     if(titleWasGenerated) config.title = defaultTitleFor(name);
     setLocal(K_NAME, name);
     saveCfg();
+  };
+  on('#cfgChildName', 'change', e=>{
+    setConfigChildName(e.target.value);
+    render({ keepScroll:true });
   });
   on('#cfgTitle', 'change', e=>{
     config.title = e.target.value.trim() || defaultTitleFor(config.childName);
@@ -7103,13 +7167,32 @@ function bindConfig(){
     saveCfg();
     render({ keepScroll:true });
   });
-  on('#cfgStart', 'change', e=>{ config.startAt = e.target.value; saveCfg(); });
-  on('#cfgEnd', 'change',   e=>{ config.endAt   = e.target.value; saveCfg(); });
+  on('#cfgStart', 'change', e=>{ config.startAt = e.target.value; saveCfg(); render({ keepScroll:true }); });
+  on('#cfgEnd', 'change',   e=>{ config.endAt   = e.target.value; saveCfg(); render({ keepScroll:true }); });
 
   $$('.theme-choice input[name="theme"]').forEach(input=>input.addEventListener('change', e=>{
     if(!THEME_IDS.includes(e.target.value)) return;
     config.theme = e.target.value;
     saveCfg();
+    render({ keepScroll:true });
+  }));
+  $$('[data-config-revert]').forEach(button=>button.addEventListener('click', ()=>{
+    if(!configBase) return;
+    const name = button.dataset.configRevert;
+    if(!CONFIG_FIELD_KEYS[name]) return;
+    const snap = configBase;
+    if(name === 'childName') setConfigChildName(snap.childName);
+    else if(name === 'readingGrade'){
+      const grade = Number(snap.readingGrade);
+      config.readingGrade = grade;
+      setLocal(K_READING, grade);
+      if(typeof setReadingGrade === 'function') setReadingGrade(grade);
+      saveCfg();
+    }else{
+      CONFIG_FIELD_KEYS[name].forEach(k=>{ config[k] = deepCopy(snap[k]); });
+      saveCfg();
+    }
+    render({ keepScroll:true });
   }));
   on('#cfgShowDaily', 'change', e=>{
     config.showDaily = e.target.checked;
@@ -7293,6 +7376,12 @@ function bindConfig(){
   }
   on('#addMustTask',   'click', ()=>addNormalTask('must'));
   on('#addOptionTask', 'click', ()=>addNormalTask('option'));
+  $$('[data-book-task-order]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const order = btn.dataset.bookTaskOrder;
+    if(order !== 'asc' && order !== 'desc') return;
+    setLocal(K_BOOK_TASK_ORDER, order);
+    render({ keepScroll:true });
+  }));
   on('#addBookTask', 'click', ()=>{
     const added = { id:'book-'+Date.now(), group:'must', type:'count', recordStyle:'book',
       name:'読書の きろく', total:10, unit:'さつ', numbered:true,

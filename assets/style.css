@@ -1152,8 +1152,22 @@ button{ font:inherit; color:inherit; }
 /* 宿題の4つの欄は、同じ紙の中に 案内・一覧・追加ボタンを まとめる。
    角を丸めた紙から 中身がはみ出さないように clip する */
 .task-settings{ overflow:clip; }
+.task-settings-fold-summary{
+  display:block; padding:16px; cursor:pointer; font-size:16px; font-weight:900;
+  background:var(--surface-soft);
+}
+.task-settings-fold-summary::marker{ color:var(--ai); }
+.task-settings-fold[open] > .task-settings-fold-summary{ border-bottom:2px dashed var(--hougan); }
+.book-task-order{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:14px 16px; }
+.book-task-order > span{ font-size:15px; font-weight:900; margin-right:2px; }
+.book-task-order .is-on{ background:var(--ai); color:var(--kami); }
+.book-task-records{ border-bottom:2px dashed var(--hougan); }
+.book-task-records-title{ margin:0; padding:12px 16px 4px; font-size:15px; font-weight:900; color:var(--ai-usu); }
+.book-task-record{ display:flex; justify-content:space-between; gap:12px; padding:8px 16px; font-size:15px; font-weight:700; }
+.book-task-record-title{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.book-task-record-date{ flex:none; color:var(--ai-usu); font-variant-numeric:tabular-nums; }
 /* 追加ボタンは その欄の 末尾。上の一覧と 地続きに 見えないよう 線で 区切る */
-.task-settings > .set-actions{ border-top:2px dashed var(--hougan); }
+.task-settings > .set-actions, .task-settings-fold-body > .set-actions{ border-top:2px dashed var(--hougan); }
 .daily-switch{
   display:flex; gap:12px; align-items:flex-start; padding:16px;
   background:var(--asagao-usu); border-bottom:2px dashed var(--asagao); cursor:pointer;
@@ -1523,6 +1537,16 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .book-entry-field > .lab{ margin-top:13px; }
 .book-entry-field > .mic-row{ min-width:0; }
 .book-entry-field > .need-msg{ grid-column:2; margin-top:0; }
+/* 本の名前は必須の札まで見出しに入るため、狭い画面では
+   さくしゃと同じく見出しの下へ入力欄とマイクを並べる。 */
+@media (max-width:560px){
+  .book-title-entry{
+    grid-template-columns:minmax(0,1fr);
+    row-gap:0;
+  }
+  .book-title-entry > .lab{ margin-top:0; }
+  .book-title-entry > .need-msg{ grid-column:auto; }
+}
 
 /* まいにちアプリの入力 */
 .tally{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
