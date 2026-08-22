@@ -4119,6 +4119,15 @@ test('使い方ページの目次は、枝ごとにまとめて出す', ()=>{
     '各項目へ枝の横罫を出すこと');
   assert.match(DOCS_STYLE, /\.guide-menu__list a \{[^}]*flex-wrap: wrap/,
     '題名と手がかりを1行に詰め、狭いときだけ折り返すこと');
+
+  /* 狭い画面では 手がかり文が どうしても 2行目へ 回り、11項目ぶんで
+     元の カードと ほぼ 同じ 高さに なる（実測 1309px / 元 1286px）。
+     題名だけに すると 861px。枝の 名前が 手がかりの 代わりを する。 */
+  assert.match(DOCS_STYLE, /\.guide-menu__list span \{[^}]*display: none/,
+    '狭い画面では題名だけを並べること');
+  assert.match(DOCS_STYLE,
+    /@media \(min-width: 48rem\) \{[\s\S]*?\.guide-menu__list span \{[^}]*display: block/,
+    '広い画面でだけ手がかりを添えること');
 });
 
 /* 写真の 説明は アプリ内の 使い方ウインドウが 持っている。

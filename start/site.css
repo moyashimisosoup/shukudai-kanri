@@ -1704,7 +1704,11 @@ blockquote {
   line-height: 1.5;
 }
 
+/* 手がかり文は 狭い画面で 出さない。11項目を 2行ずつ ならべると、
+   枝で まとめた ぶんが 打ち消され、元の カードと ほぼ 同じ 高さに なる。
+   目次は 読む ものでは なく 飛ぶ もの。狭い ほうを 題名だけに する。 */
 .guide-legacy .guide-menu__list span {
+  display: none;
   color: var(--color-ink-soft);
   font-size: var(--text-sm);
   line-height: 1.6;
@@ -1721,6 +1725,10 @@ html:has(body.guide-legacy) {
 @media (min-width: 48rem) {
   .guide-legacy .guide-menu__tree {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .guide-legacy .guide-menu__list span {
+    display: block;
   }
 }
 
