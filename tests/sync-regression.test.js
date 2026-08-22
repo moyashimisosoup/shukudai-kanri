@@ -75,6 +75,18 @@ test('保護者の3ページだけ、描画済みの節見出しからページ�
     '節が1つだけなら目次を出さないこと');
   assert.match(toc, /heading\.textContent/,
     '目次の項目名は見出し本文を使うこと');
+  assert.match(toc, /section\.dataset\.adultSectionHelp/,
+    '各項目の説明は実際に描画した節から取得すること');
+  assert.match(toc, /button\.setAttribute\('aria-label', heading\.textContent \+ 'の説明を見る'\)/);
+  assert.match(toc, /button\.setAttribute\('aria-haspopup', 'dialog'\)/);
+  assert.match(toc, /button\.setAttribute\('aria-controls', 'adultSectionHelpDialog'\)/);
+  assert.match(INDEX, /id="adultSectionHelpDialog"[\s\S]{0,180}aria-labelledby="adultSectionHelpTitle" aria-describedby="adultSectionHelpBody"/,
+    '共通ダイアログは見出しと本文による名前を持つこと');
+  const openHelp = grab(APP, 'openAdultSectionHelp');
+  assert.match(openHelp, /title\.textContent = button\.dataset\.sectionTitle/);
+  assert.match(openHelp, /body\.textContent = button\.dataset\.sectionHelp/);
+  assert.match(openHelp, /dialog\.showModal\(\)/,
+    '説明は別ウィンドウとして開くこと');
   assert.match(toc, /<small>全\$\{headings\.length\}項目<\/small>/,
     '閉じたままでも節の総数が分かること');
   assert.match(toc, /target\.scrollIntoView\(\{ block:'start' \}\)/,
@@ -95,8 +107,10 @@ test('保護者の3ページだけ、描画済みの節見出しからページ�
     '開閉見出しの中に別の操作を入れ子にしないこと');
   assert.match(toc, /classList\.contains\('paper'\)/,
     '目次への戻り口は見出し帯ではなく内容の紙に置くこと');
-  assert.match(toc, /back\.hidden = true/,
-    '戻り口は目次から移動した節だけに出すこと');
+  assert.doesNotMatch(toc, /back\.hidden|actions\.hidden|hideSectionBacks/,
+    '戻り口は常時表示し、移動のたびに紙の高さを変えないこと');
+  assert.match(STYLE, /\.adult-section-tools\{[\s\S]{0,180}border:0; background:transparent/,
+    '戻り口の行に背景や区切り線を付けず、紙の角丸を乱さないこと');
   assert.doesNotMatch(toc, /head\.classList\.add\('has-toc-back'\)/,
     '長い見出しの可読幅を戻り口で削らないこと');
   assert.match(toc, /const returnToToc = e=>\{[\s\S]{0,180}disclosure\.open = true;[\s\S]{0,100}summary\.focus\(\{ preventScroll:true \}\)/,
@@ -468,8 +482,13 @@ test('毎日の項目は6回以上を任意入力でき、0〜5の選択もそ�
   assert.match(APP, /DEBUG_WELCOME_ROLE === 'welcome-parent'/,
     '初期設定の確認用URLを保護者用・子ども用に分けること');
   const tasks = grab(APP, 'viewTasks');
-  assert.match(tasks, /学習アプリ・音読・おてつだい・日記やメモなどに使えます。/,
-    '毎日の項目の説明は表示切替の下で、用途を具体的に案内する');
+  assert.match(tasks, /note:'子ども画面の「まいにち」[\s\S]{0,120}学習アプリ・音読・お手伝い・日記やメモなどに使えます。/,
+    '毎日の項目の用途は見出しの i から開く説明に置く');
+  assert.match(tasks, /daily-switch daily-switch--standalone[\s\S]{0,180}<strong>子ども画面に表示する<\/strong>/);
+  assert.doesNotMatch(tasks, /daily-switch daily-switch--standalone[\s\S]{0,240}<small>/,
+    '毎日の操作行にはチェックボックスとラベル以外を置かない');
+  assert.match(tasks, /title:'任意の宿題'[\s\S]{0,180}note:'子ども画面の「つぎに やる」に出ます。/,
+    '任意の宿題は子ども画面のどこに出るかを案内する');
   assert.doesNotMatch(tasks, /毎日くりかえす項目です。上へ・下へで順番を変更できます。/,
     '毎日の項目では下段の重複した説明を出さない');
 });
@@ -686,7 +705,7 @@ test('メッセージと注意事項のUIは狭幅・横幅の役割を分ける
     '閲覧と端末内利用を90日の対象から区別すること');
   assert.match(STYLE, /\.set-note\.retention-note\{[\s\S]{0,100}font-size:12px/,
     '登録画面を圧迫しない小さな注記にすること');
-  assert.match(APP, /id="logCareSection"[\s\S]{0,160}class="paper log-care-paper"/,
+  assert.match(APP, /id="logCareSection"[\s\S]{0,420}class="paper log-care-paper"/,
     '記録の手入れの内側だけに、ほかの設定枠と同じ余白を設けること');
 });
 
@@ -715,7 +734,7 @@ test('注記からの案内は、設定ページの該当箇所まで寄せる',
   assert.match(jump, /pendingJump = ''/, '飛んだら予約を消すこと');
 
   /* すでに有効なら、その案内は出さない */
-  const note = APP.slice(APP.indexOf('parent-log-help'), APP.indexOf('parent-log-help') + 300);
+  const note = grab(APP, 'parentTodayLogsHTML');
   assert.match(note, /config\.allowLogDelete \? ''/, '有効なときは案内を出さないこと');
 });
 
@@ -1558,7 +1577,8 @@ test('保護者ページは未共有の入口と子ども画面の修正方法�
   assert.match(badge, /共有なし/);
   assert.match(badge, /共有の設定はこちら/);
   assert.match(APP, /<h2>保護者の方へ<\/h2>[\s\S]*子ども画面で該当する項目を開いて行います/);
-  assert.match(APP, /このページで変更すると、共有中の子ども端末のデザインも変更/);
+  assert.match(grab(APP, 'viewConfig'), /adultSectionHelpAttr\([\s\S]{0,180}変更は共有中の子ども端末にも反映されます/,
+    '子ども画面への反映範囲は見出しの i で案内する');
 });
 
 test('今日の記録は保護者が入れたぶんだけ印を付け、子どもの記録には付けない', ()=>{
@@ -2129,9 +2149,11 @@ test('ミニコンテンツは低学年設定でも漢字とルビを保つ', ()
 
 test('ホーム画面追加の案内は、どちらの画面が開くかを書く', ()=>{
   const f = grab(APP, 'homeInstallGuideHTML');
-  assert.match(f, /保護者の端末<\/b>」を選んでいれば/);
-  assert.match(f, /この保護者ページが開きます/);
-  assert.match(f, /選んでいないときは子ども画面が開きます/);
+  assert.match(f, /adultSectionHelpAttr\(/);
+  assert.match(f, /保護者の端末に設定していれば保護者ページ/);
+  assert.match(f, /設定していなければ子ども画面から開きます/);
+  assert.doesNotMatch(f, /<p class="set-note">いつも使う端末/,
+    '平常画面には説明を残さない');
 });
 
 /* 保護者ページと子ども画面で、同じものが違う色で出ていた。
@@ -2390,7 +2412,7 @@ test('宿題の4つの欄は、同じ骨組みで組む', ()=>{
     '欄ごとに紙を手で組まないこと');
 
   /* 追加ボタンは 紙の中の 末尾。どの欄に足されるかを 居場所で示す */
-  const order = ['o.head', 'config-section-note', 'task-editor', 'set-actions'];
+  const order = ['adultSectionHelpAttr(o.note)', 'o.head', 'task-editor', 'set-actions'];
   let at = -1;
   for(const part of order){
     const next = sec.indexOf(part);
@@ -2610,7 +2632,9 @@ test('保護者ページは縦の余白を節約する表示になっている',
     '上部帯と同じタイトルを保護者見出しの下へ重ねて表示しない');
   assert.doesNotMatch(messageEditor, /その名前のメッセージ/,
     'メッセージ欄の説明を簡潔にする');
-  assert.match(messageEditor, /同じ名前で送ると、メッセージを上書きします。/);
+  assert.match(messageEditor, /adultSectionHelpAttr\([\s\S]{0,220}同じ名前で送ると前の文を更新します。/);
+  assert.doesNotMatch(messageEditor, /parent-message-help/,
+    'メッセージ欄の説明を紙の中に重ねない');
   assert.ok(settings.indexOf('<section class="paper pstat">') < settings.indexOf('${parentMessageEditorHTML()}'),
     '夏休みの残りを子どもへのメッセージより先に置く');
   assert.match(credit, /<br><span class="credit-part"><a /,
@@ -2816,11 +2840,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260822h',
+    'assets/style.css': '20260822m',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822l',
+    'assets/app.js': '20260822p',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
@@ -4785,16 +4809,18 @@ test('保護者ページの写真は、ます目で見せて縦を使いすぎ�
     assert.doesNotMatch(html, /預かり箱/, '利用者が知らなくてよい仕組みの名前を出さないこと');
   }
 
-  /* 「共有されるのか」「いつ届くのか」だけを言う */
-  assert.match(away, /共有しているほかの端末へ自動で届きます/);
+  /* 共有の説明も平常画面から外し、写真専用の i に集める */
+  assert.doesNotMatch(away, /共有しているほかの端末へ自動で届きます/);
   const solo = posterPanelHarness(['a', '', '', ''], [1, 0, 0, 0], false);
-  assert.match(solo, /共有を使っていないため、この端末の中だけで使います/);
+  assert.doesNotMatch(solo, /共有を使っていないため、この端末の中だけで使います/);
+  const photoHelp = INDEX.slice(INDEX.indexOf('id="posterHelpDialog"'), INDEX.indexOf('id="posterDialog"'));
+  assert.match(photoHelp, /共有していれば、ほかの端末へ自動で渡ります/,
+    '共有中の動きは写真の説明ダイアログで案内する');
 
-  /* 見出し帯は題名専用。ヘルプは内容の紙の末尾に置く */
-  assert.match(full, /<div class="sec-head"><h2>宿題の一覧の写真<\/h2><\/div><div class="paper">/);
-  assert.match(full, /<div class="adult-section-tools">[\s\S]{0,240}id="posterHelp"/);
-  assert.doesNotMatch(full, /sec-head has-help/,
-    'ヘルプで見出しの可読幅を削らないこと');
+  /* 写真だけの補足は見出し行の白い i から開く。戻り口とは役割を分ける */
+  assert.match(full, /<div class="sec-head has-help"><h2>宿題の一覧の写真<\/h2>[\s\S]{0,260}id="posterHelp"[\s\S]{0,320}<\/div><div class="paper">/);
+  assert.doesNotMatch(full, /<div class="adult-section-tools">[\s\S]{0,240}id="posterHelp"/,
+    'ヘルプを紙の末尾の戻り口と混在させないこと');
 });
 
 /* 子ども画面の見え方も、実際に組み立てて見る。1枚のときに「1まいめ」が
@@ -5186,13 +5212,15 @@ test('受け取りは、足りないぶんを一度にまとめて扱う', ()=>{
    ここへ 寄せる（欄の 縦を 短く 保つため）。 */
 test('一覧の写真の使い方は、丸数字と図と保存場所で伝える', ()=>{
   assert.match(grab(APP, 'posterSectionHTML'),
-    /<button class="adult-section-tool adult-section-help" id="posterHelp"[\s\S]{0,180}aria-label="宿題の一覧の写真の使い方"><span class="adult-section-info-icon" aria-hidden="true">i<\/span>/,
-    'ヘルプは「?」ではなく、円内の i で示すこと');
+    /<button class="adult-section-head-help" id="posterHelp"[\s\S]{0,280}aria-label="宿題の一覧の写真の使い方"[\s\S]{0,180}<span class="adult-section-head-info" aria-hidden="true">i<\/span>/,
+    'ヘルプはタイトル行の白い円内の i で示すこと');
+  assert.match(STYLE, /\.adult-section-head-info\{[\s\S]{0,180}color:var\(--ai\); background:var\(--kami\)/,
+    'i は濃い帯の上で白い塗りつぶし円として見せること');
   /* **押したら 開くこと。** 欄を 整理したときに 開く側の束ねだけが消え、
      形は正しいのに 押しても開かない、という状態を実機で踏んだ。
      「関数が正しい」と「関数が呼ばれる」は別。開閉と中身は同じ場所にまとめる。 */
   assert.match(APP, /if\(e\.target\.closest\('#posterHelp'\)\)\{[\s\S]{0,200}showModal/,
-    '「?」から開く道を、開閉と同じ場所に置くこと');
+    '「i」から開く道を、開閉と同じ場所に置くこと');
   assert.match(APP, /if\(e\.target\.closest\('#posterHelpClose'\)\)\{/);
   const help = INDEX.slice(INDEX.indexOf('id="posterHelpDialog"'), INDEX.indexOf('id="posterDialog"'));
   const nums = help.match(/class="poster-step-num" aria-hidden="true">(\d)</g) || [];
@@ -5258,8 +5286,9 @@ test('一覧の写真の使い方は、丸数字と図と保存場所で伝え�
   assert.doesNotMatch(help, /長い辺を小さくして保存するので/, '仕組みの説明は書かない');
   /* 子どもがどこから見るのかを、保護者ページにも一言。**どのアイコンかを
      字だけで言わない。**帯の入口と同じ印を文の中に置く */
-  assert.match(grab(APP, 'posterSectionHTML'),
-    /子ども画面の帯の<span class="poster-lab-ico" aria-hidden="true"><\/span>アイコンから見られます/);
+  assert.doesNotMatch(grab(APP, 'posterSectionHTML'),
+    /子ども画面の帯の<span class="poster-lab-ico" aria-hidden="true"><\/span>アイコンから見られます/,
+    '子ども画面から見る方法も平常画面に重ねない');
   /* 「ボタンの名前」だけでは、どのボタンのことか字から分からない。
      帯の入口と同じ印を、名前の欄の前に出す。 */
   assert.match(grab(APP, 'posterSectionHTML'),

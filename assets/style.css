@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /* Hallmark · macrostructure: Branching Workbench · genre: playful · tone: Japanese study notebook · anchor: indigo · designed-as-app */
-/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V4 · contrast: pass (40–41) · responsive: pass (34,49–57) */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 · contrast: pass (40–41) · responsive: pass (34,49–57) · icons: pass (30) · slop: pass */
 /* =========================================================
    はじめ夏休みの宿題一覧
    ジャポニカ学習帳 × ラジオ体操カード
@@ -624,14 +624,16 @@ button{ font:inherit; color:inherit; }
    なるため、まん丸だと 端の 字が 曲面に かかる） */
 .adult-view .sec-head h2{
   flex:1 1 auto; min-width:0;
-  white-space:normal; overflow:visible; text-overflow:clip;
+  white-space:normal; overflow:visible; overflow-wrap:anywhere; text-overflow:clip;
 }
 .adult-view .sec-head{ border-radius:var(--r); }
 @media (max-width:400px){ .adult-view .sec-head h2{ font-size:19px; } }
+@media (max-width:340px){ .adult-view .sec-head.has-help h2{ font-size:17px; } }
 
-/* Hallmark · component: in-page navigation + section utilities · genre: playful · theme: existing app tokens
- * states: default · hover · focus · active · disabled · loading · error · success · current · hidden
- * contrast: pass (40–41) · mobile: pass (34, 49, 50–57) · pre-emit critique: P5 H5 E5 S5 R5 V5
+/* Hallmark · component: in-page navigation + section help · macrostructure: collapsible TOC + paper-end return · genre: playful · theme: existing app tokens
+ * states: default · hover · focus · active · disabled · loading · error · success · current
+ * contrast: pass (40–41) · mobile: pass (34, 49, 50–57) · icons: pass (30)
+ * pre-emit critique: P5 H5 E5 S5 R5 V5
  */
 /* 保護者画面だけの、実在する節から作るページ内目次。ページ切替タブと
    取り違えない開閉式にし、閉じた高さを52pxに抑える。 */
@@ -683,13 +685,12 @@ button{ font:inherit; color:inherit; }
 .adult-section-toc-links a[aria-current="location"]{ font-weight:900; background:var(--sora); box-shadow:inset 4px 0 0 var(--ai); }
 .adult-section-toc-target{ scroll-margin-top:var(--space-md); }
 
-/* 見出し帯は題名専用に戻す。目次とヘルプは内容の紙の末尾に
-   静かな補助操作としてまとめ、見た目より広い44pxの操作面を保つ。 */
+/* 戻り口は紙の末尾に常設する。背景と区切り線を持たせず、紙の角丸を
+   別の面で覆わない。小さな印でも44pxの操作面は保つ。 */
 .adult-section-tools{
-  min-height:44px; display:flex; justify-content:flex-end; align-items:center; gap:2px;
-  padding-inline:6px; border-top:1px dashed var(--hougan); background:var(--surface-soft);
+  min-height:44px; display:flex; justify-content:flex-end; align-items:center;
+  padding-inline:var(--space-2xs); border:0; background:transparent;
 }
-.adult-section-tools[hidden],.adult-section-tool[hidden]{ display:none; }
 .adult-section-tool{
   width:44px; height:44px; display:grid; place-items:center; flex:none;
   padding:0; border:0; border-radius:var(--r-pill); color:var(--ai);
@@ -698,14 +699,23 @@ button{ font:inherit; color:inherit; }
   transition:transform var(--dur-short) var(--ease-out),background-color var(--dur-short) var(--ease-out),color var(--dur-short) var(--ease-out);
 }
 .adult-section-back span{ font-size:12px; }
-.adult-section-info-icon{
+.sec-head.has-help{ position:relative; padding-inline-end:calc(44px + var(--space-xs)); }
+.adult-section-head-help{
+  position:absolute; inset-inline-end:var(--space-2xs); inset-block-start:50%;
+  width:44px; height:44px; display:grid; place-items:center;
+  padding:0; border:0; border-radius:var(--r-pill); color:var(--ai);
+  background:transparent; box-shadow:none; cursor:pointer; font:inherit;
+  transform:translateY(-50%);
+  transition:transform var(--dur-short) var(--ease-out),background-color var(--dur-short) var(--ease-out);
+}
+.adult-section-head-info{
   width:19px; height:19px; display:grid; place-items:center;
-  border-radius:var(--r-pill); color:var(--kami); background:var(--ai);
+  border-radius:var(--r-pill); color:var(--ai); background:var(--kami);
   font-family:var(--font-num); font-size:13px; font-weight:900; line-height:1;
 }
 @media (hover:hover) and (pointer:fine){
   .adult-section-tool:hover{ background:var(--sora); color:var(--ai); }
-  .adult-section-tool:hover .adult-section-info-icon{ background:var(--ai); }
+  .adult-section-head-help:hover{ background:var(--on-band-muted); }
 }
 .adult-section-tool:active{ transform:translateY(1px); }
 .adult-section-tool:focus-visible{ outline:3px solid var(--focus); outline-offset:-3px; }
@@ -713,9 +723,20 @@ button{ font:inherit; color:inherit; }
 .adult-section-tool[aria-busy="true"]{ cursor:progress; }
 .adult-section-tool.is-error{ color:var(--suika); }
 .adult-section-tool.is-success{ color:var(--wakaba); }
+.adult-section-head-help:active{ transform:translateY(calc(-50% + 1px)); }
+.adult-section-head-help:focus-visible{ outline:3px solid var(--kami); outline-offset:-3px; }
+.adult-section-head-help:disabled,.adult-section-head-help[aria-disabled="true"]{ opacity:.45; cursor:not-allowed; }
+.adult-section-head-help[aria-busy="true"]{ cursor:progress; }
+.adult-section-head-help.is-error .adult-section-head-info{ color:var(--suika); }
+.adult-section-head-help.is-success .adult-section-head-info{ color:var(--wakaba); }
+.poster-dialog.poster-help.adult-section-help-dialog{ width:min(94vw, 480px); }
+.adult-section-help-copy{
+  margin:0; padding:var(--space-xs) var(--space-2xs) var(--space-sm);
+  color:var(--ai); font-size:16px; font-weight:700; line-height:1.75;
+}
 @media (prefers-reduced-motion:reduce){
   .adult-section-toc-disclosure > summary,.adult-section-toc-disclosure > summary i,
-  .adult-section-toc-links a,.adult-section-tool{ transition:none; }
+  .adult-section-toc-links a,.adult-section-tool,.adult-section-head-help{ transition:none; }
 }
 
 /* 宿題の 一覧の 写真を 開く ボタン。**帯（タイトル行）の 日づけの 左**に 置く。
@@ -1139,12 +1160,6 @@ button{ font:inherit; color:inherit; }
   background:var(--wakaba-usu); border:2px solid var(--wakaba);
   border-radius:var(--r-pill); padding:4px 10px; white-space:nowrap;
 }
-.config-section-note{
-  margin:0; padding:14px 16px;
-  color:var(--ai-usu); background:var(--asagao-usu);
-  border-bottom:2px dashed var(--asagao);
-  font-size:15px; font-weight:700; line-height:1.65;
-}
 .task-editor{ overflow:clip; }
 .set-task{ display:block; padding:0; border-bottom:2px dashed var(--hougan); }
 .set-task:last-child{ border-bottom:none; }
@@ -1223,6 +1238,24 @@ button{ font:inherit; color:inherit; }
 .daily-switch span{ display:grid; gap:2px; }
 .daily-switch strong{ font-size:17px; }
 .daily-switch small{ color:var(--ai-usu); font-size:14px; font-weight:700; line-height:1.5; }
+.daily-switch--standalone{
+  min-height:56px; align-items:center; padding:var(--space-sm) var(--space-md);
+  background:var(--surface-soft); border-bottom:2px dashed var(--hougan);
+  color:var(--ai);
+  transition:background-color var(--dur-short) var(--ease-out);
+}
+.daily-switch--standalone input{ margin:0; accent-color:var(--ai); }
+.daily-switch--standalone strong{ line-height:1.4; }
+@media (hover:hover) and (pointer:fine){
+  .daily-switch--standalone:hover{ background:var(--sora); }
+}
+.daily-switch--standalone:active{ background:var(--sora); }
+.daily-switch--standalone:has(input:focus-visible){ outline:3px solid var(--focus); outline-offset:-3px; }
+.daily-switch--standalone:has(input:disabled),.daily-switch--standalone[aria-disabled="true"]{ opacity:.45; cursor:not-allowed; }
+.daily-switch--standalone[aria-busy="true"]{ cursor:progress; }
+.daily-switch--standalone.is-error{ color:var(--suika); }
+.daily-switch--standalone.is-success{ color:var(--wakaba); }
+@media (prefers-reduced-motion:reduce){ .daily-switch--standalone{ transition:none; } }
 .set-advanced{ overflow:clip; }
 .set-advanced > summary{ cursor:pointer; padding:16px; font-weight:900; list-style-position:inside; }
 .set-advanced-body{ border-top:2px dashed var(--hougan); }
@@ -2166,7 +2199,6 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   box-sizing:border-box; padding:9px 11px; font-size:17px; resize:vertical; line-height:1.45; overflow-y:auto;
 }
 .parent-message-send{ min-height:48px; align-self:end; white-space:nowrap; }
-.parent-message-help{ margin-bottom:0; }
 .parent-message-toggle{
   display:flex;
   align-items:center;

@@ -24,7 +24,7 @@
 <!-- Webフォントの通信で初期描画を止めない。読み込み中は端末内の丸ゴシックを使う -->
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/style.css?v=20260822h">
+<link rel="stylesheet" href="assets/style.css?v=20260822m">
 <link rel="stylesheet" href="tokens.css?v=20260813a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
 </head>
@@ -65,7 +65,17 @@
   <button class="btn btn-go kinenbi-close" id="kinenbiClose" type="button">とじる</button>
 </dialog>
 
-<!-- 宿題の一覧の写真の使い方。保護者ページの「?」からだけ開く小さな案内。
+<!-- 保護者ページの各項目の説明。見出し右端の i から共通して開く -->
+<dialog class="poster-dialog poster-help adult-section-help-dialog" id="adultSectionHelpDialog"
+        aria-labelledby="adultSectionHelpTitle" aria-describedby="adultSectionHelpBody">
+  <div class="poster-head">
+    <h2 id="adultSectionHelpTitle"></h2>
+    <button class="btn btn-sm poster-close" id="adultSectionHelpClose" type="button">とじる</button>
+  </div>
+  <p class="adult-section-help-copy" id="adultSectionHelpBody"></p>
+</dialog>
+
+<!-- 宿題の一覧の写真の使い方。保護者ページの「i」からだけ開く小さな案内。
      画面には操作だけを置き、説明はここへ寄せる（欄の縦を短く保つため） -->
 <dialog class="poster-dialog poster-help" id="posterHelpDialog" aria-labelledby="posterHelpTitle">
   <div class="poster-head">
@@ -249,7 +259,7 @@ window.natsuBootProgress = function(value, label){
 <script>window.natsuBootProgress(88, 'この端末の記録を読み込んでいます');</script>
 <!-- 写真の置き場（端末ごと）。読めなくてもアプリはそのまま動く -->
 <script src="assets/photos.js?v=20260821a"></script>
-<script src="assets/app.js?v=20260822l"></script>
+<script src="assets/app.js?v=20260822p"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
 <script type="module" src="assets/sync.js?v=20260821c"></script>

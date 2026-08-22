@@ -747,11 +747,10 @@ function homeInstallGuideHTML(){
         ? 'ブラウザのアドレス欄にあるインストールの印、またはメニューから「インストール」／「アプリとしてインストール」を選びます。'
         : 'お使いのブラウザのメニューから「ホーム画面に追加」または「インストール」を選びます。';
   return `
-  <section class="sec home-install">
+  <section class="sec home-install"${adultSectionHelpAttr(
+    'ホーム画面に追加すると、次から見つけやすくなります。保護者の端末に設定していれば保護者ページ、設定していなければ子ども画面から開きます。')}>
     <div class="sec-head"><h2>ホーム画面に追加</h2></div>
     <div class="paper home-install-paper">
-      <p class="set-note">いつも使う端末では、ホーム画面に追加しておくと見つけやすくなります。</p>
-      <p class="set-note">「この端末は <b>保護者の端末</b>」を選んでいれば、追加したアイコンからは<b>この保護者ページが開きます</b>（子ども画面はページ内の「子ども画面へ」から見られます）。選んでいないときは子ども画面が開きます。設定は「ほかの端末と共有」→「この端末の表示と役割」で変えられます。</p>
       <div class="set-actions">
         <button class="btn btn-sm" id="homeInstallBtn" type="button">ホーム画面に追加する</button>
         <button class="btn btn-sm btn-ghost" id="homeInstallDismiss" type="button">今は追加しない</button>
@@ -1245,6 +1244,9 @@ function esc(s){
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function adultSectionHelpAttr(text){
+  return text ? ` data-adult-section-help="${esc(text)}"` : '';
 }
 function clamp(n,a,b){ return Math.max(a, Math.min(b, n)); }
 function dailyCountSelection(selected, raw){
@@ -2485,24 +2487,16 @@ function posterSectionHTML(){
         <span class="poster-tile-plus" aria-hidden="true">＋</span>
         <span>写真を${known || here ? '足す' : '選ぶ'}</span></button>`
     : '';
-  /* **「共有されるのか」「いつ 届くのか」だけを 言う。**
-     預かり箱の ことは 書かない ―― 利用者は そこを 知らなくて よい */
-  /* **短く。** 実測で、この一段だけが 375px で 126px（4行）を 使っていた。
-     「子ども画面の帯から開ける」は 使い方ウインドウの 手順3に 同じ話が ある */
-  const how = !sharingOn()
-    ? '共有を使っていないため、この端末の中だけで使います。'
-    : '共有しているほかの端末へ自動で届きます。';
   return `
-  <section class="sec config-sec"><div class="sec-head"><h2>宿題の一覧の写真</h2></div><div class="paper">
-    <p class="set-note">学校のプリントや時間割を${POSTER_MAX}枚まで。子ども画面の帯の<span class="poster-lab-ico" aria-hidden="true"></span>アイコンから見られます。${esc(how)}${here ? '写真をタップすると選び直せます。' : ''}</p>
+  <section class="sec config-sec"><div class="sec-head has-help"><h2>宿題の一覧の写真</h2>
+    <button class="adult-section-head-help" id="posterHelp" type="button"
+      title="写真の使い方" aria-label="宿題の一覧の写真の使い方" aria-haspopup="dialog"
+      aria-controls="posterHelpDialog"><span class="adult-section-head-info" aria-hidden="true">i</span></button>
+  </div><div class="paper">
     <div class="set-row"><label class="lab" for="posterLabel"><span class="poster-lab-ico" aria-hidden="true"></span>ボタンの名前</label>
       <input type="text" id="posterLabel" maxlength="6" placeholder="なくてもかまいません" value="${esc(cfg.label)}"></div>
     <div class="poster-tiles">${tiles.join('')}${add}</div>
     <input type="file" id="posterFile" accept="image/*" class="offscreen">
-    <div class="adult-section-tools">
-      <button class="adult-section-tool adult-section-help" id="posterHelp" type="button"
-        title="写真の使い方" aria-label="宿題の一覧の写真の使い方"><span class="adult-section-info-icon" aria-hidden="true">i</span></button>
-    </div>
   </div></section>`;
 }
 
@@ -2964,7 +2958,8 @@ function parentTodayLogsHTML(){
   const k = dayKey(new Date());
   const rows = (state.logs || []).filter(l => dayKey(new Date(l.at)) === k);
   return `
-  <section class="sec parent-today-logs">
+  <section class="sec parent-today-logs"${adultSectionHelpAttr(
+    '今日、子どもと保護者が記録した内容を新しい順に確認します。保護者が直した内容もここに残ります。')}>
     <div class="sec-head"><h2>今日の記録</h2><span class="sec-note">${fmtDate(new Date())}</span></div>
     <div class="paper today-list">${rows.length
       ? rows.slice().reverse().map(logRowHTML).join('')
@@ -2972,9 +2967,8 @@ function parentTodayLogsHTML(){
     ${/* 読んだ ものは ここにだけ 両方 出す。カレンダーの 日別は 子ども画面
           という 前提なので、そちらへは 出さない（依頼者の 裁定） */''}
     ${readsHTML(k, true)}
-    <p class="set-note parent-log-help">保護者が直したぶんも、ここに残ります。${
-      config.allowLogDelete ? ''
-        : '<button type="button" class="linkish" id="logCareJump">1件ずつ消せるようにする</button>'}</p>
+    ${config.allowLogDelete ? ''
+      : '<div class="set-actions parent-log-help"><button type="button" class="linkish" id="logCareJump">1件ずつ消せるようにする</button></div>'}
   </section>`;
 }
 
@@ -3689,7 +3683,9 @@ function viewParent(){
     const list = config.tasks.filter(t=>t.group===kind);
     if(!list.length) return '';
     return `
-      <section class="sec">
+      <section class="sec"${adultSectionHelpAttr(kind === 'must'
+        ? '子ども画面の「かならず やる」に出る宿題の進み具合です。'
+        : '子ども画面の「つぎに やる」に出る任意の宿題の進み具合です。')}>
         <div class="sec-head"><h2>${label}</h2>
           <span class="sec-note">${list.filter(t=>prog(t).isDone).length}/${list.length} 完了</span></div>
         <div class="paper"><table class="pgtable">${list.map(row).join('')}</table></div>
@@ -3744,10 +3740,10 @@ function viewParent(){
   ${bookSectionHTML()}
   ${trashSectionHTML()}
 
-  <section class="sec">
+  <section class="sec"${adultSectionHelpAttr(
+    '進捗と記録を文章にまとめ、コピーまたはテキスト保存します。')}>
     <div class="sec-head"><h2>進捗サマリー</h2></div>
     <div class="paper">
-      <p class="set-note">現在の進捗をプレーンテキストで書き出します。コピーしてメールやメッセージに貼り付けられます。</p>
       <div class="set-actions">
         <label style="font-size:16px;font-weight:900;display:flex;align-items:center;gap:8px">記録の範囲
           <select id="sumDays" style="width:auto;min-width:130px;padding:8px 10px">
@@ -4071,8 +4067,9 @@ function messageListHTML(){
 function parentMessageEditorHTML(){
   const msg = config.parentMessage;
   return `
-  <section class="sec parent-message-editor">
-    <div class="sec-head"><h2>子どもへのメッセージ</h2><span class="sec-note">80文字まで</span></div>
+  <section class="sec parent-message-editor"${adultSectionHelpAttr(
+    `子ども画面へ80文字までのメッセージを送ります。新しい順に最大${MESSAGES_MAX}件を表示し、同じ名前で送ると前の文を更新します。`)}>
+    <div class="sec-head"><h2>子どもへのメッセージ</h2></div>
     <div class="paper parent-message-form">
       <div class="parent-message-fields">
         <div class="parent-sender-fields">
@@ -4086,7 +4083,6 @@ function parentMessageEditorHTML(){
           <textarea id="parentMessageText" rows="1" maxlength="80" placeholder="例：きょうも おつかれさま！">${esc(msg.text)}</textarea></label>
         <button class="btn btn-sm btn-do btn-icon-text parent-message-send" id="parentMessageSave" type="button">${icon('send')}<span>送る</span></button>
       </div>
-      <p class="set-note parent-message-help">子ども画面には新しい順に最大${MESSAGES_MAX}件を表示します。同じ名前で送ると、メッセージを上書きします。</p>
       ${messageListHTML()}
     </div>
   </section>`;
@@ -4305,9 +4301,10 @@ function deviceListHTML(){
 function syncSectionHTML(opts){
   const lead = opts && opts.lead;
   const S = window.NatsuSync;
+  const help = '同じ合言葉を使う端末どうしで、宿題・設定・記録を共有します。端末の追加、役割、共有の解除もここで行います。';
   if(!S){
     return `
-  <section class="sec" id="syncSection">
+  <section class="sec" id="syncSection"${adultSectionHelpAttr(help)}>
     <div class="sec-head"><h2>ほかの端末と共有</h2></div>
     <div class="paper">
       <p class="set-note">同期の読み込みに失敗しました。記録はこの端末に保存されています。</p>
@@ -4317,7 +4314,7 @@ function syncSectionHTML(opts){
 
   if(!S.configured()){
     return `
-  <section class="sec" id="syncSection">
+  <section class="sec" id="syncSection"${adultSectionHelpAttr(help)}>
     <div class="sec-head"><h2>ほかの端末と共有</h2></div>
     <div class="paper">
       <p class="set-note">同期機能は未設定です。<code>assets/sync.js</code> の
@@ -4330,13 +4327,12 @@ function syncSectionHTML(opts){
   const code = S.getCode();
 
   return `
-  <section class="sec" id="syncSection">
+  <section class="sec" id="syncSection"${adultSectionHelpAttr(help)}>
     <div class="sec-head"><h2>ほかの端末と共有</h2>
       <span class="sec-note" id="syncStatus">${esc(syncStatusText(S.status(), S.statusText()))}</span></div>
     <div class="paper">
        ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
        ${opts && opts.dismissPrompt ? `<div class="set-actions"><button class="btn btn-sm btn-ghost" id="syncPromptDismiss" type="button">接続せず使う</button></div><p class="set-note">1台の端末で使う場合などは、接続せずにこの端末だけで続けられます。</p>` : ''}
-      <p class="set-note">同じ「合言葉」を入力した複数の端末で、同じ記録と設定を共有できます。</p>
       ${code ? `
       ${/* 共有ずみの 画面。ここに 出ているのは **すでに 使っている**
             合言葉で、これから つなぐ ものでは ない。以前は
@@ -4478,12 +4474,12 @@ function trashSectionHTML(){
   if(!rows.length) return '';
   const kindLabel = { book:'本の記録' };
   return `
-  <section class="sec">
+  <section class="sec"${adultSectionHelpAttr(
+    '削除した記録の控えを確認します。本の冊数などは削除時に戻っていますが、記録そのものは元に戻せません。')}>
     <div class="sec-head"><h2>消した記録</h2><span class="sec-note">${rows.length}件</span></div>
     <details class="paper set-advanced">
       <summary>消した中身を見る</summary>
       <div class="set-advanced-body">
-        <p class="set-note">削除ボタンで消した記録の控えです。新しい順に最大${TRASH_MAX}件まで残り、あふれた分から消えます。冊数などの数字は戻したままで、ここから元に戻すことはできません。</p>
         ${rows.map(r=>`
         <div class="trash-row">
           <div class="trash-head">
@@ -4573,7 +4569,8 @@ function bookSectionHTML(){
   const order = parentBookOrder(), nextOrder = order === 'desc' ? 'asc' : 'desc';
 
   return `
-  <section class="sec">
+  <section class="sec"${adultSectionHelpAttr(
+    '記録した本を確認し、書名・読んだ日・感想を編集できます。削除すると冊数も1つ戻ります。')}>
     <div class="sec-head"><h2>本の記録</h2><span class="sec-note">${rows.length}冊</span></div>
     <div class="paper parent-book-list">
       ${rows.length > 1 ? `<div class="parent-book-toolbar">
@@ -4588,7 +4585,6 @@ function bookSectionHTML(){
         <summary><span class="parent-book-more-closed">残り${rest.length}冊を見る</span><span class="parent-book-more-open">閉じる</span></summary>
         <div class="parent-book-more-list">${rest.map(parentBookRowHTML).join('')}</div>
       </details>` : ''}
-      <p class="set-note">「編集」で書名・読んだ日・感想を訂正できます。削除すると冊数も1つ戻ります。</p>
     </div>
   </section>`;
 }
@@ -6033,7 +6029,8 @@ function taskGroupHTML(rows, empty){
 }
 
 /* 宿題の欄は4つとも この1つの型で 組む。
-   案内（必要な欄だけ）→（毎日の項目だけ スイッチ）→ 一覧 → 追加ボタン、の順。
+   案内は見出しの i へ送り、紙の中は
+   （毎日の項目だけ 表示チェック）→ 一覧 → 追加ボタン、の順。
 
    追加ボタンを 紙の中の いちばん下に 置くのは、押したとき どの欄に
    足されるのかを ボタンの 居場所そのもので 示すため。
@@ -6042,11 +6039,10 @@ function taskGroupHTML(rows, empty){
    ちがうと、どう直せばよいか 画面から 読みとれない。 */
 function taskSectionHTML(o){
   return `
-  <section class="sec config-sec">
+  <section class="sec config-sec"${adultSectionHelpAttr(o.note)}>
     <div class="sec-head"><h2>${esc(o.title)}</h2><span class="sec-note">${o.rows.length}件</span></div>
     <div class="paper task-settings">
       ${o.head || ''}
-      ${o.note ? `<p class="config-section-note">${esc(o.note)}</p>` : ''}
       <div class="task-editor" id="${o.editorId}">${taskGroupHTML(o.rows, o.empty)}</div>
       <div class="set-actions"><button class="btn btn-sm btn-icon-text" id="${o.addId}" type="button">${icon('plus')}<span>${esc(o.addLabel)}</span></button></div>
     </div>
@@ -6178,36 +6174,61 @@ function adultHeadHTML(current, lead, extra){
 function adultSectionNavHTML(){
   return `<nav class="adult-section-toc" id="adultPageToc" aria-label="このページの目次" hidden></nav>`;
 }
+function openAdultSectionHelp(button){
+  const dialog = $('#adultSectionHelpDialog');
+  const title = $('#adultSectionHelpTitle');
+  const body = $('#adultSectionHelpBody');
+  if(!dialog || !title || !body || !button) return;
+  title.textContent = button.dataset.sectionTitle || '項目の説明';
+  body.textContent = button.dataset.sectionHelp || '';
+  if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+}
+function closeAdultSectionHelp(){
+  const dialog = $('#adultSectionHelpDialog');
+  if(!dialog || !dialog.open) return;
+  if(typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open');
+}
 function buildAdultSectionToc(){
   const toc = $('.adult-section-toc');
   if(!toc) return;
   const headings = $$('.sec-head > h2', $('#view'));
-  if(headings.length < 2) return;
   headings.forEach((heading, i)=>{
     if(!heading.id) heading.id = 'adult-section-heading-' + (i + 1);
     heading.classList.add('adult-section-toc-target');
+    const section = heading.closest('.sec');
+    const head = heading.parentElement;
+    const help = section && section.dataset.adultSectionHelp;
+    if(help && head && !$('.adult-section-head-help', head)){
+      head.classList.add('has-help');
+      const button = document.createElement('button');
+      button.className = 'adult-section-head-help';
+      button.type = 'button';
+      button.title = '説明を見る';
+      button.setAttribute('aria-label', heading.textContent + 'の説明を見る');
+      button.setAttribute('aria-haspopup', 'dialog');
+      button.setAttribute('aria-controls', 'adultSectionHelpDialog');
+      button.dataset.adultSectionHelpButton = '';
+      button.dataset.sectionTitle = heading.textContent;
+      button.dataset.sectionHelp = help;
+      button.innerHTML = '<span class="adult-section-head-info" aria-hidden="true">i</span>';
+      head.appendChild(button);
+    }
   });
+  if(headings.length < 2) return;
   toc.innerHTML = `<details class="adult-section-toc-disclosure"><summary><span>このページの目次</span><small>全${headings.length}項目</small><i aria-hidden="true"></i></summary>
     <div class="adult-section-toc-links">${headings.map(heading =>
       `<a href="#${esc(heading.id)}">${esc(heading.textContent)}</a>`).join('')}</div></details>`;
   toc.hidden = false;
   const disclosure = $('.adult-section-toc-disclosure', toc);
   const summary = $('summary', toc);
-  const hideSectionBacks = ()=>{
-    $$('.adult-section-back', $('#view')).forEach(back=>{ back.hidden = true; });
-    $$('.adult-section-tools', $('#view')).forEach(actions=>{
-      actions.hidden = !$('.adult-section-help', actions);
-    });
-  };
   const returnToToc = e=>{
     e.preventDefault();
-    hideSectionBacks();
     disclosure.open = true;
     toc.scrollIntoView({ block:'start' });
     summary.focus({ preventScroll:true });
   };
-  /* 見出し帯は題名だけに使う。戻り口は内容の紙の末尾に置き、目次から
-     移動した節だけに出す。長い題名を押し縮めず、ページも伸ばし続けない。 */
+  /* 戻り口は内容の紙の末尾に常に置く。目次から移動した時だけ出すと
+     紙の高さが変わるため、44px の操作面を最初からレイアウトに含める。 */
   headings.forEach(heading=>{
     const head = heading.parentElement;
     const section = heading.closest('.sec');
@@ -6218,7 +6239,6 @@ function buildAdultSectionToc(){
     if(!actions){
       actions = document.createElement('div');
       actions.className = 'adult-section-tools';
-      actions.hidden = true;
       surface.appendChild(actions);
     }
     const back = document.createElement('a');
@@ -6227,7 +6247,6 @@ function buildAdultSectionToc(){
     back.setAttribute('aria-label', 'このページの目次へ戻る');
     back.title = '目次へ戻る';
     back.innerHTML = '<span aria-hidden="true">▲</span>';
-    back.hidden = true;
     back.addEventListener('click', returnToToc);
     actions.appendChild(back);
   });
@@ -6242,16 +6261,9 @@ function buildAdultSectionToc(){
     $$('.adult-section-toc-links a', toc).forEach(a=>a.removeAttribute('aria-current'));
     link.setAttribute('aria-current', 'location');
     disclosure.open = false;
-    hideSectionBacks();
     const section = target.closest('.sec');
     const surface = section && Array.from(section.children).find(el=>el.classList && el.classList.contains('paper'));
-    const actions = surface && $('.adult-section-tools', surface);
-    const back = actions && $('.adult-section-back', actions);
     if(surface && surface.tagName === 'DETAILS') surface.open = true;
-    if(actions && back){
-      actions.hidden = false;
-      back.hidden = false;
-    }
     target.scrollIntoView({ block:'start' });
     /* 既定の移動なら 見出しへ 移る 読み上げの 位置を、自分で 移す */
     target.setAttribute('tabindex', '-1');
@@ -6271,8 +6283,8 @@ function viewTasks(){
   const daily  = rows.filter(({t})=>taskKind(t)==='daily');
   /* 「子ども画面に表示する」は 毎日の項目 だけの もの。
      ほかの3つには 対応する 切りかえが 無いので、この欄にだけ 足す */
-  const dailySwitch = `<label class="daily-switch"><input type="checkbox" id="cfgShowDaily"${config.showDaily?' checked':''}>
-        <span><strong>子ども画面に表示する</strong><small>学習アプリ・音読・おてつだい・日記やメモなどに使えます。</small></span></label>`;
+  const dailySwitch = `<label class="daily-switch daily-switch--standalone"><input type="checkbox" id="cfgShowDaily"${config.showDaily?' checked':''}>
+        <span><strong>子ども画面に表示する</strong></span></label>`;
   return `
   ${adultHeadHTML('tasks', '変更はすぐに保存されます。')}
 
@@ -6285,7 +6297,7 @@ function viewTasks(){
 
   ${taskSectionHTML({
     title:'任意の宿題', rows:option, editorId:'optionTaskEditor',
-    note:'必須の宿題が終わってから取り組む欄です。進みぐあいにも反映します。',
+    note:'子ども画面の「つぎに やる」に出ます。必須の宿題が終わったあとに取り組み、進み具合にも反映します。',
     empty:'まだ項目はありません。', addId:'addOptionTask', addLabel:'任意の宿題を追加' })}
 
   ${taskSectionHTML({
@@ -6295,6 +6307,7 @@ function viewTasks(){
 
   ${taskSectionHTML({
     title:'毎日の項目', rows:daily, editorId:'dailyTaskEditor', head:dailySwitch,
+    note:'子ども画面の「まいにち」に表示する、日ごとの項目です。学習アプリ・音読・お手伝い・日記やメモなどに使えます。「子ども画面に表示する」のチェックで切り替えます。',
     empty:'毎日の項目はまだありません。', addId:'addDailyTask', addLabel:'毎日の項目を追加' })}
 
   ${creditHTML()}
@@ -6314,59 +6327,55 @@ function viewConfig(){
   return `
   ${adultHeadHTML('config', '変更はすぐに保存されます。')}
 
-  <section class="sec config-sec"><div class="sec-head"><h2>名前と画面の設定</h2></div><div class="paper">
+  <section class="sec config-sec"${adultSectionHelpAttr(
+    '子どもの名前・読める漢字・色とデザインを設定します。変更は共有中の子ども端末にも反映されます。')}><div class="sec-head"><h2>名前と画面の設定</h2></div><div class="paper">
     <div class="set-row"><label class="lab" for="cfgChildName">子どもの名前（任意・グループで共有）${mark('childName')}</label><input type="text" id="cfgChildName" maxlength="30" value="${esc(config.childName||getLocal(K_NAME)||'')}"></div>
     <div class="set-row"><label class="lab" for="cfgReadingGrade">読める漢字${mark('readingGrade')}</label><select id="cfgReadingGrade">${readingOptions(readingGrade())}</select></div>
-    <p class="set-note">名前と読める漢字は、グループの設定として共有します。保護者の端末で変更すると、子どもの端末の表示も数秒で切り替わります。</p>
     <fieldset class="theme-picker"><legend>色とデザイン（グループで共有）${mark('theme')}</legend><div class="theme-grid">${themeChoicesHTML()}</div></fieldset>
-    <p class="set-note">このページで変更すると、共有中の子ども端末のデザインも変更されます。</p>
   </div></section>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
+  <section class="sec config-sec"${adultSectionHelpAttr(
+    'アプリのタイトルと夏休みの期間を設定します。日付は残り時間と完了予測の計算に使います。')}><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
     <div class="set-row"><label class="lab" for="cfgTitle">タイトル${mark('title')}</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
     <div class="set-row"><label class="lab" for="cfgStart">開始日${mark('startAt')}</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
     <div class="set-row"><label class="lab" for="cfgEnd">終了日${mark('endAt')}</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>
-    <p class="set-note">日付はカウントダウンとペースの計算に使います。</p>
   </div></section>
 
   ${syncSectionHTML({ openDetails:openShareSettings })}
 
-  <section class="sec config-sec"><div class="sec-head"><h2>アプリ情報</h2>
+  <section class="sec config-sec"${adultSectionHelpAttr(
+    '配信版を確認・更新します。共有する端末はすべて同じ版にそろえてください。iPadで古い表示が残るときも、ここから読み直せます。記録は消えません。')}><div class="sec-head"><h2>アプリ情報</h2>
     <span class="sec-note">v${esc(RELEASE_VERSION)}</span></div>
     <div class="paper">
-      <p class="set-note">この端末は <b>v${esc(RELEASE_VERSION)}</b>（配信 ${appVersionHTML(APP_VER)}）を動かしています。
-      同期の仕組みはバージョンによって変わるため、<b>共有しているすべての端末を同じバージョンに揃えてください</b>。
-      片方が古いままだと、訂正が相手の端末から元に戻されることがあります。</p>
+      <p class="set-note app-version-line">この端末：<b>v${esc(RELEASE_VERSION)}</b>（配信 ${appVersionHTML(APP_VER)}）</p>
       ${newVersionAvailable ? `<p class="set-note" id="appUpdateNote">あたらしい版が あります</p>` : ''}
       <div class="set-actions">
         <button class="btn btn-sm" id="appUpdate" type="button">最新に更新する</button>
       </div>
-      <p class="set-note">iPad は古い画面を保存しているため、閉じて開き直すだけでは新しくならないことがあります。
-      このボタンは、保存された古い画面を使わずに読み直します。記録は消えません。</p>
     </div>
   </section>
 
-  <section class="sec config-sec" id="logCareSection"><div class="sec-head"><h2>記録の手入れ</h2></div>
+  <section class="sec config-sec" id="logCareSection"${adultSectionHelpAttr(
+    '「やったこと」を1件ずつ削除できるようにします。進捗は変わらず、削除は元に戻せません。保護者の端末に設定した端末だけで使えます。')}><div class="sec-head"><h2>記録の手入れ</h2></div>
     <div class="paper log-care-paper">
       <label class="opt-toggle">
         <input type="checkbox" id="allowLogDelete"${config.allowLogDelete ? ' checked' : ''}>
         <span class="opt-toggle-text">
           <b>「やったこと」の削除を有効にする</b>
-          <small>誤って付けた記録を「やったこと」の一覧から1件ずつ削除できます。削除しても宿題の進捗の数値は変わらず、元には戻せません。</small>
         </span>
       </label>
-      <p class="set-note">削除できるのは「この端末は <b>保護者の端末</b>」を選んだ端末の「やったこと」の一覧からのみです。子どもの端末には削除ボタンを表示しません。進捗の数値は変わりません。</p>
       ${config.allowLogDelete && getLocal(K_ROLE) !== 'parent'
         ? '<p class="set-note dev-warn"><b>この端末は「保護者の端末」に設定されていません。</b>「ほかの端末と共有」→「共有リンク・端末ごとの設定」→「この端末は」で選択してください。</p>'
         : ''}
     </div>
   </section>
 
-  <section class="sec config-sec"><div class="sec-head"><h2>データ管理</h2></div><details class="paper set-advanced"><summary>バックアップと初期化</summary>
-    <div class="set-advanced-body"><p class="set-note">記録はこの端末に保存されます。定期的にバックアップすると安心です。</p>
+  <section class="sec config-sec"${adultSectionHelpAttr(
+    'バックアップの書き出し・読み込みと、宿題や記録の一括削除を行います。宿題の項目を消しても記録と基本設定は残ります。削除前に書き出してください。')}><div class="sec-head"><h2>データ管理</h2></div><details class="paper set-advanced"><summary>バックアップと初期化</summary>
+    <div class="set-advanced-body">
     <div class="set-actions"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
     <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">宿題の項目をすべて消す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録をすべて削除</button></div>
-    <p class="set-note">「宿題の項目をすべて消す」は、宿題・読書・毎日の項目を空にします。記録と、名前・デザイン・期間の設定は残ります。</p></div>
+    </div>
   </details></section>
 
   ${syncTraceHTML()}
@@ -7763,6 +7772,9 @@ document.addEventListener('click', e=>{
 
   if(e.target.closest('#todayLabel')){ openKinenbi(new Date()); return; }
   if(e.target.closest('#kinenbiClose')){ closeKinenbi(); return; }
+  const adultSectionHelp = e.target.closest('[data-adult-section-help-button]');
+  if(adultSectionHelp){ openAdultSectionHelp(adultSectionHelp); return; }
+  if(e.target.closest('#adultSectionHelpClose')){ closeAdultSectionHelp(); return; }
   if(e.target.closest('#posterOpen')){ openPoster(); render({ keepScroll:true }); return; }
   /* 「渡す」「受け取る」は **使い方ウインドウの「うまく届かないとき」の中**に 置く。
      ふだんは 自動で 届くので、平常の 画面には 出さない。
@@ -7793,6 +7805,12 @@ document.addEventListener('click', e=>{
     const r = e.target.getBoundingClientRect();
     const outside = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
     if(outside) closeKinenbi();
+    return;
+  }
+  if(e.target.id === 'adultSectionHelpDialog'){
+    const r = e.target.getBoundingClientRect();
+    const outside = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+    if(outside) closeAdultSectionHelp();
     return;
   }
 
