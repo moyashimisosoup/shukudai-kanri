@@ -22,6 +22,442 @@ const PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf
 const PACKAGE_LOCK = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.webmanifest'), 'utf8'));
 
+/* 2026-08-22 第2監査の回帰。起動時だけ role を優先して表示を変える場合も、
+   実画面と URL の route は必ず一致させる。同じ hash の再代入は
+   hashchange を起こさないため、共通遷移関数が実 tab まで直す。 */
+test('PWA起動時は表示routeとURL hashを履歴追加なしでそろえる', ()=>{
+  const location = { pathname:'/app/', search:'?join=masked', hash:'#config' };
+  const calls = [];
+  const history = { replaceState(...args){ calls.push(args); location.hash = '#settings'; } };
+  const normalize = new Function('location', 'history', 'TABS', `
+    ${grab(APP, 'validRouteTarget')}
+    ${grab(APP, 'routeHash')}
+    ${grab(APP, 'normalizeLaunchHash')}
+    return normalizeLaunchHash;
+  `)(location, history, ['welcome','home','log','calendar','books','writes','settings','tasks','config','stats']);
+
+  normalize('settings');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][2], '/app/?join=masked#settings', 'queryを落とさずreplaceすること');
+  normalize('settings');
+  assert.equal(calls.length, 1, '既に一致するrouteは書き直さないこと');
+  assert.doesNotMatch(grab(APP, 'normalizeLaunchHash'), /pushState/,
+    '起動だけで戻る履歴を1件増やさないこと');
+  assert.match(APP, /tab = launchRoute\(\);\s*\n\s*normalizeLaunchHash\(tab\);\s*\n/,
+    '最初のrenderより前に表示routeとURLをそろえること');
+});
+
+test('共通navigateToはhashが同じでも実tabを更新して描画する', ()=>{
+  function harness(hash, shown){
+    const location = { hash };
+    let tab = shown, renders = 0, jump = null;
+    const routeFromHash = ()=> String(location.hash || '').replace(/^#/, '').split(':')[0] || 'home';
+    const fn = new Function('location', 'TABS', 'routeFromHash', 'jumpTo', 'render', 'getTab', 'setTab', `
+      let tab = getTab();
+      ${grab(APP, 'validRouteTarget')}
+      ${grab(APP, 'routeHash')}
+      ${grab(APP, 'navigateTo')}
+      return (target, opts)=>{ navigateTo(target, opts); setTab(tab); };
+    `)(location, ['welcome','home','log','calendar','books','writes','settings','tasks','config','stats'],
+       routeFromHash, (sel, focus)=>{ jump = { sel, focus }; }, ()=>{ renders++; },
+       ()=>tab, value=>{ tab = value; });
+    return { go:fn, location, tab:()=>tab, renders:()=>renders, jump:()=>jump };
+  }
+
+  const config = harness('#config', 'settings');
+  config.go('config', { jump:'#allowLogDelete', focus:true });
+  assert.equal(config.tab(), 'config');
+  assert.equal(config.renders(), 1);
+  assert.deepEqual(config.jump(), { sel:'#allowLogDelete', focus:true });
+
+  const child = harness('#settings', 'home');
+  child.go('settings');
+  assert.equal(child.tab(), 'settings', '5回タップ／長押しでも保護者画面へ移れること');
+  assert.equal(child.renders(), 1);
+
+  for(const target of ['home','log','calendar']){
+    const h = harness('#' + target, target === 'home' ? 'settings' : 'home');
+    h.go(target);
+    assert.equal(h.tab(), target);
+    assert.equal(h.renders(), 1);
+  }
+
+  const normal = harness('#home', 'home');
+  normal.go('calendar');
+  assert.equal(normal.location.hash, 'calendar');
+  assert.equal(normal.renders(), 0, '異なるhashは通常のhashchangeに描画を任せること');
+  assert.equal(normal.go('home:garbage'), undefined);
+  assert.equal(normal.location.hash, 'calendar', 'writes以外のcolon付き未知routeを作らないこと');
+
+  const writes = harness('#writes:first', 'writes');
+  writes.go('writes:second');
+  assert.equal(writes.location.hash, 'writes:second', '課題ID付きwritesだけは有効routeとして保つ');
+});
+
+test('通常再読込・PWA再起動・stats・未知hash・writesを正規化する', ()=>{
+  function route(hash, { standalone=false, role='', stats=false }={}){
+    const location = { hash };
+    let writesTaskId = '';
+    const api = new Function('location', 'TABS', 'isStatsURL', 'getLocal', 'K_CFG', 'K_ONBOARD',
+      'TEST_MODE', 'getWrites', 'setWrites', 'isStandalone', 'K_ROLE', `
+      let writesTaskId = getWrites();
+      ${grab(APP, 'routeFromHash')}
+      ${grab(APP, 'launchRoute')}
+      return ()=>{ const shown = launchRoute(); setWrites(writesTaskId); return shown; };
+    `)(location, ['welcome','home','log','calendar','books','writes','settings','tasks','config','stats'],
+      ()=>stats, key=> key === 'role' ? role : 'set', 'cfg', 'onboard', false,
+      ()=>writesTaskId, value=>{ writesTaskId = value; }, ()=>standalone, 'role');
+    return { shown:api(), writes:()=>writesTaskId };
+  }
+  assert.equal(route('#calendar').shown, 'calendar', '通常ブラウザの再読込は明示routeを保つ');
+  assert.equal(route('#config', { standalone:true, role:'parent' }).shown, 'settings',
+    '親PWA再起動は親開始画面へ戻す');
+  assert.equal(route('#log', { standalone:true, role:'child' }).shown, 'home',
+    '子PWA再起動は子開始画面へ戻す');
+  assert.equal(route('#anything').shown, 'home', '未知hashを子画面routeへ正規化できる値にする');
+  const writes = route('#writes:task-id');
+  assert.equal(writes.shown, 'writes');
+  assert.equal(writes.writes(), 'task-id', '戻る・再読込で課題IDを復元する');
+  assert.equal(route('#config', { standalone:true, role:'parent', stats:true }).shown, 'stats',
+    'stats queryはPWAのrole開始画面で上書きしない');
+});
+
+test('起動時に壊れた主要導線は共通navigateToへ集約する', ()=>{
+  assert.match(grab(APP, 'bindAdultNav'), /navigateTo\(target\)/);
+  assert.match(grab(APP, 'bindParentShareBadge'), /navigateTo\('config',\s*\{\s*jump:'#syncSection'/);
+  assert.match(grab(APP, 'bindTopbandParentGesture'), /navigateTo\('settings'\)/);
+  assert.match(APP, /closest\('#logCareJump'\)[\s\S]{0,180}navigateTo\('config',\s*\{\s*jump:'#allowLogDelete',\s*focus:true/);
+  assert.match(APP, /openChildPage[\s\S]{0,420}navigateTo\('home'\)/);
+  assert.match(APP, /const tabBtn[\s\S]{0,220}navigateTo\(t\)/);
+  assert.match(APP, /closest\('a\[href\^="#"\]'\)[\s\S]{0,420}validRouteTarget\(target\)[\s\S]{0,120}navigateTo\(target\)/,
+    '通常の「設定ページを開く」routeリンクも共通入口へ通すこと');
+});
+
+test('1件削除設定は端末内だけに保存し旧共有値を安全OFFへ移す', ()=>{
+  const normalize = grab(APP, 'normalizeConfig');
+  assert.match(APP, /const K_ALLOW_LOG_DELETE = TEST_MODE \?/);
+  assert.match(normalize, /delete c\.allowLogDelete/,
+    '旧共有trueを別端末のONへ移行しないこと');
+  assert.doesNotMatch(grab(APP, 'sharedConfig'), /allowLogDelete/,
+    '送信前allowlistにも端末内設定を入れないこと');
+  assert.match(grab(APP, 'canDeleteLog'), /logDeleteAllowed\(\)[\s\S]*K_ROLE[\s\S]*parent/,
+    '子ども端末は常に削除不可にすること');
+  const bind = grab(APP, 'bindConfig');
+  const at = bind.indexOf("const ald = $('#allowLogDelete')");
+  const block = bind.slice(at, at + 420);
+  assert.match(block, /setLogDeleteAllowed\(ald\.checked\)/);
+  assert.doesNotMatch(block, /saveCfg|saveSt|markSaved|syncPush/,
+    '変更時にconfig同期・state同期・保持期限活動を起こさないこと');
+  function device(role){
+    const store = { role };
+    return new Function('getLocal', 'setLocal', 'localStorage', 'K_ALLOW_LOG_DELETE', 'K_ROLE', `
+      ${grab(APP, 'logDeleteAllowed')}
+      ${grab(APP, 'setLogDeleteAllowed')}
+      ${grab(APP, 'canDeleteLog')}
+      return { logDeleteAllowed, setLogDeleteAllowed, canDeleteLog };
+    `)(key=>store[key] || '', (key,value)=>{ store[key] = value; },
+      { removeItem:key=>{ delete store[key]; } }, 'allow', 'role');
+  }
+  const parentA = device('parent'), parentB = device('parent'), child = device('child');
+  parentA.setLogDeleteAllowed(true);
+  child.setLogDeleteAllowed(true);
+  assert.equal(parentA.logDeleteAllowed(), true);
+  assert.equal(parentB.logDeleteAllowed(), false, '親端末AのONを親端末Bへ伝播しない');
+  assert.equal(child.canDeleteLog(), false, '子端末は端末内設定があっても常に削除不可');
+});
+
+test('任意質問の端末内控えは削除世代とデータ置換を越えない', ()=>{
+  const read = grab(APP, 'localAnswerMap');
+  const save = grab(APP, 'saveQuestionAnswerRow');
+  assert.match(read, /resetAt/,
+    '控えは現在の共有stateと同じ削除世代だけを使うこと');
+  assert.match(save, /resetAt/,
+    '再保存した回答には現在の削除世代を付けること');
+  assert.match(APP, /function clearQuestionAnswerCache\(/);
+  assert.match(grab(APP, 'resetSharedState'), /clearQuestionAnswerCache\(\)/,
+    '一括削除は回答控えも同時に消すこと');
+  assert.match(grab(APP, 'applyRemote'), /merged\.resetAt[\s\S]{0,180}clearQuestionAnswerCache\(\)/,
+    '共有端末から新しい削除世代を受けたときも消すこと');
+  assert.match(grab(APP, 'importBackup'), /clearQuestionAnswerCache\(\)/,
+    'バックアップ置換前に古い控えを消すこと');
+  assert.match(APP, /onHouseholdRetired\(\)[\s\S]{0,900}K_QUESTION_ANSWERS/,
+    '墓標処理で端末控えを残さないこと');
+  assert.match(grab(APP, 'forgetConfigStampForNewHousehold'), /clearQuestionAnswerCache\(\)/,
+    '別の共有へ端末控えを持ち込まないこと');
+  const store = { answers:JSON.stringify({ resetAt:1, rows:{ task:{ answers:['旧回答'], at:10 } } }) };
+  const st = { resetAt:2, questionAnswers:{} };
+  const api = new Function('state', 'getLocal', 'setLocal', 'localStorage', 'K_QUESTION_ANSWERS', 'ms', `
+    let answerMapCache = null;
+    ${grab(APP, 'localAnswerMap')}
+    ${grab(APP, 'clearQuestionAnswerCache')}
+    ${grab(APP, 'saveQuestionAnswerRow')}
+    return { localAnswerMap, clearQuestionAnswerCache, saveQuestionAnswerRow };
+  `)(st, key=>store[key] || '', (key,value)=>{ store[key] = value; },
+    { removeItem:key=>{ delete store[key]; } }, 'answers', value=>Number(value) || 0);
+  assert.deepEqual(api.localAnswerMap(), {}, '削除前世代の端末控えを再表示しない');
+  api.saveQuestionAnswerRow({ id:'task' }, ['新回答']);
+  const saved = JSON.parse(store.answers);
+  assert.equal(saved.resetAt, 2, '再保存した回答を新しい削除世代へ置く');
+  assert.deepEqual(saved.rows.task.answers, ['新回答']);
+  api.clearQuestionAnswerCache();
+  assert.equal(store.answers, undefined, 'データ置換・共有終了と同じ消去関数で控えを除く');
+});
+
+test('funと閲覧履歴は端末内保存だけで共有暗号文を更新しない', ()=>{
+  assert.match(grab(APP, 'funPick'), /saveLocalState\(\)/);
+  assert.doesNotMatch(grab(APP, 'funPick'), /saveSt\(|syncPush|markSaved/);
+  assert.match(grab(APP, 'pushRead'), /saveLocalState\(\)/);
+  assert.doesNotMatch(grab(APP, 'pushRead'), /saveSt\(|syncPush|markSaved/);
+  const allowed = grabConst(APP, 'SHARED_STATE_KEYS');
+  assert.doesNotMatch(allowed, /['"]fun['"]/);
+  assert.doesNotMatch(allowed, /['"]reads['"]/);
+  assert.match(grab(APP, 'saveLocalState'), /localStorage\.setItem\(K_ST/);
+  assert.doesNotMatch(grab(APP, 'saveLocalState'), /childActivityAt|markSaved|syncPush/,
+    '日付変更後に開くだけではchildActivityAtも保持期限も動かさないこと');
+  assert.match(APP, /見るだけでは期間は延びません/,
+    '利用者向け説明を端末内保存の実装と一致させること');
+  const st = { reads:[], childActivityAt:123 };
+  let localWrites = 0;
+  const pushRead = new Function('state', 'FUN', 'logBy', 'saveLocalState', `
+    const READS_MAX=400;
+    ${grab(APP, 'pushRead')}
+    return pushRead;
+  `)(st, [{ t:'題', q:'問' }], ()=>'child', ()=>{ localWrites++; });
+  pushRead(0);
+  assert.equal(localWrites, 1);
+  assert.equal(st.childActivityAt, 123, '閲覧だけではchildActivityAtを変えない');
+
+  let funWrites = 0;
+  const today = { seen:[], history:[] };
+  const funPick = new Function('FUN', 'funToday', 'funAllowed', 'saveLocalState', `
+    let funIdx=-1, funOpen=true, funPos=-1;
+    ${grab(APP, 'funPick')}
+    return funPick;
+  `)([{ t:'題', q:'問' }], ()=>today, ()=>true, ()=>{ funWrites++; });
+  funPick();
+  assert.equal(funWrites, 1, '日付変更後の初回抽選も端末内保存だけにする');
+});
+
+test('共有送信はconfig/stateともpositive allowlistを通す', ()=>{
+  const current = APP.match(/current:\s*\(\)\s*=>\s*\(\{[\s\S]{0,160}\}\)/);
+  assert.ok(current, 'NatsuApp.currentの共有境界が見つからない');
+  assert.match(current[0], /sharedConfig\(config\)/);
+  assert.match(current[0], /sharedState\(state\)/);
+  assert.match(grab(APP, 'sharedConfig'), /SHARED_CONFIG_KEYS/);
+  assert.match(grab(APP, 'sharedState'), /SHARED_STATE_KEYS/);
+  const localConfig = { schema:6, title:'家族', tasks:[], allowLogDelete:true, unknown:'local' };
+  const localState = state({ fun:{ seen:[1] }, reads:[{ id:'local' }], unknown:'local' });
+  const beforeConfig = JSON.parse(JSON.stringify(localConfig));
+  const beforeState = JSON.parse(JSON.stringify(localState));
+  assert.deepEqual(appFns.sharedConfig(localConfig), { schema:6, title:'家族', tasks:[] });
+  assert.equal('fun' in appFns.sharedState(localState), false);
+  assert.equal('reads' in appFns.sharedState(localState), false);
+  assert.equal('unknown' in appFns.sharedState(localState), false);
+  assert.deepEqual(localConfig, beforeConfig, 'allowlist作成で端末内configを壊さない');
+  assert.deepEqual(localState, beforeState, 'allowlist作成で端末内stateを壊さない');
+});
+
+test('保護者ページ内目次と戻り口は未知hashを作らないbuttonにする', ()=>{
+  const toc = grab(APP, 'buildAdultSectionToc');
+  assert.doesNotMatch(toc, /<a href="#\$\{esc\(heading\.id\)\}"/,
+    '中クリックや新しいタブで未知hashを開けるリンクを生成しないこと');
+  assert.match(toc, /<button type="button" data-adult-section-target=/);
+  assert.match(toc, /document\.createElement\('button'\)/,
+    '▲もJS操作専用buttonにすること');
+  assert.doesNotMatch(toc, /back\.href\s*=/);
+  assert.match(toc, /target\.scrollIntoView\(\{ block:'start' \}\)/);
+  assert.match(toc, /target\.focus\(\{ preventScroll:true \}\)/,
+    '通常クリック時のスクロールと読み上げ位置を維持すること');
+  assert.match(STYLE, /\.adult-section-toc-links button\{[\s\S]{0,140}min-height:44px/);
+});
+
+test('目次detailsは生成後に固定キーで開状態を復元する', ()=>{
+  const render = grab(APP, 'render');
+  assert.ok(render.indexOf('buildAdultSectionToc()') < render.indexOf('restoreOpenDetails(openDetails)'),
+    '目次DOMを作ってから開状態を戻すこと');
+  assert.match(grab(APP, 'buildAdultSectionToc'), /data-details-key="adultSectionToc:\$\{esc\(tab\)\}"/);
+});
+
+test('件数が変わるdetailsは固定キーで開状態を保つ', ()=>{
+  assert.match(grab(APP, 'syncSectionHTML'), /data-details-key="syncDevices"/,
+    '共有端末数が変わっても同じdetailsとして扱うこと');
+  assert.match(grab(APP, 'syncTraceHTML'), /data-details-key="syncTrace"/,
+    '同期記録件数が変わっても同じdetailsとして扱うこと');
+  let nodes = [
+    { dataset:{ detailsKey:'syncDevices' }, id:'', open:true, querySelector:()=>({ textContent:'設定済み：1台' }) },
+    { dataset:{ detailsKey:'syncTrace' }, id:'', open:true, querySelector:()=>({ textContent:'同期の記録（1件）' }) }
+  ];
+  const api = new Function('selectAll', `
+    const $$ = selectAll;
+    ${grab(APP, 'detailsKey')}
+    ${grab(APP, 'captureOpenDetails')}
+    ${grab(APP, 'restoreOpenDetails')}
+    return { captureOpenDetails, restoreOpenDetails };
+  `)(()=>nodes);
+  const open = api.captureOpenDetails();
+  nodes = [
+    { dataset:{ detailsKey:'syncDevices' }, id:'', open:false, querySelector:()=>({ textContent:'設定済み：2台' }) },
+    { dataset:{ detailsKey:'syncTrace' }, id:'', open:false, querySelector:()=>({ textContent:'同期の記録（2件）' }) }
+  ];
+  api.restoreOpenDetails(open);
+  assert.deepEqual(nodes.map(node=>node.open), [true, true],
+    'summaryの件数が変わった再描画後も同じdetailsを開く');
+});
+
+test('旧メッセージ移行後はconfigから本文と旧送信者情報を消す', ()=>{
+  const migrate = grab(APP, 'migrateMessages');
+  const clear = grab(APP, 'clearLegacyParentMessage');
+  assert.match(clear, /text:\s*''/);
+  assert.match(clear, /customSender:\s*''/);
+  assert.match(clear, /parentMessageMoved\s*=\s*true/);
+  assert.match(migrate, /clearLegacyParentMessage\(\)/,
+    '移行成功・既存messagesのどちらでも旧configを掃除すること');
+  assert.match(migrate, /state\.messages\.length/);
+  assert.match(migrate, /if\(clearLegacyParentMessage\(\)\) saveCfg\(\)/,
+    '既に共有stateへ移っている場合も掃除を保存すること');
+
+  function run(parentMessage, parentMessageMoved, messages){
+    const cfg = { parentMessage, parentMessageMoved };
+    const st = { messages:[...messages] };
+    let configSaves = 0, stateSaves = 0, exported = '';
+    const api = new Function('cfg', 'st', 'saveCfg', 'saveSt', 'logBy', 'downloadBlob',
+      'dayKey', 'toast', 'Blob', `
+      let config = cfg, state = st;
+      ${clear}
+      ${migrate}
+      ${grab(APP, 'exportData')}
+      return { migrateMessages, exportData };
+    `)(cfg, st, ()=>{ configSaves++; }, ()=>{ stateSaves++; }, ()=>'parent',
+      blob=>{ exported = blob.parts.join(''); }, ()=>'day', ()=>{},
+      class { constructor(parts){ this.parts = parts; } });
+    api.migrateMessages();
+    api.exportData();
+    return { cfg, st, configSaves, stateSaves, api, exported:()=>exported };
+  }
+  const moved = run({ enabled:true, sender:'その他', customSender:'旧送信者', text:'旧本文' }, false, []);
+  assert.equal(moved.st.messages.length, 1, '旧形式本文を共有stateへ一度だけ移す');
+  assert.equal(moved.cfg.parentMessage.text, '');
+  assert.equal(moved.cfg.parentMessage.customSender, '');
+  assert.deepEqual([moved.stateSaves, moved.configSaves], [1, 1]);
+  moved.st.messages = [];
+  moved.api.exportData();
+  assert.doesNotMatch(moved.exported(), /旧本文|旧送信者/,
+    '共有stateから削除した後に旧configコピーがバックアップへ本文を復活させない');
+
+  const residue = run({ enabled:false, sender:'その他', customSender:'残存送信者', text:'残存本文' }, false,
+    [{ id:'new', text:'state本文' }]);
+  assert.equal(residue.st.messages.length, 1, '既存stateメッセージを重複させない');
+  assert.doesNotMatch(residue.exported(), /残存本文|残存送信者/,
+    '無効化済みでも残った旧config本文を掃除する');
+});
+
+test('バックアップ課題IDは同名・並び替えを許し欠落・重複を拒否する', ()=>{
+  const validate = new Function(`${grab(APP, 'validateImportedTaskIds')} return validateImportedTaskIds;`)();
+  assert.doesNotThrow(()=> validate({ tasks:[
+    { id:'second', name:'同じ名前' }, { id:'first', name:'同じ名前' }
+  ]}), '名前や順番ではなくIDの非空・一意性だけを見ること');
+  assert.throws(()=> validate({ tasks:[{ id:'same' }, { id:'same' }] }), /ID/);
+  assert.throws(()=> validate({ tasks:[{ name:'欠落' }] }), /ID/);
+  assert.throws(()=> validate({ tasks:[{ id:'   ' }] }), /ID/);
+  assert.match(grab(APP, 'importBackup'), /validateImportedTaskIds\(o\.config\)/,
+    '現在データを置き換える前に検査すること');
+  assert.doesNotMatch(grab(APP, 'validateImportedTaskIds'), /Date\.now|random|index|map\(.*id/,
+    '進捗対応を壊す自動再採番をしないこと');
+  const originalConfig = { tasks:[{ id:'current' }] };
+  const originalState = { progress:{ current:{} } };
+  let confirms = 0, saves = 0, clears = 0;
+  const importer = new Function('initialConfig', 'initialState', 'window', 'confirm', 'backupPreviewText',
+    'clearQuestionAnswerCache', 'normalizeConfig', 'normalizeState', 'migrateMessages',
+    'saveCfg', 'saveSt', 'render', 'toast', `
+    let config = initialConfig, state = initialState;
+    ${grab(APP, 'validateImportedTaskIds')}
+    ${grab(APP, 'importBackup')}
+    return { run:importBackup, current:()=>({ config, state }) };
+  `)(originalConfig, originalState, {}, ()=>{ confirms++; return true; }, ()=>'preview',
+    ()=>{ clears++; }, value=>value, value=>value, ()=>{},
+    ()=>{ saves++; }, ()=>{ saves++; }, ()=>{}, ()=>{});
+  assert.throws(()=>importer.run({ config:{ tasks:[{ id:'dup' }, { id:'dup' }] }, state:{} }), /ID/);
+  assert.throws(()=>importer.run({ config:{ tasks:[{}] }, state:{} }), /ID/);
+  assert.equal(confirms, 0, '不正IDは確認ダイアログ前に拒否する');
+  assert.equal(saves, 0, '不正IDを端末・共有へ保存しない');
+  assert.equal(clears, 0, '不正IDで既存の質問控えを消さない');
+  assert.deepEqual(importer.current(), { config:originalConfig, state:originalState },
+    '不正IDでは現在データを置き換えない');
+});
+
+test('合言葉の比較用コピーはfingerprintだけにして終了時に掃除する', async ()=>{
+  assert.match(grab(SYNC, 'persistPending'), /config:[\s\S]*state:/);
+  assert.doesNotMatch(grab(SYNC, 'persistPending'), /code\s*:/,
+    '送信予約に活動中の合言葉を重複保存しないこと');
+  assert.match(grab(SYNC, 'readPending'), /hasOwnProperty\.call\(saved, 'code'\)/,
+    '旧送信予約に残った平文コピーは読込時に除去すること');
+  assert.match(grab(SYNC, 'readPending'), /saved\.code !== currentCode[\s\S]{0,100}removeItem\(K_PENDING\)/,
+    '旧予約が別の共有先宛てなら現接続へ持ち越さないこと');
+  assert.match(grab(SYNC, 'deriveKey'), /codeFingerprint\(/,
+    '暗号鍵キャッシュの比較に平文コピーを持たないこと');
+  assert.doesNotMatch(SYNC, /cryptoKeyCode/);
+  assert.match(grab(APP, 'forgetConfigStampForNewHousehold'), /codeFingerprint\(/,
+    '共有世代の比較用キーはfingerprintで保存すること');
+  assert.match(grab(APP, 'clearHouseholdLocalCopies'), /K_CFG_HOUSE/);
+  assert.match(grab(APP, 'clearHouseholdLocalCopies'), /clearQuestionAnswerCache\(\)/);
+  assert.match(grab(APP, 'bindSync'), /syncOff[\s\S]{0,700}clearHouseholdLocalCopies\(\)/,
+    '通常の共有解除でも不要コピーを消すこと');
+  assert.match(APP, /onHouseholdJoinFailed\(\)\{[\s\S]{0,180}clearHouseholdLocalCopies\(\)/,
+    '参加失敗時の掃除経路をアプリ側にも持つこと');
+  assert.match(grab(SYNC, 'failExistingJoin'), /setCode\(''\)[\s\S]*disconnect\(\)[\s\S]*onHouseholdJoinFailed/,
+    '確定した参加失敗は接続・鍵・アプリ側コピーを共通経路で掃除すること');
+  assert.equal((grab(SYNC, 'watchHousehold').match(/failExistingJoin\(/g) || []).length, 3,
+    '文書なし・旧平文形式・復号失敗の参加経路をすべて掃除すること');
+  assert.match(grab(SYNC, 'watchHousehold'), /onHouseholdRevoked/,
+    '端末を外されたときもアプリ側の不要コピーを掃除すること');
+  assert.match(grab(SYNC, 'rememberRevokedCode'), /`fp:\$\{await codeFingerprint\(code\)\}`/,
+    '再参加防止には平文でなくfingerprintを保存すること');
+  assert.match(grab(APP, 'joinInstallTransferHTML'), /getLocal\(K_CODE_CHOSEN\) === 'none'/,
+    '解除・端末削除後は接続できない引き継ぎ案内を出さないこと');
+
+  const revokedStore = {};
+  const storage = {
+    getItem:key=> revokedStore[key] || null,
+    setItem:(key,value)=>{ revokedStore[key] = value; },
+    removeItem:key=>{ delete revokedStore[key]; }
+  };
+  const revoked = new Function('localStorage', 'K_JOIN_REVOKED', 'codeFingerprint', `
+    ${grab(SYNC, 'revokedFingerprint')}
+    ${grab(SYNC, 'rememberRevokedCode')}
+    ${grab(SYNC, 'isRevokedCode')}
+    ${grab(SYNC, 'migrateRevokedFingerprint')}
+    return { rememberRevokedCode, isRevokedCode, migrateRevokedFingerprint };
+  `)(storage, 'revoked', async value=>'hash-' + String(value));
+  await revoked.rememberRevokedCode('group-a');
+  const remembered = revokedStore.revoked;
+  assert.equal(await revoked.isRevokedCode('group-b'), false);
+  assert.equal(revokedStore.revoked, remembered, '別の招待を見ても元の解除fingerprintを壊さない');
+  assert.equal(await revoked.isRevokedCode('group-a'), true, '元の解除済み共有は引き続き拒否する');
+  revokedStore.revoked = 'legacy-group';
+  await revoked.migrateRevokedFingerprint();
+  assert.equal(revokedStore.revoked, 'fp:hash-legacy-group', '旧平文解除印を起動時に移行する');
+
+  let currentCode = '';
+  revokedStore.pending = JSON.stringify({ code:'legacy-group', config:true, state:false });
+  const readPending = new Function('localStorage', 'K_PENDING', 'getCode', `
+    ${grab(SYNC, 'readPending')}
+    return readPending;
+  `)(storage, 'pending', ()=>currentCode);
+  assert.deepEqual(readPending(), { config:false, state:false });
+  assert.equal(revokedStore.pending, undefined, '活動中の合言葉が無ければ旧送信予約も削除する');
+
+  const appStore = { chosen:'legacy-chosen', house:'legacy-house' };
+  const migrateApp = new Function('getLocal', 'setLocal', 'K_CODE_CHOSEN', 'K_CFG_HOUSE',
+    'codeFingerprint', `
+    ${grab(APP, 'migrateAppSecretFingerprints')}
+    return migrateAppSecretFingerprints;
+  `)(key=>appStore[key] || '', (key,value)=>{ appStore[key] = value; }, 'chosen', 'house',
+    async value=>'hash-' + String(value));
+  await migrateApp();
+  assert.equal(appStore.chosen, 'fp:hash-legacy-chosen');
+  assert.equal(appStore.house, 'fp:hash-legacy-house', '通常起動だけでも旧平文比較印を移行する');
+});
+
 test('メッセージは両画面で新しい順に表示し、初回表示では新着印を付ける', ()=>{
   const messagesSource = grab(APP, 'messages');
   assert.match(messagesSource, /String\(b\.at\|\|''\)\.localeCompare\(String\(a\.at\|\|''\)\)/,
@@ -55,7 +491,7 @@ test('保護者ナビは起動URLが残っていても設定ページへ移動�
   const nav = grab(APP, 'bindAdultNav');
   assert.match(nav, /\$\$\('\.pagenav-item'\)/,
     '保護者用の各ページリンクを明示して扱うこと');
-  assert.match(nav, /if\(routeFromHash\(\) === target\)\{[\s\S]{0,80}tab = target;[\s\S]{0,80}render\(\)/,
+  assert.match(nav, /navigateTo\(target\)/,
     '起動時の #config が残り hashchange しない場合も表示を切り替えること');
 });
 
@@ -91,11 +527,11 @@ test('保護者の3ページだけ、描画済みの節見出しからページ�
     '閉じたままでも節の総数が分かること');
   assert.match(toc, /target\.scrollIntoView\(\{ block:'start' \}\)/,
     'キーボードで選んだリンクも節へ移動できること');
-  assert.match(toc, /<details class="adult-section-toc-disclosure"><summary>/,
+  assert.match(toc, /<details class="adult-section-toc-disclosure" data-details-key="adultSectionToc:/,
     '目次は既定で閉じ、必要なときだけ開くこと');
   assert.match(STYLE, /\.adult-section-toc-disclosure > summary\{[\s\S]{0,80}min-height:48px/,
     '閉じた目次は1行で収まり、行全体を操作面にすること');
-  assert.match(STYLE, /\.adult-section-toc-links a\{[\s\S]{0,80}min-height:44px/,
+  assert.match(STYLE, /\.adult-section-toc-links button\{[\s\S]{0,140}min-height:44px/,
     '開いた目次の各リンクは44pxの操作面を持つこと');
   assert.match(STYLE, /\.adult-section-toc-target\{ scroll-margin-top:var\(--space-md\); \}/,
     '飛び先の見出しを上帯の下に出すこと');
@@ -168,7 +604,7 @@ test('任意質問は回答ごとに保存・再表示し、シート外では�
     '保存した回答を課題ごとに残すこと');
   assert.match(one, /if\(!next && !old\)\{ toast\('答えを 書いてから ほぞんしてね'\); return false; \}/,
     '空欄は保存済みとせず、入力を促すこと');
-  assert.match(grab(APP, 'questionAnswerRow'), /K_QUESTION_ANSWERS/,
+  assert.match(grab(APP, 'questionAnswerRow'), /localAnswerMap\(\)/,
     '端末内の控えからも保存済み回答を再表示できること');
   assert.match(grab(APP, 'mergeState'), /out\.questionAnswers = \{\}/,
     '共有時にも質問回答を統合すること');
@@ -292,7 +728,7 @@ test('答えの上書き確認は1回にまとめ、とじる前に未保存を�
 
 function questionAnswerRowFn(st){
   return new Function('state', 'getLocal', 'K_QUESTION_ANSWERS', 'ms',
-    `${grab(APP, 'legacyQuestionAnswers')} ${grab(APP, 'questionAnswerRow')} return questionAnswerRow;`
+    `let answerMapCache=null; ${grab(APP, 'localAnswerMap')} ${grab(APP, 'legacyQuestionAnswers')} ${grab(APP, 'questionAnswerRow')} return questionAnswerRow;`
   )(st, ()=> '{}', 'k', v=> Number(v) || 0);
 }
 
@@ -350,12 +786,14 @@ function grabConst(src, name){
 const APP_NAMES = [
   'emptyState', 'normalizeState', 'ms', 'deepCopy', 'mergeById',
   'pickStamped', 'mergeProgress', 'mergeState', 'resetState',
-  'canon', 'sameState', 'stripLocal', 'cacheBustURL', 'homeInstallPlatform', 'clamp', 'dailyCountSelection',
+  'canon', 'sameState', 'pickShared', 'sharedConfig', 'sharedState', 'stripLocal', 'cacheBustURL', 'homeInstallPlatform', 'clamp', 'dailyCountSelection',
   'parentShareSummary', 'defaultTitleFor', 'isGeneratedTitle', 'logByLabel',
   'isBook', 'isSheetCount', 'countUsesCircle', 'bookCountUnit', 'bookOrdinal'
 ];
 const appFns = new Function('location', `
   const SCHEMA=6, TRASH_MAX=50, GONE_MAX=300, MESSAGES_MAX=3, READS_MAX=400;
+  ${grabConst(APP, 'SHARED_CONFIG_KEYS')}
+  ${grabConst(APP, 'SHARED_STATE_KEYS')}
   ${APP_NAMES.map(n=>grab(APP, n)).join('\n')}
   return { ${APP_NAMES.join(',')} };
 `)({ href:'https://example.test/app/index.html' });
@@ -587,8 +1025,8 @@ test('同梱QRライブラリが招待URLをSVG化できる', ()=>{
 
 /* 暗号化の部品。sync.js の本物をそのまま持ちこむので、
    実装が変わればテストも一緒に動く。 */
-const CRYPTO_PARTS = "let cryptoKey=null, cryptoKeyCode='';\nconst ENC_PREFIX='v1:'; const ENC_ITERATIONS=250000;\n"
-  + ['normalizeCode','sha256Bytes','deriveKey','bytesToBase64','base64ToBytes','encryptField','isCiphertext']
+const CRYPTO_PARTS = "let cryptoKey=null, cryptoKeyFingerprint='';\nconst ENC_PREFIX='v1:'; const ENC_ITERATIONS=250000;\n"
+  + ['normalizeCode','sha256Bytes','houseIdFor','codeFingerprint','deriveKey','bytesToBase64','base64ToBytes','encryptField','isCiphertext']
       .map(n=>grab(SYNC, n)).join('\n');
 
 test('接続前の保留送信は初回snapshot後に再開できる', async ()=>{
@@ -719,8 +1157,8 @@ test('メッセージと注意事項のUIは狭幅・横幅の役割を分ける
    着いた先までスクロールしないと意味がない。飛び先の id が消えたら気づけること。 */
 test('注記からの案内は、設定ページの該当箇所まで寄せる', ()=>{
   const jumps = [
-    { name:'記録の注記',   anchor:"closest('#logCareJump')", call:"jumpTo('#allowLogDelete', true)", target:'#allowLogDelete' },
-    { name:'共有バッジ',   anchor:'badge.onclick',            call:"jumpTo('#syncSection')",           target:'#syncSection' }
+    { name:'記録の注記',   anchor:"closest('#logCareJump')", call:"navigateTo('config', { jump:'#allowLogDelete', focus:true })", target:'#allowLogDelete' },
+    { name:'共有バッジ',   anchor:'badge.onclick',            call:"navigateTo('config', { jump:'#syncSection' })", target:'#syncSection' }
   ];
   for(const { name, anchor, call, target } of jumps){
     const at = APP.indexOf(anchor);
@@ -743,7 +1181,7 @@ test('注記からの案内は、設定ページの該当箇所まで寄せる',
 
   /* すでに有効なら、その案内は出さない */
   const note = grab(APP, 'parentTodayLogsHTML');
-  assert.match(note, /config\.allowLogDelete \? ''/, '有効なときは案内を出さないこと');
+  assert.match(note, /logDeleteAllowed\(\) \? ''/, '有効なときは案内を出さないこと');
 });
 
 test('QR招待の共有コードはホーム画面版へ渡し、ホーム画面版でだけURLから消す', ()=>{
@@ -770,15 +1208,15 @@ test('QR招待の共有コードはホーム画面版へ渡し、ホーム画面
    勝手に戻れてしまわないかを固定する。
    ホーム画面版では起動URLそのものに join が焼きつくため、
    これが無いと はずしても 起動のたびに 復帰する。 */
-test('はずされた端末は、招待URLを開き直しても勝手に戻らない', ()=>{
+test('はずされた端末は、招待URLを開き直しても勝手に戻らない', async ()=>{
   const CODE = 'abcdefghjkmnpqrs';
-  function harness(revokedFrom, chosen){
+  async function harness(revokedFrom, chosenMatches){
     let reconnected = '';
     const applyJoinCode = new Function(
       'location', 'history', 'cleanCode', 'isStandalone',
       'setLocal', 'K_ONBOARD', 'window', 'toast', 'render', 'routeFromHash',
       'forgetConfigStampForNewHousehold', 'getLocal', 'K_CODE_CHOSEN',
-      'rememberChosenCode', 'chosen', `
+      'rememberChosenCode', 'chosenCodeMatches', 'localStorage', 'navigateTo', `
       const JOIN_PARAM='join';
       ${grab(APP, 'joinCodeFromURL')}
       ${grab(APP, 'clearJoinCodeFromURL')}
@@ -794,36 +1232,28 @@ test('はずされた端末は、招待URLを開き直しても勝手に戻ら�
       ()=>{},
       'natsu.onboarding.v1',
       { NatsuSync:{ configured:()=>true, getCode:()=>'',
-                    revokedCode:()=>revokedFrom,
+                    isRevokedCode:async code=>revokedFrom === code,
                     reconnect:c => { reconnected = c; } } },
       ()=>{}, ()=>{}, ()=>'home', ()=>{},
-      k => (k === 'natsu.sync.chosen.v1' ? chosen : ''),
-      'natsu.sync.chosen.v1', ()=>{}, chosen
+      k => (k === 'natsu.sync.chosen.v1' ? 'fp:saved' : ''),
+      'natsu.sync.chosen.v1', async()=>{}, async()=>chosenMatches, { removeItem(){} }, ()=>{}
     );
-    applyJoinCode();
+    await applyJoinCode();
     return reconnected;
   }
-  assert.equal(harness(''), CODE, 'ふつうの招待は これまで通り つながる');
-  assert.equal(harness(CODE), '', 'はずされた あいことばでは 自動で つなぎ直さない');
-  assert.equal(harness('betsunoaikotoba'), CODE, 'べつのグループの はずし記録は じゃまをしない');
+  assert.equal(await harness('', true), CODE, 'ふつうの招待は これまで通り つながる');
+  assert.equal(await harness(CODE, true), '', 'はずされた あいことばでは 自動で つなぎ直さない');
+  assert.equal(await harness('betsunoaikotoba', true), CODE, 'べつのグループの はずし記録は じゃまをしない');
+  assert.equal(await harness('', false), '', '人が選んだ別の共有を起動URLで上書きしない');
   const apply = grab(APP, 'applyJoinCode');
   assert.match(apply, /const code = joinCodeFromURL\(\);/,
     '同期の準備が終わる前に招待URLのコードを消さないこと');
   assert.match(apply, /S\.reconnect\(code, \{ joining:true \}\);\s*if\(isStandalone\(\)\) clearJoinCodeFromURL\(\);/,
     'ホーム画面版では接続開始後にだけ招待コードをURLから消すこと');
-  assert.match(apply, /if\(tab === 'welcome'\)\{\s*tab = 'home';[\s\S]{0,100}location\.hash = 'home';/,
+  assert.match(apply, /if\(tab === 'welcome'\)\{\s*tab = 'home';[\s\S]{0,100}navigateTo\('home'\);/,
     '招待接続後は初期設定画面から、既存の端末役割選択を持つhome側へ切り替えること');
-
-  /* はずされた あいことばのままでは、ホーム画面追加の案内も出さない
-     （「引き継げる準備ができています」は この状態では うそになる） */
-  const banner = new Function('location', 'cleanCode', 'isStandalone', 'window', `
-    const JOIN_PARAM='join';
-    ${grab(APP, 'joinCodeFromURL')}
-    ${grab(APP, 'joinInstallTransferHTML')}
-    return joinInstallTransferHTML;
-  `)({ search:'?join=' + CODE }, v => String(v || ''), () => false,
-     { NatsuSync:{ revokedCode:()=>CODE } });
-  assert.equal(banner(), '', 'はずされた端末には 引き継ぎ案内を出さない');
+  assert.match(apply, /await S\.isRevokedCode\(code\)/,
+    '解除済み比較は平文コピーではなくfingerprint APIを使うこと');
 });
 
 /* 人が 手で 打ち直したら、はずし記録は 忘れること。
@@ -912,13 +1342,14 @@ test('空のキャッシュはグループ設定を受信済みと数えない',
 
 /* よそで保存した時刻は、これから入るおうちの時刻とくらべても意味がない。
    0 に戻さないと、古い設定が「新しい」と判定されてグループ全体に配られる。 */
-test('ちがうあいことばにつなぐとき、設定の保存時刻を0に戻す', ()=>{
-  function harness(rememberedHouse, joining){
+test('ちがうあいことばにつなぐとき、設定の保存時刻を0に戻す', async ()=>{
+  async function harness(rememberedHouse, joining){
     const store = { 'natsu.savedAt.v1': JSON.stringify({ config:9999, state:8888 }) };
     if(rememberedHouse) store['natsu.config.house.v1'] = rememberedHouse;
     const st = { resetAt: 777 };
     const api = new Function('getLocal', 'setLocal', 'savedAt', 'localStorage',
-                             'K_AT', 'K_CFG_HOUSE', 'K_ST', 'state', 'ms', `
+                             'K_AT', 'K_CFG_HOUSE', 'K_ST', 'state', 'ms',
+                             'codeFingerprint', 'clearQuestionAnswerCache', `
       ${grab(APP, 'forgetConfigStampForNewHousehold')}
       return forgetConfigStampForNewHousehold;
     `)(
@@ -926,24 +1357,33 @@ test('ちがうあいことばにつなぐとき、設定の保存時刻を0に�
       () => JSON.parse(store['natsu.savedAt.v1'] || '{}'),
       { setItem:(k,v)=>{ store[k]=v; } },
       'natsu.savedAt.v1', 'natsu.config.house.v1', 'natsu.state.v2', st,
-      v => Number(v) || 0
+      v => Number(v) || 0,
+      async value => 'hash:' + String(value || '').trim().normalize('NFKC').replace(/\s+/g, '').toLowerCase(),
+      ()=>{ store.cacheCleared = (store.cacheCleared || 0) + 1; }
     );
-    api(joining);
-    return { at: JSON.parse(store['natsu.savedAt.v1']), resetAt: st.resetAt };
+    await api(joining);
+    return { at: JSON.parse(store['natsu.savedAt.v1']), resetAt: st.resetAt,
+             house:store['natsu.config.house.v1'], cacheCleared:store.cacheCleared || 0 };
   }
 
-  assert.deepEqual(harness('', 'aaaaaaaaaaaaaaaa').at, { state:8888 },
+  assert.deepEqual((await harness('', 'aaaaaaaaaaaaaaaa')).at, { state:8888 },
     'はじめて つなぐ ときは 設定の時刻を 落とす');
-  assert.deepEqual(harness('bbbbbbbbbbbbbbbb', 'aaaaaaaaaaaaaaaa').at, { state:8888 },
+  assert.deepEqual((await harness('bbbbbbbbbbbbbbbb', 'aaaaaaaaaaaaaaaa')).at, { state:8888 },
     'べつの おうちに 移る ときも 落とす');
-  assert.deepEqual(harness('aaaaaaaaaaaaaaaa', 'aaaaaaaaaaaaaaaa').at,
+  assert.deepEqual((await harness('fp:hash:aaaaaaaaaaaaaaaa', 'aaaaaaaaaaaaaaaa')).at,
     { config:9999, state:8888 }, '同じ おうちなら そのまま');
+  const legacySame = await harness('ＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡＡ', 'aaaaaaaaaaaaaaaa');
+  assert.deepEqual(legacySame.at, { config:9999, state:8888 },
+    '旧平文形式でも正規化後に同じおうちなら時刻を保つ');
+  assert.equal(legacySame.resetAt, 777, '同じおうちの削除世代を失わない');
+  assert.equal(legacySame.house, 'fp:hash:aaaaaaaaaaaaaaaa', '旧平文だけfingerprintへ置き換える');
+  assert.equal(legacySame.cacheCleared, 0, '同じおうちの質問控えを消さない');
 
   /* 「記録をすべて削除」の世代番号は、前のおうちあての印。
      のこしたまま入ると、入った先のおうちの記録がまるごと捨てられる */
-  assert.equal(harness('bbbbbbbbbbbbbbbb', 'aaaaaaaaaaaaaaaa').resetAt, 0,
+  assert.equal((await harness('bbbbbbbbbbbbbbbb', 'aaaaaaaaaaaaaaaa')).resetAt, 0,
     'べつのおうちに移るとき、消した世代番号は手放すこと');
-  assert.equal(harness('aaaaaaaaaaaaaaaa', 'aaaaaaaaaaaaaaaa').resetAt, 777,
+  assert.equal((await harness('fp:hash:aaaaaaaaaaaaaaaa', 'aaaaaaaaaaaaaaaa')).resetAt, 777,
     '同じおうちなら、消したことは伝えつづけること');
 
   /* 記録（state）の時刻は落とさない。値ごとに時刻を持って合流するので、
@@ -1123,11 +1563,11 @@ test('初期設定は選択したルートに応じて③以降を連番で示�
 test('子どもが選んだデザインは、グループ設定の受信後に1度だけ反映する', ()=>{
   const storage = new Map([
     ['natsu.savedAt.v1', JSON.stringify({config:100})],
-    ['natsu.welcome.theme.v1', JSON.stringify({code:'abcdefgh',theme:'berry'})]
+    ['natsu.welcome.theme.v1', JSON.stringify({house:'house-a',theme:'berry'})]
   ]);
   let saved = 0;
   const harness = new Function('localStorage', 'onSave', `
-    const window={NatsuSync:{getCode:()=> 'abcdefgh'}};
+    const window={NatsuSync:{householdFingerprint:()=> 'house-a'}};
     let config={ tasks:[], theme:'notebook' }, state={};
     const K_AT='natsu.savedAt.v1', K_CFG='natsu.config.v2', K_WELCOME_THEME='natsu.welcome.theme.v1', K_WELCOME_JOIN='natsu.welcome.join.v1';
     const THEME_IDS=['notebook','sunny','soda','berry','block','cat'];
@@ -1156,7 +1596,7 @@ test('子どもが選んだデザインは、グループ設定の受信後に1�
   assert.equal(saved, 1, '受信後にデザインだけを保存する');
   assert.equal(storage.has('natsu.welcome.theme.v1'), false, '反映後は一時値を消す');
 
-  storage.set('natsu.welcome.theme.v1', JSON.stringify({code:'other-house',theme:'cat'}));
+  storage.set('natsu.welcome.theme.v1', JSON.stringify({house:'other-house',theme:'cat'}));
   harness.applyRemote({ config:{tasks:[],theme:'sunny'}, configAt:300 });
   assert.equal(harness.config().theme, 'sunny', '別のグループで残った一時デザインは採らない');
   assert.equal(saved, 1, '別グループの一時値をグループ設定として保存しない');
@@ -1477,8 +1917,8 @@ test('招待URLでは端末に残ったデザインを持ち込まず、グル�
   const remote = grab(APP, 'applyRemote');
   assert.match(join, /localStorage\.removeItem\(K_WELCOME_THEME\)/,
     '招待接続前に手動参加の一時デザインを消す');
-  assert.match(remote, /welcomeTheme\.code === activeCode/,
-    '一時デザインは確認済みの同じグループだけに適用する');
+  assert.match(remote, /welcomeTheme\.house === activeHouse/,
+    '一時デザインは平文コピーでなく確認済みの同じグループfingerprintだけに適用する');
   assert.match(remote, /remoteThemeMissing[\s\S]{0,180}!joinCodeFromURL\(\)/,
     '旧グループのテーマ移行に招待直後の端末を使わない');
   const bind = grab(APP, 'bindWelcomeStart');
@@ -1679,8 +2119,10 @@ test('あるグループへ入る端末は、グループが見つからなく�
   const guard = watch.indexOf('if(joiningExisting)');
   const push = watch.indexOf('pushAll();');
   assert.ok(guard >= 0 && push > guard, 'pushAll() の手前で止めること');
-  assert.match(watch, /joiningExisting\)\{[\s\S]{0,200}setStatus\('error'/,
+  assert.match(watch, /joiningExisting\)\{[\s\S]{0,200}failExistingJoin\(/,
     '静かに上書きせず、画面に出して気づけるようにすること');
+  assert.match(grab(SYNC, 'failExistingJoin'), /setStatus\('error'/,
+    '共通の参加失敗処理がエラーを画面へ出すこと');
   /* 招待リンクと初期設定の参加は、かならず joining を渡す */
   assert.match(grab(APP, 'applyJoinCode'), /reconnect\(code, \{ joining:true \}\)/);
   assert.match(grab(APP, 'bindWelcomeStart'), /reconnect\(code, \{ joining \}\)/);
@@ -1719,7 +2161,7 @@ test('設定画面の共有は、作成でそのままつながり、参加は�
   assert.match(make, /openSyncDetails = true/, '作成後にQR・招待リンクを開くこと');
   assert.doesNotMatch(make, /この合言葉で接続/, '作成後にもう1操作を求めないこと');
   /* おまかせでも 自分で決めても、押した時点で共有が始まるのは同じ */
-  assert.match(make, /on\('#syncMake', 'click', \(\)=> startSharing\(S\.makeCode\(\), true\)\)/);
+  assert.match(make, /on\('#syncMake', 'click', \(\)=>\{?\s*startSharing\(S\.makeCode\(\), true\);?\s*\}?\)/);
   /* おまかせの合言葉に「短い合言葉を使わないで」の注意はあてはまらない。
      押すたびに出すだけ邪魔なので、自分で決めたときだけ出す */
   assert.match(make, /if\(!auto && !confirmShareSafety\(\)\) return;/);
@@ -1840,7 +2282,7 @@ test('招待で入った端末には、先に保護者か子どもかを聞く',
     '余白を足しても選択ボタンの押しやすさを保つこと');
   /* 選んだ役割はこの端末だけの設定。グループの設定に混ぜない */
   assert.match(APP, /setLocal\(K_ROLE, role\)/);
-  assert.match(APP, /if\(role === 'parent'\) location\.hash = 'settings'/);
+  assert.match(APP, /if\(role === 'parent'\) navigateTo\('settings'\)/);
 });
 
 /* 中身のエンドツーエンド暗号化。Firebase の管理者に名前・宿題・記録を
@@ -2006,11 +2448,11 @@ test('あけられないグループは、参加の確認で止めて理由を�
    起動URLは書きかえられないので、人がえらんだほうを優先する。 */
 test('起動URLの古い招待より、人がえらんだ合言葉を優先する', ()=>{
   const apply = grab(APP, 'applyJoinCode');
-  assert.match(apply, /const chosen = getLocal\(K_CODE_CHOSEN\);[\s\S]{0,80}if\(chosen && chosen !== code\) return;/,
+  assert.match(apply, /const chosen = getLocal\(K_CODE_CHOSEN\);[\s\S]{0,140}chosenCodeMatches\(code\)/,
     'えらんだ合言葉と違う招待では、つなぎ直さないこと');
   /* えらんだ場面すべてでおぼえること。1か所でも抜けると引き戻される */
-  assert.equal((APP.match(/rememberChosenCode\(/g) || []).length, 8,
-    '定義1つと、作成・参加・招待・QR・初期設定・解除・削除処理中の7か所');
+  assert.equal((APP.match(/rememberChosenCode\(/g) || []).length, 10,
+    '定義1つと、作成・参加・招待・QR・初期設定・解除・削除・参加失敗・解除通知の9か所');
   const bind = grab(APP, 'bindSync');
   assert.match(bind, /rememberChosenCode\('none'\)[\s\S]{0,120}S\.setCode\(''\)/,
     '解除したら「どこにもつながらない」をおぼえること');
@@ -2943,12 +3385,12 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260822o',
+    'assets/style.css': '20260822p',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822r',
-    'assets/sync.js': '20260821c',
+    'assets/app.js': '20260822s',
+    'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a'
   };
   for(const [file, version] of Object.entries(versions)){
@@ -3064,7 +3506,8 @@ test('変更履歴は公開版と内部配信版の事実だけを短く並べ�
 
 test('バックアップは版・日時を持ち、共有中の反映範囲を確認する', ()=>{
   const exported = grab(APP, 'exportData');
-  const imported = grab(APP, 'importData');
+  const imported = grab(APP, 'importBackup');
+  assert.match(grab(APP, 'importData'), /importBackup\(o\)/);
   assert.match(exported, /exportVersion:\s*1/);
   assert.match(exported, /exportedAt:\s*new Date\(\)\.toISOString\(\)/);
   assert.match(imported, /backupPreviewText\(o\)/);
@@ -3182,7 +3625,7 @@ test('サンプルのリセットは課題と記録の両方を、墓標の世�
   assert.match(reset, /confirm\(/, '取り消せないので確認を通すこと');
   assert.match(reset, /config\.tasks = \[\];/);
   assert.match(reset, /config\.showDaily = false;/);
-  assert.match(reset, /state = resetState\(Date\.now\(\)\);/,
+  assert.match(reset, /resetSharedState\(Date\.now\(\)\);/,
     '空にするだけでは他端末から復活するので、世代番号を押すこと');
   assert.match(reset, /saveCfg\(\)[\s\S]*saveSt\(\)/);
 });

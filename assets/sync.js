@@ -46,7 +46,7 @@ const K_JOIN_REVOKED = new URLSearchParams(location.search).get('new') === '1'
   ? 'natsu.preview.sync.revoked.code.v1'
   : 'natsu.sync.revoked.code.v1';
 /* Firestoreへ渡す前にページを閉じても、次回起動で送信を再開するための目印。
-   中身はすでに app.js の localStorage にあるため、種類と合言葉だけを持つ。 */
+   中身はすでに app.js の localStorage にあるため、未送信の種類だけを持つ。 */
 const K_PENDING = new URLSearchParams(location.search).get('new') === '1'
   ? 'natsu.preview.sync.pending.v1'
   : 'natsu.sync.pending.v1';
@@ -64,7 +64,7 @@ let activeHouseId = '';
 let unsub = null;
 let receiveHouseholdSnapshot = null;
 let tombstoneUnsub = null;
-let retiredCode = '';
+let retiredFingerprint = '';
 /* つなぎ直してから、おうちの中身を 1回でも 受け取ったか。
    受け取る 前の 端末は、手元の 設定が おうちの 設定より 新しいのか
    古いのか わからない。その あいだに 設定を 送ると、まだ 何も
@@ -128,16 +128,35 @@ function getCode(){
 }
 function readPending(){
   try{
-    const saved = JSON.parse(localStorage.getItem(K_PENDING) || 'null');
-    if(!saved || saved.code !== getCode()) return { config:false, state:false };
-    return { config:!!saved.config, state:!!saved.state };
-  }catch(e){ return { config:false, state:false }; }
+    const raw = localStorage.getItem(K_PENDING) || '';
+    if(!raw) return { config:false, state:false };
+    const saved = JSON.parse(raw);
+    const currentCode = getCode();
+    if(!saved || !currentCode){
+      localStorage.removeItem(K_PENDING);
+      return { config:false, state:false };
+    }
+    /* 旧形式の予約が別の共有先宛てなら、現接続へ持ち越さず捨てる。 */
+    if(Object.prototype.hasOwnProperty.call(saved, 'code') && saved.code !== currentCode){
+      localStorage.removeItem(K_PENDING);
+      return { config:false, state:false };
+    }
+    const clean = { config:!!saved.config, state:!!saved.state };
+    /* 旧版はここへ合言葉も複製していた。読めた時点で種類だけへ縮める。 */
+    if(Object.prototype.hasOwnProperty.call(saved, 'code')){
+      if(clean.config || clean.state) localStorage.setItem(K_PENDING, JSON.stringify(clean));
+      else localStorage.removeItem(K_PENDING);
+    }
+    return clean;
+  }catch(e){
+    try{ localStorage.removeItem(K_PENDING); }catch(ignore){}
+    return { config:false, state:false };
+  }
 }
 function persistPending(){
   try{
     if(pending.config || pending.state){
       localStorage.setItem(K_PENDING, JSON.stringify({
-        code:getCode(),
         config:!!pending.config,
         state:!!pending.state
       }));
@@ -160,19 +179,35 @@ function setCode(code){
     else  localStorage.removeItem(K_CODE);
   }catch(e){}
   /* 別の家族へ、前の家族宛ての送信予約を持ち越さない。 */
-  if(before !== c) clearPending();
+  if(before !== c){ clearPending(); clearCryptoKey(); }
   return c;
 }
 /* はずされた あいことば。招待リンクからの 自動つなぎだけを ことわる。
    人が 手で 打ち直した ときは forgetRevokedCode() で 忘れるので、
    「はずす → あいことばを 入れ直す」は これまで通り できる */
-function revokedCode(){
+function revokedFingerprint(){
   try{ return localStorage.getItem(K_JOIN_REVOKED) || ''; }catch(e){ return ''; }
 }
-function rememberRevokedCode(code){
+async function rememberRevokedCode(code){
   try{
-    if(code) localStorage.setItem(K_JOIN_REVOKED, code);
+    if(code) localStorage.setItem(K_JOIN_REVOKED, `fp:${await codeFingerprint(code)}`);
   }catch(e){}
+}
+async function isRevokedCode(code){
+  const saved = revokedFingerprint();
+  if(!saved || !code) return false;
+  const fingerprint = await codeFingerprint(code);
+  if(saved.slice(0, 3) === 'fp:') return saved === `fp:${fingerprint}`;
+  /* 旧版の平文コピーは比較に一度だけ使い、直ちにfingerprintへ置き換える。 */
+  const legacyFingerprint = await codeFingerprint(saved);
+  try{ localStorage.setItem(K_JOIN_REVOKED, `fp:${legacyFingerprint}`); }catch(e){}
+  return legacyFingerprint === fingerprint;
+}
+async function migrateRevokedFingerprint(){
+  const saved = revokedFingerprint();
+  if(saved && saved.slice(0, 3) !== 'fp:'){
+    try{ localStorage.setItem(K_JOIN_REVOKED, `fp:${await codeFingerprint(saved)}`); }catch(e){}
+  }
 }
 function forgetRevokedCode(){
   try{ localStorage.removeItem(K_JOIN_REVOKED); }catch(e){}
@@ -207,6 +242,7 @@ async function houseIdFor(code){
   const digest = await sha256Bytes(normalizeCode(code));
   return Array.from(digest, n=>n.toString(16).padStart(2, '0')).join('');
 }
+async function codeFingerprint(code){ return houseIdFor(code); }
 /* ---------------------------------------------------------
    1.5 中身の 暗号化（エンドツーエンド）
 
@@ -225,7 +261,7 @@ async function houseIdFor(code){
 const ENC_PREFIX = 'v1:';
 const ENC_ITERATIONS = 250000;
 let cryptoKey = null;
-let cryptoKeyCode = '';
+let cryptoKeyFingerprint = '';
 
 function normalizeCode(code){
   return String(code || '').trim().normalize('NFKC').replace(/\s+/g, '').toLowerCase();
@@ -235,15 +271,20 @@ async function sha256Bytes(text){
 }
 async function deriveKey(code){
   const normalized = normalizeCode(code);
-  if(cryptoKey && cryptoKeyCode === normalized) return cryptoKey;
+  const fingerprint = await codeFingerprint(normalized);
+  if(cryptoKey && cryptoKeyFingerprint === fingerprint) return cryptoKey;
   const salt = await sha256Bytes('natsu.e2ee.salt.v1|' + normalized);
   const material = await crypto.subtle.importKey(
     'raw', new TextEncoder().encode(normalized), 'PBKDF2', false, ['deriveKey']);
   cryptoKey = await crypto.subtle.deriveKey(
     { name:'PBKDF2', salt, iterations:ENC_ITERATIONS, hash:'SHA-256' },
     material, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']);
-  cryptoKeyCode = normalized;
+  cryptoKeyFingerprint = fingerprint;
   return cryptoKey;
+}
+function clearCryptoKey(){
+  cryptoKey = null;
+  cryptoKeyFingerprint = '';
 }
 function bytesToBase64(bytes){
   let s = '';
@@ -349,8 +390,9 @@ async function readTombstone(fs, houseId, read){
 
 const RETIRED_TEXT = 'この共有データは削除処理中のため、もう使えません。新しい合言葉で始めてください。';
 function retireHousehold(code){
-  if(retiredCode === code) return;
-  retiredCode = code;
+  const fingerprint = activeHouseId;
+  if(fingerprint && retiredFingerprint === fingerprint) return;
+  retiredFingerprint = fingerprint || 'retired';
   if(unsub){ unsub(); unsub = null; }
   if(tombstoneUnsub){ tombstoneUnsub(); tombstoneUnsub = null; }
   clearTimeout(pushTimer);
@@ -387,6 +429,19 @@ function watchTombstone(fs, houseId, code){
    同時に 2回 初期化しないよう ここで ひとまとめにする */
 let initPromise = null;
 
+function failExistingJoin(message){
+  if(!joiningExisting) return false;
+  setCode('');
+  disconnect();
+  joiningExisting = false;
+  const app0 = window.NatsuApp;
+  if(app0 && typeof app0.onHouseholdJoinFailed === 'function'){
+    try{ app0.onHouseholdJoinFailed(); }catch(e){}
+  }
+  setStatus('error', message);
+  return true;
+}
+
 /* snapshot を先に張る。接続前に getDoc を待つと、オフライン時に
    ブラウザ内へためておく仕組みまで始められなくなるため。
    新方式の書類がオンラインで「ない」と確認できた時だけ、旧方式の
@@ -418,7 +473,7 @@ function watchHousehold(fs, ref, code){
            あいことばの取りちがえ・旧方式IDの取りこぼしを、静かに
            上書きせず 画面に 出して 気づけるようにする */
         if(joiningExisting){
-          setStatus('error', 'この合言葉のグループが見つかりません。合言葉を確認してください');
+          failExistingJoin('この合言葉のグループが見つかりません。合言葉を確認してください');
           return;
         }
         /* グループを 新しく 作る、ただ1つの 道。あとから 事故を 追えるように
@@ -436,9 +491,13 @@ function watchHousehold(fs, ref, code){
       /* はずされた 判定は 平文の まま 先に。鍵が 合わなくても
          「もう このグループの 端末では ない」ことは 分かる */
       if(revokedForMe(d.devices)){
-        rememberRevokedCode(getCode());
+        await rememberRevokedCode(getCode());
         setCode('');
         disconnect();
+        const app0 = window.NatsuApp;
+        if(app0 && typeof app0.onHouseholdRevoked === 'function'){
+          try{ app0.onHouseholdRevoked(); }catch(e){}
+        }
         setStatus('off', 'この端末は はずされました。あいことばを 入れ直してください');
         return;
       }
@@ -458,15 +517,17 @@ function watchHousehold(fs, ref, code){
       if(!sealed(d.config) || !sealed(d.state)){
         /* 鍵を かける 前の 版が 作った グループ。鍵が 無いのでは なく、
            そもそも かかっていない。合言葉を 入れ直しても 直らない */
-        setStatus('error', 'このグループは 古い方式で 保存されています。'
-          + '保護者の端末を 最新に 更新し、合言葉を 作り直してください');
+        const message = 'このグループは 古い方式で 保存されています。'
+          + '保護者の端末を 最新に 更新し、合言葉を 作り直してください';
+        if(!failExistingJoin(message)) setStatus('error', message);
         return;
       }
       try{
         if(isCiphertext(d.config)) plainConfig = await decryptField('config', code, d.config);
         if(isCiphertext(d.state))  plainState  = await decryptField('state',  code, d.state);
       }catch(e){
-        setStatus('error', '合言葉が ちがうため、中身を 読めません');
+        const message = '合言葉が ちがうため、中身を 読めません';
+        if(!failExistingJoin(message)) setStatus('error', message);
         return;
       }
       if(docRef !== ref) return;    // 読んでいる あいだに つなぎ直された
@@ -774,10 +835,11 @@ function disconnect(){
   if(unsub){ unsub(); unsub = null; }
   receiveHouseholdSnapshot = null;
   if(tombstoneUnsub){ tombstoneUnsub(); tombstoneUnsub = null; }
-  retiredCode = '';
+  retiredFingerprint = '';
   gotSnapshot = false;
   docRef = null;
   activeHouseId = '';
+  clearCryptoKey();
   lastDeviceWrite = '';
   setDeviceMap({});
   setDeviceCount(0);
@@ -1073,7 +1135,9 @@ const Sync = {
   _fs: null,
   configured,
   getCode, setCode, makeCode,
-  revokedCode, forgetRevokedCode,
+  isRevokedCode, forgetRevokedCode,
+  codeFingerprint,
+  householdFingerprint: () => activeHouseId,
   /* おうちの中身を まだ 1回も 受け取っていない あいだは true。
      この あいだ、app.js は 設定を 送らない */
   awaitingFirstSnapshot: () => getCode().length >= 8 && !gotSnapshot,
@@ -1127,4 +1191,4 @@ window.dispatchEvent(new CustomEvent('natsu:sync-ready'));
 
 /* app.js は もう動いている（classic script は 先に走る）。
    ここで はじめて 通信を 始める。読み込みが 遅れても 画面は 止まらない */
-connect();
+migrateRevokedFingerprint().finally(connect);

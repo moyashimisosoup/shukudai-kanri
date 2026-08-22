@@ -50,13 +50,33 @@ const K_ONBOARD = TEST_MODE ? 'natsu.preview.onboarding.v1' : 'natsu.onboarding.
    この端末に おぼえておき、URL より そちらを 優先する。
    解除した ときは 'none' を 入れて、どこにも つながらないことを おぼえる */
 const K_CODE_CHOSEN = TEST_MODE ? 'natsu.preview.sync.chosen.v1' : 'natsu.sync.chosen.v1';
-function rememberChosenCode(code){ setLocal(K_CODE_CHOSEN, String(code || 'none')); }
+async function rememberChosenCode(code){
+  const value = String(code || 'none');
+  if(value === 'none'){ setLocal(K_CODE_CHOSEN, 'none'); return 'none'; }
+  const fingerprint = await codeFingerprint(value);
+  setLocal(K_CODE_CHOSEN, 'fp:' + fingerprint);
+  return fingerprint;
+}
+async function chosenCodeMatches(code){
+  const saved = getLocal(K_CODE_CHOSEN);
+  if(!saved) return true;
+  if(saved === 'none') return false;
+  const fingerprint = await codeFingerprint(code);
+  if(saved.slice(0, 3) === 'fp:') return saved === 'fp:' + fingerprint;
+  /* 旧版の平文コピーは比較したこの1回でfingerprintへ置換する。 */
+  const oldFingerprint = await codeFingerprint(saved);
+  setLocal(K_CODE_CHOSEN, 'fp:' + oldFingerprint);
+  return oldFingerprint === fingerprint;
+}
 const K_ROLE = TEST_MODE ? 'natsu.preview.role.v1' : 'natsu.device.role.v1';
 const K_NAME = TEST_MODE ? 'natsu.preview.name.v1' : 'natsu.device.name.v1';
 const K_READING = TEST_MODE ? 'natsu.preview.reading.v1' : 'natsu.device.reading.v1';
 /* 任意質問の回答は共有stateに入れる。通信を始める直前の描き直しや古い
    キャッシュに消されて入力欄が空に見えないよう、この端末にも同じ控えを持つ。 */
 const K_QUESTION_ANSWERS = TEST_MODE ? 'natsu.preview.question.answers.v1' : 'natsu.question.answers.v1';
+/* 「やったこと」を1件ずつ消す設定は、この端末の保護者だけの安全装置。
+   共有configへ入れると別端末までONになるため、専用の端末内キーへ分ける。 */
+const K_ALLOW_LOG_DELETE = TEST_MODE ? 'natsu.preview.allow-log-delete.v1' : 'natsu.allow-log-delete.v1';
 const K_THEME = TEST_MODE ? 'natsu.preview.theme.v1' : 'natsu.device.theme.v1';
 /* 共有へ入る子どもが初期設定で選んだデザイン。グループの設定を受け取ったあとに
    1度だけ反映し、受信前の初期値を先に送る事故を避ける。 */
@@ -107,6 +127,7 @@ const STATS_VALUE = 'family-count';
 if(TEST_MODE){
   try{
     [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME, K_WELCOME_THEME, K_WELCOME_JOIN,
+     K_QUESTION_ANSWERS, K_ALLOW_LOG_DELETE,
      K_SAMPLE_PARENT, K_SAMPLE_CHILD, K_SYNC_PROMPT_DONE, K_HOME_INSTALL_DONE].forEach(k=>localStorage.removeItem(k));
     if(DEBUG_PARENT){
       localStorage.setItem(K_ONBOARD, 'done');
@@ -366,9 +387,8 @@ function normalizeConfig(c){
     const legacy = Number(getLocal(K_READING));
     c.readingGrade = READING_GRADE_OPTIONS.includes(legacy) ? legacy : 2;
   }else c.readingGrade = Number(c.readingGrade);
-  /* 記録の1行けし。ふだんは 切っておく。
-     入れっぱなしだと、子どもが 誤って 記録を 消してしまう */
-  if(typeof c.allowLogDelete !== 'boolean') c.allowLogDelete = false;
+  /* 旧版の共有trueは端末内ONへ移さず、安全側のOFFに倒す。 */
+  delete c.allowLogDelete;
   const msg = c.parentMessage && typeof c.parentMessage === 'object' ? c.parentMessage : {};
   c.parentMessage = {
     enabled: !!msg.enabled,
@@ -466,13 +486,11 @@ function pushRead(i){
   const now = new Date();
   const id = 'r' + now.getTime() + '-' + i;
   if(state.reads.some(r=> r.id === id)) return;
-  /* **だれが 読んだか。** `state.fun`（あと何回 引けるか）は stripLocal で
-     同期から 外して 端末ごとに 数えているのに、`reads` は 共有される。
-     そのため 保護者が 自分の 端末で 読んだ ぶんまで、子どもの カレンダーに
-     ならんで いた。記録（logs）の `by` と 同じ 決めかたに そろえる */
+  /* **だれが 読んだか。** readsもfunも端末内だけだが、同じ端末を親子で
+     使い分けたときの表示を混ぜないため、記録（logs）と同じ役割印を持つ。 */
   state.reads.push({ id, at: now.toISOString(), t: f.t, q: f.q, by: logBy() });
   if(state.reads.length > READS_MAX) state.reads = state.reads.slice(-READS_MAX);
-  saveSt();
+  saveLocalState();
 }
 /* 子ども画面（やったこと・カレンダー）は **子どもの ぶんだけ**。
    保護者が 自分の 端末で 読んだ ものを、子どもの ふりかえりに 混ぜない。
@@ -682,9 +700,21 @@ function saveCfg(){
    合流する（mergeProgress）ので、ここで 落とす 必要が なく、
    落とすと 安全側に 倒れすぎる。 */
 const K_CFG_HOUSE = TEST_MODE ? 'natsu.preview.config.house.v1' : 'natsu.config.house.v1';
-function forgetConfigStampForNewHousehold(code){
+async function forgetConfigStampForNewHousehold(code){
   const c = String(code || '');
-  if(!c || getLocal(K_CFG_HOUSE) === c) return;
+  if(!c) return;
+  const fingerprint = await codeFingerprint(c);
+  const marker = 'fp:' + fingerprint;
+  const savedHouse = getLocal(K_CFG_HOUSE);
+  if(savedHouse === marker) return;
+  /* 旧版はここへ合言葉そのものを置いていた。同じ共有先なら削除世代や
+     保存時刻を落とさず、比較用fingerprintへ置き換えるだけにする。 */
+  if(savedHouse && savedHouse.slice(0, 3) !== 'fp:'
+     && await codeFingerprint(savedHouse) === fingerprint){
+    setLocal(K_CFG_HOUSE, marker);
+    return;
+  }
+  clearQuestionAnswerCache();
   const a = savedAt();
   delete a.config;
   try{ localStorage.setItem(K_AT, JSON.stringify(a)); }catch(e){}
@@ -700,19 +730,46 @@ function forgetConfigStampForNewHousehold(code){
     state.resetAt = 0;
     try{ localStorage.setItem(K_ST, JSON.stringify(state)); }catch(e){}
   }
-  setLocal(K_CFG_HOUSE, c);
+  setLocal(K_CFG_HOUSE, marker);
+}
+function clearHouseholdLocalCopies(){
+  clearQuestionAnswerCache();
+  try{
+    [K_CFG_HOUSE, K_WELCOME_THEME, K_WELCOME_JOIN, K_AT].forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
 }
 function saveSt(){
   /* 子どもが自分の端末で内容を変えた時刻だけを共有する。保護者側の同期確認・
      合流結果の送り返しでは更新しないため、「子どもの最終記録」として使える。 */
   if(getLocal(K_ROLE) === 'child') state.childActivityAt = Date.now();
-  localStorage.setItem(K_ST, JSON.stringify(state));
+  saveLocalState();
   markSaved('state');
   syncPush('state');
+}
+/* funと「読んだもの」は端末内だけ。共有時刻・childActivityAt・同期予約を
+   動かさないため、開く／見るだけで90日の保持期限は延びない。 */
+function saveLocalState(){
+  localStorage.setItem(K_ST, JSON.stringify(state));
 }
 function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
 function getLocal(key){ try{ return localStorage.getItem(key) || ''; }catch(e){ return ''; } }
 function setLocal(key, value){ try{ localStorage.setItem(key, value); }catch(e){} }
+async function codeFingerprint(code){
+  const normalized = String(code || '').trim().normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+  const bytes = new TextEncoder().encode(normalized);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  return Array.from(digest, b=>b.toString(16).padStart(2, '0')).join('');
+}
+async function migrateAppSecretFingerprints(){
+  const chosen = getLocal(K_CODE_CHOSEN);
+  if(chosen && chosen !== 'none' && chosen.slice(0, 3) !== 'fp:'){
+    setLocal(K_CODE_CHOSEN, 'fp:' + await codeFingerprint(chosen));
+  }
+  const house = getLocal(K_CFG_HOUSE);
+  if(house && house.slice(0, 3) !== 'fp:'){
+    setLocal(K_CFG_HOUSE, 'fp:' + await codeFingerprint(house));
+  }
+}
 function isStandalone(){ return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
 function homeInstallPlatform(ua, touchPoints){
   const text = String(ua || '');
@@ -969,9 +1026,8 @@ function mergeState(local, remote, localIsNewer){
     .sort((x,y)=> String(x.at||'').localeCompare(String(y.at||'')))
     .slice(-MESSAGES_MAX);
 
-  out.reads = mergeById(left.reads, right.reads, (a,b)=> String(a.at||'') >= String(b.at||''))
-    .sort((x,y)=> String(x.at||'').localeCompare(String(y.at||'')))
-    .slice(-READS_MAX);
+  /* 閲覧履歴はこの端末だけ。暗号文へ送らず、受信側の履歴も取り込まない。 */
+  out.reads = (left.reads || []).slice(-READS_MAX);
 
   /* 観察・自由研究の任意質問は、課題ごとに最後に確定した回答を残す。
      回答の保存時刻で選ぶため、別端末で古い入力欄を開いたままでも
@@ -1020,15 +1076,32 @@ function resetState(when){
   out.resetAt = ms(when) || Date.now();
   return out;
 }
-
-/* ミニコンテンツの「きょう 何回 引いたか」と 一巡履歴は 記録では なく、
-   その端末の いまの ようす。これを 共有すると、おうちの人が 保護者ページを
-   開いただけで 子の 回数が 減ってしまうので、送らない */
-function stripLocal(s){
-  const o = Object.assign({}, s);
-  delete o.fun;
-  return o;
+function resetSharedState(when){
+  state = resetState(when);
+  clearQuestionAnswerCache();
+  return state;
 }
+
+/* 暗号文の中はFirestore Rulesから検査できない。送信前に共有してよい欄だけを
+   positive allowlistで新しいオブジェクトへ移し、端末専用・未知欄を送らない。 */
+const SHARED_CONFIG_KEYS = [
+  'schema','title','childName','readingGrade','theme','startAt','endAt',
+  'tasks','showDaily','poster','parentMessage','parentMessageMoved'
+];
+const SHARED_STATE_KEYS = [
+  'schema','resetAt','progress','logs','books','trash','gone','messages',
+  'questionAnswers','childActivityAt'
+];
+function pickShared(source, keys){
+  const out = {};
+  keys.forEach(key=>{
+    if(source && Object.prototype.hasOwnProperty.call(source, key)) out[key] = deepCopy(source[key]);
+  });
+  return out;
+}
+function sharedConfig(c){ return pickShared(c, SHARED_CONFIG_KEYS); }
+function sharedState(s){ return pickShared(s, SHARED_STATE_KEYS); }
+function stripLocal(s){ return sharedState(s); }
 
 /* この端末の state / config を いつ保存したか。
    相手と どちらが 新しいか くらべるのに つかう */
@@ -1101,6 +1174,7 @@ function applyRemote(remote){
     const merged = mergeState(localState,
                               remoteState,
                               ms(at.state) >= ms(remote.stateAt));
+    if(ms(merged.resetAt) > ms(localState.resetAt)) clearQuestionAnswerCache();
     /* 手元がすでに正しくても、相手が古ければ合流結果を返す必要がある。
        特に同期の準備前に削除した場合、gone/resetAt は手元にだけあり、
        ここで返さないと次の保存までほかの端末へ届かない。fun は端末専用なので比較しない。 */
@@ -1148,8 +1222,9 @@ function applyRemote(remote){
      旧版の文字列だけの値や、別のグループ・招待URLから入ったときの残りは捨てる。 */
   try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
   const syncApi = typeof window !== 'undefined' ? window.NatsuSync : null;
-  const activeCode = syncApi && typeof syncApi.getCode === 'function' ? syncApi.getCode() : '';
-  if(welcomeTheme && welcomeTheme.code === activeCode && THEME_IDS.includes(welcomeTheme.theme)){
+  const activeHouse = syncApi && typeof syncApi.householdFingerprint === 'function'
+    ? syncApi.householdFingerprint() : '';
+  if(welcomeTheme && welcomeTheme.house === activeHouse && THEME_IDS.includes(welcomeTheme.theme)){
     if(config.theme !== welcomeTheme.theme){
       config.theme = welcomeTheme.theme;
       welcomeChanged = true;
@@ -1182,21 +1257,29 @@ function applyRemote(remote){
 }
 
 window.NatsuApp = {
-  current: () => ({ config, state: stripLocal(state) }),
+  current: () => ({ config:sharedConfig(config), state:sharedState(state) }),
   onRemote: applyRemote,
   /* 墓標を受け取ったときは、端末に残った古い内容を消す。これを残すと
      新しい合言葉を作ったときに、削除済みの記録を別グループへ送ってしまう。 */
   onHouseholdRetired(){
     config = freshConfig();
     state = emptyState();
+    clearHouseholdLocalCopies();
     try{
       [K_CFG, K_ST, K_ONBOARD, K_ROLE, K_NAME, K_READING, K_THEME,
-       K_WELCOME_THEME, K_WELCOME_JOIN, K_CFG_HOUSE, K_AT].forEach(k=>localStorage.removeItem(k));
+       K_WELCOME_THEME, K_WELCOME_JOIN, K_CFG_HOUSE, K_AT, K_QUESTION_ANSWERS].forEach(k=>localStorage.removeItem(k));
     }catch(e){}
     rememberChosenCode('none');
     setLocal(K_RETIRED_NOTICE, '1');
-    if(location.hash !== '#welcome') location.hash = 'welcome';
-    else { tab = 'welcome'; render(); }
+    navigateTo('welcome');
+  },
+  onHouseholdJoinFailed(){
+    clearHouseholdLocalCopies();
+    rememberChosenCode('none');
+  },
+  onHouseholdRevoked(){
+    clearHouseholdLocalCopies();
+    rememberChosenCode('none');
   },
   /* sync.js が グループの文書を 新しく 作る ときだけ 呼ばれる。
      これは「この端末の 設定が グループの 中身に なる」瞬間なので、
@@ -1398,9 +1481,21 @@ function localAnswerMap(){
   const raw = getLocal(K_QUESTION_ANSWERS) || '{}';
   if(answerMapCache && answerMapCache.raw === raw) return answerMapCache.map;
   let map = {};
-  try{ map = JSON.parse(raw) || {}; }catch(e){ map = {}; }
+  try{
+    const saved = JSON.parse(raw) || {};
+    if(saved.rows && typeof saved.rows === 'object' && !Array.isArray(saved.rows)){
+      map = ms(saved.resetAt) === ms(state.resetAt) ? saved.rows : {};
+    }else{
+      /* 旧フラット形式は削除世代がまだ無い端末だけで読む。 */
+      map = ms(state.resetAt) ? {} : saved;
+    }
+  }catch(e){ map = {}; }
   answerMapCache = { raw, map };
   return map;
+}
+function clearQuestionAnswerCache(){
+  answerMapCache = null;
+  try{ localStorage.removeItem(K_QUESTION_ANSWERS); }catch(e){}
 }
 function answeredQuestionCount(task){
   const qs = (task && task.questions || []).length;
@@ -1664,6 +1759,17 @@ function messageHeading(m){
   const sender = m.sender === 'その他' ? (m.customSender || 'おうちの人') : parentSenderLabel(m.sender);
   return `${sender}より`;
 }
+/* 旧configはstateへ移した本文を二重に持たない。バックアップにも残さず、
+   旧送信者の自由入力も不要になった時点で消す。 */
+function clearLegacyParentMessage(){
+  const old = config.parentMessage || {};
+  const changed = !config.parentMessageMoved || !!old.enabled || !!old.text || !!old.customSender
+    || old.sender !== 'おかあさん';
+  config.parentMessage = { enabled:false, sender:'おかあさん', customSender:'', text:'' };
+  config.parentMessageMoved = true;
+  return changed;
+}
+
 /* 旧しきの 1件だけの メッセージを、新しい ならびへ 移す。
    1度だけ 動けばよいので、移したことを config に のこす */
 /* 移すものが ある ときだけ 書きこむ。
@@ -1674,18 +1780,19 @@ function messageHeading(m){
    全部の端末の デザインなどが 初期値に 戻ってしまう（実際に 起きた）。 */
 function migrateMessages(){
   const old = config.parentMessage;
-  if(!old || !old.enabled || !old.text) return;   // 移すものが ない
-  if(config.parentMessageMoved) return;
+  const legacy = !!(old && old.enabled && old.text);
   if(!Array.isArray(state.messages)) state.messages = [];
-  if(state.messages.length){ config.parentMessageMoved = true; return; }
-  state.messages.push({
-    id: 'm-legacy-' + Date.now(),
-    sender: old.sender, customSender: old.customSender,
-    text: old.text, at: new Date().toISOString(), by: logBy()
-  });
-  saveSt();
-  config.parentMessageMoved = true;
-  saveCfg();
+  const residue = !!(old && (old.enabled || old.text || old.customSender));
+  if(!legacy && !residue && !config.parentMessageMoved && !state.messages.length) return;
+  if(legacy && !config.parentMessageMoved && !state.messages.length){
+    state.messages.push({
+      id: 'm-legacy-' + Date.now(),
+      sender: old.sender, customSender: old.customSender,
+      text: old.text, at: new Date().toISOString(), by: logBy()
+    });
+    saveSt();
+  }
+  if(clearLegacyParentMessage()) saveCfg();
 }
 
 function parentMessageHeading(msg){
@@ -2969,7 +3076,7 @@ function parentTodayLogsHTML(){
     ${/* 読んだ ものは ここにだけ 両方 出す。カレンダーの 日別は 子ども画面
           という 前提なので、そちらへは 出さない（依頼者の 裁定） */''}
     ${readsHTML(k, true)}
-    ${config.allowLogDelete ? ''
+    ${logDeleteAllowed() ? ''
       : '<div class="set-actions parent-log-help"><button type="button" class="linkish" id="logCareJump">1件ずつ消せるようにする</button></div>'}
   </section>`;
 }
@@ -3044,7 +3151,12 @@ function unitForLogDisplay(unit, adult){
    設定で 入れたうえで、この端末が おうちの人の端末の ときだけ。
    子どもの端末では 出さない（誤って 消して しまわない ように） */
 function canDeleteLog(){
-  return !!config.allowLogDelete && getLocal(K_ROLE) === 'parent';
+  return logDeleteAllowed() && getLocal(K_ROLE) === 'parent';
+}
+function logDeleteAllowed(){ return getLocal(K_ALLOW_LOG_DELETE) === '1'; }
+function setLogDeleteAllowed(enabled){
+  if(enabled) setLocal(K_ALLOW_LOG_DELETE, '1');
+  else try{ localStorage.removeItem(K_ALLOW_LOG_DELETE); }catch(e){}
 }
 
 /* {漢字|よみ} を ふりがなに する。さきに esc() で エスケープしてから
@@ -3106,7 +3218,7 @@ function funPick(){
   f.seen.push(funIdx);
   f.history.push(funIdx);
   funPos = f.seen.length - 1;
-  saveSt();
+  saveLocalState();
 }
 
 function didSomethingToday(){
@@ -3897,8 +4009,8 @@ async function connectScannedInvite(){
     if(status) status.textContent = qrSenderLabel(qrScanSender) + 'と同じグループに接続しています…';
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
-    forgetConfigStampForNewHousehold(code);
-    rememberChosenCode(code);
+    await forgetConfigStampForNewHousehold(code);
+    await rememberChosenCode(code);
     setLocal(K_ONBOARD, 'done');
     S.reconnect(code, { joining:true });
     /* Safariでは、実URLのままホーム画面へ追加して初めて別の保存領域へ
@@ -3907,7 +4019,7 @@ async function connectScannedInvite(){
     closeInviteScanner();
     if(tab === 'welcome'){
       tab = 'home';
-      if(location.hash !== '#home') location.hash = 'home';
+      navigateTo('home');
     }
     render({ keepScroll:true });
     toast('共有に接続しています…');
@@ -4411,7 +4523,7 @@ function syncSectionHTML(opts){
           <button class="btn btn-go" id="syncSave" type="button" hidden>このグループに参加する</button>
         </div>
       </div>`}
-      ${code ? `<details class="set-advanced sync-detail"${opts && opts.openDetails ? ' open' : ''}>
+      ${code ? `<details class="set-advanced sync-detail" data-details-key="syncDevices"${opts && opts.openDetails ? ' open' : ''}>
         <summary><span class="sync-device-count" id="syncDeviceCount">共有リンク・端末ごとの設定（設定済み：${S.deviceCount()}台）</span></summary>
         <div class="set-advanced-body">
           <h3 class="sync-subhead">ほかの端末から読み取る</h3>
@@ -4522,7 +4634,7 @@ function syncTraceHTML(){
   const t = ms => ms ? fmtTime(new Date(ms)) + ':' + pad2(new Date(ms).getSeconds()) : '（なし）';
   return `
   <section class="sec config-sec config-sec--quiet">
-    <details class="paper set-advanced">
+    <details class="paper set-advanced" data-details-key="syncTrace">
       <summary>デバッグ用：同期の記録（${rows.length}件）</summary>
       <div class="set-advanced-body">
         ${syncTroubleHTML()}
@@ -4747,8 +4859,7 @@ function realignStepProgress(t, before, after){
 
 function questionAnswerRow(t){
   const shared = state.questionAnswers && state.questionAnswers[t.id];
-  let local = null;
-  try{ local = JSON.parse(getLocal(K_QUESTION_ANSWERS) || '{}')[t.id]; }catch(e){}
+  const local = localAnswerMap()[t.id];
   const pick = !shared || (local && ms(local.at) > ms(shared.at)) ? local : shared;
   const stored = pick && Array.isArray(pick.answers) ? pick.answers : [];
   /* 専用欄が 空の 問だけ 旧記録で 補う。行が あるかどうかで
@@ -4773,10 +4884,10 @@ function saveQuestionAnswerRow(t, answers){
   const row = { answers, at:Date.now() };
   if(!state.questionAnswers || typeof state.questionAnswers !== 'object') state.questionAnswers = {};
   state.questionAnswers[t.id] = row;
-  let local = {};
-  try{ local = JSON.parse(getLocal(K_QUESTION_ANSWERS) || '{}') || {}; }catch(e){}
+  const local = Object.assign({}, localAnswerMap());
   local[t.id] = row;
-  setLocal(K_QUESTION_ANSWERS, JSON.stringify(local));
+  setLocal(K_QUESTION_ANSWERS, JSON.stringify({ resetAt:ms(state.resetAt), rows:local }));
+  answerMapCache = null;
 }
 function saveQuestionAnswer(index, ask){
   const t = sheetTask;
@@ -5799,6 +5910,7 @@ function render(opts){
   else                        v.innerHTML = viewParent();
 
   restoreFormDraft(formDraft);
+  if(isAdultTab(tab)) buildAdultSectionToc();
   restoreOpenDetails(openDetails);
 
   $$('.tab').forEach(b=> b.classList.toggle('is-on', b.dataset.tab === tab));
@@ -5817,7 +5929,6 @@ function render(opts){
   if(tab === 'stats')    bindStats();
   if(tab === 'settings'){ bindParent(); bindSync(); }
   if(isAdultTab(tab)) bindAdultNav();
-  if(isAdultTab(tab)) buildAdultSectionToc();
   if(tab === 'tasks' || tab === 'config') bindConfig();
   scrollBox().scrollTop = keepScroll ? y : 0;
   applyReadingDisplay();
@@ -6153,7 +6264,7 @@ function resetSampleTasks(){
   config.tasks = [];
   config.showDaily = false;
   saveCfg();
-  state = resetState(Date.now());
+  resetSharedState(Date.now());
   saveSt();
   setLocal(K_SAMPLE_PARENT, 'done');
   render();
@@ -6238,9 +6349,9 @@ function buildAdultSectionToc(){
     }
   });
   if(headings.length < 2) return;
-  toc.innerHTML = `<details class="adult-section-toc-disclosure"><summary><span>このページの目次</span><small>全${headings.length}項目</small><i aria-hidden="true"></i></summary>
+  toc.innerHTML = `<details class="adult-section-toc-disclosure" data-details-key="adultSectionToc:${esc(tab)}"><summary><span>このページの目次</span><small>全${headings.length}項目</small><i aria-hidden="true"></i></summary>
     <div class="adult-section-toc-links">${headings.map(heading =>
-      `<a href="#${esc(heading.id)}">${esc(heading.textContent)}</a>`).join('')}</div></details>`;
+      `<button type="button" data-adult-section-target="${esc(heading.id)}">${esc(heading.textContent)}</button>`).join('')}</div></details>`;
   toc.hidden = false;
   const disclosure = $('.adult-section-toc-disclosure', toc);
   const summary = $('summary', toc);
@@ -6267,24 +6378,24 @@ function buildAdultSectionToc(){
       actions.className = 'adult-section-tools';
       surface.appendChild(actions);
     }
-    const back = document.createElement('a');
+    const back = document.createElement('button');
+    back.type = 'button';
     back.className = 'adult-section-tool adult-section-back';
-    back.href = '#adultPageToc';
     back.setAttribute('aria-label', 'このページの目次へ戻る');
     back.title = '目次へ戻る';
     back.innerHTML = '<span aria-hidden="true">▲</span>';
     back.addEventListener('click', returnToToc);
     actions.appendChild(back);
   });
-  $$('.adult-section-toc-links a', toc).forEach(link=>link.addEventListener('click', e=>{
-    const target = document.getElementById(link.getAttribute('href').slice(1));
+  $$('.adult-section-toc-links button', toc).forEach(link=>link.addEventListener('click', e=>{
+    const target = document.getElementById(link.dataset.adultSectionTarget);
     if(!target) return;
     /* URL の # は 画面の 切りかえに 使っている。見出しの id を そこへ
        入れると routeFromHash() が 知らない 名前として 子ども画面に
        落とすので、戻る・再読みこみ・ホーム画面から 開き直すと 保護者が
        子ども画面へ 飛ばされる。だから # は さわらず、動かすだけに する。 */
     e.preventDefault();
-    $$('.adult-section-toc-links a', toc).forEach(a=>a.removeAttribute('aria-current'));
+    $$('.adult-section-toc-links button', toc).forEach(a=>a.removeAttribute('aria-current'));
     link.setAttribute('aria-current', 'location');
     disclosure.open = false;
     const section = target.closest('.sec');
@@ -6390,9 +6501,9 @@ function viewConfig(){
     <div class="paper data-management-paper">
       <label class="data-management-toggle" for="allowLogDelete">
         <span><b>「やったこと」を1件ずつ削除</b><small>進捗の数字は変えず、記録だけを削除できるようにします。</small></span>
-        <input type="checkbox" id="allowLogDelete"${config.allowLogDelete ? ' checked' : ''}>
+        <input type="checkbox" id="allowLogDelete"${logDeleteAllowed() ? ' checked' : ''}>
       </label>
-      ${config.allowLogDelete && getLocal(K_ROLE) !== 'parent'
+      ${logDeleteAllowed() && getLocal(K_ROLE) !== 'parent'
         ? '<p class="set-note dev-warn"><b>この端末は「保護者の端末」に設定されていません。</b>「ほかの端末と共有」→「共有リンク・端末ごとの設定」→「この端末は」で選択してください。</p>'
         : ''}
       <div class="data-management-row">
@@ -6697,7 +6808,7 @@ function bindWelcomeStart(){
       bindInviteCopy();
     }
   });
-  start.addEventListener('click', ()=>{
+  start.addEventListener('click', async ()=>{
     const role = start.dataset.role;
     const sharing = start.dataset.sharing === 'yes';
     const name = String($('#welcomeName').value || '').trim();
@@ -6741,7 +6852,7 @@ function bindWelcomeStart(){
       setLocal(K_THEME, chosenTheme);
       applyTheme(chosenTheme);
       if(sharing && joining && chosenTheme !== verifiedConfig.theme){
-        setLocal(K_WELCOME_THEME, JSON.stringify({ code, theme:chosenTheme }));
+        setLocal(K_WELCOME_THEME, JSON.stringify({ house:await codeFingerprint(code), theme:chosenTheme }));
       }
       else{
         if(!sharing) config.theme = chosenTheme;
@@ -6768,8 +6879,8 @@ function bindWelcomeStart(){
     }else saveCfg();
     if(sharing && !TEST_MODE && S && S.configured()){
       if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
-      forgetConfigStampForNewHousehold(code);
-      rememberChosenCode(code);
+      await forgetConfigStampForNewHousehold(code);
+      await rememberChosenCode(code);
       /* 参加は「あるグループへ入る」。文書が無かったときに、この端末の
          初期値でグループを作らせない（joining を渡す意味はそこだけ） */
       S.reconnect(code, { joining });
@@ -6785,13 +6896,13 @@ function bindWelcomeStart(){
         config.parentMessage.sender = $('#welcomeMessageSender').value;
         config.parentMessage.customSender = String($('#welcomeMessageCustom').value || '').trim().slice(0, 20);
         saveCfg();
-        location.hash = 'settings';
+        navigateTo('settings');
         if(config.parentMessage.enabled) toast('保護者ページに メッセージ欄を 用意しました');
       }));
       form.scrollIntoView({ behavior:'smooth', block:'nearest' });
       return;
     }
-    location.hash = role === 'parent' ? 'settings' : 'home';
+    navigateTo(role === 'parent' ? 'settings' : 'home');
   });
 }
 
@@ -6827,8 +6938,7 @@ function bindParentShareBadge(){
       : '共有の接続設定を開きますか？\n合言葉を作るか、受け取った合言葉を入力できます。';
     if(!confirm(message)) return;
     openSyncDetails = true;
-    jumpTo('#syncSection');
-    location.hash = 'config';
+    navigateTo('config', { jump:'#syncSection' });
   };
 }
 /* 大人向け3ページに共通の帯。settings 以外でも 子ども画面へ 行けるように、
@@ -6842,16 +6952,14 @@ function bindAdultNav(){
     const target = String(link.getAttribute('href') || '').replace(/^#/, '');
     if(!TABS.includes(target)) return;
     e.preventDefault();
-    if(routeFromHash() === target){
-      tab = target;
-      render();
-    }
-    else location.hash = target;
+    e.stopPropagation();
+    navigateTo(target);
   }));
   const openChild = $('#openChildPage');
   if(openChild) openChild.addEventListener('click', e=>{
     e.preventDefault();
-    if(confirm('子ども画面へ移動します。\n保護者ページに戻るには、画面上部のタイトルを5回タップするか、2秒長押ししてください。')) location.hash = 'home';
+    e.stopPropagation();
+    if(confirm('子ども画面へ移動します。\n保護者ページに戻るには、画面上部のタイトルを5回タップするか、2秒長押ししてください。')) navigateTo('home');
   });
   const guideOk = $('#parentGuideOk');
   if(guideOk) guideOk.addEventListener('click', ()=>{
@@ -7120,7 +7228,7 @@ function bindSync(){
   };
   if(verify) input.addEventListener('input', resetVerified);
 
-  if(save) save.addEventListener('click', ()=>{
+  if(save) save.addEventListener('click', async ()=>{
     const c = cleanCode(input.value);
     if(c.length < 8){ toast('合言葉を8文字以上入力してください'); return; }
     /* 確認の 段を 出している ときは、確認ずみの あいことばだけ 通す。
@@ -7128,8 +7236,8 @@ function bindSync(){
     if(verify && verified !== c){ toast('先に「接続を確認」を押してください'); return; }
     if(!confirmShareSafety()) return;
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
-    forgetConfigStampForNewHousehold(c);
-    rememberChosenCode(c);
+    await forgetConfigStampForNewHousehold(c);
+    await rememberChosenCode(c);
     S.reconnect(c, { joining: !!verify });
     toast('接続しています…');
     render({ keepScroll:true });
@@ -7190,19 +7298,19 @@ function bindSync(){
      押すたびに 出す ぶんだけ じゃまなので 出さない。
      自分で 決める ときだけ 出す（そこが 弱くなる ところ）。
      どちらの 場合も、注意事項は 画面に 出したままに してある */
-  const startSharing = (code, auto)=>{
+  const startSharing = async (code, auto)=>{
     if(!auto && !confirmShareSafety()) return;
     if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
-    forgetConfigStampForNewHousehold(code);
-    rememberChosenCode(code);
+    await forgetConfigStampForNewHousehold(code);
+    await rememberChosenCode(code);
     S.reconnect(code);
     S.registerHousehold(code).catch(()=>{});
     openSyncDetails = true;          // QR・招待リンクをすぐ開いて見せる
     toast('作成しました。ほかの端末から この合言葉で 読み取れます');
     render({ keepScroll:true });
   };
-  on('#syncMake', 'click', ()=> startSharing(S.makeCode(), true));
-  on('#syncMakeOwn', 'click', ()=>{
+  on('#syncMake', 'click', ()=>{ startSharing(S.makeCode(), true); });
+  on('#syncMakeOwn', 'click', async ()=>{
     const input = $('#syncOwnCode');
     const c = cleanCode(input ? input.value : '');
     if(c.length < 8){
@@ -7210,7 +7318,7 @@ function bindSync(){
       if(input) input.focus();
       return;
     }
-    startSharing(c);
+    await startSharing(c);
   });
 
   const off = $('#syncOff');
@@ -7219,6 +7327,8 @@ function bindSync(){
     /* ホーム画面版は 起動URLに 合言葉が のこる。おぼえておかないと、
        次に 開いた 瞬間に 同じグループへ つなぎ直されて 解除が 効かない */
     rememberChosenCode('none');
+    clearHouseholdLocalCopies();
+    if(typeof S.forgetRevokedCode === 'function') S.forgetRevokedCode();
     S.setCode('');
     S.disconnect();
     render({ keepScroll:true });
@@ -7524,8 +7634,8 @@ function bindConfig(){
 
   const ald = $('#allowLogDelete');
   if(ald) ald.addEventListener('change', ()=>{
-    config.allowLogDelete = ald.checked;
-    saveCfg(); render({ keepScroll:true });
+    setLogDeleteAllowed(ald.checked);
+    render({ keepScroll:true });
     toast(ald.checked ? '「やったこと」の削除を有効にしました' : '「やったこと」の削除を無効にしました');
   });
 
@@ -7564,7 +7674,7 @@ function bindConfig(){
   });
   on('#resetAll', 'click', ()=>{
     if(confirm('進捗と記録をすべての共有端末から削除しますか？\nこの操作は取り消せません。')){
-      state = resetState(Date.now()); saveSt(); render(); toast('すべての端末へ削除を送信しました');
+      resetSharedState(Date.now()); saveSt(); render(); toast('すべての端末へ削除を送信しました');
     }
   });
 }
@@ -7737,6 +7847,35 @@ function backupPreviewText(o){
   return '書き出し日時：' + whenText + '\n宿題：' + tasks + '件\n記録：' + logs + '件';
 }
 
+function validateImportedTaskIds(c){
+  if(!c || !Array.isArray(c.tasks)) throw new Error('宿題IDを確認できません');
+  const seen = new Set();
+  c.tasks.forEach(task=>{
+    if(!task || typeof task !== 'object' || typeof task.id !== 'string' || !task.id.trim()){
+      throw new Error('宿題IDがない項目があります');
+    }
+    if(seen.has(task.id)) throw new Error('同じ宿題IDが重複しています');
+    seen.add(task.id);
+  });
+  return true;
+}
+
+function importBackup(o){
+  if(!o || !o.config || !o.state) throw new Error('ファイル形式が異なります');
+  validateImportedTaskIds(o.config);
+  const sharing = !!(window.NatsuSync && window.NatsuSync.getCode().length >= 8);
+  const scope = sharing
+    ? '\n\n共有中のため、つないだ家族のデータにも反映されます。'
+    : '';
+  if(!confirm(backupPreviewText(o) + scope + '\n\n現在のデータを、この内容で置き換えます。よろしいですか？')) return false;
+  clearQuestionAnswerCache();
+  config = normalizeConfig(o.config);
+  state = normalizeState(o.state);
+  migrateMessages();
+  saveCfg(); saveSt(); render(); toast('読み込みました');
+  return true;
+}
+
 function importData(e){
   const f = e.target.files && e.target.files[0];
   if(!f) return;
@@ -7744,14 +7883,7 @@ function importData(e){
   fr.onload = ()=>{
     try{
       const o = JSON.parse(fr.result);
-      if(!o || !o.config || !o.state) throw new Error('ファイル形式が異なります');
-      const sharing = !!(window.NatsuSync && window.NatsuSync.getCode().length >= 8);
-      const scope = sharing
-        ? '\n\n共有中のため、つないだ家族のデータにも反映されます。'
-        : '';
-      if(!confirm(backupPreviewText(o) + scope + '\n\n現在のデータを、この内容で置き換えます。よろしいですか？')) return;
-      config = o.config; state = normalizeState(o.state);
-      saveCfg(); saveSt(); render(); toast('読み込みました');
+      importBackup(o);
     }catch(err){ alert('読み込めませんでした：' + err.message); }
   };
   fr.readAsText(f);
@@ -7850,16 +7982,28 @@ document.addEventListener('click', e=>{
   const tabBtn = e.target.closest('.tab');
   if(tabBtn){
     const t = tabBtn.dataset.tab;
-    // hashchange で描画する。同じ hash なら発火しないので自分で描く
-    if(routeFromHash() === t) render(); else location.hash = t;
+    navigateTo(t);
     return;
+  }
+
+  /* route用の通常リンクも同じ入口へ通す。Ctrl/Cmd/Shiftクリックや
+     新しいタブ指定はブラウザ本来の動作を残す。ページ内目次はbuttonなので
+     ここへ来ず、未知hashをURLへ入れない。 */
+  const routeLink = e.target.closest('a[href^="#"]');
+  if(routeLink && !e.defaultPrevented && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey
+     && (!routeLink.target || routeLink.target === '_self')){
+    const target = String(routeLink.getAttribute('href') || '').replace(/^#/, '');
+    if(validRouteTarget(target)){
+      e.preventDefault();
+      navigateTo(target);
+      return;
+    }
   }
 
   /* 長い説明を 書くかわりに、その場から 飛ばす。
      設定ページは 長いので、着いた先まで 寄せないと 意味が ない */
   if(e.target.closest('#logCareJump')){
-    jumpTo('#allowLogDelete', true);
-    location.hash = 'config';
+    navigateTo('config', { jump:'#allowLogDelete', focus:true });
     return;
   }
 
@@ -7893,7 +8037,7 @@ document.addEventListener('click', e=>{
     const role = joinRole.dataset.joinRole;
     setLocal(K_ROLE, role);
     if(typeof window.NatsuSync?.refreshDevice === 'function') window.NatsuSync.refreshDevice();
-    if(role === 'parent') location.hash = 'settings';
+    if(role === 'parent') navigateTo('settings');
     else render();
     return;
   }
@@ -8127,7 +8271,7 @@ setInterval(()=>{
    子どもが たまたま 見つけても 困らないよう、ふつうに 触るより
    長い 2秒に してある。
    --------------------------------------------------------- */
-(function(){
+function bindTopbandParentGesture(){
   /* 帯ぜんたいを 受け口に する。タイトルの 文字は 短いことが あり、
      その 右がわの すき間を 押しても 反応しないと 当てにくい */
   const el = $('.topband') || $('#appTitle');
@@ -8162,8 +8306,7 @@ setInterval(()=>{
   function open(){
     cancel();
     taps = 0;
-    if(routeFromHash() === 'settings') return;
-    location.hash = 'settings';
+    navigateTo('settings');
   }
 
   function start(x, y){
@@ -8211,7 +8354,8 @@ setInterval(()=>{
   el.style.webkitUserSelect = 'none';
   el.style.userSelect = 'none';
   el.style.webkitTouchCallout = 'none';
-})();
+}
+bindTopbandParentGesture();
 
 /* ---------------------------------------------------------
    ルーティング（#home / #record / #log / #settings）
@@ -8223,7 +8367,10 @@ function routeFromHash(){
   const h = (location.hash || '').replace(/^#/, '');
   const c = h.indexOf(':');
   const name = c < 0 ? h : h.slice(0, c);
-  if(name === 'writes'){ writesTaskId = c < 0 ? writesTaskId : h.slice(c + 1); return 'writes'; }
+  if(name === 'writes' && (c < 0 || h.slice(c + 1))){
+    writesTaskId = c < 0 ? writesTaskId : h.slice(c + 1);
+    return 'writes';
+  }
   const requested = TABS.indexOf(h) >= 0 ? h : 'home';
   /* すでにこのブラウザで使い始めている人は、導線変更で止めない。
      ただし起動直後のミニコンテンツ抽選も state に保存される。K_ST まで
@@ -8259,11 +8406,53 @@ function routeFromHash(){
    通常の画面移動はそのまま使える。 */
 function launchRoute(){
   const requested = routeFromHash();
-  if(requested === 'welcome' || !isStandalone()) return requested;
+  if(requested === 'welcome' || requested === 'stats' || !isStandalone()) return requested;
   const role = getLocal(K_ROLE);
   if(role === 'parent') return 'settings';
   if(role === 'child') return 'home';
   return requested;
+}
+
+/* route名をURLに置く形へそろえる。writesは課題idをhashに持つので、
+   すでに同じwritesを表示しているときは完全なhashを保つ。 */
+function validRouteTarget(target){
+  const raw = String(target || '').replace(/^#/, '');
+  const c = raw.indexOf(':');
+  if(c < 0) return TABS.includes(raw);
+  return raw.slice(0, c) === 'writes' && !!raw.slice(c + 1);
+}
+function routeHash(target){
+  const raw = String(target || '').replace(/^#/, '');
+  if(!validRouteTarget(raw)) return '#home';
+  const name = raw.split(':')[0];
+  if(name === 'writes' && raw === 'writes' && /^#writes:/.test(location.hash || '')) return location.hash;
+  return '#' + raw;
+}
+
+/* 起動時のrole優先で表示routeを変えたら、URLも同じrouteへ置きかえる。
+   replaceStateなので戻る履歴を増やさず、query（招待など）も落とさない。 */
+function normalizeLaunchHash(target){
+  const next = routeHash(target);
+  if(location.hash === next) return;
+  history.replaceState(null, '', location.pathname + location.search + next);
+}
+
+/* 画面切替の共通入口。同じhashへの代入ではhashchangeが起きないため、
+   URLが同じでも実tabが違えばここで直して描画する。 */
+function navigateTo(target, opts){
+  const raw = String(target || '').replace(/^#/, '');
+  if(!validRouteTarget(raw)) return false;
+  const jump = opts && opts.jump;
+  if(jump) jumpTo(jump, !!opts.focus);
+  const nextHash = routeHash(raw);
+  if(location.hash !== nextHash){
+    location.hash = raw;
+    return true;
+  }
+  const next = routeFromHash();
+  tab = next;
+  render();
+  return true;
 }
 window.addEventListener('hashchange', ()=>{
   const t = routeFromHash();
@@ -8323,10 +8512,9 @@ function clearJoinCodeFromURL(){
 function joinInstallTransferHTML(){
   const code = joinCodeFromURL();
   if(isStandalone() || !code) return '';
-  /* はずされた あいことばの ままでは つながらない。
-     「引き継げる準備が できています」は うそに なるので 出さない */
-  const S = window.NatsuSync;
-  if(S && typeof S.revokedCode === 'function' && S.revokedCode() === code) return '';
+  /* 解除・端末削除後は、起動URLに残る旧招待へ自動復帰しないため chosen が none。
+     実際には接続できない案内も同じ印で隠す（合言葉の比較コピーは不要）。 */
+  if(getLocal(K_CODE_CHOSEN) === 'none') return '';
   /* 子ども画面に 出るが、読むのは 大人。data-no-reading を 付けて
      かな変換の 対象から 外す（変換すると「きょうゆうコード」などに なり、
      大人が 読めない 案内に なってしまう）。 */
@@ -8353,7 +8541,7 @@ function takeJoinCode(){
   if(isStandalone()) clearJoinCodeFromURL();
   return code;
 }
-function applyJoinCode(){
+async function applyJoinCode(){
   /* 招待URLをホーム画面版へ渡す唯一の経路。同期モジュールがまだ準備中・
      一時的な読み込み失敗などで接続できない段階に URL から消すと、PWA 側の
      別localStorageへ合言葉を渡す方法がなくなる。接続を始められることを
@@ -8366,19 +8554,19 @@ function applyJoinCode(){
      ホーム画面版は 起動URL に あいことばが 焼きついている ので、
      これが 無いと 起動する たびに 戻ってしまう。
      入れ直しは 人が 設定画面で 打つ（そこで 忘れる） */
-  if(typeof S.revokedCode === 'function' && S.revokedCode() === code) return;
+  if(typeof S.isRevokedCode === 'function' && await S.isRevokedCode(code)) return;
   /* 人が 設定画面で えらんだ 合言葉が あるなら、そちらが 正しい。
      ホーム画面版の 起動URLに のこった 古い 招待で 引き戻さない */
   const chosen = getLocal(K_CODE_CHOSEN);
-  if(chosen && chosen !== code) return;
+  if(chosen && !await chosenCodeMatches(code)) return;
   /* 手動参加で選んだ色が残っていても、招待URLのグループへ持ち込まない。
      招待では接続先のグループデザインが常に正となる。 */
   try{ localStorage.removeItem(K_WELCOME_THEME); }catch(e){}
   setLocal(K_ONBOARD, 'done');              // 招かれた側は 初期設定を とばす
-  forgetConfigStampForNewHousehold(code);
+  await forgetConfigStampForNewHousehold(code);
   /* 招待リンクは かならず「あるグループへ入る」。見つからないときに
      この端末の初期値でグループを作ると、招いた側の設定が消える */
-  rememberChosenCode(code);
+  await rememberChosenCode(code);
   S.reconnect(code, { joining:true });
   if(isStandalone()) clearJoinCodeFromURL();
   toast('おうちの 共有に つながりました');
@@ -8388,7 +8576,7 @@ function applyJoinCode(){
      役割が未選択なら viewHome() が既存の「保護者／子ども端末」選択を出す。 */
   if(tab === 'welcome'){
     tab = 'home';
-    if(location.hash !== '#home') location.hash = 'home';
+    navigateTo('home');
   }
   render({ keepScroll:true });
 }
@@ -8485,8 +8673,10 @@ function noticeAdopted(){
    はじめる
    --------------------------------------------------------- */
 loadAll();
+migrateAppSecretFingerprints().catch(()=>{});
 if(typeof setReadingGrade === 'function') setReadingGrade(readingGrade());
 tab = launchRoute();
+normalizeLaunchHash(tab);
 if(typeof window.natsuBootProgress === 'function') window.natsuBootProgress(100, '表示します');
 render();
 noticeAdopted(); // 取り込みの直後なら、何が起きたのかを一言だけ残す

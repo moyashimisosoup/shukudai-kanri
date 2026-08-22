@@ -703,24 +703,25 @@ button{ font:inherit; color:inherit; }
   outline:0; box-shadow:inset 0 0 0 3px var(--focus);
 }
 .adult-section-toc-links{ background:var(--kami); border-top:2px solid var(--hougan); }
-.adult-section-toc-links a{
+.adult-section-toc-links button{
+  width:100%; text-align:start; font-family:inherit; cursor:pointer;
   min-height:44px; display:flex; align-items:center; gap:10px;
   padding:0 16px; color:var(--ai); background:transparent;
-  border-bottom:1px solid var(--hougan); font-size:14px; font-weight:700;
+  border:0; border-bottom:1px solid var(--hougan); font-size:14px; font-weight:700;
   line-height:1.25; text-decoration:none;
   transition:transform var(--dur-short) var(--ease-out),background-color var(--dur-short) var(--ease-out),border-color var(--dur-short) var(--ease-out);
 }
-.adult-section-toc-links a:last-child{ border-bottom:0; }
-.adult-section-toc-links a::before{
+.adult-section-toc-links button:last-child{ border-bottom:0; }
+.adult-section-toc-links button::before{
   content:""; flex:none; width:5px; height:5px; border-radius:var(--r-pill);
   background:var(--ai-usu);
 }
 @media (hover:hover) and (pointer:fine){
-  .adult-section-toc-links a:hover{ background:var(--surface-soft); }
+  .adult-section-toc-links button:hover{ background:var(--surface-soft); }
 }
-.adult-section-toc-links a:active{ background:var(--sora); }
-.adult-section-toc-links a:focus-visible{ outline:3px solid var(--focus); outline-offset:-3px; }
-.adult-section-toc-links a[aria-current="location"]{ font-weight:900; background:var(--sora); box-shadow:inset 4px 0 0 var(--ai); }
+.adult-section-toc-links button:active{ background:var(--sora); }
+.adult-section-toc-links button:focus-visible{ outline:3px solid var(--focus); outline-offset:-3px; }
+.adult-section-toc-links button[aria-current="location"]{ font-weight:900; background:var(--sora); box-shadow:inset 4px 0 0 var(--ai); }
 .adult-section-toc-target{ scroll-margin-top:var(--space-md); }
 
 /* 戻り口は紙の外枠から4pxの位置へ統一する。紙ごとのpaddingには
@@ -782,7 +783,7 @@ button{ font:inherit; color:inherit; }
 }
 @media (prefers-reduced-motion:reduce){
   .adult-section-toc-disclosure > summary,.adult-section-toc-disclosure > summary i,
-  .adult-section-toc-links a,.adult-section-tool,.adult-section-head-help{ transition:none; }
+  .adult-section-toc-links button,.adult-section-tool,.adult-section-head-help{ transition:none; }
 }
 
 /* 宿題の 一覧の 写真を 開く ボタン。**帯（タイトル行）の 日づけの 左**に 置く。
