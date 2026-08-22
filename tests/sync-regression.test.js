@@ -103,13 +103,19 @@ test('保護者の3ページだけ、描画済みの節見出しからページ�
     '各節には意味の分かる名前を持つ目次への戻り口を用意すること');
   assert.match(STYLE, /\.adult-section-tool\{[\s\S]{0,160}width:44px; height:44px/,
     '戻りの印は小さく見せても44pxの操作面を保つこと');
+  assert.match(toc, /surface\.classList\.add\('adult-section-return-surface'\)/,
+    '紙のpaddingに依存しない共通の戻り領域を使うこと');
+  assert.match(STYLE, /\.paper\.adult-section-return-surface\{[\s\S]{0,120}padding-block-end:52px/,
+    '入力内容と重ならない52pxの予約領域を持つこと');
+  assert.match(STYLE, /\.adult-section-tools\{[\s\S]{0,220}inset-inline-end:calc\(4px - var\(--line\)\); inset-block-end:calc\(4px - var\(--line\)\)/,
+    '紙の外枠から上下左右4pxを基準に戻り口を置くこと');
   assert.match(toc, /if\(!head \|\| head\.tagName === 'SUMMARY' \|\| !section\) return;/,
     '開閉見出しの中に別の操作を入れ子にしないこと');
   assert.match(toc, /classList\.contains\('paper'\)/,
     '目次への戻り口は見出し帯ではなく内容の紙に置くこと');
   assert.doesNotMatch(toc, /back\.hidden|actions\.hidden|hideSectionBacks/,
     '戻り口は常時表示し、移動のたびに紙の高さを変えないこと');
-  assert.match(STYLE, /\.adult-section-tools\{[\s\S]{0,180}border:0; background:transparent/,
+  assert.match(STYLE, /\.adult-section-tools\{[\s\S]{0,320}border:0; background:transparent/,
     '戻り口の行に背景や区切り線を付けず、紙の角丸を乱さないこと');
   assert.doesNotMatch(toc, /head\.classList\.add\('has-toc-back'\)/,
     '長い見出しの可読幅を戻り口で削らないこと');
@@ -705,21 +711,21 @@ test('メッセージと注意事項のUIは狭幅・横幅の役割を分ける
     '閲覧と端末内利用を90日の対象から区別すること');
   assert.match(STYLE, /\.set-note\.retention-note\{[\s\S]{0,100}font-size:12px/,
     '登録画面を圧迫しない小さな注記にすること');
-  assert.match(APP, /id="logCareSection"[\s\S]{0,420}class="paper log-care-paper"/,
-    '記録の手入れの内側だけに、ほかの設定枠と同じ余白を設けること');
+  assert.match(APP, /id="dataManagementSection"[\s\S]{0,420}class="paper data-management-paper"/,
+    '記録の手入れはデータ管理の紙へ統合すること');
 });
 
 /* 長い手順を書くかわりに、その場から飛ばす。飛び先が長いページなので、
    着いた先までスクロールしないと意味がない。飛び先の id が消えたら気づけること。 */
 test('注記からの案内は、設定ページの該当箇所まで寄せる', ()=>{
   const jumps = [
-    { name:'記録の注記',   anchor:"closest('#logCareJump')", target:'#logCareSection' },
-    { name:'共有バッジ',   anchor:'badge.onclick',           target:'#syncSection' }
+    { name:'記録の注記',   anchor:"closest('#logCareJump')", call:"jumpTo('#allowLogDelete', true)", target:'#allowLogDelete' },
+    { name:'共有バッジ',   anchor:'badge.onclick',            call:"jumpTo('#syncSection')",           target:'#syncSection' }
   ];
-  for(const { name, anchor, target } of jumps){
+  for(const { name, anchor, call, target } of jumps){
     const at = APP.indexOf(anchor);
     assert.notEqual(at, -1, name + ' の処理が見つからない（' + anchor + '）');
-    assert.match(APP.slice(at, at + 400), new RegExp('jumpTo\\(\'' + target + '\'\\)'),
+    assert.ok(APP.slice(at, at + 400).includes(call),
       name + ' は ' + target + ' へ jumpTo すること');
     assert.match(APP, new RegExp('id="' + target.slice(1) + '"'),
       target + ' の id が実在すること');
@@ -729,6 +735,8 @@ test('注記からの案内は、設定ページの該当箇所まで寄せる',
   const jump = grab(APP, 'jumpToSection');
   assert.match(jump, /scrollBox\(\)/, '#scroll を動かすこと');
   assert.equal(/scrollIntoView/.test(jump), false, 'scrollIntoView を使わないこと');
+  assert.match(APP, /const moveFocus = pendingJumpFocus[\s\S]{0,900}el\.focus\(\{ preventScroll:true \}\)/,
+    '1件削除の案内では対象チェックボックスへフォーカスも移すこと');
 
   /* 飛び先は1回きり。次の描き直しで勝手に戻らないこと */
   assert.match(jump, /pendingJump = ''/, '飛んだら予約を消すこと');
@@ -1327,6 +1335,22 @@ test('保護者の本の記録は最新3冊を見せ、残りと並び順を控�
     '並び順は共有せず端末内に覚えること');
   assert.match(STYLE, /\.parent-book-order\{[\s\S]{0,180}min-height:44px[\s\S]{0,180}font-size:13px/,
     '見た目は控えめでもタップ領域は44pxを保つこと');
+});
+
+test('本の編集は書名つきの鉛筆アイコンにし、狭幅でも操作を重ねない', ()=>{
+  const row = grab(APP, 'parentBookRowHTML');
+  assert.match(APP, /edit:'<svg[^']*stroke="currentColor"[^']*stroke-width="2"/,
+    'ゴミ箱と同じ自作ピクトグラム体系の鉛筆を使うこと');
+  assert.match(row, /const editName = `「\$\{b\.title \|\| '書名未設定'\}」を編集する`/);
+  assert.match(row, /class="icon-btn edit"[\s\S]{0,180}title="\$\{esc\(editName\)\}" aria-label="\$\{esc\(editName\)\}"/,
+    'titleとaria-labelの両方で対象の本を伝えること');
+  assert.match(row, /<div class="book-actions">[\s\S]{0,500}icon\('edit'\)[\s\S]{0,500}icon\('trash'\)/,
+    '編集と削除を同じ操作グループにまとめること');
+  assert.match(STYLE, /\.book-actions\{[^}]*display:flex/);
+  assert.match(STYLE, /@media \(max-width:480px\)\{[\s\S]{0,500}\.book-row > \.book-actions\{ grid-column:2 \/ -1; grid-row:2; justify-self:end; \}/,
+    '狭幅では書名の下へ2つの操作を移すこと');
+  assert.match(STYLE, /@media \(max-width:480px\)\{[\s\S]{0,550}\.book-title\{ font-size:16px; \}/,
+    '狭幅だけ書名を16pxにすること');
 });
 
 test('宿題設定に本の記録を混ぜず、子どもの本一覧の並びも変えない', ()=>{
@@ -2013,11 +2037,11 @@ test('この端末だけのときは、待っていると書く', ()=>{
   /* 文言は1か所だけ。以前は sync.js からの通知が #syncStatus を直接
      書きかえていたので、描き直しで直してもすぐ元に戻った */
   assert.match(grab(APP, 'syncSectionHTML'),
-    /id="syncStatus">\$\{esc\(syncStatusText\(S\.status\(\), S\.statusText\(\)\)\)\}/);
+    /id="syncStatus" role="status" aria-live="polite">\$\{syncStatusHTML\(S\.status\(\), S\.statusText\(\)\)\}/);
   const bind = grab(APP, 'bindSync');
-  assert.match(bind, /el\.textContent = syncStatusText\(st, text\)/,
+  assert.match(bind, /el\.innerHTML = syncStatusHTML\(st, text\)/,
     '通知の側も同じ関数を通すこと');
-  assert.match(bind, /onDeviceCount\([\s\S]{0,200}syncStatusText\(S\.status\(\), S\.statusText\(\)\)/,
+  assert.match(bind, /onDeviceCount\([\s\S]{0,200}syncStatusHTML\(S\.status\(\), S\.statusText\(\)\)/,
     '1台から2台になったら文言を出しなおすこと');
   assert.equal((APP.match(/ほかの端末を待っています/g) || []).length, 1,
     '文言は1か所にだけ書くこと');
@@ -2027,8 +2051,12 @@ test('この端末だけのときは、待っていると書く', ()=>{
    「この合言葉で接続」だと、作った本人がまだ繋がっていないと読む。 */
 test('共有ずみの合言葉は見せるだけ。つなぎ直しはたたむ', ()=>{
   const f = grab(APP, 'syncSectionHTML');
-  assert.match(f, /<span class="lab">このグループの合言葉<\/span>/);
+  assert.match(f, /<label class="lab" for="syncCodeShown">このグループの合言葉<\/label>/);
   assert.match(f, /id="syncCodeShown"[\s\S]{0,200}readonly/, '見せるだけの欄にすること');
+  assert.match(f, /class="sync-code-control"[\s\S]{0,260}id="syncCodeShown"[\s\S]{0,260}id="syncCopy"/,
+    '合言葉欄とコピーを同じ行の操作グループにすること');
+  assert.match(STYLE, /\.sync-code-control\{[^}]*grid-template-columns:minmax\(0,1fr\) auto/,
+    '合言葉欄を縮めてもコピーの44px操作領域を守ること');
   /* 参加の欄と id を分けること。同じ id だと captureFormDraft が拾った
      古い値が描き直しのあとで書きもどされ、解除しても前の合言葉がのこり、
      おまかせを押しても新しい合言葉が出ない（実機でそうなった） */
@@ -2041,6 +2069,36 @@ test('共有ずみの合言葉は見せるだけ。つなぎ直しはたたむ',
   const bind = grab(APP, 'bindSync');
   assert.match(bind, /\$\('#syncRejoinCode'\) \|\| \$\('#syncCode'\)/);
   assert.match(bind, /const shown = \$\('#syncCodeShown'\);/, 'コピーは表示中の合言葉から取ること');
+});
+
+test('アプリ情報から使い方と更新履歴を状態を保ったまま開ける', ()=>{
+  const cfg = grab(APP, 'viewConfig');
+  assert.match(cfg, /href="start\/getting-started\.html" target="_blank" rel="noopener"[\s\S]{0,100}aria-label="使い方を新しいタブで開く"/);
+  assert.match(cfg, /href="start\/updates\.html" target="_blank" rel="noopener"[\s\S]{0,100}aria-label="更新履歴を新しいタブで開く"/);
+  assert.doesNotMatch(cfg, /href="#(?:getting-started|updates)/,
+    '画面切替に使うURLの#を案内リンクで汚さないこと');
+});
+
+test('記録の手入れはデータ管理へ順序どおり統合し、一括削除だけを危険表示にする', ()=>{
+  const cfg = grab(APP, 'viewConfig');
+  assert.doesNotMatch(cfg, /<h2>記録の手入れ<\/h2>/);
+  assert.equal((cfg.match(/<h2>データ管理<\/h2>/g) || []).length, 1,
+    '目次へ拾われる見出しはデータ管理1つだけにすること');
+  const start = cfg.indexOf('id="dataManagementSection"');
+  const data = cfg.slice(start, cfg.indexOf('${syncTraceHTML()}', start));
+  const one = data.indexOf('id="allowLogDelete"');
+  const backup = data.indexOf('id="expBtn"');
+  const danger = data.indexOf('id="resetCfg"');
+  assert.ok(start >= 0 && one >= 0 && backup > one && danger > backup,
+    '1件削除設定→バックアップ→一括削除の順にすること');
+  assert.match(data, /class="data-management-toggle"/,
+    'チェックボックスを独立した色カードでなく通常の設定行にすること');
+  assert.match(data, /class="data-danger-zone"[\s\S]{0,500}id="resetCfg"[\s\S]{0,300}id="resetAll"/,
+    '危険な見た目は一括削除の2操作だけを囲むこと');
+  assert.doesNotMatch(data.slice(0, data.indexOf('class="data-danger-zone"')), /btn-danger/,
+    '1件削除設定とバックアップを危険操作として見せないこと');
+  assert.match(cfg, /adultSectionHelpAttr\([\s\S]{0,260}1件削除[\s\S]{0,160}バックアップ[\s\S]{0,160}一括削除/,
+    'iダイアログの説明も3つの役割へ統合すること');
 });
 
 /* 表を積みなおすとき tbody を入れわすれると、そこだけ table-row-group で
@@ -2442,9 +2500,29 @@ test('保護者画面の丸角と選択枠は、狭い画面でも外へはみ�
     '説明ダイアログの閉じるボタンの選択枠を内側に収めること');
 });
 
+test('今日の最後の記録は戻り口を追加しても点線を残さず、予約領域と重ならない', ()=>{
+  const toc = grab(APP, 'buildAdultSectionToc');
+  assert.match(toc, /const contentLast = surface\.lastElementChild;[\s\S]{0,100}classList\.add\('adult-section-content-last'\)/,
+    '戻り口を追加する前の最後の内容を印づけること');
+  assert.match(STYLE, /\.today-item:last-child,\.today-item\.adult-section-content-last\{ border-bottom:none; \}/,
+    '構造上の最後の記録から点線を消すこと');
+  assert.match(STYLE, /\.parent-today-logs \.today-item\.adult-section-content-last\{ padding-bottom:8px; \}/,
+    '最後の記録下だけ安全な範囲で余白を縮めること');
+  assert.match(STYLE, /\.paper\.adult-section-return-surface\{[\s\S]{0,120}padding-block-end:52px/,
+    '複数行の記録でも▲と重ならない予約領域を保つこと');
+});
+
 test('共有のオフライン表示は見出し内で簡潔に示す', ()=>{
   const labels = APP.slice(APP.indexOf('const SYNC_LABEL'), APP.indexOf('function syncNeedsSetup'));
-  assert.match(labels, /offline:\s*\['⌛', 'オフライン'\]/);
+  assert.match(labels, /offline:\s*\['',\s+'オフライン'\]/);
+  assert.doesNotMatch(APP, /⌛/, 'OS依存の砂時計文字を残さないこと');
+  assert.match(APP, /offline:'<svg[^']*stroke="currentColor"[^']*stroke-width="2"/,
+    '既存の自作線画と同じ色・線幅のオフラインアイコンを持つこと');
+  const html = grab(APP, 'syncStatusHTML');
+  assert.match(html, /status !== 'offline'/);
+  assert.match(html, /icon\('offline'\)/);
+  assert.match(html, /<span>\$\{esc\(label\)\}<\/span>/,
+    'ピクトグラムだけでなく読み上げられる状態文字を残すこと');
   assert.doesNotMatch(labels, /この端末にためています/);
 });
 
@@ -2865,11 +2943,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260822n',
+    'assets/style.css': '20260822o',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822q',
+    'assets/app.js': '20260822r',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
@@ -3596,7 +3674,7 @@ test('起動時は描画を妨げずに版を確認し、タブ復帰時は30分
 test('保護者ページの「アプリの情報」にだけ、見つけた新しい版を事実として伝える', ()=>{
   const cfg = grab(APP, 'viewConfig');
   assert.match(cfg, /newVersionAvailable \? `<p class="set-note" id="appUpdateNote">あたらしい版が あります<\/p>` : ''/,
-    '見つかっているときだけ一言そえ、ボタンや選択肢は増やさないこと');
+    '見つかっているときだけ更新の事実を一言そえること');
   assert.doesNotMatch(grab(APP, 'viewParent'), /newVersionAvailable/,
     '保護者トップには出さないこと（アプリ情報の中だけに置く）');
   assert.doesNotMatch(grab(APP, 'viewTasks'), /newVersionAvailable/);
