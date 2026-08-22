@@ -1607,6 +1607,8 @@ function viewWelcome(){
    色は currentColor なので、ボタン側の color が そのまま つかわれる。 */
 const APP_ICONS = {
   trash:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path fill="currentColor" d="M9.8 2.4h4.4A1.6 1.6 0 0 1 15.8 4v1.2H8.2V4a1.6 1.6 0 0 1 1.6-1.6Z"/><rect x="2.8" y="5.1" width="18.4" height="3" rx="1.5" fill="currentColor"/><path fill="currentColor" fill-rule="evenodd" d="M5.4 9.6h13.2l-.6 8.6a3.2 3.2 0 0 1-3.2 3H9.2a3.2 3.2 0 0 1-3.2-3L5.4 9.6Zm4.3 2.6a1.05 1.05 0 0 0-1.05 1.05v4.2a1.05 1.05 0 1 0 2.1 0v-4.2A1.05 1.05 0 0 0 9.7 12.2Zm4.6 0a1.05 1.05 0 0 0-1.05 1.05v4.2a1.05 1.05 0 1 0 2.1 0v-4.2a1.05 1.05 0 0 0-1.05-1.05Z"/></svg>',
+  edit:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="m5 15.8-1 4.2 4.2-1L19.1 8.1a2.3 2.3 0 0 0 0-3.2 2.3 2.3 0 0 0-3.2 0L5 15.8Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m14.2 6.6 3.2 3.2M5 15.8 8.2 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  offline:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3.6 8.8A13.2 13.2 0 0 1 12 5.7c3.1 0 6 1.1 8.4 3.1M6.7 12a8.1 8.1 0 0 1 3-1.7M14.2 10.3c1.1.3 2.1.9 3 1.7M9.8 15.1c.7-.4 1.4-.6 2.2-.6.8 0 1.5.2 2.2.6M12 19h.01M4 4l16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   refresh:'<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M20 11a8 8 0 0 0-14.4-4.8L4 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 4v4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 13a8 8 0 0 0 14.4 4.8L20 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 20v-4h-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 /* 自前のものを 先に 見る。同じ名前が codex 側に あっても こちらが 勝つ */
@@ -4100,14 +4102,22 @@ function syncStatusText(status, text){
      いるように 読める。実際は 相手を 待っている 状態なので そう書く */
   const alone = status === 'online' && S && typeof S.deviceCount === 'function'
                 && S.deviceCount() <= 1;
-  return mark + ' ' + (alone ? 'ほかの端末を待っています' : (text || def));
+  return [mark, alone ? 'ほかの端末を待っています' : (text || def)].filter(Boolean).join(' ');
+}
+
+/* オフラインだけは OS ごとに形が変わる文字を使わず、自前の線画を出す。
+   状態名は目に見える文字として残すため、色やピクトグラムだけに依存しない。 */
+function syncStatusHTML(status, text){
+  const label = syncStatusText(status, text);
+  if(status !== 'offline') return esc(label);
+  return `<span class="sync-state-icon" aria-hidden="true">${icon('offline')}</span><span>${esc(label)}</span>`;
 }
 
 const SYNC_LABEL = {
   off:        ['—',  'つないでいません'],
   connecting: ['…',  'つないでいます'],
   online:     ['✓',  'つながっています'],
-  offline:    ['⌛', 'オフライン'],
+  offline:    ['',   'オフライン'],
   error:      ['!',  'つながりません']
 };
 
@@ -4329,7 +4339,7 @@ function syncSectionHTML(opts){
   return `
   <section class="sec" id="syncSection"${adultSectionHelpAttr(help)}>
     <div class="sec-head"><h2>ほかの端末と共有</h2>
-      <span class="sec-note" id="syncStatus">${esc(syncStatusText(S.status(), S.statusText()))}</span></div>
+      <span class="sec-note sync-status" id="syncStatus" role="status" aria-live="polite">${syncStatusHTML(S.status(), S.statusText())}</span></div>
     <div class="paper">
        ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
        ${opts && opts.dismissPrompt ? `<div class="set-actions"><button class="btn btn-sm btn-ghost" id="syncPromptDismiss" type="button">接続せず使う</button></div><p class="set-note">1台の端末で使う場合などは、接続せずにこの端末だけで続けられます。</p>` : ''}
@@ -4343,13 +4353,11 @@ function syncSectionHTML(opts){
             captureFormDraft が 拾った 古い 値が 描き直しの あとで
             書きもどされ、解除しても 前の 合言葉が のこる／
             おまかせを 押しても 新しい 合言葉が 出ない、が 起きる */''}
-      <div class="set-row"><span class="lab">このグループの合言葉</span>
-        <input type="text" id="syncCodeShown" value="${esc(code)}" spellcheck="false"
-               autocapitalize="off" autocorrect="off" placeholder="未設定" readonly></div>
+      <div class="sync-code-row"><label class="lab" for="syncCodeShown">このグループの合言葉</label>
+        <div class="sync-code-control"><input type="text" id="syncCodeShown" value="${esc(code)}" spellcheck="false"
+               autocapitalize="off" autocorrect="off" placeholder="未設定" readonly>
+          <button class="btn btn-sm" id="syncCopy" type="button">コピー</button></div></div>
       <p class="set-note">ほかの端末では、この合言葉を入力するか、下の「ほかの端末から読み取る」のQRコード・招待リンクを使ってください。</p>
-      <div class="set-actions">
-        <button class="btn btn-sm" id="syncCopy" type="button">コピー</button>
-      </div>
       <details class="set-advanced" data-details-key="syncRejoin">
         <summary>べつの合言葉につなぎ直す</summary>
         <div class="set-advanced-body">
@@ -4546,6 +4554,7 @@ function parentBookRows(rows){
   return rows.slice().sort((a,b)=> order === 'asc' ? compare(a,b) : compare(b,a));
 }
 function parentBookRowHTML(b){
+  const editName = `「${b.title || '書名未設定'}」を編集する`;
   return `<div class="book-row">
     <span class="book-no">${bookOrdinal(b.nth, true)}</span>
     <div class="book-main">
@@ -4556,8 +4565,12 @@ function parentBookRowHTML(b){
       ].filter(Boolean).map(esc).join('　')}</div>
       ${b.memoOut || b.memo ? `<div class="book-memo">${esc(b.memoOut || b.memo)}</div>` : ''}
     </div>
-    <button class="btn btn-sm" data-open="${esc(b.taskId)}" data-book="${esc(b.id)}" type="button">編集</button>
-    <button class="icon-btn del" data-delbook="${esc(b.id)}" title="削除" aria-label="この本の記録を消す" type="button">${icon('trash')}</button>
+    <div class="book-actions">
+      <button class="icon-btn edit" data-open="${esc(b.taskId)}" data-book="${esc(b.id)}" type="button"
+        title="${esc(editName)}" aria-label="${esc(editName)}">${icon('edit')}</button>
+      <button class="icon-btn del" data-delbook="${esc(b.id)}" title="「${esc(b.title || '書名未設定')}」を削除する"
+        aria-label="「${esc(b.title || '書名未設定')}」の記録を削除する" type="button">${icon('trash')}</button>
+    </div>
   </div>`;
 }
 
@@ -5818,11 +5831,17 @@ function render(opts){
    ページ全体では なく #scroll だけが 動くので、scrollIntoView では なく
    scrollTop を 自分で 足す（「画面の作り」の 前提）。 */
 let pendingJump = '';
-function jumpTo(sel){ pendingJump = sel; }
+let pendingJumpFocus = false;
+function jumpTo(sel, moveFocus=false){
+  pendingJump = sel;
+  pendingJumpFocus = moveFocus;
+}
 function jumpToSection(){
   if(!pendingJump) return;
   const sel = pendingJump;
+  const moveFocus = pendingJumpFocus;
   pendingJump = '';
+  pendingJumpFocus = false;
   /* 1回 寄せて 終わりに できない。漢字の ふりわけ（kuromoji）は あとから
      終わるので、寄せた あとに 上の 中身が のびて、目あての 欄が
      画面の 下へ 押し出される（実際に 450px ほど ずれた）。
@@ -5838,12 +5857,16 @@ function jumpToSection(){
     const top = box.getBoundingClientRect ? box.getBoundingClientRect().top : 0;
     const gap = el.getBoundingClientRect().top - top - 12;
     if(Math.abs(gap) <= 1){
-      if(++stable >= 2) return;
+      if(++stable >= 2){
+        if(moveFocus && typeof el.focus === 'function') el.focus({ preventScroll:true });
+        return;
+      }
     }else{
       stable = 0;
       box.scrollTop = Math.max(0, box.scrollTop + gap);
     }
     if(++tries < 10) setTimeout(settle, 60);
+    else if(moveFocus && typeof el.focus === 'function') el.focus({ preventScroll:true });
   };
   settle();
 }
@@ -6235,8 +6258,11 @@ function buildAdultSectionToc(){
     if(!head || head.tagName === 'SUMMARY' || !section) return;
     const surface = Array.from(section.children).find(el=>el.classList && el.classList.contains('paper'));
     if(!surface) return;
+    surface.classList.add('adult-section-return-surface');
     let actions = $('.adult-section-tools', surface);
     if(!actions){
+      const contentLast = surface.lastElementChild;
+      if(contentLast) contentLast.classList.add('adult-section-content-last');
       actions = document.createElement('div');
       actions.className = 'adult-section-tools';
       surface.appendChild(actions);
@@ -6349,34 +6375,36 @@ function viewConfig(){
     <div class="paper">
       <p class="set-note app-version-line">この端末：<b>v${esc(RELEASE_VERSION)}</b>（配信 ${appVersionHTML(APP_VER)}）</p>
       ${newVersionAvailable ? `<p class="set-note" id="appUpdateNote">あたらしい版が あります</p>` : ''}
-      <div class="set-actions">
+      <div class="set-actions app-info-actions">
         <button class="btn btn-sm" id="appUpdate" type="button">最新に更新する</button>
+        <a class="btn btn-sm btn-ghost" href="start/getting-started.html" target="_blank" rel="noopener"
+          aria-label="使い方を新しいタブで開く">使い方</a>
+        <a class="btn btn-sm btn-ghost" href="start/updates.html" target="_blank" rel="noopener"
+          aria-label="更新履歴を新しいタブで開く">更新履歴</a>
       </div>
     </div>
   </section>
 
-  <section class="sec config-sec" id="logCareSection"${adultSectionHelpAttr(
-    '「やったこと」を1件ずつ削除できるようにします。進捗は変わらず、削除は元に戻せません。保護者の端末に設定した端末だけで使えます。')}><div class="sec-head"><h2>記録の手入れ</h2></div>
-    <div class="paper log-care-paper">
-      <label class="opt-toggle">
+  <section class="sec config-sec" id="dataManagementSection"${adultSectionHelpAttr(
+    '「やったこと」の1件削除をこの端末で有効にできます。バックアップの書き出し・読み込みと、宿題・記録の一括削除も行えます。')}><div class="sec-head"><h2>データ管理</h2></div>
+    <div class="paper data-management-paper">
+      <label class="data-management-toggle" for="allowLogDelete">
+        <span><b>「やったこと」を1件ずつ削除</b><small>進捗の数字は変えず、記録だけを削除できるようにします。</small></span>
         <input type="checkbox" id="allowLogDelete"${config.allowLogDelete ? ' checked' : ''}>
-        <span class="opt-toggle-text">
-          <b>「やったこと」の削除を有効にする</b>
-        </span>
       </label>
       ${config.allowLogDelete && getLocal(K_ROLE) !== 'parent'
         ? '<p class="set-note dev-warn"><b>この端末は「保護者の端末」に設定されていません。</b>「ほかの端末と共有」→「共有リンク・端末ごとの設定」→「この端末は」で選択してください。</p>'
         : ''}
+      <div class="data-management-row">
+        <div class="data-management-copy"><b>バックアップ</b><small>データをファイルへ書き出すか、保存したファイルを読み込みます。</small></div>
+        <div class="set-actions"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
+      </div>
+      <div class="data-danger-zone">
+        <div class="data-management-copy"><b>一括削除</b><small>必要なら先にバックアップを書き出してください。</small></div>
+        <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">宿題の項目をすべて消す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録をすべて削除</button></div>
+      </div>
     </div>
   </section>
-
-  <section class="sec config-sec"${adultSectionHelpAttr(
-    'バックアップの書き出し・読み込みと、宿題や記録の一括削除を行います。宿題の項目を消しても記録と基本設定は残ります。削除前に書き出してください。')}><div class="sec-head"><h2>データ管理</h2></div><details class="paper set-advanced"><summary>バックアップと初期化</summary>
-    <div class="set-advanced-body">
-    <div class="set-actions"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
-    <div class="set-actions"><button class="btn btn-sm btn-danger" id="resetCfg" type="button">宿題の項目をすべて消す</button><button class="btn btn-sm btn-danger" id="resetAll" type="button">記録をすべて削除</button></div>
-    </div>
-  </details></section>
 
   ${syncTraceHTML()}
 
@@ -7047,7 +7075,7 @@ function bindSync(){
     S.onStatus((st, text)=>{
       const el = $('#syncStatus');
       if(!el) return;
-      el.textContent = syncStatusText(st, text);
+      el.innerHTML = syncStatusHTML(st, text);
     });
   }
   if(!bindSync._deviceWatching){
@@ -7055,7 +7083,7 @@ function bindSync(){
     S.onDeviceCount(count=>{
       /* 1台→2台で「待っています」から「つながっています」に変わる */
       const st = $('#syncStatus');
-      if(st) st.textContent = syncStatusText(S.status(), S.statusText());
+      if(st) st.innerHTML = syncStatusHTML(S.status(), S.statusText());
       const el = $('#syncDeviceCount');
       if(el) el.textContent = '共有リンク・端末ごとの設定（設定済み：' + count + '台）';
     });
@@ -7830,7 +7858,7 @@ document.addEventListener('click', e=>{
   /* 長い説明を 書くかわりに、その場から 飛ばす。
      設定ページは 長いので、着いた先まで 寄せないと 意味が ない */
   if(e.target.closest('#logCareJump')){
-    jumpTo('#logCareSection');
+    jumpTo('#allowLogDelete', true);
     location.hash = 'config';
     return;
   }

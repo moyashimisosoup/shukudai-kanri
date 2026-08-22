@@ -376,8 +376,40 @@ button{ font:inherit; color:inherit; }
 .opt-toggle-text b{ font-size:17px; font-weight:900; line-height:1.4; }
 .opt-toggle-text small{ font-size:13px; font-weight:700; color:var(--ai-usu); line-height:1.6; }
 
+/* データ管理は、通常設定→バックアップ→危険操作の順。通常のチェックを
+   危険色のカードにせず、一括削除だけを赤い領域へ分ける。 */
+.data-management-paper{ overflow:hidden; }
+.data-management-toggle,.data-management-row{
+  min-height:68px; padding:12px 16px; box-sizing:border-box;
+  display:flex; align-items:center; gap:12px; border-bottom:2px dashed var(--hougan);
+}
+.data-management-toggle{ cursor:pointer; }
+.data-management-toggle > span,.data-management-copy{ display:flex; flex:1 1 auto; flex-direction:column; gap:3px; min-width:0; }
+.data-management-toggle b,.data-management-copy b{ color:var(--ai); font-size:16px; font-weight:900; line-height:1.4; }
+.data-management-toggle small,.data-management-copy small{ color:var(--ai-usu); font-size:13px; font-weight:700; line-height:1.55; }
+.data-management-toggle input[type="checkbox"]{
+  flex:none; width:24px; height:24px; margin:0; accent-color:var(--asagao); cursor:pointer;
+}
+.data-management-toggle input[type="checkbox"]:focus-visible{ outline:3px solid var(--focus); outline-offset:1px; }
+.data-management-row{ flex-wrap:wrap; }
+.data-management-row .set-actions,.data-danger-zone .set-actions{ padding:0; }
+.data-danger-zone{
+  margin:12px 16px 0; padding:12px; border:2px solid var(--suika);
+  border-radius:var(--r-s); background:var(--suika-usu);
+}
+.data-danger-zone .data-management-copy{ margin-bottom:10px; }
+.data-danger-zone .data-management-copy b{ color:var(--suika); }
+
 /* 「べつの端末と つなぐ」の 詳細 */
 .sync-detail{ margin-top:8px; }
+.sync-status{ display:inline-flex; align-items:center; justify-content:flex-end; gap:4px; min-width:0; }
+.sync-state-icon{ display:inline-grid; place-items:center; flex:none; width:20px; height:20px; color:var(--ai); }
+.sync-state-icon .codex-icon{ width:20px; height:20px; }
+.sync-code-row{ padding:10px 16px 12px; border-bottom:2px dashed var(--hougan); }
+.sync-code-row > .lab{ display:block; margin-bottom:6px; font-size:15px; font-weight:900; }
+.sync-code-control{ display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; }
+.sync-code-control > input{ width:100%; min-width:0; height:44px; padding-block:6px; }
+.sync-code-control > .btn{ min-width:76px; }
 
 /* 調べもの用。ふだんは 目に入らないよう 小さく */
 .config-sec--quiet > .set-advanced > summary{
@@ -691,11 +723,15 @@ button{ font:inherit; color:inherit; }
 .adult-section-toc-links a[aria-current="location"]{ font-weight:900; background:var(--sora); box-shadow:inset 4px 0 0 var(--ai); }
 .adult-section-toc-target{ scroll-margin-top:var(--space-md); }
 
-/* 戻り口は紙の末尾に常設する。背景と区切り線を持たせず、紙の角丸を
-   別の面で覆わない。小さな印でも44pxの操作面は保つ。 */
+/* 戻り口は紙の外枠から4pxの位置へ統一する。紙ごとのpaddingには
+   依存させず、同じ52pxを必ず予約して入力内容と重ねない。 */
+.paper.adult-section-return-surface{
+  position:relative; padding-block-end:52px !important; box-sizing:border-box;
+}
 .adult-section-tools{
-  min-height:44px; display:flex; justify-content:flex-end; align-items:center;
-  padding-inline:var(--space-2xs); border:0; background:transparent;
+  position:absolute; inset-inline-end:calc(4px - var(--line)); inset-block-end:calc(4px - var(--line));
+  width:44px; height:44px; display:flex; justify-content:flex-end; align-items:center;
+  padding:0; border:0; background:transparent;
 }
 .adult-section-tool{
   width:44px; height:44px; display:grid; place-items:center; flex:none;
@@ -1754,11 +1790,17 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 }
 .book-main{ flex:1; min-width:0; }
 .book-title{ font-size:17px; font-weight:900; word-break:break-word; }
-.book-sub{ font-size:15px; font-weight:700; color:var(--ai-usu); margin-top:2px; }
+.book-sub{ font-size:15px; font-weight:700; color:var(--ai-usu); margin-top:2px; overflow-wrap:anywhere; }
 .book-memo{
   font-size:15px; margin-top:6px; color:var(--ai-usu);
-  white-space:pre-wrap; word-break:break-word;
+  white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
 }
+.book-actions{ display:flex; align-items:center; gap:4px; flex:none; }
+.icon-btn.edit{ background:transparent; color:var(--ai); border-color:transparent; box-shadow:none; }
+.icon-btn.edit .codex-icon{ width:24px; height:24px; }
+.icon-btn.edit:active{ background:var(--sora); }
+@media (hover:hover){ .icon-btn.edit:hover{ background:var(--sora); } }
+.icon-btn.edit:focus-visible{ outline:3px solid var(--focus); outline-offset:-3px; }
 /* 狭い画面では、書名と3つの操作を横一列で取り合わない。
    書名は上段を広く使い、編集と削除だけを下段の右へまとめる。 */
 @media (max-width:480px){
@@ -1768,8 +1810,8 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   }
   .book-row > .book-no{ grid-column:1; grid-row:1; }
   .book-row > .book-main{ grid-column:2 / -1; grid-row:1; }
-  .book-row > .btn{ grid-column:2; grid-row:2; justify-self:end; white-space:nowrap; }
-  .book-row > .icon-btn{ grid-column:3; grid-row:2; }
+  .book-row > .book-actions{ grid-column:2 / -1; grid-row:2; justify-self:end; }
+  .book-title{ font-size:16px; }
 }
 
 /* =========================================================
@@ -1780,7 +1822,8 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   display:flex; gap:12px; align-items:baseline;
   padding:12px 16px; border-bottom:2px dashed var(--hougan);
 }
-.today-item:last-child{ border-bottom:none; }
+.today-item:last-child,.today-item.adult-section-content-last{ border-bottom:none; }
+.parent-today-logs .today-item.adult-section-content-last{ padding-bottom:8px; }
 .ti-time{
   flex:none; font-family:var(--font-num); font-size:15px; font-weight:700;
   color:var(--ai-usu); width:52px;
