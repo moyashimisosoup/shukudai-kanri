@@ -59,6 +59,39 @@ test('保護者ナビは起動URLが残っていても設定ページへ移動�
     '起動時の #config が残り hashchange しない場合も表示を切り替えること');
 });
 
+test('保護者の3ページだけ、描画済みの節見出しからページ内目次を作る', ()=>{
+  const head = grab(APP, 'adultHeadHTML');
+  const toc = grab(APP, 'buildAdultSectionToc');
+  assert.match(head, /<nav class="adult-section-toc" aria-label="このページの目次" hidden><\/nav>/,
+    '見出しの紙の直後に、読み上げで用途が分かるナビを置くこと');
+  assert.match(grab(APP, 'viewParent'), /<nav class="adult-section-toc" aria-label="このページの目次" hidden><\/nav>/);
+  assert.match(grab(APP, 'viewTasks'), /adultHeadHTML\('tasks',/);
+  assert.match(grab(APP, 'viewConfig'), /adultHeadHTML\('config',/);
+  assert.match(toc, /\$\$\('\.sec-head > h2', \$\('#view'\)\)/,
+    '別に列挙せず、実際に描画された節見出しを拾うこと');
+  assert.match(toc, /if\(headings\.length < 2\) return;/,
+    '節が1つだけなら目次を出さないこと');
+  assert.match(toc, /heading\.textContent/,
+    '目次の項目名は見出し本文を使うこと');
+  assert.match(toc, /target\.scrollIntoView\(\{ block:'start' \}\)/,
+    'キーボードで選んだリンクも節へ移動できること');
+  assert.match(STYLE, /\.adult-section-toc\{[\s\S]{0,180}overflow-x:auto/,
+    '狭い画面で項目を縦に増やさず横へ送ること');
+  assert.match(STYLE, /\.adult-section-toc-target\{ scroll-margin-top:88px; \}/,
+    '飛び先の見出しを上帯の下に出すこと');
+  assert.doesNotMatch(grab(APP, 'viewHome'), /adult-section-toc/,
+    '子ども画面には目次を置かないこと');
+  /* URL の # は画面の切りかえに使う。見出しの id をそこへ入れると
+     routeFromHash() が知らない名前として 'home' に落とし、戻る・再読みこみ・
+     ホーム画面から開き直したときに保護者が子ども画面へ飛ばされる。 */
+  assert.doesNotMatch(toc, /history\.(replaceState|pushState)/,
+    '目次の移動でURLの#を書きかえないこと');
+  assert.doesNotMatch(toc, /location\.hash/,
+    '目次の移動でURLの#を書きかえないこと');
+  assert.match(toc, /target\.focus\(\{ preventScroll:true \}\)/,
+    '#を使わずに移動するぶん、読み上げの位置は自分で見出しへ移すこと');
+});
+
 test('子どもの最終記録時刻は親の同期確認と混ざらず、新しい値を残す', ()=>{
   const merged = appFns.mergeState(
     state({ childActivityAt:1718436000000 }),
@@ -2747,11 +2780,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260822d',
+    'assets/style.css': '20260822e',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822g',
+    'assets/app.js': '20260822h',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };
@@ -2775,19 +2808,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.7.0をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.7\.0';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.7\.0">/);
-  assert.equal(PACKAGE.version, '1.7.0');
-  assert.equal(PACKAGE_LOCK.version, '1.7.0');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.7.0');
+test('公開版番号v1.8.0をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.8\.0';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.8\.0">/);
+  assert.equal(PACKAGE.version, '1.8.0');
+  assert.equal(PACKAGE_LOCK.version, '1.8.0');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.8.0');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.7.0', '1.6.7', '1.6.6', '1.6.5', '1.6.4', '1.6.3', '1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.8.0', '1.7.0', '1.6.7', '1.6.6', '1.6.5', '1.6.4', '1.6.3', '1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');

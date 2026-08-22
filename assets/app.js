@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.7.0';
+const RELEASE_VERSION = '1.8.0';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -3701,6 +3701,7 @@ function viewParent(){
       <div class="parent-head-title"><h2>保護者用ページ</h2>${parentShareBadgeHTML()}</div>
     </div>
   </div>
+  <nav class="adult-section-toc" aria-label="このページの目次" hidden></nav>
 
   ${sampleResetNoticeHTML()}
 
@@ -5781,6 +5782,7 @@ function render(opts){
   if(tab === 'stats')    bindStats();
   if(tab === 'settings'){ bindParent(); bindSync(); }
   if(isAdultTab(tab)) bindAdultNav();
+  if(isAdultTab(tab)) buildAdultSectionToc();
   if(tab === 'tasks' || tab === 'config') bindConfig();
   scrollBox().scrollTop = keepScroll ? y : 0;
   applyReadingDisplay();
@@ -6170,12 +6172,42 @@ function adultNavHTML(current){
     <a class="pagenav-child" id="openChildPage" href="#home">子ども画面へ</a>
   </nav>`;
 }
-function adultHeadHTML(current, lead){
+function adultHeadHTML(current, lead, extra){
   const page = ADULT_PAGES.find(p=>p.tab === current) || ADULT_PAGES[0];
   return `
   ${adultNavHTML(current)}
-  <div class="paper parent-head config-head"><div><h2>${esc(page.title)}</h2><p>${esc(lead)}</p></div>
-    <span class="autosave" aria-live="polite">自動保存</span></div>`;
+  <div class="paper parent-head config-head"><div><div class="parent-head-title"><h2>${esc(page.title)}</h2>${extra || ''}</div>${lead ? `<p>${esc(lead)}</p>` : ''}</div>
+    ${lead ? '<span class="autosave" aria-live="polite">自動保存</span>' : ''}</div>
+  <nav class="adult-section-toc" aria-label="このページの目次" hidden></nav>`;
+}
+
+/* 保護者向けの画面では、実際に描かれた節見出しだけを目次にする。
+   条件で出たり消えたりする案内や共有欄を、別の一覧として保ち続けないため。 */
+function buildAdultSectionToc(){
+  const toc = $('.adult-section-toc');
+  if(!toc) return;
+  const headings = $$('.sec-head > h2', $('#view'));
+  if(headings.length < 2) return;
+  headings.forEach((heading, i)=>{
+    if(!heading.id) heading.id = 'adult-section-heading-' + (i + 1);
+    heading.classList.add('adult-section-toc-target');
+  });
+  toc.innerHTML = headings.map(heading =>
+    `<a href="#${esc(heading.id)}">${esc(heading.textContent)}</a>`).join('');
+  toc.hidden = false;
+  $$('a', toc).forEach(link=>link.addEventListener('click', e=>{
+    const target = document.getElementById(link.getAttribute('href').slice(1));
+    if(!target) return;
+    /* URL の # は 画面の 切りかえに 使っている。見出しの id を そこへ
+       入れると routeFromHash() が 知らない 名前として 子ども画面に
+       落とすので、戻る・再読みこみ・ホーム画面から 開き直すと 保護者が
+       子ども画面へ 飛ばされる。だから # は さわらず、動かすだけに する。 */
+    e.preventDefault();
+    target.scrollIntoView({ block:'start' });
+    /* 既定の移動なら 見出しへ 移る 読み上げの 位置を、自分で 移す */
+    target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll:true });
+  }));
 }
 
 /* 宿題そのものを決めるページ。

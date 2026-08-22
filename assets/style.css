@@ -629,6 +629,24 @@ button{ font:inherit; color:inherit; }
 .adult-view .sec-head{ border-radius:var(--r); }
 @media (max-width:400px){ .adult-view .sec-head h2{ font-size:19px; } }
 
+/* 保護者画面だけの、実在する節から作るページ内目次。項目を縦に増やさず、
+   1行を横に送るので、iPhone SE 幅でも画面の大半を取らない。 */
+.adult-section-toc{
+  display:flex; gap:6px; overflow-x:auto; overscroll-behavior-inline:contain;
+  margin:0 0 16px; padding:6px; border:var(--line) solid var(--ai);
+  border-radius:var(--r); background:var(--kami); box-shadow:var(--shadow);
+  scrollbar-width:thin;
+}
+.adult-section-toc a{
+  flex:0 0 auto; min-height:38px; display:flex; align-items:center;
+  padding:0 12px; border-radius:var(--r-pill); color:var(--ai);
+  background:var(--ai-usu); font-size:14px; font-weight:900;
+  line-height:1.2; text-decoration:none; white-space:nowrap;
+}
+.adult-section-toc a:hover,.adult-section-toc a:active{ background:var(--ai); color:var(--kami); }
+.adult-section-toc a:focus-visible{ outline:3px solid var(--himawari); outline-offset:2px; }
+.adult-section-toc-target{ scroll-margin-top:88px; }
+
 /* 宿題の 一覧の 写真を 開く ボタン。**帯（タイトル行）の 日づけの 左**に 置く。
 
    はじめは カウントダウンの 見出し行に 同居させて いたが、
