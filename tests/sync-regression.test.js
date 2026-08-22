@@ -2421,6 +2421,31 @@ test('宿題の4つの欄は、同じ骨組みで組む', ()=>{
   }
   /* 件数の出しかたも4つで揃える */
   assert.match(sec, /o\.rows\.length\}件/);
+  assert.match(view, /note:'子ども画面の「つぎに やる」に出ます。'/,
+    '任意の宿題の説明は表示先だけを簡潔に伝えること');
+  assert.doesNotMatch(view, /必須の宿題が終わったあとに取り組み/,
+    '任意の宿題の説明に削除指定された補足を戻さないこと');
+});
+
+test('保護者画面の丸角と選択枠は、狭い画面でも外へはみ出さない', ()=>{
+  assert.match(STYLE, /\.parent-book-list\{ overflow:hidden; \}/,
+    '本の一覧の背景と区切り線を紙の丸角内に収めること');
+  assert.match(STYLE, /\.parent-book-more > summary:focus-visible\{[\s\S]{0,90}outline-offset:-3px/,
+    '丸角で切っても本一覧の開閉行のフォーカス枠を見える位置に残すこと');
+  assert.match(STYLE, /@media \(max-width:480px\)\{[\s\S]{0,220}\.book-row\{[\s\S]{0,120}grid-template-columns:auto minmax\(0,1fr\) auto/,
+    '狭幅では書名と操作を2段に分けること');
+  assert.match(STYLE, /\.book-row > \.book-main\{ grid-column:2 \/ -1; grid-row:1; \}/,
+    '書名には上段の残り幅をすべて使うこと');
+  assert.match(STYLE, /\.adult-section-toc-disclosure > summary:focus-visible\{[\s\S]{0,100}outline:0; box-shadow:inset 0 0 0 3px var\(--focus\)/,
+    '目次の選択枠を外側へ広げないこと');
+  assert.match(STYLE, /\.adult-section-help-dialog \.poster-close:focus-visible\{[\s\S]{0,100}outline:0; box-shadow:inset 0 0 0 3px var\(--focus\)/,
+    '説明ダイアログの閉じるボタンの選択枠を内側に収めること');
+});
+
+test('共有のオフライン表示は見出し内で簡潔に示す', ()=>{
+  const labels = APP.slice(APP.indexOf('const SYNC_LABEL'), APP.indexOf('function syncNeedsSetup'));
+  assert.match(labels, /offline:\s*\['⌛', 'オフライン'\]/);
+  assert.doesNotMatch(labels, /この端末にためています/);
 });
 
 test('宿題を足すと、押したボタンの欄に入る', ()=>{
@@ -2840,11 +2865,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260822m',
+    'assets/style.css': '20260822n',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260822p',
+    'assets/app.js': '20260822q',
     'assets/sync.js': '20260821c',
     'assets/photos.js': '20260821a'
   };

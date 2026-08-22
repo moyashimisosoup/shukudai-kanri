@@ -4107,7 +4107,7 @@ const SYNC_LABEL = {
   off:        ['—',  'つないでいません'],
   connecting: ['…',  'つないでいます'],
   online:     ['✓',  'つながっています'],
-  offline:    ['⌛', 'オフライン（この端末にためています）'],
+  offline:    ['⌛', 'オフライン'],
   error:      ['!',  'つながりません']
 };
 
@@ -6297,7 +6297,7 @@ function viewTasks(){
 
   ${taskSectionHTML({
     title:'任意の宿題', rows:option, editorId:'optionTaskEditor',
-    note:'子ども画面の「つぎに やる」に出ます。必須の宿題が終わったあとに取り組み、進み具合にも反映します。',
+    note:'子ども画面の「つぎに やる」に出ます。',
     empty:'まだ項目はありません。', addId:'addOptionTask', addLabel:'任意の宿題を追加' })}
 
   ${taskSectionHTML({
