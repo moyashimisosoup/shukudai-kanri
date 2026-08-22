@@ -1,0 +1,874 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="ja" data-theme="notebook" data-motion="auto" data-effective-motion="full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>完了アニメーション 探索とテーマ適合監査（4a）</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ------------------------------------------------------------------
+   検討用のサンプル。スマホで見るために公開はしているが、どこからも
+   リンクしていない（noindex）。配信物（assets/ index.html）には入れない。
+   採用案が決まったら preview/ ごと消してよい。
+
+   このページの役目は3つ。
+   1. 「派手版きらきら」を強度ちがいで見くらべる
+   2. 中くらいの達成（01花火 / 02きらきら / 03紙ふぶき のランダム）と、
+      完全制覇の特別演出を、はっきり別物として見くらべる
+   3. 6テーマすべてで色が破綻しないか・文字が読めなくならないかを見る
+
+   演出の色は **すべて tokens.css の変数から取る**。虹色を固定値で
+   書くと、ノート以外の5テーマで「よその色を借りた」見え方になる。
+   （ネコのコメントが tokens.css:104 で言っているのと同じ理由）
+   ------------------------------------------------------------------ */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+html,body{overflow-x:clip}
+body{
+  min-height:100vh;margin:0;
+  color:var(--ai);background-color:var(--sora);
+  font-family:var(--font-body);line-height:1.55;
+}
+button,select{font:inherit;color:inherit}
+button:focus-visible,select:focus-visible,input:focus-visible+label{
+  outline:4px solid var(--focus);outline-offset:3px;
+}
+
+/* ---- 演出の色。テーマの5色から作り、彩度だけ持ち上げる ----------
+   oklch(from …) が使えない古い環境では、素のトークンへ落ちる。
+   本体へ入れるときも同じ二段構えにすること（色が消えるより鈍いほうが安全）。 */
+:root{
+  --v1:var(--himawari); --v2:var(--asagao); --v3:var(--wakaba);
+  --v4:var(--suika);    --v5:var(--ai);
+}
+/* oklch(from …) では l / c / h は **数値**に解決される（L は 0〜1）。
+   clamp(42%, l, 86%) のように % と混ぜると式ごと無効になり、色が
+   丸ごと落ちる。必ず 0〜1 の数で書くこと。 */
+@supports (color: oklch(from white l c h)){
+  :root{
+    /* 黄だけ上限を下げる。6テーマとも --himawari は L≒.78 で、そのまま
+       彩度を上げると紙（L≒.99）との差が 1.5〜2.0:1 しか無く、
+       粒が出たことに気づけない。監査の表がそれを拾っている。 */
+    --v1:oklch(from var(--himawari) clamp(.42,l,.74) calc(c * 1.35) h);
+    --v2:oklch(from var(--asagao)   clamp(.48,l,.86) calc(c * 1.35) h);
+    --v3:oklch(from var(--wakaba)   clamp(.48,l,.86) calc(c * 1.35) h);
+    --v4:oklch(from var(--suika)    clamp(.48,l,.86) calc(c * 1.35) h);
+    --v5:oklch(from var(--ai)       clamp(.46,l,.86) calc(c * 1.9)  h);
+  }
+}
+
+/* ================= ページの骨組み ================= */
+.page{width:min(1180px,calc(100% - 32px));margin-inline:auto;padding:var(--space-lg) 0 var(--space-2xl)}
+.eyebrow{margin:0 0 var(--space-2xs);color:var(--ai-usu);font-size:var(--text-xs);font-weight:900;letter-spacing:.08em}
+h1{margin:0;font-family:var(--font-display);font-size:clamp(1.7rem,4.4vw,3rem);font-weight:900;line-height:1.1;letter-spacing:-.03em}
+.lead{max-width:52rem;margin:var(--space-sm) 0 0;color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+
+.bar{
+  position:sticky;top:0;z-index:40;
+  display:flex;flex-wrap:wrap;gap:var(--space-sm);align-items:center;
+  margin:var(--space-lg) 0;padding:var(--space-sm) var(--space-md);
+  background:var(--kami);border:var(--line) solid var(--ai);
+  border-radius:var(--r-s);box-shadow:var(--shadow);
+}
+.bar>*{min-width:0}
+.bar-lab{color:var(--ai-usu);font-size:var(--text-xs);font-weight:900}
+.bar select,.bar .mini{
+  min-height:44px;padding:0 var(--space-sm);
+  background:var(--surface-soft);border:2px solid var(--ai);
+  border-radius:var(--r-button);font-weight:800;cursor:pointer;
+}
+.bar .mini{background:var(--asagao-usu)}
+.bar .spacer{flex:1 1 auto}
+
+h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);font-size:var(--text-lg);font-weight:900}
+.sec-note{margin:0 0 var(--space-md);max-width:56rem;color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:var(--space-md)}
+.card{
+  min-width:0;padding:var(--space-md);
+  background:var(--kami);border:var(--line) solid var(--ai);
+  border-radius:var(--r);box-shadow:var(--shadow);
+}
+.card h3{margin:0 0 var(--space-2xs);font-family:var(--font-display);font-size:var(--text-md);font-weight:900}
+.card p{margin:0 0 var(--space-sm);color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+.card dl{display:grid;grid-template-columns:auto 1fr;gap:2px var(--space-xs);margin:var(--space-sm) 0 0;font-size:var(--text-xs);font-weight:700}
+.card dt{color:var(--ai-usu)}
+.card dd{margin:0}
+.play{
+  width:100%;min-height:50px;padding:0 var(--space-md);
+  color:var(--kami);background:var(--wakaba);
+  border:var(--line) solid var(--ai);border-radius:var(--r-button);
+  font-weight:900;cursor:pointer;box-shadow:0 4px 0 var(--ai);
+  transition:transform var(--dur-short) var(--ease-out),box-shadow var(--dur-short) var(--ease-out);
+}
+.play:hover{transform:translateY(-2px)}
+.play:active{transform:translateY(3px);box-shadow:none}
+.play.grand{background:var(--band,var(--ai))}
+.badge{
+  display:inline-block;padding:1px var(--space-xs);margin-bottom:var(--space-xs);
+  background:var(--himawari-usu);border:2px solid var(--himawari);
+  border-radius:var(--r-pill);color:var(--on-option);
+  font-size:var(--text-xs);font-weight:900;
+}
+
+/* ================= テーマ適合監査の表 ================= */
+.audit{width:100%;border-collapse:collapse;font-size:var(--text-xs);font-weight:700}
+.audit th,.audit td{padding:var(--space-2xs) var(--space-xs);border-bottom:2px solid var(--hougan);text-align:left;white-space:nowrap}
+.audit th{color:var(--ai-usu)}
+.swatch{display:inline-block;width:18px;height:18px;margin-right:4px;vertical-align:-4px;border:2px solid var(--ai);border-radius:4px}
+.ok{color:var(--wakaba);font-weight:900}
+.warn{color:var(--suika);font-weight:900}
+.audit-wrap{overflow-x:auto;padding:var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+
+/* ================= 子ども画面のモック（演出の背景） =================
+   演出は画面の全面に出る。文字の上に かぶさって読めなくならないかを
+   見るために、実物に近い並びを うしろに置く。 */
+.mock{
+  position:relative;padding:var(--space-md);
+  background:var(--kami);border:var(--line) solid var(--ai);
+  border-radius:var(--r);box-shadow:var(--shadow);
+}
+.mock-band{
+  margin:calc(var(--space-md) * -1) calc(var(--space-md) * -1) var(--space-md);
+  padding:var(--space-sm) var(--space-md);
+  background:var(--band,var(--ai));color:var(--kami);
+  border-radius:var(--r) var(--r) 0 0;
+  font-family:var(--font-display);font-weight:900;
+}
+.mock-count{display:flex;gap:var(--space-xs);align-items:baseline;font-family:var(--font-num);font-weight:900}
+.mock-count b{font-size:clamp(2rem,7vw,3.2rem);line-height:1}
+.mock-track{height:16px;margin:var(--space-sm) 0;background:var(--bar-track);border:2px solid var(--ai);border-radius:var(--r-pill);overflow:hidden}
+.mock-fill{height:100%;width:72%;background:var(--wakaba)}
+.mock-list{display:grid;gap:var(--space-xs);margin:var(--space-md) 0 0;padding:0;list-style:none}
+.mock-list li{
+  display:flex;gap:var(--space-xs);align-items:center;
+  padding:var(--space-xs) var(--space-sm);
+  background:var(--surface-soft);border:2px solid var(--hougan);border-radius:var(--r-s);
+  font-weight:800;
+}
+.mock-list li b{margin-left:auto;color:var(--ai-usu);font-size:var(--text-xs)}
+.mock-list li.done{background:var(--wakaba-usu);border-color:var(--wakaba)}
+
+/* ================= 全面の演出レイヤー ================= */
+.fx{position:fixed;inset:0;z-index:60;pointer-events:none;overflow:hidden;contain:layout paint}
+.fx-close{
+  position:fixed;right:12px;top:12px;z-index:61;min-height:44px;padding:0 var(--space-md);
+  background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r-button);
+  font-weight:900;cursor:pointer;
+}
+
+/* --- きらきら（本体）。4本の光条＋にじみ。回しながら開いて閉じる --- */
+.sp{
+  position:absolute;left:var(--x);top:var(--y);
+  width:var(--size);aspect-ratio:1;color:var(--c);
+  opacity:0;will-change:transform,opacity;
+  background:radial-gradient(circle,color-mix(in oklab,currentColor 46%,transparent) 0 18%,transparent 62%);
+  animation:sp var(--dur) var(--ease-out) var(--delay) both;
+  /* 明るい粒（とくに黄）は紙の上でほぼ消える。色を暗くして解くと
+     「ひかり」に見えなくなるので、うすい輪郭で浮かせて解く。
+     監査の表はこの輪郭を数えられないので、表の数字は輪郭なしの下限。 */
+  filter:drop-shadow(0 0 1.5px color-mix(in oklab,var(--ai) 58%,transparent));
+}
+.sp::before,.sp::after{
+  content:"";position:absolute;left:50%;top:50%;
+  background:currentColor;border-radius:var(--r-pill);
+  transform:translate(-50%,-50%);
+}
+/* 元の案より細い。細いほうが「光」に見え、太いと「十字の記号」に見える */
+.sp::before{width:14%;height:100%}
+.sp::after{width:100%;height:14%}
+@keyframes sp{
+  0%  {opacity:0;transform:translate(-50%,-50%) scale(.1)  rotate(0deg)}
+  18% {opacity:1;transform:translate(-50%,-50%) scale(1.15) rotate(30deg)}
+  46% {opacity:1;transform:translate(-50%,-50%) scale(.82) rotate(64deg)}
+  72% {opacity:.85;transform:translate(calc(-50% + var(--dx,0px)),calc(-50% + var(--dy,0px))) scale(1) rotate(96deg)}
+  100%{opacity:0;transform:translate(calc(-50% + var(--dx,0px)),calc(-50% + var(--dy,0px))) scale(.2) rotate(130deg)}
+}
+
+/* --- 画面ぜんたいの ほのかな明るみ。全面に出す案だけが使う --- */
+.wash{
+  position:absolute;inset:0;
+  background:radial-gradient(circle at 50% 45%,color-mix(in oklab,var(--v1) 26%,transparent) 0%,transparent 68%);
+  opacity:0;animation:wash var(--dur,1200ms) var(--ease-out) both;
+}
+@keyframes wash{0%{opacity:0}22%{opacity:1}100%{opacity:0}}
+
+/* --- 完全制覇：吸いこみ（意外性）。ほかの演出は必ず外へ向かう --- */
+.inh{
+  position:absolute;left:50%;top:50%;width:var(--size);aspect-ratio:1;
+  color:var(--c);border-radius:var(--r-pill);
+  background:radial-gradient(circle,currentColor 0 30%,transparent 70%);
+  opacity:0;animation:inh var(--dur) cubic-bezier(.5,0,.75,0) var(--delay) both;
+}
+@keyframes inh{
+  0%  {opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.4)}
+  20% {opacity:1}
+  100%{opacity:.95;transform:translate(-50%,-50%) scale(.08)}
+}
+/* --- 完全制覇：ためた光がはじける瞬間の白ぬけ --- */
+.flash{position:absolute;inset:0;background:var(--kami);opacity:0;animation:flash 460ms var(--ease-out) both}
+@keyframes flash{0%{opacity:0}12%{opacity:.92}100%{opacity:0}}
+/* --- 完全制覇：紙の方眼の色で走る衝撃波。線の色を借りるので どのテーマでも浮かない --- */
+.shock{
+  position:absolute;left:50%;top:50%;width:40vmax;aspect-ratio:1;
+  border:10px solid var(--hougan);border-radius:var(--r-pill);
+  opacity:0;transform:translate(-50%,-50%) scale(.05);
+  animation:shock 900ms var(--ease-out) var(--delay) both;
+}
+@keyframes shock{
+  0%{opacity:0;transform:translate(-50%,-50%) scale(.05)}
+  14%{opacity:.85}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)}
+}
+/* --- 完全制覇：最後に出る札 --- */
+.banner{
+  position:absolute;left:50%;top:50%;
+  padding:var(--space-sm) var(--space-xl);
+  color:var(--kami);background:var(--band,var(--ai));
+  border:var(--line) solid var(--ai);border-radius:var(--r-pill);
+  font-family:var(--font-display);font-size:clamp(1.4rem,5vw,2.6rem);font-weight:900;
+  white-space:nowrap;box-shadow:var(--shadow-lift);
+  opacity:0;animation:banner 1500ms var(--ease-out) var(--delay) both;
+}
+@keyframes banner{
+  0%  {opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-6deg)}
+  18% {opacity:1;transform:translate(-50%,-50%) scale(1.12) rotate(2deg)}
+  32% {transform:translate(-50%,-50%) scale(1) rotate(0)}
+  82% {opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(.96) rotate(0)}
+}
+.fx canvas{position:absolute;inset:0;width:100%;height:100%}
+
+/* --- 軽減表示のときに出す静止の印 --- */
+.still{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:grid;gap:var(--space-2xs);place-items:center;
+  padding:var(--space-md) var(--space-lg);
+  color:var(--kami);background:var(--wakaba);
+  border:var(--line) solid var(--ai);border-radius:var(--r);
+  box-shadow:var(--shadow-lift);
+  font-family:var(--font-display);font-weight:900;font-size:var(--text-lg);
+  animation:still 1400ms steps(1,end) both;
+}
+.still span{font-size:2.6rem;line-height:1}
+@keyframes still{0%{opacity:1}99%{opacity:1}100%{opacity:0}}
+
+/* OSが軽減を求めているとき、比較用の強制以外は動きを止める */
+@media(prefers-reduced-motion:reduce){
+  html:not([data-motion="full"]) .sp,
+  html:not([data-motion="full"]) .inh,
+  html:not([data-motion="full"]) .shock,
+  html:not([data-motion="full"]) .wash,
+  html:not([data-motion="full"]) .flash,
+  html:not([data-motion="full"]) .banner{animation:none;opacity:0}
+}
+
+.memo{
+  margin-top:var(--space-md);padding:var(--space-md) var(--space-lg);
+  background:var(--kami);border:var(--line) solid var(--ai);
+  border-radius:var(--r);box-shadow:var(--shadow);
+}
+.memo h3{margin:var(--space-md) 0 var(--space-2xs);font-size:var(--text-md);font-weight:900}
+.memo h3:first-child{margin-top:0}
+.memo p,.memo li{font-size:var(--text-sm);font-weight:700;color:var(--ai-usu)}
+.memo strong{color:var(--ai)}
+.memo ul{margin:var(--space-2xs) 0;padding-left:1.2em}
+.status{margin:var(--space-md) 0 0;min-height:1.5em;color:var(--ai-usu);font-size:var(--text-xs);font-weight:900}
+
+@media(max-width:620px){
+  .bar{position:static}
+  .card{padding:var(--space-sm)}
+}
+</style>
+</head>
+<body>
+<main class="page">
+  <header>
+    <p class="eyebrow">検討用のサンプル · しゅくだいノート本体の画面ではありません</p>
+    <h1>もっと派手に、でも どのテーマでも。</h1>
+    <p class="lead">
+      中くらいの達成は 01花火 / 02きらきら / 03紙ふぶき のランダム。完全制覇だけ、別物の特別演出。
+      色はすべて tokens.css の5色（--himawari / --asagao / --wakaba / --suika / --ai）から作っています。
+      虹色を固定値で書いていないので、テーマを切り替えると演出の色も一緒に変わります。
+    </p>
+    <p class="lead">
+      これは検討中のサンプルです。しゅくだいノート本体はこちら →
+      <a href="../start/">しゅくだいノートの紹介</a>
+    </p>
+  </header>
+
+  <div class="bar">
+    <span class="bar-lab">テーマ</span>
+    <select id="theme" aria-label="テーマ">
+      <option value="notebook">ノート</option>
+      <option value="sunny">おひさま</option>
+      <option value="soda">ソーダ</option>
+      <option value="berry">ベリー</option>
+      <option value="block">ブロック</option>
+      <option value="cat">ネコ</option>
+    </select>
+    <button class="mini" id="cycle" type="button">6テーマを順に見る</button>
+    <span class="spacer"></span>
+    <span class="bar-lab" id="motionState">動き：OS設定に従う</span>
+    <button class="mini" id="motion" type="button">軽減表示を試す</button>
+  </div>
+
+  <div class="mock" id="mock">
+    <div class="mock-band">なつやすみ おわりまで</div>
+    <p class="mock-count"><b>12</b>にち <b>7</b>じかん</p>
+    <div class="mock-track"><div class="mock-fill"></div></div>
+    <ul class="mock-list">
+      <li class="done">✓ かんじドリル <b>おわり</b></li>
+      <li class="done">✓ けいさんドリル <b>おわり</b></li>
+      <li>・ どくしょかんそうぶん <b>のこり1</b></li>
+      <li>・ じゆうけんきゅう <b>のこり1</b></li>
+    </ul>
+  </div>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <h2 class="sec">A. 派手版きらきら（強度ちがい3案）</h2>
+  <p class="sec-note">
+    今の02は箱の中でおとなしく光るだけでした。3案とも <strong>画面の全面</strong>に出ます。
+    ちがうのは 数・大きさ・波の回数・全体の明るみの有無です。
+  </p>
+  <div class="cards">
+    <article class="card">
+      <span class="badge">S1</span>
+      <h3>ひかえ目に全面</h3>
+      <p>数は少ないまま、場所だけ全面へ広げた案。今の02からいちばん近い。</p>
+      <button class="play" type="button" data-run="sparkle" data-level="1">再生する</button>
+      <dl>
+        <dt>粒</dt><dd>26</dd>
+        <dt>大きさ</dt><dd>10〜34px</dd>
+        <dt>波</dt><dd>1回</dd>
+        <dt>長さ</dt><dd>約1.0秒</dd>
+        <dt>明るみ</dt><dd>なし</dd>
+      </dl>
+    </article>
+    <article class="card">
+      <span class="badge">S2</span>
+      <h3>標準（おすすめ）</h3>
+      <p>2波に分けて降らせ、光条を細くして「光」らしくした案。少し流れる動きが付く。</p>
+      <button class="play" type="button" data-run="sparkle" data-level="2">再生する</button>
+      <dl>
+        <dt>粒</dt><dd>58</dd>
+        <dt>大きさ</dt><dd>12〜48px</dd>
+        <dt>波</dt><dd>2回</dd>
+        <dt>長さ</dt><dd>約1.3秒</dd>
+        <dt>明るみ</dt><dd>うっすら</dd>
+      </dl>
+    </article>
+    <article class="card">
+      <span class="badge">S3</span>
+      <h3>最大</h3>
+      <p>3波。大きな主役の粒がいくつか混じる。ここまで来ると毎日は出せない強さ。</p>
+      <button class="play" type="button" data-run="sparkle" data-level="3">再生する</button>
+      <dl>
+        <dt>粒</dt><dd>104</dd>
+        <dt>大きさ</dt><dd>14〜72px</dd>
+        <dt>波</dt><dd>3回</dd>
+        <dt>長さ</dt><dd>約1.6秒</dd>
+        <dt>明るみ</dt><dd>はっきり</dd>
+      </dl>
+    </article>
+  </div>
+
+  <h2 class="sec">B. 中くらいの達成（01・02・03 のランダム）</h2>
+  <p class="sec-note">
+    項目をひとつ終えたときの出しかた。押すたびに3つのどれかが出ます。何が出たかは下の行に出ます。
+    <strong>04 光の輪は対象から外しています。</strong>
+  </p>
+  <div class="cards">
+    <article class="card">
+      <h3>ランダム再生</h3>
+      <p>実際の見え方。どれが出るかは選べません。</p>
+      <button class="play" type="button" data-run="random">ひとつ終えた（ランダム）</button>
+    </article>
+    <article class="card">
+      <h3>01 花火</h3>
+      <p>中心から開く。全面版では2〜3か所から上がる。</p>
+      <button class="play" type="button" data-run="fireworks">花火だけ再生</button>
+    </article>
+    <article class="card">
+      <h3>03 紙ふぶき</h3>
+      <p>上から舞い降りる。画面の幅いっぱいから降る。</p>
+      <button class="play" type="button" data-run="confetti">紙ふぶきだけ再生</button>
+    </article>
+  </div>
+
+  <h2 class="sec">C. 完全制覇の特別演出（一度きり）</h2>
+  <p class="sec-note">
+    中くらいの達成とは <strong>始まりかたが逆</strong>です。ほかの演出はすべて中心から外へ出ますが、
+    これだけは <strong>光がいったん中央へ吸いこまれてから</strong>はじけます。これが意外性の1つです。
+    そのあと紙の方眼の色で衝撃波が走り、全面がはじけて、最後に札が出ます。約2.6秒。
+  </p>
+  <div class="cards">
+    <article class="card">
+      <span class="badge">GRAND</span>
+      <h3>ぜんぶ できた！</h3>
+      <p>吸いこみ → 白ぬけ → 衝撃波 → 全面の爆発 → 札。中くらいの達成では絶対に出さない。</p>
+      <button class="play grand" type="button" data-run="grand">完全制覇を再生</button>
+    </article>
+    <article class="card">
+      <h3>見くらべ用：S2 のすぐあとに GRAND</h3>
+      <p>「別物だと分かるか」を見るための連続再生。中くらい → 2秒あけて → 完全制覇。</p>
+      <button class="play" type="button" data-run="compare">続けて再生</button>
+    </article>
+  </div>
+
+  <h2 class="sec">D. テーマ適合監査</h2>
+  <p class="sec-note">
+    演出に使う5色を、そのテーマの紙の色（--kami）と背景（--sora）に重ねたときのコントラスト比です。
+    粒は文字ではないので 4.5:1 は要りませんが、<strong>1.6:1 を割ると紙の上でほぼ見えません</strong>。
+    上のテーマを切りかえると、この表もその場で作り直します。
+  </p>
+  <div class="audit-wrap">
+    <table class="audit" id="audit">
+      <caption class="sec-note" style="caption-side:top;text-align:left">表示中のテーマ：<b id="auditTheme">ノート</b></caption>
+      <thead><tr><th>役</th><th>もとのトークン</th><th>演出で使う色</th><th>紙の上</th><th>背景の上</th><th>判定</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="status" id="auditNote"></p>
+  </div>
+
+  <h2 class="sec">E. 4a で決めたこと</h2>
+  <div class="memo">
+    <h3>prefers-reduced-motion のときの挙動</h3>
+    <p>
+      <strong>演出そのものを出さない、のではなく、動かない印に置きかえる。</strong>
+      「できた」ことが伝わらなくなるのは、動きが苦手な人にとっても損だからです。
+      中くらいの達成も完全制覇も、緑の丸に ✓ と文字を出して1.4秒で消します
+      （完全制覇は文字を「ぜんぶ できた！」に変える）。透過や拡大縮小もしません。
+      判定は <code>matchMedia('(prefers-reduced-motion: reduce)')</code> を毎回読み、
+      設定を途中で変えても次の再生から効くようにします。
+    </p>
+
+    <h3>演出が出る頻度（飽きと邪魔の境目）</h3>
+    <ul>
+      <li><strong>毎日出るもの（まいにちの項目）では出さない。</strong> 1日に何度も出る動きは、
+        3日で「またか」になり、押した手が次の操作へ進むのを止めます。</li>
+      <li><strong>必須・任意の課題をひとつ終えたときだけ出す。</strong> 中くらいの達成。
+        1日に出る回数は多くても数回です。</li>
+      <li><strong>取り消し（チェックを外す）では出さない。</strong></li>
+      <li><strong>完全制覇は、その日いちど出したら同じ状態では出し直さない。</strong>
+        取り消して付け直しても再生しません（端末内に「出した」しるしを残す）。</li>
+      <li>強さは <strong>S2 を既定</strong>にします。S3 は完全制覇と見分けが付きにくく、
+        S1 は「派手にしてほしい」という要望に届きません。</li>
+    </ul>
+
+    <h3>完全制覇の判定範囲</h3>
+    <p>
+      <strong>必須の宿題がすべて完了したとき</strong>を「完全制覇」とします。理由は3つ。
+    </p>
+    <ul>
+      <li>任意の宿題は 0件のことがあり、0件のときに「全部」の意味が定まりません
+        （進捗サマリーも、任意が0件ならパーセント行を出しません）。</li>
+      <li>毎日の項目は期間が終わるまで積み上がり続けるので、「全部終わった」瞬間が来ません。</li>
+      <li>子どもにとっての「宿題が終わった」は必須の宿題のことで、任意はそのあとの上積みです。</li>
+    </ul>
+    <p>
+      任意もすべて終えたときは、<strong>同じ演出をもう一度は出さず</strong>、
+      中くらいの達成（S2）で受けます。4b で本体へ入れるとき、この判定は
+      <code>overall()</code> ではなく必須だけを数える関数を新しく作って通すこと。
+      進捗サマリーの計算には触れないでください。
+    </p>
+
+    <h3>色の作りかた（4b への申し送り）</h3>
+    <p>
+      演出の色を固定値で書かないこと。<code>--himawari / --asagao / --wakaba / --suika / --ai</code>
+      の5つから作り、彩度だけ <code>oklch(from …)</code> で持ち上げます。
+      対応していない環境では素のトークンへ落ちるので、色が消えることはありません。
+      衝撃波だけは <code>--hougan</code>（方眼の線の色）を使います。紙に元からある色なので、
+      どのテーマでも「よその色」に見えません。
+    </p>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const root = document.documentElement;
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const status = document.querySelector('#status');
+  const themeSel = document.querySelector('#theme');
+  const auditBody = document.querySelector('#audit tbody');
+  const auditTheme = document.querySelector('#auditTheme');
+  const auditNote = document.querySelector('#auditNote');
+  const THEMES = [
+    ['notebook','ノート'],['sunny','おひさま'],['soda','ソーダ'],
+    ['berry','ベリー'],['block','ブロック'],['cat','ネコ']
+  ];
+  const MODES = ['auto','reduce','full'];
+  const MODE_TEXT = {
+    auto:   ['動き：OS設定に従う','軽減表示を試す'],
+    reduce: ['動き：軽減を強制','通常表示を試す'],
+    full:   ['動き：通常を強制（比較用）','OS設定に戻す']
+  };
+  let mode = 'auto';
+  let layer = null;
+  let closeBtn = null;
+  let raf = 0;
+  let timers = [];
+
+  const reduced = () => mode === 'reduce' || (mode === 'auto' && mq.matches);
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const later = (fn, ms) => { timers.push(setTimeout(fn, ms)); };
+
+  /* ---------------- 演出レイヤーの出し入れ ---------------- */
+  /* 演出のかけらは必ずこの2つの要素の中だけに作る。次の再生も、途中で
+     閉じたときも、ここを消せば止まる。取り残しが出ると、テーマを切り
+     かえたときに古い色の粒だけが画面に残る。 */
+  function clear() {
+    timers.forEach(clearTimeout); timers = [];
+    if (raf) cancelAnimationFrame(raf); raf = 0;
+    if (layer) layer.remove();
+    if (closeBtn) closeBtn.remove();
+    layer = null; closeBtn = null;
+  }
+  function open(life) {
+    clear();
+    layer = document.createElement('div');
+    layer.className = 'fx';
+    document.body.append(layer);
+    closeBtn = document.createElement('button');
+    closeBtn.className = 'fx-close';
+    closeBtn.type = 'button';
+    closeBtn.textContent = '閉じる';
+    closeBtn.addEventListener('click', clear);
+    document.body.append(closeBtn);
+    later(clear, life);
+    return layer;
+  }
+  function still(text, mark) {
+    const box = open(1500);
+    const el = document.createElement('div');
+    el.className = 'still';
+    el.innerHTML = `<span aria-hidden="true">${mark}</span>${text}`;
+    box.append(el);
+  }
+  /* 演出の5色。CSS変数として渡すので、テーマを変えれば中身も変わる */
+  const VIVID = ['var(--v1)','var(--v2)','var(--v3)','var(--v4)','var(--v5)'];
+  /* canvas は CSS 変数も oklch(from …) も読めない。描く直前に
+     probe で rgb() へ解いて渡す。テーマを変えれば結果も変わる。 */
+  function resolved() {
+    return VIVID.map(v => { const [r, g, b] = srgb(v); return `rgb(${r} ${g} ${b})`; });
+  }
+
+  /* ---------------- A. 派手版きらきら ---------------- */
+  const SPARK = {
+    1: { count:26,  waves:1, min:10, max:34, dur:1000, wash:0,   spread:0 },
+    2: { count:58,  waves:2, min:12, max:48, dur:1300, wash:.55, spread:26 },
+    3: { count:104, waves:3, min:14, max:72, dur:1600, wash:1,   spread:40 }
+  };
+  function sparkle(level, box) {
+    const p = SPARK[level];
+    const target = box || open(p.dur + 500);
+    if (p.wash) {
+      const w = document.createElement('div');
+      w.className = 'wash';
+      w.style.setProperty('--dur', `${p.dur}ms`);
+      w.style.opacity = '';
+      w.style.filter = p.wash < 1 ? `opacity(${p.wash})` : '';
+      target.append(w);
+    }
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < p.count; i++) {
+      const wave = i % p.waves;
+      /* 最大では 1/9 を「主役」の大粒にする。全部が同じ大きさだと
+         数を増やしても にぎやかになるだけで、豪華にはならない */
+      const hero = level === 3 && i % 9 === 0;
+      const s = document.createElement('span');
+      s.className = 'sp';
+      s.style.setProperty('--x', `${rand(4, 96)}%`);
+      s.style.setProperty('--y', `${rand(6, 94)}%`);
+      s.style.setProperty('--size', `${hero ? rand(p.max * .8, p.max) : rand(p.min, p.max * .62)}px`);
+      s.style.setProperty('--c', VIVID[i % VIVID.length]);
+      s.style.setProperty('--delay', `${wave * (p.dur * .22) + rand(0, 220)}ms`);
+      s.style.setProperty('--dur', `${(hero ? 1.25 : 1) * (p.dur * .62) + rand(0, 200)}ms`);
+      if (p.spread) {
+        s.style.setProperty('--dx', `${rand(-p.spread, p.spread)}px`);
+        s.style.setProperty('--dy', `${rand(-p.spread * 1.4, p.spread * .3)}px`);
+      }
+      frag.append(s);
+    }
+    target.append(frag);
+  }
+
+  /* ---------------- canvas を使う2案（全面版） ---------------- */
+  function canvasIn(box) {
+    const c = document.createElement('canvas');
+    box.append(c);
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    const w = box.clientWidth, h = box.clientHeight;
+    c.width = Math.round(w * ratio); c.height = Math.round(h * ratio);
+    const ctx = c.getContext('2d');
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    /* CSS の .sp と同じ理由の輪郭。canvas には filter が無いので影で付ける */
+    const [ir, ig, ib] = srgb('var(--ai)');
+    ctx.shadowColor = `rgb(${ir} ${ig} ${ib} / .55)`;
+    ctx.shadowBlur = 2;
+    return { ctx, w, h };
+  }
+  function fireworks(box) {
+    const target = box || open(1900);
+    const { ctx, w, h } = canvasIn(target);
+    const colors = resolved();
+    const bursts = 3, per = 34, dur = 1500;
+    const ps = [];
+    for (let b = 0; b < bursts; b++) {
+      const cx = w * rand(.2, .8), cy = h * rand(.2, .55), delay = b * 210;
+      for (let i = 0; i < per; i++) {
+        ps.push({
+          cx, cy, delay,
+          angle: Math.PI * 2 * i / per + rand(0, .16),
+          speed: rand(140, 360),
+          color: colors[(i + b) % colors.length],
+          size: rand(2.2, 5)
+        });
+      }
+    }
+    const t0 = performance.now();
+    (function frame(now) {
+      const e = now - t0;
+      ctx.clearRect(0, 0, w, h);
+      for (const p of ps) {
+        const l = e - p.delay;
+        if (l < 0) continue;
+        const t = Math.min(l / (dur - p.delay), 1);
+        const d = p.speed * Math.sin(t * Math.PI * .7);
+        ctx.globalAlpha = Math.max(0, 1 - t * t);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.cx + Math.cos(p.angle) * d, p.cy + Math.sin(p.angle) * d + t * t * 90, p.size * (1 - t * .35), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      if (e < dur) raf = requestAnimationFrame(frame);
+    })(t0);
+  }
+  function confetti(box, heavy) {
+    const target = box || open(2100);
+    const { ctx, w, h } = canvasIn(target);
+    const colors = resolved();
+    const count = heavy ? 150 : 70, dur = heavy ? 2000 : 1700;
+    const ps = Array.from({ length: count }, (_, i) => ({
+      x: rand(0, w), y: rand(-h * .5, -20),
+      vx: rand(-70, 70), vy: rand(240, 420),
+      spin: rand(-7, 7), phase: rand(0, 7),
+      w: rand(6, 13), h: rand(9, 20),
+      color: colors[i % colors.length]
+    }));
+    const t0 = performance.now();
+    (function frame(now) {
+      const e = now - t0, t = e / 1000;
+      ctx.clearRect(0, 0, w, h);
+      for (const p of ps) {
+        ctx.save();
+        ctx.translate(p.x + p.vx * t + Math.sin(t * 4 + p.phase) * 26, p.y + p.vy * t + 120 * t * t);
+        ctx.rotate(t * p.spin);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.min(1, (dur - e) / 380);
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+      if (e < dur) raf = requestAnimationFrame(frame);
+    })(t0);
+  }
+
+  /* ---------------- C. 完全制覇 ----------------
+     意外性は「吸いこみ」。ほかの演出はすべて中心から外へ出るので、
+     逆へ動くものが1つ入るだけで別物だと分かる。 */
+  function grand() {
+    const box = open(3200);
+    /* 1. 画面の外から中央へ吸いこむ */
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < 44; i++) {
+      const a = Math.PI * 2 * i / 44 + rand(0, .3);
+      const r = rand(38, 68);
+      const s = document.createElement('span');
+      s.className = 'inh';
+      s.style.setProperty('--size', `${rand(10, 26)}px`);
+      s.style.setProperty('--c', VIVID[i % VIVID.length]);
+      s.style.setProperty('--dx', `${Math.cos(a) * r}vmax`);
+      s.style.setProperty('--dy', `${Math.sin(a) * r}vmax`);
+      s.style.setProperty('--delay', `${rand(0, 160)}ms`);
+      s.style.setProperty('--dur', `${rand(560, 700)}ms`);
+      frag.append(s);
+    }
+    box.append(frag);
+    /* 2. ためた光がはじける白ぬけ */
+    later(() => { if (!layer) return; const f = document.createElement('div'); f.className = 'flash'; layer.append(f); }, 700);
+    /* 3. 紙の方眼の色で衝撃波。2本ずらして走らせる */
+    later(() => {
+      if (!layer) return;
+      [0, 130].forEach(d => {
+        const s = document.createElement('span');
+        s.className = 'shock';
+        s.style.setProperty('--delay', `${d}ms`);
+        layer.append(s);
+      });
+    }, 760);
+    /* 4. 全面の爆発。きらきら最大＋花火＋紙ふぶきを重ねる */
+    later(() => { if (layer) sparkle(3, layer); }, 800);
+    later(() => { if (layer) fireworks(layer); }, 880);
+    later(() => { if (layer) confetti(layer, true); }, 1000);
+    /* 5. 札 */
+    later(() => {
+      if (!layer) return;
+      const b = document.createElement('div');
+      b.className = 'banner';
+      b.textContent = 'ぜんぶ できた！';
+      b.style.setProperty('--delay', '0ms');
+      layer.append(b);
+    }, 1200);
+  }
+
+  /* ---------------- 再生の入口 ---------------- */
+  const MEDIUM = ['fireworks', 'sparkle', 'confetti'];
+  const NAME = { fireworks:'01 花火', sparkle:'02 きらきら', confetti:'03 紙ふぶき' };
+  function play(kind, level) {
+    if (reduced()) {
+      still(kind === 'grand' ? 'ぜんぶ できた！' : 'できた！', '✓');
+      say(`${kind === 'grand' ? '完全制覇' : '中くらいの達成'}を静止表示しました（軽減）`);
+      return;
+    }
+    if (kind === 'grand') { grand(); say('完全制覇を再生しました'); return; }
+    if (kind === 'random') {
+      const pick = MEDIUM[Math.floor(Math.random() * MEDIUM.length)];
+      play(pick, 2);
+      say(`ランダム → ${NAME[pick]} が出ました`);
+      return;
+    }
+    if (kind === 'sparkle') { sparkle(level || 2); say(`きらきら S${level || 2} を再生しました`); return; }
+    if (kind === 'fireworks') { fireworks(); say('01 花火を再生しました'); return; }
+    if (kind === 'confetti') { confetti(); say('03 紙ふぶきを再生しました'); return; }
+  }
+  function say(t) { status.textContent = t; }
+
+  document.querySelectorAll('[data-run]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const kind = btn.dataset.run;
+      if (kind === 'compare') {
+        play('sparkle', 2);
+        say('中くらいの達成（S2）… 2秒後に完全制覇');
+        setTimeout(() => play('grand'), 2600);
+        return;
+      }
+      play(kind, Number(btn.dataset.level) || 0);
+    });
+  });
+
+  /* ---------------- 動きの設定 ---------------- */
+  const motionBtn = document.querySelector('#motion');
+  const motionState = document.querySelector('#motionState');
+  function syncMotion() {
+    root.dataset.motion = mode;
+    root.dataset.effectiveMotion = reduced() ? 'reduce' : 'full';
+    const [a, b] = MODE_TEXT[mode];
+    motionState.textContent = a + (mode === 'auto' ? (mq.matches ? '（軽減中）' : '（通常）') : '');
+    motionBtn.textContent = b;
+  }
+  motionBtn.addEventListener('click', () => {
+    mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+    clear(); syncMotion();
+  });
+  mq.addEventListener?.('change', syncMotion);
+
+  /* ---------------- テーマ適合監査 ----------------
+     粒は文字ではないので WCAG の 4.5:1 は要らない。ただし
+     紙（--kami）や背景（--sora）と近すぎると「出たことが分からない」。
+     そこを 1.6:1 で線引きし、下回るものだけ拾う。 */
+  /* 色は **文字列を読まずにブラウザへ解かせる**。custom property を
+     getPropertyValue() で読むと `oklch(from …)` のまま返ってきて、
+     そのまま数を拾うと全部おなじ値になり、監査が意味を失う。
+     probe の color へ入れて computed value を rgb で受け取る。 */
+  const probe = document.createElement('span');
+  probe.style.display = 'none';
+  document.body.append(probe);
+  /* ここが落とし穴。computed value は `oklch(0.48 0.16 150)` の形で
+     返る（rgb() には変換されない）。そのまま数を3つ拾うと L・C・H を
+     R・G・B と読んでしまい、監査の数字がすべて嘘になる。
+     1×1 の canvas に塗って読み返し、ブラウザに sRGB へ変換させる。 */
+  const swatchCv = document.createElement('canvas');
+  swatchCv.width = swatchCv.height = 1;
+  const swatchCx = swatchCv.getContext('2d', { willReadFrequently: true });
+  function srgb(v) {
+    probe.style.color = '';
+    probe.style.color = v;
+    const computed = getComputedStyle(probe).color;
+    swatchCx.fillStyle = '#000';
+    swatchCx.fillStyle = computed;
+    swatchCx.fillRect(0, 0, 1, 1);
+    const d = swatchCx.getImageData(0, 0, 1, 1).data;
+    return [d[0], d[1], d[2]];
+  }
+  function lum([r, g, b]) {
+    const f = c => { c /= 255; return c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4); };
+    return .2126 * f(r) + .7152 * f(g) + .0722 * f(b);
+  }
+  function ratio(a, b) {
+    const la = lum(srgb(a)), lb = lum(srgb(b));
+    return (Math.max(la, lb) + .05) / (Math.min(la, lb) + .05);
+  }
+  const ROLES = [
+    ['ひかり（黄）', '--himawari', '--v1'],
+    ['むらさき',     '--asagao',   '--v2'],
+    ['みどり',       '--wakaba',   '--v3'],
+    ['あか',         '--suika',    '--v4'],
+    ['すみ',         '--ai',       '--v5']
+  ];
+  function audit() {
+    const kami = 'var(--kami)', sora = 'var(--sora)';
+    const rows = [];
+    let worst = 99, bad = 0;
+    for (const [name, token, vivid] of ROLES) {
+      const base = `var(${token})`;
+      const use = `var(${vivid})`;
+      const onKami = ratio(use, kami), onSora = ratio(use, sora);
+      const low = Math.min(onKami, onSora);
+      worst = Math.min(worst, low);
+      if (low < 1.6) bad++;
+      rows.push(`<tr>
+        <td>${name}</td>
+        <td><span class="swatch" style="background:${base}"></span>${token}</td>
+        <td><span class="swatch" style="background:${use}"></span>${vivid}</td>
+        <td>${onKami.toFixed(2)}:1</td>
+        <td>${onSora.toFixed(2)}:1</td>
+        <td class="${low < 1.6 ? 'warn' : 'ok'}">${low < 1.6 ? '見えにくい' : 'よい'}</td>
+      </tr>`);
+    }
+    auditBody.innerHTML = rows.join('');
+    auditTheme.textContent = (THEMES.find(t => t[0] === root.dataset.theme) || [, '?'])[1];
+    auditNote.textContent = (bad === 0
+      ? `いちばん弱い色でも ${worst.toFixed(2)}:1。このテーマでは5色とも紙の上・背景の上の両方で見えます。`
+      : `${bad}色が 1.6:1 を割っています（最小 ${worst.toFixed(2)}:1）。`)
+      + ' ここの数字は輪郭なしの下限です。粒には --ai のうすい輪郭を付けてあるので、実際の見えかたはこれより上になります。';
+  }
+
+  themeSel.addEventListener('change', () => { root.dataset.theme = themeSel.value; clear(); audit(); });
+  /* 見くらべの送りは timers に入れない。sparkle() が open() を通り、
+     open() が clear() で timers を空にするため、同じ配列に入れると
+     1テーマ目で送りが止まる。 */
+  let cycleTimer = 0;
+  document.querySelector('#cycle').addEventListener('click', () => {
+    let i = 0;
+    const step = () => {
+      root.dataset.theme = themeSel.value = THEMES[i][0];
+      audit();
+      say(`テーマ見くらべ：${THEMES[i][1]}（${i + 1}/${THEMES.length}）`);
+      if (reduced()) still('できた！', '✓'); else sparkle(2);
+      if (++i < THEMES.length) cycleTimer = setTimeout(step, 2200);
+    };
+    clearTimeout(cycleTimer); clear(); step();
+  });
+
+  syncMotion();
+  audit();
+})();
+</script>
+</body>
+</html>
