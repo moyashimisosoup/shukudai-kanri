@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.9.0';
+const RELEASE_VERSION = '1.10.0';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -850,18 +850,23 @@ function homeInstallGuideHTML(){
       : platform === 'desktop'
         ? 'ブラウザのアドレス欄にあるインストールの印、またはメニューから「インストール」／「アプリとしてインストール」を選びます。'
         : 'お使いのブラウザのメニューから「ホーム画面に追加」または「インストール」を選びます。';
+  /* 追加すれば消える一時的な案内なので、常設の項目とは見た目を分ける。
+     `.sec` + `.sec-head` にすると、buildAdultSectionToc() が h2 を拾って
+     i マークと目次の行を足してしまう。i マークは「いつでも読み返せる
+     常設項目の補足」のための仕掛けで、読んだら消える案内には合わない。
+     「保護者の方へ」と同じく、見出し帯を持たない枠だけの aside にする。 */
   return `
-  <section class="sec home-install"${adultSectionHelpAttr(
-    'ホーム画面に追加すると、次から見つけやすくなります。保護者の端末に設定していれば保護者ページ、設定していなければ子ども画面から開きます。')}>
-    <div class="sec-head"><h2>ホーム画面に追加</h2></div>
-    <div class="paper home-install-paper">
-      <div class="set-actions">
-        <button class="btn btn-sm" id="homeInstallBtn" type="button">ホーム画面に追加する</button>
-        <button class="btn btn-sm btn-ghost" id="homeInstallDismiss" type="button">今は追加しない</button>
-      </div>
+  <aside class="paper home-install-notice">
+    <div class="home-install-notice-body">
+      <h2>ホーム画面に追加</h2>
+      <p>ホーム画面に追加すると、次から見つけやすくなります。保護者の端末に設定していれば保護者ページ、設定していなければ子ども画面から開きます。</p>
       <p class="set-note home-install-guide" id="homeInstallGuide" hidden>${esc(text)}</p>
     </div>
-  </section>`;
+    <div class="home-install-actions">
+      <button class="btn btn-sm" id="homeInstallBtn" type="button">ホーム画面に追加する</button>
+      <button class="btn btn-sm btn-ghost" id="homeInstallDismiss" type="button">今は追加しない</button>
+    </div>
+  </aside>`;
 }
 function isStatsURL(){ return new URLSearchParams(location.search).get(STATS_PARAM) === STATS_VALUE; }
 function cleanCode(value){ return String(value || '').trim().normalize('NFKC').replace(/\s+/g,'').replace(/[\/\u0000-\u001f]/g,''); }

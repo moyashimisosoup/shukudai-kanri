@@ -2155,10 +2155,28 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .sync-prompt .sec-head{ flex-wrap:wrap; row-gap:2px; }
 .sync-prompt .sec-head h2{ flex:1 0 100%; }
 
-/* ホーム画面へ追加する案内。端末ごとの操作なので共有設定の中には混ぜず、
-   保護者ページからいつでも開ける小さな独立欄にする。 */
-.home-install-paper{ padding:14px 16px; }
-.home-install-guide{
+/* ホーム画面へ追加する案内。端末ごとの操作で、追加すれば二度と出ない
+   一時的な案内なので、常設項目の見出し帯は付けず「保護者の方へ」と
+   同じ枠だけの形にそろえる。 */
+.home-install-notice{
+  margin-top:14px; padding:12px 16px;
+  display:flex; flex-wrap:wrap; align-items:flex-start; gap:10px;
+}
+.home-install-notice-body{ flex:1 1 16em; min-width:0; }
+.home-install-notice h2{ margin:0 0 4px; font-size:17px; font-weight:900; }
+.home-install-notice p{ max-width:70ch; font-size:15px; font-weight:700; line-height:1.65; color:var(--ai-usu); }
+/* せまい画面では ボタンを 本文の下へ 置く。幅広の画面では 右上へ そろえ、
+   2つのボタンの 頭と 高さを 合わせる（`.sample-notice-actions` と同じ作法）。 */
+.home-install-actions{
+  flex:1 1 100%; min-width:0;
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+}
+@media (min-width:561px){
+  .home-install-actions{ flex:0 0 auto; margin-inline-start:auto; flex-wrap:nowrap; }
+}
+/* `.home-install-notice p` より弱いと 色と 太さを 持っていかれる
+   （要素セレクタのぶん 向こうが 強い）。 */
+.home-install-notice p.home-install-guide{
   margin:12px 0 0;
   padding:10px 12px;
   border:2px solid var(--asagao);
