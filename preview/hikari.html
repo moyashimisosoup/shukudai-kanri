@@ -1,0 +1,631 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="ja" data-theme="notebook" data-motion="auto">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>光りかた｜スターマインとボケ玉</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ------------------------------------------------------------------
+   検討用のサンプル。どこからもリンクせず noindex。
+
+   前の2ページで足りなかったのは「形」ではなく「光り方」だった。
+   参考画像に共通していたのは次の4つ。
+
+   1. 加算合成（重なったところが白熱する）
+   2. ボケ玉（ピントの外れた大きな玉が奥と手前にいる）
+   3. 光条（明るい点から伸びる十字のスパイク）
+   4. 暗い背景（光は暗いところでしか光って見えない）
+
+   4つめが効く。白い紙の上に「光」を足しても、白より明るい色は
+   出せないので絶対に光らない。ここでは背景を落とす案と、
+   紙のままの案の両方を出して見くらべられるようにしてある。
+   ------------------------------------------------------------------ */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+html,body{overflow-x:clip}
+body{min-height:100vh;margin:0;color:var(--ai);background-color:var(--sora);font-family:var(--font-body);line-height:1.55}
+button,select{font:inherit;color:inherit}
+button:focus-visible,select:focus-visible{outline:4px solid var(--focus);outline-offset:3px}
+
+:root{--v1:var(--himawari);--v2:var(--asagao);--v3:var(--wakaba);--v4:var(--suika);--v5:var(--ai)}
+@supports (color: oklch(from white l c h)){
+  :root{
+    --v1:oklch(from var(--himawari) clamp(.42,l,.74) calc(c * 1.35) h);
+    --v2:oklch(from var(--asagao)   clamp(.48,l,.86) calc(c * 1.35) h);
+    --v3:oklch(from var(--wakaba)   clamp(.48,l,.86) calc(c * 1.35) h);
+    --v4:oklch(from var(--suika)    clamp(.48,l,.86) calc(c * 1.35) h);
+    --v5:oklch(from var(--ai)       clamp(.46,l,.86) calc(c * 1.9)  h);
+  }
+}
+
+.page{width:min(1180px,calc(100% - 28px));margin-inline:auto;padding:var(--space-lg) 0 var(--space-2xl)}
+.eyebrow{margin:0 0 var(--space-2xs);color:var(--ai-usu);font-size:var(--text-xs);font-weight:900;letter-spacing:.08em}
+h1{margin:0;font-family:var(--font-display);font-size:clamp(1.7rem,4.6vw,3rem);font-weight:900;line-height:1.1;letter-spacing:-.03em}
+.lead{max-width:52rem;margin:var(--space-sm) 0 0;color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+.lead a{color:var(--asagao)}
+
+.bar{
+  position:sticky;top:0;z-index:40;
+  display:flex;flex-wrap:wrap;gap:var(--space-xs);align-items:center;
+  margin:var(--space-lg) 0;padding:var(--space-sm) var(--space-md);
+  background:var(--kami);border:var(--line) solid var(--ai);
+  border-radius:var(--r-s);box-shadow:var(--shadow);
+}
+.bar-lab{color:var(--ai-usu);font-size:var(--text-xs);font-weight:900}
+.bar select,.bar .mini{
+  min-height:44px;padding:0 var(--space-sm);
+  background:var(--surface-soft);border:2px solid var(--ai);
+  border-radius:var(--r-button);font-weight:800;cursor:pointer;
+}
+.bar .mini[aria-pressed="true"]{background:var(--himawari-usu);border-color:var(--himawari)}
+.bar .spacer{flex:1 1 auto}
+
+.mock{position:relative;padding:var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.mock-band{margin:calc(var(--space-md) * -1) calc(var(--space-md) * -1) var(--space-md);padding:var(--space-sm) var(--space-md);background:var(--band,var(--ai));color:var(--kami);border-radius:var(--r) var(--r) 0 0;font-family:var(--font-display);font-weight:900}
+.mock-count{display:flex;gap:var(--space-xs);align-items:baseline;margin:0;font-family:var(--font-num);font-weight:900}
+.mock-count b{font-size:clamp(2rem,7vw,3rem);line-height:1}
+.mock-track{height:16px;margin:var(--space-sm) 0;background:var(--bar-track);border:2px solid var(--ai);border-radius:var(--r-pill);overflow:hidden}
+.mock-fill{height:100%;width:78%;background:var(--wakaba)}
+.mock-list{display:grid;gap:var(--space-2xs);margin:var(--space-sm) 0 0;padding:0;list-style:none}
+.mock-list li{display:flex;gap:var(--space-xs);align-items:center;padding:var(--space-xs) var(--space-sm);background:var(--surface-soft);border:2px solid var(--hougan);border-radius:var(--r-s);font-weight:800}
+.mock-list li b{margin-left:auto;color:var(--ai-usu);font-size:var(--text-xs)}
+.mock-list li.done{background:var(--wakaba-usu);border-color:var(--wakaba)}
+.status{margin:var(--space-sm) 0 0;min-height:1.5em;color:var(--ai-usu);font-size:var(--text-xs);font-weight:900}
+
+h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);font-size:var(--text-lg);font-weight:900}
+.sec-note{margin:0 0 var(--space-md);max-width:56rem;color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:var(--space-md)}
+.card{min-width:0;padding:var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.card h3{margin:0 0 var(--space-2xs);font-family:var(--font-display);font-size:var(--text-md);font-weight:900}
+.card .why{margin:0 0 var(--space-xs);color:var(--ai);font-size:var(--text-sm);font-weight:900}
+.card p{margin:0 0 var(--space-sm);color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+.card .how{margin:0 0 var(--space-sm);padding:var(--space-xs) var(--space-sm);background:var(--surface-soft);border-left:5px solid var(--asagao);border-radius:var(--r-s);color:var(--ai-usu);font-size:var(--text-xs);font-weight:700}
+.badge{display:inline-block;padding:1px var(--space-xs);margin-bottom:var(--space-xs);background:var(--himawari-usu);border:2px solid var(--himawari);border-radius:var(--r-pill);color:var(--on-option);font-size:var(--text-xs);font-weight:900}
+.play{width:100%;min-height:50px;padding:0 var(--space-md);color:var(--kami);background:var(--wakaba);border:var(--line) solid var(--ai);border-radius:var(--r-button);font-weight:900;cursor:pointer;box-shadow:0 4px 0 var(--ai);transition:transform var(--dur-short) var(--ease-out),box-shadow var(--dur-short) var(--ease-out)}
+.play:hover{transform:translateY(-2px)}
+.play:active{transform:translateY(3px);box-shadow:none}
+
+.fx{position:fixed;inset:0;z-index:60;pointer-events:none}
+.fx canvas{position:absolute;inset:0;width:100%;height:100%}
+.fx-close{position:fixed;right:12px;top:12px;z-index:61;min-height:44px;padding:0 var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r-button);font-weight:900;cursor:pointer}
+.still{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;gap:var(--space-2xs);place-items:center;padding:var(--space-md) var(--space-lg);color:var(--kami);background:var(--wakaba);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow-lift);font-family:var(--font-display);font-weight:900;font-size:var(--text-lg)}
+.still span{font-size:2.6rem;line-height:1}
+
+.memo{margin-top:var(--space-md);padding:var(--space-md) var(--space-lg);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.memo h3{margin:var(--space-md) 0 var(--space-2xs);font-size:var(--text-md);font-weight:900}
+.memo h3:first-child{margin-top:0}
+.memo p,.memo li{font-size:var(--text-sm);font-weight:700;color:var(--ai-usu)}
+.memo strong{color:var(--ai)}
+.memo ul{margin:var(--space-2xs) 0;padding-left:1.2em}
+@media(max-width:620px){.bar{position:static}}
+</style>
+</head>
+<body>
+<main class="page">
+  <header>
+    <p class="eyebrow">検討用のサンプル · しゅくだいノート本体の画面ではありません</p>
+    <h1>光り方から作り直しました。</h1>
+    <p class="lead">
+      前の案が平面的だったのは、形の問題ではありませんでした。
+      <strong>白い紙の上に不透明な丸を置いていた</strong>ので、原理的に光って見えなかったのです。
+      加算合成・ボケ玉・光条・暗い背景の4つを入れ直しました。
+    </p>
+    <p class="lead">
+      前のページ → <a href="hanabi.html">花火のかたち5案</a>
+      <a href="anim-lab.html">きらきら・完全制覇</a>　／　本体は <a href="../start/">しゅくだいノートの紹介</a>
+    </p>
+  </header>
+
+  <div class="bar">
+    <span class="bar-lab">背景</span>
+    <button class="mini" id="sky" type="button" aria-pressed="true">夜空にする</button>
+    <span class="bar-lab">色</span>
+    <button class="mini" id="real" type="button" aria-pressed="true">本物の花火の色</button>
+    <span class="spacer"></span>
+    <span class="bar-lab">テーマ</span>
+    <select id="theme" aria-label="テーマ">
+      <option value="notebook">ノート</option><option value="sunny">おひさま</option>
+      <option value="soda">ソーダ</option><option value="berry">ベリー</option>
+      <option value="block">ブロック</option><option value="cat">ネコ</option>
+    </select>
+    <button class="mini" id="motion" type="button">軽減表示を試す</button>
+  </div>
+
+  <div class="mock">
+    <div class="mock-band">なつやすみ おわりまで</div>
+    <p class="mock-count"><b>12</b>にち <b>7</b>じかん</p>
+    <div class="mock-track"><div class="mock-fill"></div></div>
+    <ul class="mock-list">
+      <li class="done">✓ かんじドリル <b>おわり</b></li>
+      <li class="done">✓ けいさんドリル <b>おわり</b></li>
+      <li>・ どくしょかんそうぶん <b>のこり1</b></li>
+    </ul>
+  </div>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <h2 class="sec">案</h2>
+  <p class="sec-note">
+    上のバーで <strong>背景</strong> と <strong>色</strong> を切りかえて見くらべてください。
+    この2つが、参考画像との差のほとんどを作っています。
+  </p>
+
+  <div class="cards">
+    <article class="card">
+      <span class="badge">R1 · 推し</span>
+      <h3>スターマイン（柳の連射）</h3>
+      <p class="why">一番よかった柳を、次々に打ち上げます。</p>
+      <p>
+        8発が左右にずれながら間をおかず上がり、最後に3発が同時に開きます。
+        金の尾を引く柳がつぎつぎ重なって、画面が金色で埋まります。
+      </p>
+      <div class="how"><strong>光り方：</strong>加算合成＋白熱した芯＋長い尾。重なったところが白くとぶ。</div>
+      <button class="play" type="button" data-run="starmine">再生する（約5.4秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">R2</span>
+      <h3>柳ひとつ（光り方だけ比較）</h3>
+      <p class="why">同じ柳が、光り方でどこまで変わるか。</p>
+      <p>形は前のページの H3 とほぼ同じです。違うのは光らせ方だけなので、差が分かります。</p>
+      <div class="how"><strong>光り方：</strong>R1 と同じ。数が減るぶん、尾の一本一本が見える。</div>
+      <button class="play" type="button" data-run="willow">再生する（約3.2秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">R3</span>
+      <h3>きらきら（光条つき）</h3>
+      <p class="why">参考画像2枚目・5枚目のかがやきです。</p>
+      <p>
+        明るい点から十字のスパイクが伸び、まわりに大小のボケ玉が浮かびます。
+        大きさに差があるので、奥行きが出ます。
+      </p>
+      <div class="how"><strong>光り方：</strong>芯・かさ・光条を別々に描いて重ねる。単なる丸ではない。</div>
+      <button class="play" type="button" data-run="sparkle">再生する（約2.8秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">R4</span>
+      <h3>ボケ玉だけ</h3>
+      <p class="why">参考画像3枚目・4枚目の、静かなほうです。</p>
+      <p>ピントの外れた大きな玉がゆっくり流れます。粒が飛ばないので、いちばん邪魔になりません。</p>
+      <div class="how"><strong>光り方：</strong>大小のボケ玉を奥・手前の2層で。手前ほど大きく、薄く。</div>
+      <button class="play" type="button" data-run="bokeh">再生する（約3.0秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">R5</span>
+      <h3>スターマイン＋きらきら</h3>
+      <p class="why">完全制覇に回すならこれ。</p>
+      <p>スターマインの上に、きらきらとボケ玉を全部重ねます。無駄に派手です。</p>
+      <div class="how"><strong>光り方：</strong>3案を同じ1枚のcanvasに重ねる。加算合成なので重なるほど白熱する。</div>
+      <button class="play" type="button" data-run="grand">再生する（約6.4秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">比較</span>
+      <h3>夜空 ↔ 紙のまま</h3>
+      <p class="why">この差がいちばん大きいはずです。</p>
+      <p>同じスターマインを、背景を落とした版 → 紙のままの版 の順に続けて出します。</p>
+      <button class="play" type="button" data-run="compare">続けて再生（約12秒）</button>
+    </article>
+  </div>
+
+  <h2 class="sec">分かったこと</h2>
+  <div class="memo">
+    <h3>白い紙の上では、光は光れない</h3>
+    <p>
+      これは好みではなく、原理の話です。加算合成は「下にある色に光を足す」ものなので、
+      <strong>すでに真っ白な紙には、それ以上足せません</strong>。参考画像がどれも黒背景なのは
+      偶然ではなく、そうでないと光として見えないからです。
+    </p>
+    <p>
+      なので選択肢は2つしかありません。<strong>演出の間だけ画面を暗くする</strong>か、
+      <strong>光ることをあきらめて、紙に馴染む別の表現にする</strong>か。
+      「夜空にする」を切ると、後者がどう見えるか確かめられます。
+    </p>
+
+    <h3>暗くすることの代償</h3>
+    <ul>
+      <li>演出の数秒間、<strong>宿題の画面が見えなくなります。</strong>
+        1日に数回出るものとしては強すぎるかもしれません。</li>
+      <li>暗転はまぶしさの逆で、<strong>暗いところから急に明るくなるのが苦手な人がいます。</strong>
+        prefers-reduced-motion では、いまも静止の印に置きかえます。</li>
+      <li>逆に、<strong>完全制覇の一度きりの演出としては、暗転はむしろ効きます。</strong>
+        「照明が落ちて花火が始まる」ので、中くらいの達成と決定的に差が付きます。</li>
+    </ul>
+    <p>
+      いまのところの見立ては、<strong>中くらいの達成は暗くせず・小さく</strong>、
+      <strong>完全制覇だけ暗転してスターマイン</strong>です。ご判断ください。
+    </p>
+
+    <h3>色について</h3>
+    <p>
+      「本物の花火の色」は、金・橙・赤・白熱＋わずかに緑と青です。実際の花火も
+      この配合で、写真の見た目に近くなります。「テーマの色」に切りかえると、
+      これまでどおり tokens.css の5色から作ります。
+      <strong>テーマの色は紙に馴染みますが、花火らしさは落ちます。</strong>
+      6テーマとも切りかえて見くらべてみてください。
+    </p>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const root = document.documentElement;
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const status = document.querySelector('#status');
+  const say = t => { status.textContent = t; };
+  const rand = (a,b) => a + Math.random() * (b - a);
+  const MODES = ['auto','reduce','full'];
+  const MODE_TEXT = { auto:'軽減表示を試す', reduce:'通常表示を試す', full:'OS設定に戻す' };
+  let mode = 'auto';
+  const reduced = () => mode === 'reduce' || (mode === 'auto' && mq.matches);
+  let useSky = true, useReal = true;
+
+  /* ---- 色。canvas は CSS変数も oklch(from …) も読めないので sRGB へ解く ---- */
+  const probe = document.createElement('span');
+  probe.style.display = 'none';
+  document.body.append(probe);
+  const px = document.createElement('canvas'); px.width = px.height = 1;
+  const pxCtx = px.getContext('2d', { willReadFrequently:true });
+  function rgbOf(v) {
+    probe.style.color = ''; probe.style.color = v;
+    pxCtx.fillStyle = '#000'; pxCtx.fillStyle = getComputedStyle(probe).color;
+    pxCtx.fillRect(0,0,1,1);
+    const d = pxCtx.getImageData(0,0,1,1).data;
+    return [d[0], d[1], d[2]];
+  }
+  /* 本物の花火の色。金・橙・赤が主で、緑と青はごく少し。
+     写真の見た目はほぼこの配合で決まる（参考画像1枚目がまさにこれ） */
+  const REAL = [
+    [255,198,96], [255,198,96], [255,198,96],   /* 金。多め */
+    [255,146,54], [255,146,54],                 /* 橙 */
+    [255,86,64],                                /* 赤 */
+    [255,240,208],                              /* 白熱 */
+    [128,255,168], [116,190,255]                /* 緑・青は各1 */
+  ];
+  const themeColors = () => ['--v1','--v2','--v3','--v4','--v5'].map(n => rgbOf(`var(${n})`));
+  let PAL = REAL;
+
+  /* ================= 光の粒の絵 =================
+     ここが今回の肝。丸を fill するのではなく、
+     「白熱した芯 → 色のかさ → 透明」の放射グラデを1枚の絵にしておき、
+     加算合成で重ねて描く。重なったところが白くとぶ＝光に見える。 */
+  const sprites = new Map();
+  function glow(rgb, kind) {
+    const key = kind + rgb.join(',');
+    if (sprites.has(key)) return sprites.get(key);
+    const size = kind === 'bokeh' ? 256 : 128;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const x = c.getContext('2d');
+    const r = size / 2;
+    const [R,G,B] = rgb;
+    const g = x.createRadialGradient(r, r, 0, r, r, r);
+    if (kind === 'bokeh') {
+      /* ボケ玉。芯を作らず、ふちがわずかに明るい（レンズの口径食） */
+      g.addColorStop(0,    `rgba(${R},${G},${B},.36)`);
+      g.addColorStop(.62,  `rgba(${R},${G},${B},.30)`);
+      g.addColorStop(.80,  `rgba(${R},${G},${B},.42)`);
+      g.addColorStop(.93,  `rgba(${R},${G},${B},.10)`);
+      g.addColorStop(1,    `rgba(${R},${G},${B},0)`);
+    } else {
+      /* 芯は白熱。色は そのまわりのかさに出る。実際の火の粉と同じ。
+         かさを内側（半径の3割）へ詰めておかないと、次に足す光条が
+         かさに埋もれて見えない。実測で、光条の先より光条の「間」の
+         ほうが明るい状態になっていた＝スパイクが無いのと同じだった。 */
+      g.addColorStop(0,   'rgba(255,255,255,1)');
+      g.addColorStop(.04, 'rgba(255,255,255,.95)');
+      g.addColorStop(.09, `rgba(${R},${G},${B},.9)`);
+      g.addColorStop(.18, `rgba(${R},${G},${B},.34)`);
+      g.addColorStop(.30, `rgba(${R},${G},${B},.07)`);
+      g.addColorStop(1,   `rgba(${R},${G},${B},0)`);
+    }
+    x.fillStyle = g;
+    x.fillRect(0, 0, size, size);
+
+    /* 光条。明るい点から伸びる十字。これが「かがやき」の正体で、
+       これが無いと どれだけ明るくしても ただの丸のまま */
+    if (kind === 'star') {
+      x.translate(r, r);
+      const spike = (len, wide, alpha) => {
+        const lg = x.createLinearGradient(0, 0, len, 0);
+        lg.addColorStop(0, `rgba(255,255,255,${alpha})`);
+        lg.addColorStop(.18, `rgba(${R},${G},${B},${alpha * .75})`);
+        lg.addColorStop(1, `rgba(${R},${G},${B},0)`);
+        x.fillStyle = lg;
+        x.beginPath();
+        x.moveTo(0, -wide); x.lineTo(len, 0); x.lineTo(0, wide);
+        x.closePath(); x.fill();
+      };
+      for (let i = 0; i < 4; i++) {
+        x.rotate(Math.PI / 2);
+        spike(r * .99, r * .053, 1);           /* 長い4本。ふちまで伸ばす */
+        x.save(); x.rotate(Math.PI / 4);
+        spike(r * .47, r * .032, .5);          /* 斜めの短い4本 */
+        x.restore();
+      }
+    }
+    sprites.set(key, c);
+    return c;
+  }
+
+  /* ================= エンジン ================= */
+  let layer = null, closeBtn = null, raf = 0, timers = [], ctx = null;
+  let W = 0, H = 0, S = 0, parts = [], stages = [], endAt = 0, t0 = 0, last = 0;
+  let fade = .12, skyNow = true;
+
+  function stop() {
+    timers.forEach(clearTimeout); timers = [];
+    if (raf) cancelAnimationFrame(raf); raf = 0;
+    if (layer) layer.remove();
+    if (closeBtn) closeBtn.remove();
+    layer = null; closeBtn = null; parts = []; stages = [];
+  }
+  function open() {
+    stop();
+    PAL = useReal ? REAL : themeColors();
+    skyNow = useSky;
+    layer = document.createElement('div');
+    layer.className = 'fx';
+    document.body.append(layer);
+    closeBtn = document.createElement('button');
+    closeBtn.className = 'fx-close'; closeBtn.type = 'button';
+    closeBtn.textContent = '閉じる';
+    closeBtn.addEventListener('click', stop);
+    document.body.append(closeBtn);
+    const cv = document.createElement('canvas');
+    layer.append(cv);
+    const r = Math.min(window.devicePixelRatio || 1, 2);
+    W = layer.clientWidth; H = layer.clientHeight; S = Math.min(W, H);
+    cv.width = Math.round(W * r); cv.height = Math.round(H * r);
+    ctx = cv.getContext('2d');
+    ctx.setTransform(r, 0, 0, r, 0, 0);
+    return layer;
+  }
+  function still(text) {
+    const box = open();
+    const el = document.createElement('div');
+    el.className = 'still';
+    el.innerHTML = `<span aria-hidden="true">✓</span>${text}`;
+    box.append(el);
+    timers.push(setTimeout(stop, 1500));
+  }
+  const pick = () => PAL[Math.floor(Math.random() * PAL.length)];
+  function add(o) {
+    parts.push(Object.assign({
+      x:0, y:0, vx:0, vy:0, g:0, drag:.1, life:1, age:0,
+      size:S * .004, rgb:PAL[0], kind:'glow', spin:0, rot:0, fadeIn:0
+    }, o));
+  }
+  function begin(sec, f) {
+    fade = f == null ? .13 : f;
+    t0 = performance.now(); last = 0;
+    endAt = t0 + sec * 1000;
+    raf = requestAnimationFrame(frame);
+    timers.push(setTimeout(stop, sec * 1000 + 400));
+  }
+
+  function frame(now) {
+    if (!ctx) return;
+    const dt = Math.min((now - (last || now)) / 1000, .05);
+    last = now;
+    const el = (now - t0) / 1000;
+    while (stages.length && el >= stages[0].at) stages.shift().run();
+
+    /* --- 背景と残像を1回の塗りでまとめて作る ---
+       夜空：暗い色をうすく重ねる。前のコマがその下に沈んで尾になり、
+             同時に画面が暗くなって、加算合成の光が乗る土台ができる。
+       紙のまま：塗らずに削る。紙の白は残るが、光は光って見えない。 */
+    ctx.globalCompositeOperation = 'source-over';
+    if (skyNow) {
+      /* 立ち上がりだけ濃く塗って、素早く暗転させる */
+      const rise = Math.min(1, el / .28);
+      ctx.fillStyle = `rgba(9,7,16,${fade + (1 - rise) * .34})`;
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = `rgba(0,0,0,${fade + .05})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    /* 加算合成。重なったところが白熱する。これが「光」の全部 */
+    ctx.globalCompositeOperation = skyNow ? 'lighter' : 'source-over';
+
+    for (const p of parts) {
+      p.age += dt;
+      if (p.age >= p.life) continue;
+      p.vy += p.g * dt;
+      const k = Math.pow(p.drag, dt);
+      p.vx *= k; p.vy *= k;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.rot += p.spin * dt;
+
+      const t = p.age / p.life;
+      /* 出るときだけ速く、消えるときはゆっくり。逆にすると花火に見えない */
+      let a = t < p.fadeIn ? t / p.fadeIn : Math.pow(1 - (t - p.fadeIn) / (1 - p.fadeIn), 1.7);
+      if (!skyNow) a *= .85;
+      const img = glow(p.rgb, p.kind);
+      const d = p.size * (p.kind === 'bokeh' ? 1 : (.6 + (1 - t) * .7)) * 2;
+      ctx.globalAlpha = Math.max(0, Math.min(1, a));
+      if (p.rot) {
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.drawImage(img, -d / 2, -d / 2, d, d);
+        ctx.restore();
+      } else {
+        ctx.drawImage(img, p.x - d / 2, p.y - d / 2, d, d);
+      }
+    }
+    parts = parts.filter(p => p.age < p.life);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    if (now < endAt || parts.length) raf = requestAnimationFrame(frame);
+  }
+
+  /* ================= 部品 ================= */
+  /* 柳の一発。上がって、開いて、金の尾を引いて垂れる */
+  function shell(sx, sy, n, colorSet) {
+    /* のぼる筋 */
+    for (let i = 0; i < 16; i++) {
+      add({
+        x:sx, y:H + i * (S * .01), vx:rand(-.01,.01) * S, vy:-(H - sy) / .5,
+        g:S * .3, drag:.5, life:.52 - i * .012, size:S * rand(.009,.015),
+        rgb:[255,224,150], kind:'glow', fadeIn:.05
+      });
+    }
+    const bloom = () => {
+      for (let i = 0; i < n; i++) {
+        const a = Math.PI * 2 * i / n + rand(-.05,.05);
+        const s = rand(.55, .9) * S;
+        add({
+          x:sx, y:sy, vx:Math.cos(a) * s, vy:Math.sin(a) * s * .82 - S * .06,
+          /* size は「絵の一辺の半分」。この絵は明るい部分が内側3割に
+             寄っているので、光って見える頭は size のさらに1/3ほどになる。
+             丸を fill していたころの感覚で小さくすると、かさが出ない */
+          g:S * .6, drag:.28, life:rand(1.7, 2.5), size:S * rand(.010,.018),
+          rgb:colorSet[i % colorSet.length], kind:'glow', fadeIn:.03
+        });
+      }
+      /* 開いた瞬間の閃光。1粒だけ大きく、すぐ消える */
+      add({ x:sx, y:sy, vx:0, vy:0, life:.34, size:S * .1,
+            rgb:[255,246,222], kind:'glow', fadeIn:.06 });
+    };
+    return { at:.52, run:bloom };
+  }
+  /* ボケ玉。奥は小さく暗く、手前ほど大きく薄い */
+  function bokehField(count, sec) {
+    for (let i = 0; i < count; i++) {
+      const near = i % 3 === 0;
+      add({
+        x:rand(-.1, 1.1) * W, y:rand(-.05, 1.05) * H,
+        vx:rand(-.03,.03) * S, vy:rand(-.06,-.01) * S,
+        g:0, drag:.9, life:rand(sec * .55, sec),
+        size:S * (near ? rand(.07,.14) : rand(.025,.055)),
+        rgb:pick(), kind:'bokeh', fadeIn:.28
+      });
+    }
+  }
+  /* きらきら。光条つきの星＋細かい粒 */
+  function sparkleField(count, sec) {
+    for (let i = 0; i < count; i++) {
+      const big = i % 6 === 0;
+      add({
+        x:rand(.02,.98) * W, y:rand(.03,.97) * H,
+        vx:rand(-.02,.02) * S, vy:rand(-.05,.01) * S,
+        g:0, drag:.7, life:rand(sec * .4, sec * .8),
+        size:S * (big ? rand(.05,.085) : rand(.012,.03)),
+        rgb:pick(), kind:'star', fadeIn:.22, rot:rand(0, Math.PI), spin:rand(-.5,.5)
+      });
+    }
+  }
+
+  /* ================= 案 ================= */
+  const GOLD = [[255,198,96],[255,214,130],[255,146,54],[255,240,208]];
+
+  /* R1 スターマイン。8発が左右にずれながら次々上がり、最後に3発同時 */
+  function starmine() {
+    open();
+    stages = [];
+    const at = (t, fn) => stages.push({ at:t, run:fn });
+    const fire = (delay, fx, fy, n, cs) => {
+      at(delay, () => {
+        const s = shell(fx, fy, n, cs);
+        /* shell() は「開く時刻」を返すので、ここで段に積み直す */
+        stages.push({ at:delay + s.at, run:s.run });
+        stages.sort((a, b) => a.at - b.at);
+      });
+    };
+    const xs = [.22,.72,.42,.86,.14,.58,.32,.78];
+    xs.forEach((fx, i) => {
+      const cs = i % 3 === 0 ? [pick(), ...GOLD] : GOLD;
+      fire(i * .34, W * fx, H * rand(.16,.34), 62 + (i % 3) * 10, cs);
+    });
+    /* 最後の3発を同時に。ここで画面が金色で埋まる */
+    [.3,.5,.7].forEach((fx, i) => fire(3.1 + i * .05, W * fx, H * rand(.14,.26), 86, GOLD));
+    stages.sort((a, b) => a.at - b.at);
+    begin(5.4, .11);
+  }
+
+  function willowOne() {
+    open();
+    const s = shell(W * .5, H * .28, 84, GOLD);
+    stages = [{ at:s.at, run:s.run }];
+    begin(3.2, .12);
+  }
+  function sparkleOnly() { open(); sparkleField(56, 2.4); bokehField(14, 2.6); begin(2.8, .16); }
+  function bokehOnly()   { open(); bokehField(34, 2.8); begin(3.0, .1); }
+
+  /* R5 全部乗せ */
+  function grand() {
+    open();
+    stages = [];
+    const fire = (delay, fx, fy, n, cs) => {
+      stages.push({ at:delay, run:()=>{
+        const s = shell(fx, fy, n, cs);
+        stages.push({ at:delay + s.at, run:s.run });
+        stages.sort((a,b)=>a.at-b.at);
+      }});
+    };
+    [.2,.75,.45,.9,.12,.62,.35,.8].forEach((fx,i)=>fire(i*.32, W*fx, H*rand(.15,.32), 66, i%3?GOLD:[pick(),...GOLD]));
+    [.28,.5,.72].forEach((fx,i)=>fire(3.0+i*.05, W*fx, H*rand(.13,.25), 92, GOLD));
+    stages.push({ at:.1, run:()=>bokehField(20, 5.6) });
+    stages.push({ at:1.4, run:()=>sparkleField(40, 3.4) });
+    stages.push({ at:3.4, run:()=>sparkleField(52, 2.8) });
+    stages.sort((a,b)=>a.at-b.at);
+    begin(6.4, .1);
+  }
+
+  const RUN = { starmine, willow:willowOne, sparkle:sparkleOnly, bokeh:bokehOnly, grand };
+  const NAME = { starmine:'R1 スターマイン', willow:'R2 柳ひとつ', sparkle:'R3 きらきら', bokeh:'R4 ボケ玉', grand:'R5 全部乗せ' };
+
+  let chain = 0;
+  document.querySelectorAll('[data-run]').forEach(b => b.addEventListener('click', () => {
+    clearTimeout(chain);
+    const k = b.dataset.run;
+    if (reduced()) { still('できた！'); say('軽減表示（静止の印）'); return; }
+    if (k === 'compare') {
+      const before = useSky;
+      useSky = true; setSky();
+      starmine(); say('夜空にした版（1/2）… 6秒後に紙のままの版');
+      chain = setTimeout(() => {
+        useSky = false; setSky();
+        starmine(); say('紙のままの版（2/2）。同じ演出です');
+        chain = setTimeout(() => { useSky = before; setSky(); }, 6000);
+      }, 6000);
+      return;
+    }
+    RUN[k](); say(`${NAME[k]} を再生しました`);
+  }));
+
+  const skyBtn = document.querySelector('#sky'), realBtn = document.querySelector('#real');
+  const setSky = () => {
+    skyBtn.setAttribute('aria-pressed', String(useSky));
+    skyBtn.textContent = useSky ? '夜空にする' : '紙のまま';
+  };
+  skyBtn.addEventListener('click', () => { useSky = !useSky; setSky(); clearTimeout(chain); stop(); });
+  realBtn.addEventListener('click', () => {
+    useReal = !useReal;
+    realBtn.setAttribute('aria-pressed', String(useReal));
+    realBtn.textContent = useReal ? '本物の花火の色' : 'テーマの色';
+    sprites.clear(); clearTimeout(chain); stop();
+  });
+
+  const motionBtn = document.querySelector('#motion');
+  motionBtn.addEventListener('click', () => {
+    mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+    motionBtn.textContent = MODE_TEXT[mode];
+    clearTimeout(chain); stop();
+  });
+  document.querySelector('#theme').addEventListener('change', e => {
+    root.dataset.theme = e.target.value;
+    sprites.clear(); clearTimeout(chain); stop();
+  });
+  setSky();
+})();
+</script>
+</body>
+</html>
