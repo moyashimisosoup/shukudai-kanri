@@ -97,7 +97,55 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
   70%{transform:rotate(-11deg) scale(1);opacity:1}
   100%{transform:rotate(-11deg) scale(1);opacity:0}
 }
+/* ネコのときは肉球。本体（assets/style.css）と同じ扱いを残す */
+[data-theme="cat"] .stamp-mark{display:flex;align-items:center;gap:12px;border-radius:var(--r);padding:20px 28px}
+[data-theme="cat"] .stamp-mark::before{
+  content:"";flex:none;width:.9em;height:.9em;background:currentColor;
+  -webkit-mask:url("../assets/paw.svg") center / contain no-repeat;
+  mask:url("../assets/paw.svg") center / contain no-repeat;
+}
+
+/* ---------- C の「完走！」 ----------
+   はんこは紙のことば（赤・傾き・バネ＝押した）。完走は暗転した夜空に
+   出るので、そこへ赤いはんこを置くと警告に見える。花火と同じ金にそろえ、
+   出かたも変える。はんこは0.85秒のバネ＝「押した」、完走は1.2秒かけて
+   下から浮かんで光がにじむ＝「たどりついた」。 */
+.finale{
+  position:fixed;inset:0;z-index:82;display:grid;place-content:center;
+  gap:clamp(10px,2.2vw,20px);pointer-events:none;text-align:center;
+}
+.finale-rule{
+  height:2px;width:min(76vw,620px);justify-self:center;
+  background:linear-gradient(90deg,transparent,#ffdc98 18%,#fff3d6 50%,#ffdc98 82%,transparent);
+  transform:scaleX(0);transform-origin:center;
+  animation:finale-rule 1s cubic-bezier(.16,1,.3,1) .1s forwards;
+}
+.finale-rule.b{animation-delay:.2s}
+.finale-word{
+  margin:0;font-family:var(--font-display);font-weight:900;
+  font-size:clamp(58px,19vw,150px);line-height:1.02;letter-spacing:.06em;
+  /* 金の階調。上が白熱、下へ橙。花火の粒と同じ色の作りにそろえる */
+  background:linear-gradient(178deg,#fffaf0 0%,#ffe6ae 38%,#f7ad46 70%,#ffe6b5 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 0 26px rgba(255,186,86,.5)) drop-shadow(0 3px 0 rgba(96,46,0,.4));
+  opacity:0;transform:translateY(18px) scale(.94);
+  animation:finale-word 1.2s cubic-bezier(.16,1,.3,1) .35s forwards;
+}
+.finale-sub{
+  margin:0;color:#ffe8bf;font-weight:800;
+  font-size:clamp(13px,3.4vw,19px);letter-spacing:.04em;
+  opacity:0;animation:finale-sub .9s ease-out .95s forwards;
+}
+@keyframes finale-rule{to{transform:scaleX(1)}}
+@keyframes finale-word{to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes finale-sub{to{opacity:1}}
+html[data-motion="reduce"] .finale-rule,
+html[data-motion="reduce"] .finale-word,
+html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
+
 .stamp-row{display:flex;flex-wrap:wrap;gap:var(--space-xl);align-items:center;justify-content:center;padding:var(--space-xl) var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.finale-demo{margin-top:var(--space-md);padding:var(--space-2xl) var(--space-md);background:#0a0810;border-radius:var(--r);display:grid;gap:14px;place-content:center;text-align:center}
+.finale-demo .finale-rule,.finale-demo .finale-word,.finale-demo .finale-sub{animation:none;opacity:1;transform:none}
 .stamp-row .stamp-mark{position:static;animation:none;font-size:clamp(22px,5vw,34px);padding:16px 28px}
 .stamp-row .stamp-mark.all{padding:18px 32px}
 .stamp-cap{display:block;margin-top:var(--space-sm);color:var(--ai-usu);font-size:var(--text-xs);font-weight:900;text-align:center;transform:rotate(11deg)}
@@ -136,9 +184,10 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
   <div class="bar">
     <span class="bar-lab">色</span>
     <select id="pal" aria-label="色">
-      <option value="rainbow">虹（いただいた画像に近い）</option>
-      <option value="real">本物の花火の色</option>
-      <option value="theme">テーマの色</option>
+      <option value="blend">花火の色＋テーマを弱く（既定）</option>
+      <option value="real">本物の花火の色だけ</option>
+      <option value="theme">テーマの色だけ</option>
+      <option value="rainbow">虹（前の案・比較用）</option>
     </select>
     <span class="spacer"></span>
     <span class="bar-lab">テーマ</span>
@@ -177,31 +226,36 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
     <article class="card">
       <span class="badge">A</span>
       <h3>項目をひとつ終えた</h3>
-      <p class="why">はんこの格を上げて、きらきらを足す。</p>
+      <p class="why">期間ぜんたいで、項目の数だけ。</p>
       <p>
         「ぜんぶできた！」のはんこを<strong>二重の輪郭</strong>にしました。
-        同じはんこの言葉づかいのまま、格だけ上がります。
+        色も傾きもフォントもそのまま、格だけ上がります。ネコのときは肉球も残ります。
       </p>
-      <div class="how"><strong>いまの本体：</strong>文字だけ差し替えで、見た目は「できた！」と<strong>まったく同じ</strong>です。</div>
+      <div class="how"><strong>毎日の項目は対象外にします。</strong>毎日の項目は日ごとに完了が戻るので、
+        入れると毎日出てしまいます。詳しくは下の「回数の確認」に。</div>
       <button class="play" type="button" data-run="a">再生する</button>
     </article>
 
     <article class="card">
       <span class="badge">B</span>
       <h3>分類をぜんぶ終えた</h3>
-      <p class="why">光条を強め、渦を足す。</p>
-      <p>必須がぜんぶ終わった、などのとき。A と同じきらきらですが、<strong>光条が長く鋭く</strong>なり、渦が1本流れます。</p>
-      <div class="how"><strong>渦の種類は下で選べます。</strong>いまは「弧」を使っています。</div>
+      <p class="why">期間中に2回だけ。</p>
+      <p>必須がぜんぶ／任意がぜんぶ、終わったとき。A と同じ粒のまま
+        <strong>光条だけが長く明るく</strong>なり、弧の渦が1本流れます。</p>
+      <div class="how"><strong>毎日の分類は対象外。</strong>「今日の毎日をぜんぶ」は毎日成立するので、
+        ここに入れると期間中に40回ほど出ます。</div>
       <button class="play" type="button" data-run="b">再生する</button>
     </article>
 
     <article class="card">
       <span class="badge c">C</span>
-      <h3>完全制覇</h3>
-      <p class="why">ここだけ暗転します。</p>
-      <p>照明が落ちて、スターマインが上がり、渦ときらきらが重なります。一度きりの演出です。</p>
-      <div class="how"><strong>暗転はここだけ。</strong>数秒間ノートが見えなくなるので、ほかの段階では使いません。</div>
-      <button class="play" type="button" data-run="c">再生する（約6.5秒）</button>
+      <h3>完全制覇 ―「完走！」</h3>
+      <p class="why">期間中に一度きり。ここだけ暗転。</p>
+      <p>照明が落ち、スターマインが上がり、弧の渦が2本流れ、
+        花火がしずまってから<strong>金の「完走！」</strong>が浮かびます。</p>
+      <div class="how"><strong>はんこにしていません。</strong>はんこは紙のことば（赤・傾き・押すバネ）で、
+        暗転した夜空に赤いはんこを置くと警告に見えます。花火と同じ金にそろえました。</div>
+      <button class="play" type="button" data-run="c">再生する（約7.4秒）</button>
     </article>
 
     <article class="card">
@@ -218,6 +272,15 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
   <div class="stamp-row">
     <div><div class="stamp-mark">できた！</div><span class="stamp-cap">毎回</span></div>
     <div><div class="stamp-mark all">ぜんぶ できた！</div><span class="stamp-cap">A（新規）</span></div>
+  </div>
+
+  <h2 class="sec">「完走！」の見え方</h2>
+  <p class="sec-note">動かない状態です。実際は罫線が開き、文字が下から浮かんで光がにじみます（1.2秒）。</p>
+  <div class="finale-demo">
+    <div class="finale-rule"></div>
+    <p class="finale-word">完走！</p>
+    <p class="finale-sub">なつやすみ、ぜんぶ やりきったね</p>
+    <div class="finale-rule b"></div>
   </div>
 
   <h2 class="sec">渦巻いていく光条（ご質問の件）</h2>
@@ -253,41 +316,96 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
     </article>
   </div>
 
-  <h2 class="sec">確かめていただきたいこと</h2>
+  <h2 class="sec">回数の確認（ご認識のとおりでした）</h2>
   <div class="memo">
-    <h3>この4段階でよいか</h3>
+    <p>
+      本体のコードで確かめました。<strong>ご認識に相違はありません。</strong>
+      ただし、例外はまさにご指摘の「毎日の項目」1点だけです。
+    </p>
     <ul>
-      <li><strong>A は1日に何度も出ます。</strong> 項目数だけ出るので、きらきらが「またか」に
-        ならないか。うるさければ、A も はんこだけにできます。</li>
-      <li><strong>B は期間中に3回しか出ません</strong>（必須・任意・毎日）。
-        ここは思いきり派手でよいはずです。</li>
-      <li><strong>C の暗転が長すぎないか。</strong> いまは約6.5秒です。</li>
+      <li><strong>必須・任意の項目</strong>… <code>isDone</code> は「全部の回数／段階／ページが済んだか」で、
+        いちど成立すると期間の終わりまで成立したままです。
+        <strong>1項目につき生涯1回</strong>。宿題が8個なら、ひと夏で8回です。</li>
+      <li><strong>毎日の項目</strong>… <code>isDone: today &gt;= target</code> で、
+        <strong>今日ぶんが済んだか</strong>を見ています。日付が変わると戻るので、
+        <strong>毎日成立します。</strong>毎日の項目が3つあれば、1日3回です。</li>
     </ul>
-
-    <h3>はんこについて</h3>
     <p>
-      いまの本体は、項目を終えたとき <code>ぜんぶ できた！</code>、
-      それ以外は <code>できた！</code> と<strong>文字だけ</strong>変えていて、
-      はんこの見た目は同じです。二重の輪郭にすると、文字を読まなくても
-      「いつもより大きいことが起きた」と分かります。
-      色も傾きも変えていないので、並べても別物には見えません。
+      なので <strong>A の対象から毎日の項目を外します</strong>。
+      「毎日何回も出るのはスタンプのみ」というご認識のとおりになります。
+      はんこの文字は本体のまま（今日ぶんが済めば「ぜんぶ できた！」）、
+      <strong>きらきらだけを出さない</strong>、という切り分けです。
+    </p>
+    <p>
+      同じ理由で <strong>B からも毎日の分類を外します</strong>。
+      「今日の毎日をぜんぶ」は毎日成立するので、入れると期間中に40回ほど出ます。
+      <strong>B は必須ぜんぶ・任意ぜんぶの2回だけ</strong>になります。
+    </p>
+  </div>
+
+  <h2 class="sec">前提から考え直す ― 4つ疑ってみました</h2>
+  <div class="memo">
+    <p>
+      完成版を出す前に、そもそもの前提を疑いました。結論は
+      <strong>3つは今のままでよく、1つは変えたほうがよい</strong>です。
     </p>
 
-    <h3>虹色について</h3>
+    <h3>疑い1：全画面に出す必要があるか</h3>
     <p>
-      渦の色を虹にすると画像にいちばん近くなりますが、
-      <strong>虹はテーマの外の色</strong>です。6テーマとも切りかえて、
-      浮いて見えないか確かめてください。浮くようなら「テーマの色」でも
-      流れは同じに出せます（色の変化がゆるやかになります）。
+      押した場所（そのカード）から出す案もあります。押した手と演出がつながるので、
+      ふつうは全画面より気持ちよく、邪魔にもなりません。
+      <strong>ただし A の対象は「項目の完了」で、これは1つの課題を開いた画面の中で
+      起きます。</strong>カードに戻る前なので、出す先のカードが画面にありません。
+      <strong>今のまま全画面が正しい</strong>と判断しました。
     </p>
 
-    <h3>まだ作っていないもの</h3>
+    <h3>疑い2：花火は、このアプリに合っているか</h3>
     <p>
-      B の判定（分類ごとの完了）と A の判定（項目の完了）は、
-      本体では別の関数になります。4b で入れるときに、
-      進捗サマリーの計算（<code>overall()</code>）には触れずに、
-      判定だけ新しく足します。
+      これはひっかかりました。<strong>3段階目で期間の呼び名を自由にしたので、
+      「受験勉強」や「発表会」に使う家庭がありえます。</strong>
+      そこに夏祭りの花火が上がるのは、ずれます。
+      とはいえ花火は「祝い」の記号として十分に一般的で、
+      呼び名ごとに演出を分けるのは作りすぎです。
+      <strong>今のままでよい</strong>と判断しました。ただし「完走！」の下の一文だけは
+      期間名を差し込む形（<code>〈期間名〉、ぜんぶ やりきったね</code>）にしてあります。
     </p>
+
+    <h3>疑い3：紙のノートに、写真のような光を足してよいか</h3>
+    <p>
+      ここがいちばん危ういところです。このアプリは手描きの方眼ノートで、
+      花火は写真的な光です。<strong>C は暗転するので「ノートを離れて別の場所へ行く」
+      ことになり、矛盾しません。</strong>問題は A と B で、
+      <strong>紙の上に光をのせる中間状態</strong>です。
+      光は暗くないと光らないので、紙の上の A・B は原理的に
+      「光り足りないもの」にしかなりません。
+    </p>
+    <p>
+      <strong>これが唯一、変えたほうがよいと思っている点です。</strong>
+      A と B は「光」ではなく<strong>紙に馴染む素材</strong>——
+      色鉛筆の粉、金の箔、はなまるのインクの跳ね——で作り直すほうが、
+      全体の調和は上がります。ただし今回いただいた画像は光そのものなので、
+      <strong>ご希望と正面からぶつかります。</strong>判断を仰ぎたいところです。
+    </p>
+
+    <h3>疑い4：完了だけを祝ってよいか</h3>
+    <p>
+      続けた日数（<code>streak</code>）はすでに本体にあります。
+      毎日つづけたことは、終わらせたことと同じくらい価値があります。
+      ただし<strong>今回の4段階に足すと段が5つになり、
+      せっかく付いた強弱がぼやけます。</strong>
+      別の機会に、演出ではなく表示で扱うのがよいと考えます。<strong>今回は入れません。</strong>
+    </p>
+
+    <h3>そのほか、4b で直す必要があるもの</h3>
+    <ul>
+      <li>本体の <code>.stamp-mark</code> は <code>font-size:44px</code> 固定です。
+        「ぜんぶ できた！」は8文字あり、二重の輪郭で左右13pxずつ増えるので、
+        <strong>狭い画面ではみ出します。</strong>本体側も可変にする必要があります。</li>
+      <li>A・B・C の判定は、進捗サマリーの計算（<code>overall()</code>）には触れず、
+        判定だけ新しく足します。</li>
+      <li>「完走！」の下の一文は <code>periodWord(true)</code> を通します。
+        文字列を直に書くと、呼び名を変えた家庭で食い違います。</li>
+    </ul>
   </div>
 </main>
 
@@ -326,8 +444,22 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
     return [f(0), f(8), f(4)];
   }
   const rainbowAt = u => hsl((135 + u * 210) % 360, .95, .62);
-  let palMode = 'rainbow';
+  let palMode = 'blend';
   let PAL = REAL;
+  const mix = (a, b, w) => [0,1,2].map(i => Math.round(a[i] * (1 - w) + b[i] * w));
+  /* 既定。花火の色を主にして、テーマの色を弱く効かせる。
+     最初は全色にテーマを22%混ぜたが、**テーマ間の差がほぼ出なかった**。
+     6テーマとも --v1（黄）が似た色なので、金に黄を混ぜても金のまま、
+     しかも6テーマとも同じ結果になる（実測：どのテーマも rgb(250,188,75)）。
+     効いたのは、混ぜるのをやめて **テーマの色を2つ「火の粉」として足す**
+     ほうだった。むらさき系と みどり系は6テーマで実際に違う。
+     そのまま足すとUIの色が飛んで見えるので、白熱側へ 28% 寄せる。
+     11色中2色なので、金が主のまま、テーマが分かる。 */
+  const EMBER_WHITE = [255,246,226];
+  function blended() {
+    const th = themeColors();
+    return REAL.concat([mix(th[1], EMBER_WHITE, .28), mix(th[2], EMBER_WHITE, .28)]);
+  }
   /* 経路上の位置 u（0〜1）から色を決める。虹だけが u に依存する */
   function colorAt(u) {
     if (palMode === 'rainbow') return rainbowAt(u);
@@ -350,29 +482,37 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
       g.addColorStop(.80,`rgba(${R},${G},${B},.42)`); g.addColorStop(.93,`rgba(${R},${G},${B},.10)`);
       g.addColorStop(1,`rgba(${R},${G},${B},0)`);
     } else {
-      /* かさを内側3割へ詰める。広げると、次に足す光条がかさに埋もれて
-         「光条の先より光条の間のほうが明るい」状態になる（実測で確認した） */
-      g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.04,'rgba(255,255,255,.95)');
-      g.addColorStop(.09,`rgba(${R},${G},${B},.9)`); g.addColorStop(.18,`rgba(${R},${G},${B},.34)`);
-      g.addColorStop(.30,`rgba(${R},${G},${B},.07)`); g.addColorStop(1,`rgba(${R},${G},${B},0)`);
+      /* 芯を「円盤」にしないこと。白を平らに置くと、そこが穴の空いた
+         ビーズのように見えて毒々しくなる。白は最初の数%だけにして、
+         すぐ色へ、さらにすぐ薄くへ落とす。かさ自体も内側へ詰めておかないと
+         このあとの光条がかさに埋もれる（実測で確認ずみ）。 */
+      g.addColorStop(0,   'rgba(255,255,255,.95)');
+      g.addColorStop(.03, `rgba(255,${Math.round((255+G)/2)},${Math.round((255+B)/2)},.7)`);
+      g.addColorStop(.10, `rgba(${R},${G},${B},.34)`);
+      g.addColorStop(.22, `rgba(${R},${G},${B},.11)`);
+      g.addColorStop(1,   `rgba(${R},${G},${B},0)`);
     }
     x.fillStyle = g; x.fillRect(0, 0, size, size);
     if (kind === 'star') {
       x.translate(r, r);
-      const spike = (len, wide, alpha) => {
+      /* 光条は「中心が最も太い三角形」で描いてはいけない。4本が重なって
+         中央に菱形ができ、その中に芯が乗ると「◯の穴」に見える。
+         power=1.7 では菱形が11.5pxまで太っていた。
+         細い一定幅の帯にして、強さは **長さと明るさだけ** に効かせる。 */
+      const spike = (len, alpha) => {
+        const wide = r * .018;
         const lg = x.createLinearGradient(0, 0, len, 0);
-        lg.addColorStop(0, `rgba(255,255,255,${alpha})`);
-        lg.addColorStop(.18, `rgba(${R},${G},${B},${alpha * .75})`);
-        lg.addColorStop(1, `rgba(${R},${G},${B},0)`);
-        x.fillStyle = lg; x.beginPath();
-        x.moveTo(0, -wide); x.lineTo(len, 0); x.lineTo(0, wide); x.closePath(); x.fill();
+        lg.addColorStop(0,   `rgba(255,255,255,${alpha})`);
+        lg.addColorStop(.10, `rgba(${R},${G},${B},${alpha * .8})`);
+        lg.addColorStop(1,   `rgba(${R},${G},${B},0)`);
+        x.fillStyle = lg;
+        x.fillRect(0, -wide, len, wide * 2);
       };
       for (let i = 0; i < 4; i++) {
         x.rotate(Math.PI / 2);
-        /* power で光条だけを強める。B は A と同じ粒のまま、ここが伸びる */
-        spike(r * .99, r * .053 * pw, Math.min(1, .8 * pw));
+        spike(r * Math.min(.99, .62 * pw), Math.min(.95, .62 * pw));
         x.save(); x.rotate(Math.PI / 4);
-        spike(r * .47 * pw, r * .032 * pw, Math.min(1, .45 * pw));
+        spike(r * Math.min(.5, .28 * pw), Math.min(.5, .3 * pw));
         x.restore();
       }
     }
@@ -390,12 +530,13 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
     if (raf) cancelAnimationFrame(raf); raf = 0;
     if (layer) layer.remove();
     if (closeBtn) closeBtn.remove();
-    document.querySelectorAll('.stamp:not(.keep)').forEach(s => s.remove());
+    document.querySelectorAll('.stamp, .finale').forEach(s => s.remove());
     layer = null; closeBtn = null; parts = []; stages = [];
   }
   function open(darkMode) {
     stop();
-    PAL = palMode === 'theme' ? themeColors() : REAL;
+    PAL = palMode === 'theme' ? themeColors()
+        : palMode === 'blend' ? blended() : REAL;
     dark = !!darkMode;
     layer = document.createElement('div'); layer.className = 'fx';
     document.body.append(layer);
@@ -478,6 +619,21 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
     wrap.innerHTML = `<div class="stamp-mark${isAll ? ' all' : ''}">${text}</div>`;
     document.body.append(wrap);
     setTimeout(() => wrap.remove(), 950);
+  }
+  /* 完走。はんこではないので .stamp とは別の要素にする。
+     period は設定で変わる（「なつやすみ」は既定値）ので、本体へ入れるときは
+     periodWord(true) を通すこと。文字列を直に書かない。 */
+  function showFinale(period) {
+    document.querySelectorAll('.finale').forEach(f => f.remove());
+    const el = document.createElement('div');
+    el.className = 'finale';
+    el.innerHTML =
+      `<div class="finale-rule"></div>` +
+      `<p class="finale-word">完走！</p>` +
+      `<p class="finale-sub">${period || 'なつやすみ'}、ぜんぶ やりきったね</p>` +
+      `<div class="finale-rule b"></div>`;
+    document.body.append(el);
+    return el;
   }
 
   /* ================= 渦 =================
@@ -599,14 +755,17 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
     stages = [];
     [.2,.75,.45,.9,.14,.62,.34,.8].forEach((fx,i)=>shell(W*fx, H*rand(.15,.32), 68, i*.32));
     [.28,.5,.72].forEach((fx,i)=>shell(W*fx, H*rand(.13,.25), 92, 3.0 + i*.05));
-    stages.push({ at:.1, run:()=>bokehField(20, 5.8) });
-    stages.push({ at:1.2, run:()=>ribbon('spiral', { count:200, travel:1.5, life:1.7, power:1.9 }) });
-    stages.push({ at:2.6, run:()=>ribbon('spiralRev', { count:200, travel:1.5, life:1.7, power:1.9, hueShift:.5 }) });
-    stages.push({ at:3.4, run:()=>sparkleField(52, 2.9, 1.9) });
-    stages.push({ at:4.2, run:()=>showStamp('ぜんぶ できた！', true) });
+    stages.push({ at:.1, run:()=>bokehField(20, 6.6) });
+    /* 渦は「弧」で統一（利用者の選択）。C は2本を時間差で流す */
+    stages.push({ at:1.1, run:()=>ribbon('arc', { count:200, travel:1.5, life:1.8, power:1.9 }) });
+    stages.push({ at:2.9, run:()=>ribbon('arc', { count:200, travel:1.5, life:1.8, power:1.9,
+                                                 cy:H * .56, R:S * .40 }) });
+    stages.push({ at:3.4, run:()=>sparkleField(52, 3.2, 1.9) });
+    /* 完走は花火のピークを過ぎてから。かぶせると文字が読めない */
+    stages.push({ at:4.3, run:()=>showFinale() });
     stages.sort((a,b)=>a.at-b.at);
-    begin(6.5, .1);
-    say('C 完全制覇：暗転＋スターマイン＋二重の渦');
+    begin(7.4, .1);
+    say('C 完全制覇：暗転＋スターマイン＋弧の渦＋「完走！」');
   }
 
   function ribbonOnly(kind) {
@@ -666,8 +825,11 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
   motionBtn.addEventListener('click', () => {
     mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
     motionBtn.textContent = MODE_TEXT[mode];
+    /* CSS 側（.finale のアニメ）もここを見ているので、必ず root へ書く */
+    root.dataset.motion = reduced() ? 'reduce' : mode;
     clearTimeout(chain); stop();
   });
+  root.dataset.motion = reduced() ? 'reduce' : 'auto';
 })();
 </script>
 </body>
