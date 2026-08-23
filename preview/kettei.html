@@ -78,26 +78,36 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
 
 /* ---- はんこ。本体（assets/style.css の .stamp-mark）と同じ言葉づかい ---- */
 .stamp{position:fixed;inset:0;z-index:80;display:grid;place-items:center;pointer-events:none}
+/* 余白も可変にすること。本体は font-size:44px / padding:22px 40px の
+   固定値で、「ぜんぶ できた！」の8文字だと **iPhone の幅で 380px** に
+   なる（画面390px）。花丸を横に足すと 468px で確実にはみ出す。
+   4b では本体側もここを可変にする必要がある。 */
 .stamp-mark{
-  font-size:clamp(30px,8vw,44px);font-weight:900;color:var(--suika);
+  font-size:clamp(24px,6.4vw,44px);font-weight:900;color:var(--suika);
   border:8px solid var(--suika);border-radius:24px;
-  padding:22px 40px;background:rgba(252,252,249,.94);
+  padding:clamp(12px,3.4vw,22px) clamp(18px,5.6vw,40px);
+  background:rgba(252,252,249,.94);
   transform:rotate(-11deg);
-  animation:stamping .85s cubic-bezier(.2,1.4,.4,1) forwards;
+  animation:stamping .5s cubic-bezier(.2,1.4,.4,1) forwards;
 }
 /* 「ぜんぶできた！」は同じはんこの言葉づかいのまま、二重の輪郭にして
    格を上げる。色も傾きも変えないので、並べても別物には見えない。
    （いまの本体は文字だけ差し替えていて、見た目がまったく同じ） */
 .stamp-mark.all{
-  box-shadow:0 0 0 6px rgba(252,252,249,.94), 0 0 0 13px var(--suika);
-  padding:24px 44px;
+  box-shadow:0 0 0 5px rgba(252,252,249,.94), 0 0 0 11px var(--suika);
+  padding:clamp(13px,3.7vw,24px) clamp(20px,6vw,44px);
 }
+/* 押しこむところまでで終わり、消えるのは親の .stamp にまかせる。
+   1つのキーフレームに「出る・とどまる・消える」を入れると、
+   とどまる長さを段ごとに変えられない（段ごとに別のキーフレームが要る）。 */
 @keyframes stamping{
   0%{transform:rotate(-24deg) scale(2.6);opacity:0}
-  22%{transform:rotate(-11deg) scale(1);opacity:1}
-  70%{transform:rotate(-11deg) scale(1);opacity:1}
-  100%{transform:rotate(-11deg) scale(1);opacity:0}
+  62%{transform:rotate(-11deg) scale(1);opacity:1}
+  100%{transform:rotate(-11deg) scale(1);opacity:1}
 }
+.stamp{transition:opacity .38s ease-in}
+.stamp.out{opacity:0}
+.stamp-stack{display:grid;justify-items:center;gap:clamp(10px,3vw,20px);max-width:min(92vw,560px)}
 /* ネコのときは肉球。本体（assets/style.css）と同じ扱いを残す */
 [data-theme="cat"] .stamp-mark{display:flex;align-items:center;gap:12px;border-radius:var(--r);padding:20px 28px}
 [data-theme="cat"] .stamp-mark::before{
@@ -115,25 +125,41 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
    花丸の輪郭は起伏の深い版 r(θ)=.70+.26cos5θ-.11cos10θ。
    中に文字を入れないので、谷が深くても困らない。
    第3項が第2項の 1/4 を超えていないと花びらの先の切れこみが消える。 */
-.stamp-group{display:flex;align-items:center;justify-content:center;gap:clamp(6px,2vw,18px)}
+/* いちばん狭い画面（320px級）では、はんこだけで幅を使いきる。
+   そこは花丸を下へ落とす。横に無理やり並べて字を縮めるより読める */
+.stamp-group{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:center;
+  gap:clamp(4px,1.6vw,14px);
+}
 .hanamaru{
-  flex:none;width:clamp(74px,22vw,116px);aspect-ratio:1;overflow:visible;
-  transform:rotate(6deg);
+  flex:none;width:clamp(56px,16vw,112px);aspect-ratio:1;overflow:visible;
+  transform:rotate(5deg);
 }
 .hanamaru path{
-  fill:none;stroke:var(--suika);stroke-width:7;
+  fill:none;stroke:var(--suika);stroke-width:7.5;
   stroke-linecap:round;stroke-linejoin:round;
 }
-/* B は「どの分類が終わったか」を はんこの下に添える。
-   ここは紙のことばなので、C の金は使わない */
-.group-note{
-  position:fixed;left:50%;top:calc(50% + clamp(58px,15vw,86px));
-  transform:translateX(-50%);z-index:81;pointer-events:none;
-  max-width:min(88vw,420px);padding:9px 18px;text-align:center;
-  color:var(--ai);background:rgba(252,252,249,.95);
-  border:2px solid var(--suika);border-radius:999px;
-  font-weight:900;font-size:clamp(13px,3.6vw,17px);
-  opacity:0;animation:finale-sub .5s ease-out .55s forwards;
+/* B の一言。**2行で組むことを前提**にする。分類名は設定で変わるうえ、
+   iPhone の幅では1行に入りきらない。入るかどうかに賭けて自動改行に
+   まかせると「ぜん／ぶ おわったよ！」のように語の途中で割れる。
+   行を先に決めておけば、どの分類名でも割れ方が同じになる。 */
+.stamp-msg{
+  display:grid;justify-items:center;gap:2px;
+  padding:clamp(9px,2.6vw,13px) clamp(16px,5vw,26px);
+  background:rgba(252,252,249,.95);
+  border-radius:var(--r-s);box-shadow:var(--shadow);
+  text-align:center;line-height:1.35;
+  opacity:0;animation:finale-sub .42s ease-out both;
+}
+.stamp-msg-name{
+  color:var(--suika);font-weight:900;
+  font-size:clamp(15px,4.3vw,20px);
+  /* 分類名だけは絶対に割らない。「かならず やる」の中で改行させない */
+  white-space:nowrap;
+}
+.stamp-msg-line{
+  color:var(--ai);font-weight:900;
+  font-size:clamp(14px,4vw,18px);white-space:nowrap;
 }
 
 /* ---------- C の「完走！」 ----------
@@ -256,6 +282,12 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
       <option value="theme">テーマの色だけ</option>
       <option value="rainbow">虹（前の案・比較用）</option>
     </select>
+    <span class="bar-lab">完走の中央</span>
+    <select id="center" aria-label="完走！の中央のとりかた">
+      <option value="0.5">中間（既定）</option>
+      <option value="0">送り幅ぞろえ</option>
+      <option value="1">インクぞろえ</option>
+    </select>
     <span class="bar-lab">期間の呼び名</span>
     <input id="period" type="text" value="なつやすみ" maxlength="12" size="8"
            aria-label="期間の呼び名（子ども画面のかな）">
@@ -312,8 +344,8 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
       <p class="why">期間中に2回だけ。はんこの横に花丸。</p>
       <p>
         はんこは <strong>A とおなじ「ぜんぶ できた！」</strong>のまま。
-        その横に<strong>花丸が手描きで描かれ</strong>、下に
-        「「かならず やる」ぜんぶ おわったよ！」の一行が出ます。
+        その横に<strong>花丸が2画で描かれ</strong>（外から中心へ渦 → 下から右回りにもこもこ）、
+        描き終わってから下に一言が出ます。表示は約3秒。
       </p>
       <div class="how"><strong>はんこを差し替えないのが肝。</strong>
         分類の最後の1項目を終えた瞬間は A と B が同時に成立します。
@@ -479,11 +511,29 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
       別の機会に、演出ではなく表示で扱うのがよいと考えます。<strong>今回は入れません。</strong>
     </p>
 
+    <h3>はんこの表示時間</h3>
+    <p>
+      <strong>全体を伸ばすのではなく、出る回数の逆にしました。</strong>
+      毎回のものを伸ばすと必ず邪魔になり、ひと夏に数回のものは短いと読み終わる前に消えます。
+    </p>
+    <ul>
+      <li><strong>毎回（できた！）… 0.9秒のまま。</strong>ここは触らないのが正解だと考えます。</li>
+      <li><strong>A（ぜんぶ できた！）… 1.6秒</strong>へ。項目ひとつぶんの区切りなので、少し長く。</li>
+      <li><strong>B（＋花丸）… 3.0秒</strong>へ。花丸を2画描いて（約1.4秒）、
+        一言を出して、読む時間まで含めるとこのくらい要ります。</li>
+    </ul>
+    <p>
+      入りと出も分けました。押しこむ動き（0.5秒）→ とどまる → 消える（0.38秒）。
+      前は1つの動きに全部入っていたので、<strong>とどまる長さを段ごとに変えられません</strong>でした。
+    </p>
+
     <h3>そのほか、4b で直す必要があるもの</h3>
     <ul>
-      <li>本体の <code>.stamp-mark</code> は <code>font-size:44px</code> 固定です。
-        「ぜんぶ できた！」は8文字あり、二重の輪郭で左右13pxずつ増えるので、
-        <strong>狭い画面ではみ出します。</strong>本体側も可変にする必要があります。</li>
+      <li><strong>本体の <code>.stamp-mark</code> は狭い画面ではみ出します。</strong>
+        <code>font-size:44px</code>／<code>padding:22px 40px</code> が固定なので、
+        「ぜんぶ できた！」の8文字だと <strong>iPhone の幅で 380px</strong>（画面390px）。
+        花丸を横に足すと 468px で確実にあふれます。実測しました。
+        このページでは字も余白も可変にしてあります。本体側も同じ手当てが要ります。</li>
       <li>A・B・C の判定は、進捗サマリーの計算（<code>overall()</code>）には触れず、
         判定だけ新しく足します。</li>
       <li>「完走！」の下の一文は <code>periodWord(true)</code> を通します。
@@ -617,7 +667,10 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     if (raf) cancelAnimationFrame(raf); raf = 0;
     if (layer) layer.remove();
     if (closeBtn) closeBtn.remove();
-    document.querySelectorAll('.stamp, .finale').forEach(s => s.remove());
+    /* .group-note を消し忘れて画面に残り続けた。はんこ関係は
+       ここ一箇所でまとめて片づける（種類を増やすたびに書き足さない） */
+    stampTimers.forEach(clearTimeout); stampTimers = [];
+    document.querySelectorAll('.stamp, .group-note, .finale').forEach(s => s.remove());
     layer = null; closeBtn = null; parts = []; stages = [];
   }
   function open(darkMode) {
@@ -706,13 +759,28 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
   }
 
   /* ================= はんこ ================= */
-  function showStamp(text, isAll) {
-    document.querySelectorAll('.stamp').forEach(s => s.remove());
+  /* はんこを出して、hold ミリ秒たったら消す。
+     **表示時間は出る回数の逆**にする。毎回のものを伸ばすと必ず邪魔になり、
+     ひと夏に数回のものは短いと読み終わる前に消える。 */
+  function raiseStamp(html, hold) {
+    document.querySelectorAll('.stamp, .group-note').forEach(s => s.remove());
     const wrap = document.createElement('div');
     wrap.className = 'stamp';
-    wrap.innerHTML = `<div class="stamp-mark${isAll ? ' all' : ''}">${text}</div>`;
+    wrap.innerHTML = `<div class="stamp-stack">${html}</div>`;
     document.body.append(wrap);
-    setTimeout(() => wrap.remove(), 950);
+    stampTimers.push(setTimeout(() => wrap.classList.add('out'), hold));
+    stampTimers.push(setTimeout(() => wrap.remove(), hold + 400));
+    return wrap;
+  }
+  let stampTimers = [];
+  function clearStamps() {
+    stampTimers.forEach(clearTimeout); stampTimers = [];
+    document.querySelectorAll('.stamp, .group-note').forEach(s => s.remove());
+  }
+  function showStamp(text, isAll) {
+    /* 毎回 900ms / 項目完了 1600ms。毎回のほうは今のままにしておく */
+    raiseStamp(`<div class="stamp-mark${isAll ? ' all' : ''}">${text}</div>`,
+      isAll ? 1600 : 900);
   }
   /* ---- 字面（インク）で中央にそろえる ----
      text-align:center がそろえるのは **文字の送り幅** であって、
@@ -721,19 +789,33 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
      字面は左へ寄る。letter-spacing の最後の1文字ぶんも効く。
      canvas に同じ書体で測らせ、インクの中心を箱の中心へ寄せ直す。 */
   const inkCv = document.createElement('canvas').getContext('2d');
+  /* 「どこを中央とみなすか」は好みが分かれるので、選べるようにしてある。
+       送り幅 … 文字の送り幅の中央（ブラウザの text-align:center と同じ）
+       インク … 実際に見えている墨の中央（「！」の右の余白を数えない）
+       中間   … その半分
+     「完走！」の「！」は全角の枠を取るのに墨が左寄りなので、
+     この2つは 73px の字で 15.9px ずれる。上の選択でその割合を決める。 */
+  let centerWeight = .5;
   function opticalCenter(el) {
     if (!el) return;
+    el.classList.remove('ink-centered');
+    el.style.removeProperty('--ink-shift');
     const cs = getComputedStyle(el);
     inkCv.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
     if ('letterSpacing' in inkCv) inkCv.letterSpacing = cs.letterSpacing;
     const m = inkCv.measureText(el.textContent);
     if (!(m.actualBoundingBoxRight > 0)) return;
     const inkL = -m.actualBoundingBoxLeft, inkR = m.actualBoundingBoxRight;
-    const shift = m.width / 2 - (inkL + inkR) / 2;
+    const full = m.width / 2 - (inkL + inkR) / 2;
+    const shift = full * centerWeight;
+    el.dataset.inkFull = full.toFixed(2);
     /* 測れなかった・桁が異常なときは何もしない（ずらさないほうが安全） */
-    if (Math.abs(shift) < .5 || Math.abs(shift) > parseFloat(cs.fontSize)) return;
+    if (Math.abs(shift) < .3 || Math.abs(full) > parseFloat(cs.fontSize)) return;
     el.style.setProperty('--ink-shift', shift.toFixed(2) + 'px');
     el.classList.add('ink-centered');
+  }
+  function reCenterAll() {
+    document.querySelectorAll('.finale-word, .finale-sub').forEach(opticalCenter);
   }
   /* 花丸の輪郭。式から作る（手で座標を書くと、花びらの数や
      切れこみを直したくなったときに全部書き直しになる）。
@@ -743,49 +825,81 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
        3. 一周より先まで描いて描き越す（人の手はここで止まらない）
      揺らぎは乱数ではなく sin の重ね合わせ。毎回同じ形になるので、
      「その子の花丸」として安定する。 */
-  function hanamaruPath() {
-    const N = 300, TURN = Math.PI * 2 + .38, pts = [];
+  /* 花丸は **2画**。
+       1画目 … 外から中心へ向かう渦
+       2画目 … 下から始めて、右回りにもこもこ
+     手描きらしさは sin の重ね合わせで出す（乱数ではないので毎回おなじ形。
+     「その子の花丸」として安定する）。 */
+  const wob = a => 1 + .024 * Math.sin(a * 3.1 + .7) + .015 * Math.sin(a * 7.9 + 2.2);
+  const R = 92;
+  /* 1画目。外側 .36 から中心 .04 へ、2.2周まきこむ。右回り */
+  function hanamaruSpiral() {
+    const N = 170, TURNS = 2.2, pts = [];
     for (let i = 0; i <= N; i++) {
-      const u = i / N * TURN;
-      const petal = .70 + .26 * Math.cos(5 * u) - .11 * Math.cos(10 * u);
-      const wobble = 1 + .018 * Math.sin(u * 3.7 + .9) + .012 * Math.sin(u * 8.3);
-      const grow = 1 + .045 * (u / TURN);
-      const r = petal * wobble * grow * 84;
-      const t = u - Math.PI / 2;
-      pts.push((Math.cos(t) * r).toFixed(2) + ',' + (Math.sin(t) * r).toFixed(2));
+      const t = i / N;
+      const psi = Math.PI * .1 + t * Math.PI * 2 * TURNS;
+      const r = (.36 - .32 * t) * wob(psi) * R;
+      pts.push((Math.cos(psi) * r).toFixed(2) + ',' + (Math.sin(psi) * r).toFixed(2));
     }
     return 'M' + pts.join('L');
   }
-  /* B。A と同じはんこを出し、その横に花丸を描く */
+  /* 2画目。エピトロコイド。x = C·cosψ + P·cos(Lψ)。
+     山の数は L-1 なので、もこもこ5つなら **L=6**（L=5 では4つになる）。
+     P を上げるとつなぎ目が巻く。巻かないと ただの波、巻きすぎると花びら。
+     C=.62 P=.115 L=6 で「山5つ＋つなぎ目に小さな巻き」を実測で確認した。
+     ψ を π/2 から始めると開始点が画面の下、増やすと右回りになる
+     （画面座標は y が下向きなので、角度が増える＝時計回り）。 */
+  function hanamaruCloud() {
+    const C = .62, P = .115, L = 6, N = 320, pts = [];
+    for (let i = 0; i <= N; i++) {
+      /* 1.05 … 一周より少し描き越す。人の手はぴたりで止まらない */
+      const psi = Math.PI / 2 + (i / N) * 1.05 * Math.PI * 2;
+      const w = wob(psi);
+      const x = (C * Math.cos(psi) + P * Math.cos(psi * L)) * w * R;
+      const y = (C * Math.sin(psi) + P * Math.sin(psi * L)) * w * R;
+      pts.push(x.toFixed(2) + ',' + y.toFixed(2));
+    }
+    return 'M' + pts.join('L');
+  }
+  function hanamaruSVG(cls) {
+    return `<svg class="hanamaru${cls ? ' ' + cls : ''}" viewBox="-100 -100 200 200" aria-hidden="true">
+      <path class="hm-spiral" d="${hanamaruSpiral()}"/>
+      <path class="hm-cloud"  d="${hanamaruCloud()}"/>
+    </svg>`;
+  }
+  /* 2画を順に描く。1画目→間→2画目。同時に描くと一筆に見えてしまう */
+  function drawHanamaru(svg) {
+    const seq = [['.hm-spiral', 0, 420], ['.hm-cloud', 520, 640]];
+    for (const [sel, delay, dur] of seq) {
+      const p = svg.querySelector(sel);
+      const len = p.getTotalLength();
+      p.style.strokeDasharray = len;
+      p.style.strokeDashoffset = reduced() ? 0 : len;
+      if (reduced()) continue;
+      p.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
+        { duration: dur, delay: 240 + delay, easing: 'cubic-bezier(.35,.1,.3,1)', fill: 'forwards' });
+    }
+    return 240 + 520 + 640;   /* 描き終わるまで */
+  }
+  /* B。A と同じはんこを出し、その横に花丸を2画で描き、下に一言を添える。
+     一言は「浮いた吹き出し」ではなく、はんこと同じ中央の積み木の一部にする
+     （完走！の下の文と同じ関係）。ここを固定位置の吹き出しにすると、
+     ほかの要素と重なるし、系統の違うシステム通知に見える。 */
   function showGroupDone(groupName) {
-    document.querySelectorAll('.stamp, .group-note').forEach(s => s.remove());
-    const wrap = document.createElement('div');
-    wrap.className = 'stamp';
-    wrap.innerHTML =
+    const wrap = raiseStamp(
       `<div class="stamp-group">
          <div class="stamp-mark all">ぜんぶ できた！</div>
-         <svg class="hanamaru" viewBox="-100 -100 200 200" aria-hidden="true">
-           <path d="${hanamaruPath()}"/>
-         </svg>
-       </div>`;
-    document.body.append(wrap);
-    /* 描画アニメは線の実長が要るので、DOM に入れてから測る */
-    const p = wrap.querySelector('.hanamaru path');
-    const len = p.getTotalLength();
-    p.style.strokeDasharray = len;
-    p.style.strokeDashoffset = len;
-    if (!reduced()) {
-      p.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
-        { duration: 780, delay: 260, easing: 'cubic-bezier(.4,.1,.3,1)', fill: 'forwards' });
-    } else {
-      p.style.strokeDashoffset = 0;
-    }
-    if (groupName) {
-      const note = document.createElement('div');
-      note.className = 'group-note';
-      note.textContent = `「${groupName}」ぜんぶ おわったよ！`;
-      document.body.append(note);
-    }
+         ${hanamaruSVG()}
+       </div>
+       <div class="stamp-msg">
+         <span class="stamp-msg-name">「${groupName}」</span>
+         <span class="stamp-msg-line">ぜんぶ おわったよ！</span>
+       </div>`, 3000);
+    const done = drawHanamaru(wrap.querySelector('.hanamaru'));
+    /* 一言は花丸を描き終えてから。同時に出すと、どちらも見られない */
+    const msg = wrap.querySelector('.stamp-msg');
+    msg.style.animationDelay = (reduced() ? 0 : done - 120) + 'ms';
+    return wrap;
   }
   /* 完走。はんこではないので .stamp とは別の要素にする。
      period は設定で変わる（「なつやすみ」は既定値）ので、本体へ入れるときは
@@ -1019,8 +1133,13 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     clearTimeout(chain); stop();
   });
   root.dataset.motion = reduced() ? 'reduce' : 'auto';
-  document.querySelectorAll('.finale-demo .finale-word, .finale-demo .finale-sub')
-    .forEach(opticalCenter);
+  reCenterAll();
+  document.querySelector('#center').addEventListener('change', e => {
+    centerWeight = Number(e.target.value);
+    reCenterAll();
+    const w = document.querySelector('.finale-demo .finale-word');
+    say(`完走！の中央：ずれの実測 ${w.dataset.inkFull}px のうち ${(centerWeight*100)|0}% を補正`);
+  });
 
   /* 見くらべ用の桜を、動かない状態で置く */
   (() => {
@@ -1029,10 +1148,8 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     host.innerHTML =
       `<div class="stamp-group">
          <div class="stamp-mark all" style="animation:none">ぜんぶ できた！</div>
-         <svg class="hanamaru" viewBox="-100 -100 200 200" aria-hidden="true">
-           <path d="${hanamaruPath()}"/>
-         </svg>
-       </div><span class="stamp-cap">B 分類完了（花丸が手描きで足される）</span>`;
+         ${hanamaruSVG()}
+       </div><span class="stamp-cap">B 分類完了（花丸は2画で描かれる）</span>`;
   })();
 })();
 </script>
