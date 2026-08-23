@@ -232,12 +232,35 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
   background:rgba(24,18,32,.5);
   box-shadow:0 0 0 6px rgba(9,7,16,.55), 0 0 40px rgba(255,190,90,.32);
   opacity:0;
-  animation:finale-stamping .6s cubic-bezier(.2,1.4,.4,1) .35s forwards;
+  animation:finale-stamping .74s cubic-bezier(.2,1.35,.35,1) .35s forwards;
 }
 .finale-seal .finale-word{opacity:1;transform:none;animation:none}
+/* 開始の拡大率は **画面から逆算する**（--seal-in。JS が実測して入れる）。
+   固定の 3.2倍にしていたとき、iPhone では開始時の見かけ幅が画面の
+   246〜355% になっていた。画面よりずっと大きいので、序盤は
+   「一面が金色」でしかなく、動いて見えるのは最後のわずかな区間だけ。
+   PC では画面が広く収まるので、そこでは動きが見えていた。
+   ふつうの「できた！」は開始時 105〜141% でほぼ画面に収まる。
+   完走もその範囲へ入れて、飛びこんでくる過程が見えるようにする。 */
+.finale-seal{--seal-in:1.7}
+/* 着地の瞬間に一度だけ光る。押した手ごたえを目で見せる部分。
+   枠の外側へ広がる輪なので、枠そのものの形は変えない。 */
+.finale-seal::after{
+  content:"";position:absolute;inset:-10px;border-radius:32px;
+  border:3px solid #ffe9bd;opacity:0;pointer-events:none;
+  animation:finale-hit .5s ease-out .78s forwards;
+}
+.finale-seal{position:relative}
+@keyframes finale-hit{
+  0%{opacity:0;transform:scale(1)}
+  12%{opacity:.85;transform:scale(1)}
+  100%{opacity:0;transform:scale(1.22)}
+}
+html[data-motion="reduce"] .finale-seal::after{animation:none;opacity:0}
 @keyframes finale-stamping{
-  0%{transform:rotate(-30deg) scale(3.2);opacity:0}
-  62%{transform:rotate(0deg) scale(1);opacity:1}
+  0%{transform:rotate(-16deg) scale(var(--seal-in));opacity:0}
+  18%{opacity:1}
+  70%{transform:rotate(0deg) scale(1);opacity:1}
   100%{transform:rotate(0deg) scale(1);opacity:1}
 }
 html[data-motion="reduce"] .finale-seal{animation:none;opacity:1;transform:none}
@@ -780,6 +803,15 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     if (!holding) timers.push(setTimeout(stop, sec * 1000 + 400));
     else if (closeBtn) closeBtn.remove();
   }
+  /* いま出ている粒の寿命を縮めて、画面を静める。
+     消すのではなく **早めに終わらせる** ので、ぷつっと切れない。
+     完走が押される直前に呼び、いちばん見てほしい0.7秒を空ける。 */
+  function hush(sec) {
+    for (const p of parts) {
+      const left = p.life - p.age;
+      if (left > sec) p.life = p.age + sec;
+    }
+  }
   function frame(now) {
     if (!ctx) return;
     const dt = Math.min((now - (last || now)) / 1000, .05);
@@ -1067,6 +1099,19 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     x.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
     x.addEventListener('click', stop);
     el.append(x);
+    /* 押しこみの開始倍率を、実際の枠の寸法と画面から決める。
+       ねらいは「開始時の見かけの対角が画面の約1.5倍」。
+       これより大きいと、はじめのうち枠が画面外にはみ出していて
+       近づいてくる過程が見えない（iPhone で実際にそうなっていた）。
+       これより小さいと、押しこんだ感じが出ない。 */
+    const seal = el.querySelector('.finale-seal');
+    const sw = seal.offsetWidth || 1;
+    /* ねらいは「開始時の **幅** が画面幅の約1.35倍」。
+       ふつうの『できた！』は 105〜141% で始まり、そこは動きが見える。
+       固定の3.2倍だと 246〜355% になっていて、序盤は枠が画面外なので
+       近づいてくる過程が見えず、最後の一瞬しか動いて見えなかった。 */
+    seal.style.setProperty('--seal-in',
+      Math.max(1.3, Math.min(1.9, window.innerWidth * 1.35 / sw)).toFixed(2));
     opticalCenter(el.querySelector('.finale-word'));
     opticalCenter(el.querySelector('.finale-sub'));
     return el;
@@ -1198,7 +1243,11 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     stages.push({ at:2.9, run:()=>ribbon('arc', { count:200, travel:1.5, life:1.8, power:1.9,
                                                  cy:H * .56, R:S * .40 }) });
     stages.push({ at:3.4, run:()=>sparkleField(52, 3.2, 1.9) });
-    /* 完走は花火のピークを過ぎてから。かぶせると文字が読めない */
+    /* 完走は花火のピークを過ぎてから。かぶせると文字が読めない。
+       さらに **押される直前に周りを静める**。まわりで花火ときらきらが
+       animateしている最中に押しこむと、いちばん見てほしい0.7秒が
+       ほかの動きに埋もれる（「何が起きたか分からない」の一因）。 */
+    stages.push({ at:4.15, run:()=>hush(.45) });
     stages.push({ at:4.3, run:()=>showFinale(periodName()) });
     stages.sort((a,b)=>a.at-b.at);
     begin(7.4, .1, true);   /* hold。自動では消さず、「もういちど／とじる」に任せる */
