@@ -1308,7 +1308,17 @@ button{ font:inherit; color:inherit; }
 .set-advanced > summary{ cursor:pointer; padding:16px; font-weight:900; list-style-position:inside; }
 .set-advanced-body{ border-top:2px dashed var(--hougan); }
 
-.theme-picker{ border:0; border-top:2px dashed var(--hougan); margin:0; padding:16px; }
+/* 上の `.set-row` が すでに `border-bottom` を 持っている。ここに
+   `border-top` を 足すと 2本の 破線が 重なって 4px の 二重線に なる。
+   区切りは 行の 側に まかせ、fieldset は 枠を 持たない。 */
+.theme-picker{ border:0; margin:0; padding:16px; }
+/* 「夏休み」以外の名称で使う（13字）は 320px で **3px だけ** あふれ、
+   最後の 1字が 行を またいで 落ちる。折りたたみの ▸ が
+   `list-style-position:inside` で 行の 中に 19px 取るぶん。
+   いちばん せまい 端末の この 見出しだけ 左右を 詰めて 1行に 収める。 */
+@media (max-width:360px){
+  .set-words > summary{ padding-inline:12px; }
+}
 .theme-picker legend{ padding:0 8px; font-size:17px; font-weight:900; }
 .theme-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
 .theme-choice{
@@ -1803,17 +1813,31 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
 .icon-btn.edit:active{ background:var(--sora); }
 @media (hover:hover){ .icon-btn.edit:hover{ background:var(--sora); } }
 .icon-btn.edit:focus-visible{ outline:3px solid var(--focus); outline-offset:-3px; }
-/* 狭い画面では、書名と3つの操作を横一列で取り合わない。
-   書名は上段を広く使い、編集と削除だけを下段の右へまとめる。 */
+/* 狭い画面の 1件あたりを 詰める。
+
+   操作を 下段へ 落とすと、44px の 帯と 段の すきまで **1件につき 52px**、
+   行の 高さ 158px の 3分の1を 操作だけで 使っていた。iPhone に 3件しか
+   入らなかったのは これ。操作は 書名と 同じ段の 右へ 戻す。
+
+   同じ段へ 戻すと 書名の 幅が 削られるので、その ぶんは
+   番号の ピルと 余白から 返す（字は 書名を 16px の まま 残し、
+   日付・著者・出版社の 副題と 感想だけ 13px へ 落とす）。
+   375px で 158px → 88px、320px でも 全行が 縮む。
+
+   **編集・ごみ箱の 的は 44px を 下回らせないこと。** ここを 詰めると
+   押し まちがいが 増える。縮めてよいのは 余白と 副題の 字だけ。 */
 @media (max-width:480px){
   .book-row{
     display:grid; grid-template-columns:auto minmax(0,1fr) auto;
-    align-items:start; gap:8px 10px;
+    align-items:start; gap:2px 8px; padding:10px 12px;
   }
   .book-row > .book-no{ grid-column:1; grid-row:1; }
-  .book-row > .book-main{ grid-column:2 / -1; grid-row:1; }
-  .book-row > .book-actions{ grid-column:2 / -1; grid-row:2; justify-self:end; }
+  .book-row > .book-main{ grid-column:2; grid-row:1; }
+  .book-row > .book-actions{ grid-column:3; grid-row:1; }
+  .book-no{ min-width:28px; height:28px; padding:0 6px; font-size:13px; }
   .book-title{ font-size:16px; }
+  .book-sub{ font-size:13px; line-height:1.5; margin-top:1px; }
+  .book-memo{ font-size:13px; line-height:1.5; margin-top:3px; }
 }
 
 /* =========================================================
@@ -2171,9 +2195,19 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   flex:1 1 100%; min-width:0;
   display:flex; flex-wrap:wrap; gap:8px; align-items:center;
 }
+/* せまい画面では 2つが 別々の 幅で 左に ぶら下がり、字数の ちがいが
+   そのまま 段ちがいに 見えていた。折り返すなら 段として そろえる。 */
+.home-install-actions .btn{ flex:1 1 100%; }
 @media (min-width:561px){
   .home-install-actions{ flex:0 0 auto; margin-inline-start:auto; flex-wrap:nowrap; }
+  .home-install-actions .btn{ flex:0 0 auto; }
 }
+/* `.btn-ghost` の `box-shadow:none` は、あとに 来る `.btn-sm` の
+   `box-shadow` に 打ち消される（同じ 強さで 順番が 後ろ）。そのため
+   主の ボタンと 影まで そろい、副が 副に 見えていなかった。
+   ここでは 副を 平らに 戻す。**同じ 重なりは app 全体の
+   `.btn-sm.btn-ghost` 20か所に あるが、今回は この案内だけに 絞る。** */
+.home-install-actions .btn-ghost{ box-shadow:none; }
 /* `.home-install-notice p` より弱いと 色と 太さを 持っていかれる
    （要素セレクタのぶん 向こうが 強い）。 */
 .home-install-notice p.home-install-guide{

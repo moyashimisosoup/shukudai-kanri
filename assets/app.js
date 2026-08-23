@@ -876,7 +876,7 @@ function homeInstallGuideHTML(){
       <p class="set-note home-install-guide" id="homeInstallGuide" hidden>${esc(text)}</p>
     </div>
     <div class="home-install-actions">
-      <button class="btn btn-sm" id="homeInstallBtn" type="button">ホーム画面に追加する</button>
+      <button class="btn btn-sm btn-go" id="homeInstallBtn" type="button">ホーム画面に追加する</button>
       <button class="btn btn-sm btn-ghost" id="homeInstallDismiss" type="button">今は追加しない</button>
     </div>
   </aside>`;
@@ -7143,7 +7143,7 @@ function labelSettingsHTML(mark){
       </div>`;
   return `
     <details class="set-advanced set-words" data-details-key="displayWords">
-      <summary>表示のことば</summary>
+      <summary>「夏休み」以外の名称で使う</summary>
       <div class="set-advanced-body">
         <p class="set-note" id="displayWordsNote">冬休み・学期末・発表会・入試などにも使えます。保護者ページは漢字、子ども画面はよみを表示します。よみは自動で作らないので、手で入れてください。空にすると、呼び名は既定に戻り、よみは漢字のまま表示します。</p>
         ${row('cfgPeriodLabel', 'periodLabel', '期間の呼び名')}
@@ -7175,7 +7175,7 @@ function viewConfig(){
   </div></section>
 
   <section class="sec config-sec"${adultSectionHelpAttr(
-    'アプリのタイトルと期間・目標日を設定します。日付は残り時間と完了予測の計算に使います。「表示のことば」で夏休み以外の呼び名にもできます。')}><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
+    'アプリのタイトルと期間・目標日を設定します。日付は残り時間と完了予測の計算に使います。「夏休み」以外の名称で使う欄を開くと、冬休みや発表会などの呼び名に変えられます。')}><div class="sec-head"><h2>基本設定</h2></div><div class="paper">
     <div class="set-row"><label class="lab" for="cfgTitle">タイトル${mark('title')}</label><input type="text" id="cfgTitle" value="${esc(config.title)}"></div>
     <div class="set-row"><label class="lab" for="cfgStart">開始日${mark('startAt')}</label><input type="datetime-local" id="cfgStart" value="${esc(config.startAt)}"></div>
     <div class="set-row"><label class="lab" for="cfgEnd">終了日${mark('endAt')}</label><input type="datetime-local" id="cfgEnd" value="${esc(config.endAt)}"></div>

@@ -1787,10 +1787,13 @@ test('本の編集は書名つきの鉛筆アイコンにし、狭幅でも操�
   assert.match(row, /<div class="book-actions">[\s\S]{0,500}icon\('edit'\)[\s\S]{0,500}icon\('trash'\)/,
     '編集と削除を同じ操作グループにまとめること');
   assert.match(STYLE, /\.book-actions\{[^}]*display:flex/);
-  assert.match(STYLE, /@media \(max-width:480px\)\{[\s\S]{0,500}\.book-row > \.book-actions\{ grid-column:2 \/ -1; grid-row:2; justify-self:end; \}/,
-    '狭幅では書名の下へ2つの操作を移すこと');
-  assert.match(STYLE, /@media \(max-width:480px\)\{[\s\S]{0,550}\.book-title\{ font-size:16px; \}/,
+  assert.match(STYLE, /@media \(max-width:480px\)\{[\s\S]{0,1500}\.book-row > \.book-actions\{ grid-column:3; grid-row:1; \}/,
+    '狭幅でも2つの操作を書名と同じ段の右へ置くこと');
+  assert.match(STYLE, /@media \(max-width:480px\)\{[\s\S]{0,1600}\.book-title\{ font-size:16px; \}/,
     '狭幅だけ書名を16pxにすること');
+  /* 詰めたのは 余白と 副題の 字だけ。書名は 16px より 下げない。 */
+  assert.match(STYLE, /@media \(max-width:480px\)\{[\s\S]{0,1700}\.book-sub\{ font-size:13px;/,
+    '日付・著者・出版社の副題だけを13pxへ落とすこと');
 });
 
 test('宿題設定に本の記録を混ぜず、子どもの本一覧の並びも変えない', ()=>{
@@ -2940,10 +2943,20 @@ test('保護者画面の丸角と選択枠は、狭い画面でも外へはみ�
     '本の一覧の背景と区切り線を紙の丸角内に収めること');
   assert.match(STYLE, /\.parent-book-more > summary:focus-visible\{[\s\S]{0,90}outline-offset:-3px/,
     '丸角で切っても本一覧の開閉行のフォーカス枠を見える位置に残すこと');
-  assert.match(STYLE, /@media \(max-width:480px\)\{[\s\S]{0,220}\.book-row\{[\s\S]{0,120}grid-template-columns:auto minmax\(0,1fr\) auto/,
-    '狭幅では書名と操作を2段に分けること');
-  assert.match(STYLE, /\.book-row > \.book-main\{ grid-column:2 \/ -1; grid-row:1; \}/,
-    '書名には上段の残り幅をすべて使うこと');
+  assert.match(STYLE, /@media \(max-width:480px\)\{[\s\S]{0,1400}\.book-row\{[\s\S]{0,140}grid-template-columns:auto minmax\(0,1fr\) auto/,
+    '狭幅でも番号・書名・操作の3列を保つこと');
+  /* 操作を 下段へ 落とすと、44px の 帯と 段の すきまで 1件あたり 52px
+     使う。iPhone に 3件しか 入らなかった 原因なので、同じ段へ 戻す。 */
+  assert.match(STYLE, /\.book-row > \.book-main\{ grid-column:2; grid-row:1; \}/,
+    '書名は番号と操作のあいだの1列に収めること');
+  assert.match(STYLE, /\.book-row > \.book-actions\{ grid-column:3; grid-row:1; \}/,
+    '狭幅でも操作を書名と同じ段の右へ置き、専用の段を作らないこと');
+  /* 詰めてよいのは 余白と 副題の 字だけ。的の 大きさは 触らせない。 */
+  const bookNarrow = STYLE.slice(STYLE.indexOf('@media (max-width:480px)', STYLE.indexOf('.book-row{')));
+  assert.doesNotMatch(bookNarrow.slice(0, 700), /icon-btn/,
+    '本の記録を詰めるときも編集・ごみ箱の的（.icon-btn の44px）に手を入れないこと');
+  assert.match(STYLE, /\.icon-btn\{\s*flex:none; width:44px; height:44px;/,
+    '編集・ごみ箱の的を44px四方に保つこと');
   assert.match(STYLE, /\.adult-section-toc-disclosure > summary:focus-visible\{[\s\S]{0,100}outline:0; box-shadow:inset 0 0 0 3px var\(--focus\)/,
     '目次の選択枠を外側へ広げないこと');
   assert.match(STYLE, /\.adult-section-help-dialog \.poster-close:focus-visible\{[\s\S]{0,100}outline:0; box-shadow:inset 0 0 0 3px var\(--focus\)/,
@@ -3394,11 +3407,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260823b',
+    'assets/style.css': '20260824a',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260823b',
+    'assets/app.js': '20260824a',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a'
   };
@@ -6340,7 +6353,7 @@ test('表示のことばは基本設定の折りたたみに置き、URLのhash�
   const fold = grab(APP, 'labelSettingsHTML');
   assert.match(fold, /data-details-key="displayWords"/,
     '見出しの文字を鍵にすると同じ文の折りたたみが巻きぞえで開く');
-  assert.match(fold, /<summary>表示のことば<\/summary>/);
+  assert.match(fold, /<summary>「夏休み」以外の名称で使う<\/summary>/);
   assert.match(fold, /maxlength="\$\{LABEL_MAX\}"/);
   assert.doesNotMatch(fold, /href="#|pushState|replaceState/, 'URLの#を書きかえないこと');
   ['cfgPeriodLabel', 'cfgPeriodLabelKana', 'cfgDeadlineLabel', 'cfgDeadlineLabelKana'].forEach(id=>{
