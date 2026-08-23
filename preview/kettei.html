@@ -46,7 +46,8 @@ h1{margin:0;font-family:var(--font-display);font-size:clamp(1.7rem,4.6vw,3rem);f
 .lead a{color:var(--asagao)}
 .bar{position:sticky;top:0;z-index:40;display:flex;flex-wrap:wrap;gap:var(--space-xs);align-items:center;margin:var(--space-lg) 0;padding:var(--space-sm) var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r-s);box-shadow:var(--shadow)}
 .bar-lab{color:var(--ai-usu);font-size:var(--text-xs);font-weight:900}
-.bar select,.bar .mini{min-height:44px;padding:0 var(--space-sm);background:var(--surface-soft);border:2px solid var(--ai);border-radius:var(--r-button);font-weight:800;cursor:pointer}
+.bar select,.bar .mini,.bar input{min-height:44px;padding:0 var(--space-sm);background:var(--surface-soft);border:2px solid var(--ai);border-radius:var(--r-button);font-weight:800;cursor:pointer}
+.bar input{cursor:text;min-width:0;width:8em;color:var(--ai)}
 .bar .spacer{flex:1 1 auto}
 
 .mock{position:relative;padding:var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
@@ -105,6 +106,44 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
   mask:url("../assets/paw.svg") center / contain no-repeat;
 }
 
+/* ---------- B の 桜のはんこ ----------
+   段の付け方を「文字」ではなく「輪郭の形」でやる。
+     毎回 … 角丸（できた！）
+     A   … 角丸＋二重の輪（ぜんぶ できた！）
+     B   … 桜（たいへん よくできました）
+   色も傾きもフォントも同じままなので、同じはんこ箱の中の格上げに見える。
+   輪郭は r(θ)=.84+.15cos5θ-.05cos10θ。5枚の花びらと、先の切れこみ。
+   第3項が第2項の 1/4 を下回ると切れこみが消え、ただの5弁になる。
+   花びらを深くしすぎないこと。最初 (.70,.26,.11) で作ったら起伏が63%になり、
+   **内側に入る文字の枠が半幅22%しか取れなかった**（谷が深く食いこむため）。
+   起伏32%まで浅くして42.5%まで広げてある。本物のはんこも起伏は浅い。 */
+.sakura{
+  position:relative;display:grid;place-items:center;
+  width:min(74vw,300px);aspect-ratio:1;
+  transform:rotate(-9deg);
+  animation:stamping .85s cubic-bezier(.2,1.4,.4,1) forwards;
+}
+.sakura svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.sakura .outer{fill:rgba(252,252,249,.94);stroke:var(--suika);stroke-width:7}
+.sakura .inner{fill:none;stroke:var(--suika);stroke-width:3.5}
+.sakura-text{
+  position:relative;color:var(--suika);font-weight:900;
+  font-size:clamp(15px,4.2vw,21px);line-height:1.4;letter-spacing:.04em;
+  writing-mode:vertical-rl;text-orientation:upright;
+  max-height:56%;text-align:center;
+}
+/* B は「どの分類が終わったか」を はんこの下に添える。
+   ここは紙のことばなので、C の金は使わない */
+.group-note{
+  position:fixed;left:50%;top:calc(50% + min(37vw,150px) + 16px);
+  transform:translateX(-50%);z-index:81;pointer-events:none;
+  max-width:min(88vw,420px);padding:9px 18px;text-align:center;
+  color:var(--ai);background:rgba(252,252,249,.95);
+  border:2px solid var(--suika);border-radius:999px;
+  font-weight:900;font-size:clamp(13px,3.6vw,17px);
+  opacity:0;animation:finale-sub .5s ease-out .55s forwards;
+}
+
 /* ---------- C の「完走！」 ----------
    はんこは紙のことば（赤・傾き・バネ＝押した）。完走は暗転した夜空に
    出るので、そこへ赤いはんこを置くと警告に見える。花火と同じ金にそろえ、
@@ -124,6 +163,9 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
 .finale-word{
   margin:0;font-family:var(--font-display);font-weight:900;
   font-size:clamp(58px,19vw,150px);line-height:1.02;letter-spacing:.06em;
+  /* letter-spacing は **最後の1文字のうしろにも** 入る。150px では 9px あり、
+     字面がその半分だけ左へ寄る。箱を同じだけ詰めて、見た目の中心をそろえる */
+  margin-inline-end:-.06em;justify-self:center;
   /* 金の階調。上が白熱、下へ橙。花火の粒と同じ色の作りにそろえる */
   background:linear-gradient(178deg,#fffaf0 0%,#ffe6ae 38%,#f7ad46 70%,#ffe6b5 100%);
   -webkit-background-clip:text;background-clip:text;color:transparent;
@@ -134,8 +176,23 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
 .finale-sub{
   margin:0;color:#ffe8bf;font-weight:800;
   font-size:clamp(13px,3.4vw,19px);letter-spacing:.04em;
+  margin-inline-end:-.04em;justify-self:center;text-align:center;
   opacity:0;animation:finale-sub .9s ease-out .95s forwards;
 }
+/* 見終わったあとに残す操作。完走はしばらく眺めたいので自動で消さない */
+.finale-acts{
+  display:flex;gap:10px;justify-content:center;flex-wrap:wrap;
+  margin-top:clamp(14px,4vw,28px);pointer-events:auto;
+  opacity:0;animation:finale-sub .6s ease-out 1.6s forwards;
+}
+.finale-acts button{
+  display:inline-flex;align-items:center;gap:8px;
+  min-height:46px;padding:0 20px;cursor:pointer;
+  color:#2b1c05;background:linear-gradient(180deg,#ffe7b4,#f6c069);
+  border:2px solid #ffeec9;border-radius:999px;font-weight:900;
+}
+.finale-acts button.ghost{background:none;color:#ffe8bf;border-color:#ffe8bf88}
+.finale-acts svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
 @keyframes finale-rule{to{transform:scaleX(1)}}
 @keyframes finale-word{to{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes finale-sub{to{opacity:1}}
@@ -189,6 +246,9 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
       <option value="theme">テーマの色だけ</option>
       <option value="rainbow">虹（前の案・比較用）</option>
     </select>
+    <span class="bar-lab">期間の呼び名</span>
+    <input id="period" type="text" value="なつやすみ" maxlength="12" size="8"
+           aria-label="期間の呼び名（子ども画面のかな）">
     <span class="spacer"></span>
     <span class="bar-lab">テーマ</span>
     <select id="theme" aria-label="テーマ">
@@ -239,11 +299,15 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     <article class="card">
       <span class="badge">B</span>
       <h3>分類をぜんぶ終えた</h3>
-      <p class="why">期間中に2回だけ。</p>
-      <p>必須がぜんぶ／任意がぜんぶ、終わったとき。A と同じ粒のまま
-        <strong>光条だけが長く明るく</strong>なり、弧の渦が1本流れます。</p>
-      <div class="how"><strong>毎日の分類は対象外。</strong>「今日の毎日をぜんぶ」は毎日成立するので、
-        ここに入れると期間中に40回ほど出ます。</div>
+      <p class="why">期間中に2回だけ。桜のはんこ。</p>
+      <p>
+        <strong>「たいへん よくできました」の桜のはんこ</strong>と、
+        どの分類が終わったかの一行が出ます。粒は A と同じまま
+        <strong>光条だけが長く明るく</strong>なり、弧の渦が1本流れます。
+      </p>
+      <div class="how"><strong>段の付け方は輪郭の形。</strong>
+        角丸（毎回）→ 角丸＋二重の輪（A）→ 桜（B）。色も傾きもフォントも同じなので、
+        同じはんこ箱の中の格上げに見えます。</div>
       <button class="play" type="button" data-run="b">再生する</button>
     </article>
 
@@ -271,8 +335,14 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
   <p class="sec-note">動かない状態で並べたものです。左がいまの本体、右が新しく作った「ぜんぶできた！」です。</p>
   <div class="stamp-row">
     <div><div class="stamp-mark">できた！</div><span class="stamp-cap">毎回</span></div>
-    <div><div class="stamp-mark all">ぜんぶ できた！</div><span class="stamp-cap">A（新規）</span></div>
+    <div><div class="stamp-mark all">ぜんぶ できた！</div><span class="stamp-cap">A 項目完了</span></div>
+    <div id="sakuraDemo"></div>
   </div>
+  <p class="sec-note" style="margin-top:var(--space-sm)">
+    段は<strong>輪郭の形</strong>で付けています。角丸 → 角丸＋二重の輪 → 桜。
+    色（<code>--suika</code>）も傾きもフォントも同じなので、別物ではなく格上げに見えます。
+    ネコのテーマでは、いまの本体と同じく肉球が付きます（上のテーマで切りかえてみてください）。
+  </p>
 
   <h2 class="sec">「完走！」の見え方</h2>
   <p class="sec-note">動かない状態です。実際は罫線が開き、文字が下から浮かんで光がにじみます（1.2秒）。</p>
@@ -447,6 +517,10 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
   let palMode = 'blend';
   let PAL = REAL;
   const mix = (a, b, w) => [0,1,2].map(i => Math.round(a[i] * (1 - w) + b[i] * w));
+  /* 期間の呼び名は設定の値。本体では periodWord(true)（かな）を通すこと。
+     文字列を直に書くと、呼び名を変えた家庭で食い違う。 */
+  const periodName = () =>
+    (document.querySelector('#period').value || '').trim() || 'なつやすみ';
   /* 既定。花火の色を主にして、テーマの色を弱く効かせる。
      最初は全色にテーマを22%混ぜたが、**テーマ間の差がほぼ出なかった**。
      6テーマとも --v1（黄）が似た色なので、金に黄を混ぜても金のまま、
@@ -557,11 +631,17 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
       size:S * .01, rgb:[255,198,96], kind:'glow', power:1, rot:0, spin:0, fadeIn:.12
     }, o));
   }
-  function begin(sec, f) {
+  /* hold … 終わっても自動で消さない。C は眺めていたいので、
+     最後のコマ（暗い夜空と「完走！」）を残し、操作はページ側のボタンに任せる。
+     このとき閉じるボタンは出さない（完走の中に「とじる」があるため）。 */
+  let holding = false;
+  function begin(sec, f, hold) {
     fade = f == null ? .13 : f;
+    holding = !!hold;
     t0 = performance.now(); last = 0; endAt = t0 + sec * 1000;
     raf = requestAnimationFrame(frame);
-    timers.push(setTimeout(stop, sec * 1000 + 400));
+    if (!holding) timers.push(setTimeout(stop, sec * 1000 + 400));
+    else if (closeBtn) closeBtn.remove();
   }
   function frame(now) {
     if (!ctx) return;
@@ -609,6 +689,7 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     parts = parts.filter(p => p.age - p.wait < p.life);
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     if (now < endAt || parts.length) raf = requestAnimationFrame(frame);
+    else raf = 0;   /* hold のときはここで止まり、最後のコマが残る */
   }
 
   /* ================= はんこ ================= */
@@ -619,6 +700,38 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     wrap.innerHTML = `<div class="stamp-mark${isAll ? ' all' : ''}">${text}</div>`;
     document.body.append(wrap);
     setTimeout(() => wrap.remove(), 950);
+  }
+  /* 桜のはんこ（B）。輪郭は式から作る。手で座標を書くと、
+     花びらの数や切れこみを直したくなったときに全部書き直しになる。 */
+  function sakuraPath(scale) {
+    const N = 240, R = 100 * scale, pts = [];
+    for (let i = 0; i < N; i++) {
+      const u = i / N * Math.PI * 2;
+      const r = (.84 + .15 * Math.cos(5 * u) - .05 * Math.cos(10 * u)) * R;
+      const t = u - Math.PI / 2;
+      pts.push((Math.cos(t) * r).toFixed(2) + ',' + (Math.sin(t) * r).toFixed(2));
+    }
+    return 'M' + pts.join('L') + 'Z';
+  }
+  function showSakura(groupName) {
+    document.querySelectorAll('.stamp, .group-note').forEach(s => s.remove());
+    const wrap = document.createElement('div');
+    wrap.className = 'stamp';
+    wrap.innerHTML =
+      `<div class="sakura">
+         <svg viewBox="-100 -100 200 200" aria-hidden="true">
+           <path class="outer" d="${sakuraPath(1)}"/>
+           <path class="inner" d="${sakuraPath(.84)}"/>
+         </svg>
+         <div class="sakura-text">たいへん<br>よく<br>できました</div>
+       </div>`;
+    document.body.append(wrap);
+    if (groupName) {
+      const note = document.createElement('div');
+      note.className = 'group-note';
+      note.textContent = `「${groupName}」ぜんぶ おわったよ！`;
+      document.body.append(note);
+    }
   }
   /* 完走。はんこではないので .stamp とは別の要素にする。
      period は設定で変わる（「なつやすみ」は既定値）ので、本体へ入れるときは
@@ -631,8 +744,17 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
       `<div class="finale-rule"></div>` +
       `<p class="finale-word">完走！</p>` +
       `<p class="finale-sub">${period || 'なつやすみ'}、ぜんぶ やりきったね</p>` +
-      `<div class="finale-rule b"></div>`;
+      `<div class="finale-rule b"></div>` +
+      `<div class="finale-acts">
+         <button type="button" data-finale="again">
+           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+           もういちど
+         </button>
+         <button type="button" class="ghost" data-finale="close">とじる</button>
+       </div>`;
     document.body.append(el);
+    el.querySelector('[data-finale="again"]').addEventListener('click', () => levelC());
+    el.querySelector('[data-finale="close"]').addEventListener('click', stop);
     return el;
   }
 
@@ -743,7 +865,8 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
   }
   function levelB() {
     open(false);
-    showStamp('ぜんぶ できた！', true);
+    /* 分類名は子ども画面のことば。本体では GROUP のかな名を渡す */
+    showSakura('かならず やる');
     /* 光条を 1.7倍。粒は A と同じなので、強くなったのが光条だと分かる */
     sparkleField(44, 2.4, 1.7);
     ribbon(ribbonKind, { count:170, travel:1.2, life:1.5, power:1.7 });
@@ -762,10 +885,10 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
                                                  cy:H * .56, R:S * .40 }) });
     stages.push({ at:3.4, run:()=>sparkleField(52, 3.2, 1.9) });
     /* 完走は花火のピークを過ぎてから。かぶせると文字が読めない */
-    stages.push({ at:4.3, run:()=>showFinale() });
+    stages.push({ at:4.3, run:()=>showFinale(periodName()) });
     stages.sort((a,b)=>a.at-b.at);
-    begin(7.4, .1);
-    say('C 完全制覇：暗転＋スターマイン＋弧の渦＋「完走！」');
+    begin(7.4, .1, true);   /* hold。自動では消さず、「もういちど／とじる」に任せる */
+    say('C 完全制覇：暗転＋スターマイン＋弧の渦＋「完走！」（そのまま止まります）');
   }
 
   function ribbonOnly(kind) {
@@ -830,6 +953,20 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     clearTimeout(chain); stop();
   });
   root.dataset.motion = reduced() ? 'reduce' : 'auto';
+
+  /* 見くらべ用の桜を、動かない状態で置く */
+  (() => {
+    const host = document.querySelector('#sakuraDemo');
+    if (!host) return;
+    host.innerHTML =
+      `<div class="sakura" style="animation:none;width:min(46vw,190px)">
+         <svg viewBox="-100 -100 200 200" aria-hidden="true">
+           <path class="outer" d="${sakuraPath(1)}"/>
+           <path class="inner" d="${sakuraPath(.84)}"/>
+         </svg>
+         <div class="sakura-text" style="font-size:clamp(11px,2.6vw,14px)">たいへん<br>よく<br>できました</div>
+       </div><span class="stamp-cap">B 分類完了</span>`;
+  })();
 })();
 </script>
 </body>
