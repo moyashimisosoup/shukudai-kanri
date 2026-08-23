@@ -1536,9 +1536,13 @@ select{ appearance:auto; -webkit-appearance:menulist; }
 .btn:active{ transform:translateY(3px); box-shadow:0 0 0 var(--ai); }
 .btn-go{ background:var(--wakaba); color:var(--kami); }
 .btn-do{ background:var(--himawari); }
+.btn-sm{ font-size:16px; padding:9px 14px; min-height:44px; border-width:2px; box-shadow:0 2px 0 var(--ai); }
+/* **`.btn-ghost` は `.btn-sm` より あとに 置くこと。** どちらも クラス1つで
+   強さが 同じなので、先に 書くと `box-shadow:none` が `.btn-sm` の 影に
+   打ち消され、`btn-sm btn-ghost` が 主の ボタンと 同じ 影を 持つ。
+   副が 副に 見えなくなる（app 全体の 21か所で 起きていた）。 */
 .btn-ghost{ background:var(--kami); box-shadow:none; border-color:var(--ai-usu); color:var(--ai-usu); }
 .btn-ghost:active{ transform:translateY(2px); }
-.btn-sm{ font-size:16px; padding:9px 14px; min-height:44px; border-width:2px; box-shadow:0 2px 0 var(--ai); }
 .btn-danger{ background:var(--suika); color:var(--kami); }
 .btn-wide{ width:100%; }
 
@@ -2226,12 +2230,6 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   .home-install-actions{ flex:0 0 auto; margin-inline-start:auto; flex-wrap:nowrap; }
   .home-install-actions .btn{ flex:0 0 auto; }
 }
-/* `.btn-ghost` の `box-shadow:none` は、あとに 来る `.btn-sm` の
-   `box-shadow` に 打ち消される（同じ 強さで 順番が 後ろ）。そのため
-   主の ボタンと 影まで そろい、副が 副に 見えていなかった。
-   ここでは 副を 平らに 戻す。**同じ 重なりは app 全体の
-   `.btn-sm.btn-ghost` 20か所に あるが、今回は この案内だけに 絞る。** */
-.home-install-actions .btn-ghost{ box-shadow:none; }
 /* `.home-install-notice p` より弱いと 色と 太さを 持っていかれる
    （要素セレクタのぶん 向こうが 強い）。 */
 .home-install-notice p.home-install-guide{
