@@ -144,13 +144,15 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
    (S*sin11 + Sh*cos11)/2 + 二重の輪 ≒ 66.5px。そこへ 8px の隙間を足す。
    横へ逃がすと画面幅に負けるが、縦は余っているので下へ多めに逃がす
    （結果、右下 68度あたり）。 */
-.stamp-b{--hm:clamp(200px,72vw,400px)}
+/* 墨の半径は実測で 横 0.314H・縦 0.289H（見積もりの 0.38H は過大だった）。
+   その実測に合わせて、重ならないまま 1.47倍まで大きくできた。 */
+.stamp-b{--hm:clamp(285px,106vw,570px)}
 .hanamaru{
   position:absolute;left:50%;top:50%;
   width:var(--hm);aspect-ratio:1;overflow:visible;
   transform:
-    translate(calc(-50% + var(--hm) * .24),
-              calc(-50% + 74px + var(--hm) * .34))
+    translate(calc(-50% + var(--hm) * .13),
+              calc(-50% + 75px + var(--hm) * .289))
     rotate(-5deg);
   pointer-events:none;
 }
@@ -201,6 +203,24 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
   position:fixed;inset:0;z-index:82;display:grid;place-content:center;
   gap:clamp(10px,2.2vw,20px);pointer-events:none;text-align:center;
 }
+/* 完走！は「できた！」のはんこの延長線上に置く。輪郭のことばは同じ
+   （角丸＋二重の輪＋少しの傾き＝押した印）で、色だけ夜空に合わせて金にする。
+   赤いままだと暗転した空で警告に見えるので、そこだけ替える。
+   枠が囲いの役をするので、上下の罫線はやめた（二重に囲うことになる）。 */
+.finale-seal{
+  justify-self:center;
+  padding:clamp(10px,2.6vw,20px) clamp(20px,6vw,44px);
+  border:clamp(4px,1.1vw,7px) solid #f2cd86;
+  border-radius:clamp(16px,4.4vw,28px);
+  background:rgba(24,18,32,.42);
+  box-shadow:0 0 0 clamp(4px,1vw,6px) rgba(9,7,16,.55),
+             0 0 0 clamp(8px,2.1vw,13px) #e8bd6a,
+             0 0 34px rgba(255,190,90,.28);
+  transform:rotate(-4deg);
+  opacity:0;animation:finale-word 1.2s cubic-bezier(.16,1,.3,1) .35s forwards;
+}
+/* 枠が動きを持つので、中の字は動かさない（二重に動くと酔う） */
+.finale-seal .finale-word{opacity:1;transform:none;animation:none}
 .finale-rule{
   height:2px;width:min(76vw,620px);justify-self:center;
   background:linear-gradient(90deg,transparent,#ffdc98 18%,#fff3d6 50%,#ffdc98 82%,transparent);
@@ -265,13 +285,15 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
 @keyframes finale-rule{to{transform:scaleX(1)}}
 @keyframes finale-word{to{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes finale-sub{to{opacity:1}}
-html[data-motion="reduce"] .finale-rule,
 html[data-motion="reduce"] .finale-word,
 html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
+/* 軽減表示でも はんこの傾きは残す（動きではなく形なので） */
+html[data-motion="reduce"] .finale-seal{animation:none;opacity:1;transform:rotate(-4deg)}
 
 .stamp-row{display:flex;flex-wrap:wrap;gap:var(--space-xl);align-items:center;justify-content:center;padding:var(--space-xl) var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
 .finale-demo{margin-top:var(--space-md);padding:var(--space-2xl) var(--space-md);background:#0a0810;border-radius:var(--r);display:grid;gap:14px;place-content:center;text-align:center}
-.finale-demo .finale-rule,.finale-demo .finale-word,.finale-demo .finale-sub{animation:none;opacity:1;transform:none}
+.finale-demo .finale-seal,.finale-demo .finale-word,.finale-demo .finale-sub{animation:none;opacity:1}
+.finale-demo .finale-seal{transform:rotate(-4deg)}
 .stamp-row .stamp-mark{position:static;animation:none;font-size:clamp(22px,5vw,34px);padding:16px 28px}
 .stamp-row .stamp-mark.all{padding:18px 32px}
 .stamp-cap{display:block;margin-top:var(--space-sm);color:var(--ai-usu);font-size:var(--text-xs);font-weight:900;text-align:center;transform:rotate(11deg)}
@@ -426,10 +448,8 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
   <h2 class="sec">「完走！」の見え方</h2>
   <p class="sec-note">動かない状態です。実際は罫線が開き、文字が下から浮かんで光がにじみます（1.2秒）。</p>
   <div class="finale-demo">
-    <div class="finale-rule"></div>
-    <p class="finale-word">完走！</p>
+    <div class="finale-seal"><p class="finale-word">完走！</p></div>
     <p class="finale-sub">なつやすみ、ぜんぶ やりきったね！</p>
-    <div class="finale-rule b"></div>
   </div>
 
   <h2 class="sec">渦巻いていく光条（ご質問の件）</h2>
@@ -887,7 +907,30 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
       const y = (C * Math.sin(psi) + P * Math.sin(psi * L)) * w * R * .78;
       pts.push([x, y]);
     }
-    return pts;
+    pts.pop();                      /* 末尾は先頭と同じ点。回す前に落とす */
+    /* 描き始めを **跳ね返りのV字頂点**（半径の極小＝いちばん渦に近い点）へ。
+       形はそのままに、点列を回すだけ。そのうち **画面でいちばん下** の
+       ものを採る（y が最大。画面座標は y が下向き）。
+       実測：V字頂点は5つ、y は 38.8 / 0 / -34.9 / -18.6 / 21.3 で、
+       いちばん下は 38.8（半径 41.9、最小37.1・最大66.8）。 */
+    /* 閉じた曲線なので、端をまたぐ比較は剰余で回す。
+       pts[i+3] のように素で足すと最後の3点で範囲外になり、
+       ここが例外で止まって花丸がまったく描かれなくなる（実際に踏んだ） */
+    const rAt = k => {
+      const q = pts[((k % pts.length) + pts.length) % pts.length];
+      return Math.hypot(q[0], q[1]);
+    };
+    let vi = 0, best = -Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const r = rAt(i);
+      let low = true;
+      for (let k = 1; k <= 3; k++) if (r > rAt(i - k) || r > rAt(i + k)) low = false;
+      if (!low) continue;
+      if (pts[i][1] > best) { best = pts[i][1]; vi = i; }   /* y が大きい＝画面の下 */
+    }
+    const rot = pts.slice(vi).concat(pts.slice(0, vi));
+    rot.push(rot[0]);               /* ぴったり閉じる */
+    return rot;
   }
   function hanamaruSpiralPts() {
     const N = 200, TURNS = 2.2, pts = [];
@@ -973,10 +1016,8 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     const el = document.createElement('div');
     el.className = 'finale';
     el.innerHTML =
-      `<div class="finale-rule"></div>` +
-      `<p class="finale-word">完走！</p>` +
+      `<div class="finale-seal"><p class="finale-word">完走！</p></div>` +
       `<p class="finale-sub">${period || 'なつやすみ'}、ぜんぶ やりきったね！</p>` +
-      `<div class="finale-rule b"></div>` +
       `<div class="finale-acts">
          <button type="button" data-finale="again">
            <svg viewBox="0 0 24 24" aria-hidden="true">
