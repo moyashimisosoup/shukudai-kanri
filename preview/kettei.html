@@ -112,8 +112,10 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
 [data-theme="cat"] .stamp-mark{display:flex;align-items:center;gap:12px;border-radius:var(--r);padding:20px 28px}
 /* 本体は 56px / font-size 44px ＝ 1.27em。ここを .9em にしていたので
    本体より小さく見えていた。指示により さらに大きく 1.75em にする */
+/* em にすると 2行はんこ（字が小さい）のとき肉球まで小さくなる。
+   どの段でも同じ大きさに見えるよう実寸で指定する */
 [data-theme="cat"] .stamp-mark::before{
-  content:"";flex:none;width:1.75em;height:1.75em;background:currentColor;
+  content:"";flex:none;width:clamp(42px,11vw,72px);height:clamp(42px,11vw,72px);background:currentColor;
   -webkit-mask:url("../assets/paw.svg") center / contain no-repeat;
   mask:url("../assets/paw.svg") center / contain no-repeat;
 }
@@ -132,12 +134,22 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
    しかも「先生が答案に花丸を書きこむ」いつもの絵になる。
    線は細い輪郭なので、下の字は透けて読める。 */
 .stamp-b{position:relative;display:inline-grid;place-items:center}
+/* 真上に重ねず、はんこの **右下** へ置く。left/top:100% が
+   はんこの右下角。そこから自分の 58%/62% ぶん戻すので、
+   右へ約42%・下へ約38%だけはみ出す。 */
+.stamp-b{--hm:clamp(230px,78vw,480px)}
 .hanamaru{
-  position:absolute;left:50%;top:50%;
-  width:clamp(190px,52vw,360px);aspect-ratio:1;overflow:visible;
-  transform:translate(-46%,-52%) rotate(-4deg);
+  position:absolute;left:100%;top:100%;
+  width:var(--hm);aspect-ratio:1;overflow:visible;
+  transform:translate(-58%,-62%) rotate(-5deg);
   pointer-events:none;
 }
+/* 花丸が右下へ出るぶん、かたまり全体が右へ寄る。
+   墨の中心は  x + S - 0.08H （S=はんこ幅、H=花丸幅）。
+   グリッドは はんこを中央に置く（x + S/2 = 画面中心）ので、
+   余分に (0.08H - S/2) だけ寄せると墨の中心が画面中心に来る。
+   % は自分の幅（S）に対して解決されるので -50% が -S/2 になる。 */
+.stamp-b{transform:translateX(calc(var(--hm) * 0.08 - 50%))}
 .hanamaru path{
   fill:none;stroke:var(--suika);stroke-width:6.5;
   stroke-linecap:round;stroke-linejoin:round;
@@ -411,7 +423,7 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
   <div class="finale-demo">
     <div class="finale-rule"></div>
     <p class="finale-word">完走！</p>
-    <p class="finale-sub">なつやすみ、ぜんぶ やりきったね</p>
+    <p class="finale-sub">なつやすみ、ぜんぶ やりきったね！</p>
     <div class="finale-rule b"></div>
   </div>
 
@@ -499,7 +511,7 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
       とはいえ花火は「祝い」の記号として十分に一般的で、
       呼び名ごとに演出を分けるのは作りすぎです。
       <strong>今のままでよい</strong>と判断しました。ただし「完走！」の下の一文だけは
-      期間名を差し込む形（<code>〈期間名〉、ぜんぶ やりきったね</code>）にしてあります。
+      期間名を差し込む形（<code>〈期間名〉、ぜんぶ やりきったね！</code>）にしてあります。
     </p>
 
     <h3>疑い3：紙のノートに、写真のような光を足してよいか</h3>
@@ -866,12 +878,21 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
      C=.62 P=.115 L=6 で「山5つ＋つなぎ目に小さな巻き」を実測で確認した。
      ψ を π/2 から始めると開始点が画面の下、増やすと右回りになる
      （画面座標は y が下向きなので、角度が増える＝時計回り）。 */
+  /* 開始角。ここを間違えると「起点が3つある」ように見える。
+     つなぎ目の巻きは 開始点から 14〜22 / 86〜94 / 158〜166 / 230〜238 /
+     302〜310度 にある（実測）。開始点を 0度（真下）に置くと、
+       ・始点（0度）
+       ・描き越した終端（7度）
+       ・最初の巻き（14〜22度）
+     が 22度のなかに密集し、線の端が3つあるように読める。
+     巻きに入っていない山の頂上（55度）から始め、**ぴったり1周で閉じる**。
+     55度は真下から右回りに少し進んだところなので「下から」も保てる。 */
+  const CLOUD_START = Math.PI / 2 + 55 * Math.PI / 180;
   function hanamaruCloud() {
-    const C = .62, P = .115, L = 6, N = 340, pts = [];
+    const C = .62, P = .115, L = 6, N = 360, pts = [];
     for (let i = 0; i <= N; i++) {
-      /* 1.02 … ほんの少しだけ重ねて閉じる。1.05 まで描き越すと、
-         始点と終点が並んで見えて「2箇所から生えている」ように読める */
-      const psi = Math.PI / 2 + (i / N) * 1.02 * Math.PI * 2;
+      /* ちょうど1周。描き越さないので、余った尾が始点の隣に残らない */
+      const psi = CLOUD_START + (i / N) * Math.PI * 2;
       /* 山の大きさをひとつずつ変える。5の約数でない周期を混ぜるのが肝で、
          周期3や1にすると5つのうち同じ大きさの山ができて対称に戻る。
          実測：山の半径 .617〜.826（対称版は5つとも .735 でそろっていた） */
@@ -892,17 +913,22 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
   }
   /* 2画を順に描く。1画目→間→2画目。同時に描くと一筆に見えてしまう */
   function drawHanamaru(svg) {
-    const seq = [['.hm-spiral', 0, 420], ['.hm-cloud', 520, 640]];
+    /* はんこが着地して（0.5秒）から描きはじめる。
+       1画目を描き終えてから 200ms あけて2画目。ゆっくりでよい。
+       gap を 3倍にしてあるのは念のため。dash と gap が同じ長さだと
+       パターンが1周して、線が2箇所から生えることが理屈のうえではありうる */
+    const START = 560;
+    const seq = [['.hm-spiral', 0, 620], ['.hm-cloud', 820, 950]];
     for (const [sel, delay, dur] of seq) {
       const p = svg.querySelector(sel);
       const len = p.getTotalLength();
-      p.style.strokeDasharray = len;
+      p.style.strokeDasharray = `${len} ${len * 3}`;
       p.style.strokeDashoffset = reduced() ? 0 : len;
       if (reduced()) continue;
       p.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
-        { duration: dur, delay: 240 + delay, easing: 'cubic-bezier(.35,.1,.3,1)', fill: 'forwards' });
+        { duration: dur, delay: START + delay, easing: 'cubic-bezier(.3,.05,.35,1)', fill: 'forwards' });
     }
-    return 240 + 520 + 640;   /* 描き終わるまで */
+    return START + 820 + 950;
   }
   /* B。A と同じはんこを出し、その横に花丸を2画で描き、下に一言を添える。
      一言は「浮いた吹き出し」ではなく、はんこと同じ中央の積み木の一部にする
@@ -921,7 +947,7 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
            </span>
          </div>
          ${hanamaruSVG('big')}
-       </div>`, 3200);
+       </div>`, 4300);
     drawHanamaru(wrap.querySelector('.hanamaru'));
     return wrap;
   }
@@ -935,7 +961,7 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     el.innerHTML =
       `<div class="finale-rule"></div>` +
       `<p class="finale-word">完走！</p>` +
-      `<p class="finale-sub">${period || 'なつやすみ'}、ぜんぶ やりきったね</p>` +
+      `<p class="finale-sub">${period || 'なつやすみ'}、ぜんぶ やりきったね！</p>` +
       `<div class="finale-rule b"></div>` +
       `<div class="finale-acts">
          <button type="button" data-finale="again">
