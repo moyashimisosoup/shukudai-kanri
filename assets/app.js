@@ -175,16 +175,23 @@ const DAILY_UNIT_PRESETS = ['かい','ハート','ふん','ページ','もん'];
 const PARENT_SENDERS = ['おかあさん','おとうさん','その他','名前表示なし'];
 
 function taskKind(t){ return t && t.group === 'daily' ? 'daily' : (isBook(t) ? 'book' : 'normal'); }
-/* 設定画面で見えている欄ごとに順番を替える。必須・チャレンジ・読書・まいにちを
-   またいで動かすと、子ども画面での順番が分かりにくくなるため分けておく。 */
-function taskOrderBucket(t){ return t && (t.group === 'daily' ? 'daily' : (isBook(t) ? 'book' : t.group)); }
+/* 設定画面で見えている欄ごとに順番を替える。欄は group と同じ 分けかたなので、
+   ならべかえも group の 中だけで 動かす。**読書も ここでは 分けない** ――
+   読書は 必須か 任意の 課題の 一つで、子ども画面では ほかの 宿題と
+   同じ 並びに 出る。ここで 分けると 設定でしか 動かせない 順番が でき、
+   読書だけ いつも 端に 寄る。 */
+function taskOrderBucket(t){ return t && t.group; }
 function dailyUnitPreset(unit){ return DAILY_UNIT_PRESETS.includes(unit) ? unit : 'custom'; }
 /* 「宿題を決める」の 画面の欄 と、その欄が 書きかえる 設定のキーの 対応。
    recordStyle は bookFields も 連動して 決めるので、戻すときは まとめて 戻す。
    targetUnitPreset / targetUnitCustom は どちらも targetUnit を 書く、
-   一つの値の 見せ方ちがい（同時には 出ない） */
+   一つの値の 見せ方ちがい（同時には 出ない）。
+   「進め方」（type）の 欄は 読書も 選べる。読書に しても type は 'count' の
+   ままで recordStyle だけが 変わるので、この 欄は 両方を 見る。
+   **bookFields は 入れない** ―― 入れると「本ごとに残す項目」を 1つ 押しただけで
+   「進め方」まで 変えたことに なる（欄は 別に 出ている） */
 const TASK_FIELD_KEYS = {
-  name:['name'], group:['group'], type:['type'], total:['total'], unit:['unit'],
+  name:['name'], group:['group'], type:['type','recordStyle'], total:['total'], unit:['unit'],
   numbered:['numbered'], steps:['steps'], wrapUp:['wrapUp'], wrapBy:['wrapBy'],
   questions:['questions'], memoLabel:['memoLabel'], freeHint:['freeHint'], target:['target'],
   targetUnitPreset:['targetUnit'], targetUnitCustom:['targetUnit'],
@@ -206,7 +213,7 @@ function taskEditorFieldNames(t){
   const kind = taskKind(t);
   const names = ['name'];
   if(kind === 'book'){
-    names.push('group','total','bookFields');
+    names.push('group','type','total','bookFields');
   }else if(kind === 'daily'){
     names.push('recordStyle');
     if(!isFree(t)){
@@ -263,6 +270,14 @@ function refreshTaskRow(t){
   if(!key) return;
   const sel = '.set-task[data-details-key="task:' + t.id + '"] ';
   const back = $(sel + '[data-f="' + key + '"]') || $(sel + '[data-bf="' + key + '"]');
+  if(back) back.focus();
+}
+/* 欄を 変えた ことで 画面を 組み直す ときの 居場所返し。
+   「表示する場所」と「進め方」は 押した とたんに 行が 動いたり
+   欄の 顔ぶれが 変わったり するので、押した 欄が いちど 消える。
+   キーボードで 操作している 人は、そこで 行き先を 失う。 */
+function refocusTaskField(t, inner){
+  const back = $('.set-task[data-details-key="task:' + t.id + '"] ' + inner);
   if(back) back.focus();
 }
 function applyTheme(theme){
@@ -408,6 +423,16 @@ function isGeneratedTitle(title, childName){
 function normalizeConfig(c){
   if(!c || typeof c !== 'object') return deepCopy(DEFAULT_CONFIG);
   if(!Array.isArray(c.tasks)) c.tasks = [];
+  /* 課題は 必ず 必須・任意・毎日の どれかに 属する。どれでもない 課題は
+     子ども画面の どの欄でも 拾われず（viewHome は group で 絞る）、
+     設定の 一覧にも 出ない ―― 手元から 消えたように 見える。
+     **任意へ 寄せる。** 必須へ 入れると「必須の宿題」の 進捗の 分母が
+     黙って 増え、保護者が ふだん 見ている 数字が 跳ぶ。 */
+  c.tasks.forEach(t=>{
+    if(!t || t.group === 'must' || t.group === 'option' || t.group === 'daily') return;
+    /* まいにち型は 欄が 1つしか 無いので、型のほうを 手がかりに する */
+    t.group = t.type === 'daily' ? 'daily' : 'option';
+  });
   if(isGeneratedTitle(c.title, c.childName)) c.title = defaultTitleFor(c.childName);
   /* これまで端末内だけだったデザインは、おうちの設定として同期する。
      既存グループは、最初の保存時にその端末で選んでいたデザインを引き継ぐ。 */
@@ -6770,15 +6795,35 @@ function taskEditorRow(t, i){
        そのまま 通じる。文字を 減らしても 分かることは 減らない */
     return changed ? ` <em class="set-changed" aria-label="変更しました">✓</em><button class="set-revert" data-revert="${name}" type="button">元に戻す</button>` : '';
   };
+  /* 値が 短い 欄は「見出し 左・操作 右」の 1行に する。見出しを 上に 置く
+     作りだと、1列に なる 携帯で 1欄が 約80px を 使う。数字 1つの ために
+     画面が 流れるので、短い 値だけ 横に 並べる。
+     選択肢の 字が 長い 欄（進め方・記録方法・単位のプリセット）は そのまま */
+  const rowField = (label, name, control) => `
+    <label class="set-field set-field--row"><span class="set-field-lab">${label}${mark(name)}</span>${control}</label>`;
+  /* 必須／任意は 2つしか 無いので、開いて 選ぶ 一覧より、
+     いまどちらなのかが 見えている ほうが 早い。作りは テーマ選び
+     （.theme-choice）と 同じ、見えない ラジオ ＋ :has(input:checked）。
+     ボタンに しないのは、左右キーと 読み上げの「2つのうち1つめ」を 残すため */
+  const segOpt = (v,label) => `<label class="set-seg-opt"><input type="radio" name="taskgroup-${esc(t.id)}" value="${v}" data-f="group"${t.group===v?' checked':''}><span>${label}</span></label>`;
   const groupField = kind === 'daily' ? '' : `
-    <label class="set-field"><span>表示する場所${mark('group')}</span><select data-f="group">
-      ${opt('must',t.group,'必須')}${opt('option',t.group,'任意')}
+    <div class="set-field set-field--row">
+      <span class="set-field-lab"><b id="taskgrouplab-${esc(t.id)}">表示する場所</b>${mark('group')}</span>
+      <span class="set-seg" role="radiogroup" aria-labelledby="taskgrouplab-${esc(t.id)}">${segOpt('must','必須')}${segOpt('option','任意')}</span>
+    </div>`;
+  /* 「進め方」で 読書も 選べる。読書に しても type は 'count' の ままで、
+     recordStyle が 'book' に なる（isBook の 見かた）。欄の 値としては
+     3つ目の 選択肢に 見せる */
+  const typeValue = kind === 'book' ? 'book' : t.type;
+  const typeField = `
+    <label class="set-field"><span>進め方${mark('type')}</span><select data-f="type">
+      ${opt('count',typeValue,'回数・ページで進める')}${opt('step',typeValue,'段階をクリア')}${opt('book',typeValue,'読書（1冊ずつ記録）')}
     </select></label>`;
 
   let fields = '';
   if(kind === 'book'){
-    fields = `${groupField}
-      <label class="set-field"><span>目標の冊数${mark('total')}</span><span class="set-inline"><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"><b>冊</b></span></label>
+    fields = `${groupField}${typeField}
+      ${rowField('目標の冊数','total',`<span class="set-num-row"><input class="set-num" type="number" data-f="total" min="1" max="200" value="${t.total|0}"><b>冊</b></span>`)}
       <fieldset class="set-field set-field--wide set-checks"><legend>本ごとに残す項目${mark('bookFields')}</legend>
         <label><input type="checkbox" data-bf="author"${bf.author?' checked':''}> 作者</label>
         <label><input type="checkbox" data-bf="publisher"${bf.publisher?' checked':''}> 出版社</label>
@@ -6791,24 +6836,21 @@ function taskEditorRow(t, i){
         ${opt('',t.recordStyle||'','数で記録')}${opt('free',t.recordStyle||'','文章で記録')}
       </select></label>
       ${!isFree(t) ? `
-        <label class="set-field"><span>1日の目標${mark('target')}</span><input type="number" data-f="target" min="1" max="999" value="${t.target|0}"></label>
+        ${rowField('1日の目標','target',`<input class="set-num" type="number" data-f="target" min="1" max="999" value="${t.target|0}">`)}
         <label class="set-field"><span>単位${mark('targetUnitPreset')}</span><select data-f="targetUnitPreset">
           ${DAILY_UNIT_PRESETS.map(u=>opt(u,unitMode,u)).join('')}${opt('custom',unitMode,'そのほか（自由）')}
         </select></label>
-        ${unitMode==='custom' ? `<label class="set-field"><span>単位を入力${mark('targetUnitCustom')}</span><input type="text" data-f="targetUnitCustom" maxlength="8" value="${esc(t.targetUnit||'')}"></label>` : ''}
+        ${unitMode==='custom' ? rowField('単位を入力','targetUnitCustom',`<input class="set-txt-s" type="text" data-f="targetUnitCustom" maxlength="8" value="${esc(t.targetUnit||'')}">`) : ''}
       ` : `
         <label class="set-field set-field--wide"><span>子どもへの呼びかけ${mark('freeHint')}</span>
           <input type="text" data-f="freeHint" value="${esc(t.freeHint||'')}" placeholder="${esc(FREE_HINT_DEFAULT)}"></label>`}
       <label class="set-field set-field--wide"><span>${isFree(t)?'見出し':'メモ欄の見出し'}${mark('memoLabel')}</span>
         <input type="text" data-f="memoLabel" value="${esc(t.memoLabel||'')}" placeholder="やったことを書く"></label>`;
   }else{
-    fields = `${groupField}
-      <label class="set-field"><span>進め方${mark('type')}</span><select data-f="type">
-        ${opt('count',t.type,'回数・ページで進める')}${opt('step',t.type,'段階をクリア')}
-      </select></label>
+    fields = `${groupField}${typeField}
       ${t.type==='count' ? `
-        <label class="set-field"><span>合計${mark('total')}</span><input type="number" data-f="total" min="1" max="200" value="${t.total|0}"></label>
-        <label class="set-field"><span>単位${mark('unit')}</span><input type="text" data-f="unit" maxlength="8" value="${esc(t.unit||'')}"></label>
+        ${rowField('合計','total',`<input class="set-num" type="number" data-f="total" min="1" max="200" value="${t.total|0}">`)}
+        ${rowField('単位','unit',`<input class="set-txt-s" type="text" data-f="unit" maxlength="8" value="${esc(t.unit||'')}">`)}
         <label class="set-field set-check"><input type="checkbox" data-f="numbered"${t.numbered?' checked':''}> 次の番号を①②で表示${mark('numbered')}</label>` : `
         <label class="set-field set-field--wide"><span>段階（1行に1つ）${mark('steps')}</span>
           <textarea data-f="steps" rows="${Math.max(3,(t.steps||[]).length)}">${esc((t.steps||[]).join('\n'))}</textarea></label>`}
@@ -7093,12 +7135,17 @@ function buildAdultSectionToc(){
 /* 宿題そのものを決めるページ。
    「必須」「任意」は 独立した 欄では なく、課題ごとの group。
    ならべかえの まとまり（taskOrderBucket）も group 単位なので、
-   画面も 分けた ほうが 実際の 動きと そろう。 */
+   画面も 分けた ほうが 実際の 動きと そろう。
+
+   **読書の記録も 必須か 任意の どちらかに 入れる。** 子ども画面も
+   進捗も お祝いも もともと group で 見ている（viewHome / overall /
+   celebrateTargets）ので、読書だけ 別の 箱に 置くと、この 画面だけが
+   実際の 動きと ちがう ことに なる。読書に するかどうかは、
+   課題の 中の「進め方」で 選ぶ。 */
 function viewTasks(){
   const rows = config.tasks.map((t,i)=>({t,i}));
-  const must   = rows.filter(({t})=>taskKind(t)==='normal' && t.group === 'must');
-  const option = rows.filter(({t})=>taskKind(t)==='normal' && t.group !== 'must');
-  const books  = rows.filter(({t})=>taskKind(t)==='book');
+  const must   = rows.filter(({t})=>taskKind(t)!=='daily' && t.group === 'must');
+  const option = rows.filter(({t})=>taskKind(t)!=='daily' && t.group !== 'must');
   const daily  = rows.filter(({t})=>taskKind(t)==='daily');
   /* 「子ども画面に表示する」は 毎日の項目 だけの もの。
      ほかの3つには 対応する 切りかえが 無いので、この欄にだけ 足す */
@@ -7111,18 +7158,13 @@ function viewTasks(){
 
   ${taskSectionHTML({
     title:'必須の宿題', rows:must, editorId:'mustTaskEditor',
-    note:'子ども画面の「かならず やる」に出ます。「表示する場所」を変えると、下の「任意の宿題」へ移ります。',
+    note:'子ども画面の「かならず やる」に出ます。「表示する場所」を変えると、下の「任意の宿題」へ移ります。読書の記録も、項目の中の「進め方」で選べます。',
     empty:'まだ項目はありません。', addId:'addMustTask', addLabel:'必須の宿題を追加' })}
 
   ${taskSectionHTML({
     title:'任意の宿題', rows:option, editorId:'optionTaskEditor',
-    note:'子ども画面の「つぎに やる」に出ます。',
+    note:'子ども画面の「つぎに やる」に出ます。読書の記録も、項目の中の「進め方」で選べます。',
     empty:'まだ項目はありません。', addId:'addOptionTask', addLabel:'任意の宿題を追加' })}
-
-  ${taskSectionHTML({
-    title:'読書の記録', rows:books, editorId:'bookTaskEditor',
-    note:'本の名前・読んだ日・一言を1冊ずつ残す読書専用の項目です。',
-    empty:'読書の記録を使わないときは、空のままで構いません。', addId:'addBookTask', addLabel:'読書を追加' })}
 
   ${taskSectionHTML({
     title:'毎日の項目', rows:daily, editorId:'dailyTaskEditor', head:dailySwitch,
@@ -8236,19 +8278,43 @@ function bindConfig(){
       t.questions = next;
     }
     else if(f === 'type'){
-      t.type = e.target.value;
+      /* 「読書」は type では なく recordStyle。読書の 本体は 冊数を 数える
+         count なので、type は 'count' の まま 置く。
+         **記録は 消さない。** 進め方を 戻せば これまでの 冊数も 回数も
+         また 見える（wrapUp を 外しても 進捗を 消さないのと 同じ扱い）。
+         bookFields も 残す ―― 選び直したときに 前の 設定が 戻る */
+      if(e.target.value === 'book'){
+        t.type = 'count';
+        t.recordStyle = 'book';
+        t.bookFields = bookFields(t);
+        t.total = t.total || 10;
+        /* 単位も 番号の 出しかたも、読書の あいだは 使われない
+           （冊数は bookCountUnit、番号は countUsesCircle が 外す）。
+           だからこそ **上書きしない。** 上書きすると、読書を やめて
+           戻したときに「まい」が「さつ」に なっていた、が 起きる */
+        t.unit = t.unit || 'さつ';
+      }else{
+        t.type = e.target.value;
+        delete t.recordStyle;
+      }
       if(t.type==='count'  && !t.total) { t.total = 10; t.unit = t.unit || 'ばん'; t.numbered = true; }
       if(t.type==='step'   && !(t.steps||[]).length) t.steps = ['はじめる','とちゅう','かんせい！'];
       if(t.type==='daily'  && !t.target){ t.target = 1; t.targetUnit = t.targetUnit || 'かい'; }
       if(t.type==='daily') t.group = 'daily';
       openConfigTaskId = t.id;
-      saveCfg(); render({ keepScroll:true }); return;
+      saveCfg(); render({ keepScroll:true });
+      refocusTaskField(t, '[data-f="type"]');
+      return;
     }
     else if(f === 'group'){
       t.group = e.target.value;
       if(t.group==='daily' && t.type!=='daily'){ t.type='daily'; t.target = t.target||1; t.targetUnit = t.targetUnit||'かい'; }
       openConfigTaskId = t.id;
-      saveCfg(); render({ keepScroll:true }); return;
+      saveCfg(); render({ keepScroll:true });
+      /* 行は 別の 箱へ 動く。**選ばれている ほう**へ 焦点を 返す ――
+         先頭（必須）へ 返すと、選んだ ものと 焦点が ずれる */
+      refocusTaskField(t, '.set-seg-opt input:checked');
+      return;
     }
     else t[f] = e.target.value;
 
@@ -8323,14 +8389,11 @@ function bindConfig(){
     };
     startNewTask(added);
   }
+  /* 追加は 必須・任意の 2つだけ。読書は 足したあとの「進め方」で 選ぶ。
+     欄ごとに 追加ボタンを 増やすと、押す前に どれを 押すか 決めさせる
+     ことに なる ―― どんな 宿題かは、名前を 付けながら 決まる */
   on('#addMustTask',   'click', ()=>addNormalTask('must'));
   on('#addOptionTask', 'click', ()=>addNormalTask('option'));
-  on('#addBookTask', 'click', ()=>{
-    const added = { id:'book-'+Date.now(), group:'must', type:'count', recordStyle:'book',
-      name:'読書の きろく', total:10, unit:'さつ', numbered:true,
-      bookFields:{ author:true, publisher:false, rating:true } };
-    startNewTask(added);
-  });
   on('#addDailyTask', 'click', ()=>{
     const added = { id:'daily-'+Date.now(), group:'daily', type:'daily',
       name:'おてつだい', target:1, targetUnit:'かい', memoLabel:'やったこと' };

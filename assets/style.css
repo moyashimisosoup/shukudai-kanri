@@ -1253,7 +1253,31 @@ button{ font:inherit; color:inherit; }
 .set-field > span:first-child,.set-field legend{ color:var(--ai-usu); }
 .set-field input,.set-field select,.set-field textarea{ width:100%; }
 .set-field--wide{ grid-column:1 / -1; }
-.set-inline{ display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; }
+/* 値が 短い 欄は「見出し 左・操作 右」の 1行に する。見出しを 上に 敷くと
+   1列に なる 639px 以下で 1欄が 約80px（見出し22 ＋ すきま6 ＋ 入力52）に なり、
+   数字 1つの ために 画面が 流れる。横に 並べれば 44px で 足りる。
+   640px 以上は 2列なので、段の 高さは 背の高い 隣の 欄で 決まり ほぼ 変わらない。
+   選択肢の 字が 長い 欄（進め方・記録方法・単位のプリセット）は 敷いたまま */
+.set-field--row{ grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:6px 10px; }
+.set-field--row .set-field-lab{ color:var(--ai-usu); }
+/* 入力は 中身のぶんだけ。全幅に 伸ばすと、3けたの 数の ために 画面の
+   端まで 枠が 走る（「冊数の欄が横に長すぎる」の 中身） */
+.set-field--row input{ width:auto; min-height:44px; padding:8px 10px; }
+.set-field--row input.set-num{ width:4.5em; }
+.set-field--row input.set-txt-s{ width:8em; }
+.set-num-row{ display:flex; align-items:center; gap:8px; }
+/* 必須／任意。作りは テーマ選び（.theme-choice）と 同じ、見えない ラジオ ＋
+   :has(input:checked)。開いて 選ぶ 一覧と ちがい、いま どちらなのかが 見える */
+.set-seg{ display:flex; gap:6px; }
+.set-seg-opt{
+  position:relative; display:grid; place-items:center;
+  min-width:64px; min-height:44px; padding:0 14px;
+  font-size:16px; font-weight:900; color:var(--ai); background:var(--kami);
+  border:2px solid var(--hougan); border-radius:var(--r-pill); cursor:pointer;
+}
+.set-seg-opt input{ position:absolute; inline-size:1px; block-size:1px; opacity:0; }
+.set-seg-opt:has(input:checked){ color:var(--kami); background:var(--ai); border-color:var(--ai); }
+.set-seg-opt:has(input:focus-visible){ outline:3px solid var(--focus); outline-offset:2px; }
 .set-check{ display:flex; flex-direction:row; align-items:flex-start; gap:8px; color:var(--ai); }
 .set-check input,.set-checks input{ width:22px; height:22px; flex:none; accent-color:var(--asagao); }
 .set-checks{ border:0; padding:0; margin:0; }
@@ -3159,6 +3183,13 @@ input.is-need, textarea.is-need{
 .set-task-body .set-grid select,
 .set-task-body .set-grid input[type=number],
 .set-task-body .set-grid input[type=text]{ width:100%; min-width:0; }
+/* 「見出し 左・操作 右」の 欄は、上の 3つの クラスの 指定（全幅・align-items:initial）
+   より 強く 決め直す。ここは 旧設定CSSより 後ろなので、同じ 強さでも 勝つ */
+.set-task-body .set-grid .set-field--row{ grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:6px 10px; }
+.set-task-body .set-grid .set-field--row input[type=number],
+.set-task-body .set-grid .set-field--row input[type=text]{ width:auto; min-height:44px; padding:8px 10px; }
+.set-task-body .set-grid .set-field--row input.set-num{ width:4.5em; }
+.set-task-body .set-grid .set-field--row input.set-txt-s{ width:8em; }
 @media (max-width:639px){
   .set-task-body .set-grid{ grid-template-columns:minmax(0,1fr); gap:13px; }
 }

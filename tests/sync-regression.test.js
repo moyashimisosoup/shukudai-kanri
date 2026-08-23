@@ -1798,14 +1798,132 @@ test('本の編集は書名つきの鉛筆アイコンにし、狭幅でも操�
 
 test('宿題設定に本の記録を混ぜず、子どもの本一覧の並びも変えない', ()=>{
   const tasks = grab(APP, 'viewTasks');
-  assert.match(tasks, /const books\s*= rows\.filter\(\(\{t\}\)=>taskKind\(t\)==='book'\);/,
-    '読書課題はほかの宿題と同じ設定順にすること');
   assert.doesNotMatch(tasks, /state\.books|bookTaskOrder|bookTaskRecords|folded:true|parentBook/,
-    '#tasks の読書欄へ記録一覧や専用の折りたたみを置かないこと');
+    '#tasks の宿題欄へ記録一覧や専用の折りたたみを置かないこと');
   assert.doesNotMatch(grab(APP, 'taskSectionHTML'), /o\.folded|task-settings-fold/,
-    '必須・任意・読書・毎日の設定欄は同じ骨組みを保つこと');
+    '必須・任意・毎日の設定欄は同じ骨組みを保つこと');
   assert.match(grab(APP, 'viewBooks'), /state\.books\.slice\(\)\.sort\(\(a,b\)=> a\.nth - b\.nth\)/,
     '子ども画面の本一覧は従来の冊数順を保つこと');
+});
+
+/* ---------------------------------------------------------
+   読書の記録に 必須／任意を 持たせる
+
+   子ども画面（viewHome）・進捗（overall）・お祝い（celebrateTargets）は
+   もともと group だけを 見ている。読書を 別の 箱に 置いていたのは
+   「宿題を決める」画面だけ だったので、そこを そろえる。
+   --------------------------------------------------------- */
+test('読書の記録は必須か任意の箱に並び、ならべかえも同じまとまりで動く', ()=>{
+  const tasks = grab(APP, 'viewTasks');
+  assert.match(tasks, /const must\s+= rows\.filter\(\(\{t\}\)=>taskKind\(t\)!=='daily' && t\.group === 'must'\);/,
+    '必須の箱は 毎日以外の group==='+"'must'"+' を すべて 拾うこと（読書も 入る）');
+  assert.match(tasks, /const option = rows\.filter\(\(\{t\}\)=>taskKind\(t\)!=='daily' && t\.group !== 'must'\);/,
+    '任意の箱も 読書を 除かないこと');
+  assert.doesNotMatch(tasks, /const books\s*=/,
+    '読書だけの箱を作らないこと（どちらの分類なのかが画面から読めなくなる）');
+
+  assert.match(grab(APP, 'taskOrderBucket'), /return t && t\.group;/,
+    'ならべかえのまとまりは group だけで決めること（読書を端に固定しない）');
+
+  /* お祝いの 前提を 崩さない。読書は もともと group で 数えられている */
+  assert.match(grab(APP, 'celebrateTargets'), /t\.group === group && t\.type !== 'daily'/,
+    'お祝いの対象は group で拾い、毎日の項目だけを外すこと');
+  assert.match(grab(APP, 'celebrateGroupDone'), /list\.length > 0 && list\.every/,
+    'B は 課題が1つも無い分類では出さないこと');
+  assert.match(grab(APP, 'celebrateAllDone'), /\['must','option'\]\.filter\(g => celebrateTargets\(g\)\.length > 0\)/,
+    'C は 課題が1つも無い分類を「済んだ」として数えること');
+});
+
+test('進め方で読書を選べ、選び直しても記録は消さない', ()=>{
+  const taskFieldKeys = new Function(`${grabConst(APP, 'TASK_FIELD_KEYS')} return TASK_FIELD_KEYS;`)();
+  assert.deepEqual(taskFieldKeys.type, ['type', 'recordStyle'],
+    '「進め方」欄は type と recordStyle の両方を見ること（読書にしても type は count のまま）');
+  assert.ok(!taskFieldKeys.type.includes('bookFields'),
+    '「本ごとに残す項目」を1つ押しただけで「進め方」まで変えたことにしないこと');
+
+  const bind = grab(APP, 'bindConfig');
+  const typeBranch = bind.slice(bind.indexOf("else if(f === 'type')"), bind.indexOf("else if(f === 'group')"));
+  assert.match(typeBranch, /if\(e\.target\.value === 'book'\)\{[\s\S]{0,200}t\.type = 'count';[\s\S]{0,200}t\.recordStyle = 'book';/,
+    '読書を選んだら type は count のままで recordStyle を book にすること');
+  assert.doesNotMatch(typeBranch, /state\.|splice|delete t\.total|delete t\.bookFields/,
+    '進め方を変えても、これまでの記録・冊数・本ごとの設定は消さないこと');
+  /* 読書の あいだ 使われない 値を 上書きすると、戻したときに
+     「まい」が「さつ」に なっている、が 起きる */
+  const bookBranch = typeBranch.slice(typeBranch.indexOf("if(e.target.value === 'book')"), typeBranch.indexOf('}else{'));
+  assert.match(bookBranch, /t\.unit = t\.unit \|\| 'さつ';/,
+    '読書にするとき、すでにある単位を上書きしないこと');
+  assert.doesNotMatch(bookBranch, /t\.numbered/,
+    '読書では使わない「①②で表示」を勝手に立てないこと');
+
+  /* 追加ボタンは 必須・任意の 2つだけ。読書は 足したあとに 選ぶ */
+  assert.doesNotMatch(bind, /addBookTask/,
+    '読書だけの追加ボタンを増やさないこと');
+
+  /* 押したとたんに 行が 動く・欄の 顔ぶれが 変わる 2つは、
+     押した 欄が いちど 消える。キーボードの 居場所を 返す */
+  assert.match(typeBranch, /refocusTaskField\(t, '\[data-f="type"\]'\);/);
+  const groupBranch = bind.slice(bind.indexOf("else if(f === 'group')"), bind.indexOf("else t[f] = e.target.value;"));
+  assert.match(groupBranch, /refocusTaskField\(t, '\.set-seg-opt input:checked'\);/,
+    'ラジオは先頭ではなく、選ばれているほうへ焦点を返すこと');
+  assert.match(grab(APP, 'refocusTaskField'), /'\.set-task\[data-details-key="task:' \+ t\.id \+ '"\] ' \+ inner/);
+});
+
+test('必須／任意はボタン形の選択にし、値が短い欄は見出しの右へ置く', ()=>{
+  const row = makeTaskEditorRowHarness()(null, null);
+  const book = row({ id:'b1', group:'must', type:'count', recordStyle:'book',
+    name:'読書のきろく', total:20, unit:'さつ', numbered:true,
+    bookFields:{ author:true, publisher:false, rating:true } }, 0);
+
+  assert.doesNotMatch(book, /<select data-f="group">/,
+    '必須／任意は開いて選ぶ一覧にしないこと');
+  assert.match(book, /<span class="set-seg" role="radiogroup" aria-labelledby="taskgrouplab-b1">/,
+    '2つの選択はラジオのまとまりとして読み上げへ渡すこと');
+  assert.match(book, /<input type="radio" name="taskgroup-b1" value="must" data-f="group" checked><span>必須<\/span>/,
+    'いまの分類のピルを選択済みにすること');
+  assert.match(book, /<option value="book" selected>読書（1冊ずつ記録）<\/option>/,
+    '読書の項目にも「進め方」を出し、読書を選択済みにすること');
+  assert.match(book, /class="set-field set-field--row"><span class="set-field-lab">目標の冊数[\s\S]{0,120}input class="set-num"/,
+    '目標の冊数は見出しの右へ置き、入力幅を中身に合わせること');
+
+  const count = row({ id:'t1', group:'option', type:'count', name:'プリント',
+    total:10, unit:'まい', numbered:true, wrapUp:false, memoLabel:'', questions:[] }, 0);
+  assert.match(count, /<option value="book">読書（1冊ずつ記録）<\/option>/,
+    'ふつうの宿題からも読書へ変えられること');
+  assert.match(count, /set-field--row"><span class="set-field-lab">合計[\s\S]{0,120}input class="set-num"/);
+  assert.match(count, /set-field--row"><span class="set-field-lab">単位[\s\S]{0,120}input class="set-txt-s"/);
+  /* 選択肢の 字が 長い 欄は 敷いたまま。横に 並べると 折り返す */
+  assert.doesNotMatch(count, /set-field--row[^>]*>[^<]*<span class="set-field-lab">進め方/,
+    '進め方のように選択肢の字が長い欄は、見出しを上に敷いたままにすること');
+
+  assert.match(STYLE, /\.set-field--row\{ grid-template-columns:minmax\(0,1fr\) auto; align-items:center;/);
+  assert.match(STYLE, /\.set-field--row input\.set-num\{ width:4\.5em; \}/);
+  assert.match(STYLE, /\.set-seg-opt\{[\s\S]{0,200}min-height:44px;/,
+    'ピルの的は44pxを保つこと');
+  assert.match(STYLE, /\.set-seg-opt:has\(input:checked\)\{/);
+  assert.match(STYLE, /\.set-seg-opt:has\(input:focus-visible\)\{[\s\S]{0,80}outline:3px solid var\(--focus\)/,
+    'キーボードで選んでいる位置を見せること');
+  /* 旧設定CSSが あとに 来て 全幅へ 戻す。同じ 強さで 決め直しておく */
+  assert.match(STYLE, /\.set-task-body \.set-grid \.set-field--row\{ grid-template-columns:minmax\(0,1fr\) auto;/,
+    'あとに来る旧設定CSSの全幅指定を、同じ強さで決め直すこと');
+});
+
+/* group を 持たない 課題は、子ども画面の どの欄でも 拾われない
+   （viewHome は group で 絞る）。設定の 一覧からも 消えると
+   手元から 無くなったように 見えるので、任意へ 寄せる。 */
+test('分類を持たない課題は任意へ寄せ、必須の分母を黙って増やさない', ()=>{
+  const out = normalizeConfigHarness({ tasks:[
+    { id:'a', type:'count', recordStyle:'book', total:5 },
+    { id:'b', group:'', type:'count', total:3 },
+    { id:'c', group:'daily', type:'daily', target:1 },
+    { id:'d', type:'daily', target:1 },
+    { id:'e', group:'must', type:'count', total:2 }
+  ], theme:'notebook', title:'x', childName:'' });
+  const groupOf = id => out.tasks.find(t=>t.id === id).group;
+  assert.equal(groupOf('a'), 'option', '分類を持たない読書は任意へ寄せること');
+  assert.equal(groupOf('b'), 'option', '空の分類も任意へ寄せること');
+  assert.equal(groupOf('c'), 'daily', 'まいにちはそのまま');
+  assert.equal(groupOf('d'), 'daily', '型がまいにちなら、まいにちの欄へ入れること');
+  assert.equal(groupOf('e'), 'must', 'すでに必須のものは動かさないこと');
 });
 
 /* QRで入った端末だけ デザインが 初期値の まま だった。
@@ -2243,7 +2361,7 @@ test('設定ページの束ねは、欄が無いページでも止まらない',
   assert.doesNotMatch(bind, /\$\('#[A-Za-z][\w-]*'\)\.addEventListener/,
     '片方のページにしか無い欄を直に束ねないこと（null で以降が全部止まる）');
   /* 宿題ページ側の欄 */
-  ['#cfgShowDaily','#addMustTask','#addOptionTask','#addBookTask','#addDailyTask'].forEach(sel=>{
+  ['#cfgShowDaily','#addMustTask','#addOptionTask','#addDailyTask'].forEach(sel=>{
     assert.match(bind, new RegExp("on\\('" + sel + "'"), sel + ' は on() で束ねること');
   });
   /* 設定ページ側の欄 */
@@ -2912,13 +3030,13 @@ test('かなにするページは、小1から小6まで選べる', ()=>{
 /* 「宿題を追加」が 必ず行う宿題の下に 1つだけ 出ていて、押すと
    次に行う宿題に 足されていた。見えている場所と 足される場所が
    ちがうと、画面から 直しかたが 読みとれない。 */
-test('宿題の4つの欄は、同じ骨組みで組む', ()=>{
+test('宿題の3つの欄は、同じ骨組みで組む', ()=>{
   const view = grab(APP, 'viewTasks');
   const sec = grab(APP, 'taskSectionHTML');
 
   /* 欄ごとに手で組むと、また片方だけ揃わなくなる。型は1つ */
-  assert.equal((view.match(/taskSectionHTML\(\{/g) || []).length, 4,
-    '4つの欄はすべて taskSectionHTML で組むこと');
+  assert.equal((view.match(/taskSectionHTML\(\{/g) || []).length, 3,
+    '3つの欄はすべて taskSectionHTML で組むこと');
   assert.doesNotMatch(view, /class="paper task-editor"/,
     '欄ごとに紙を手で組まないこと');
 
@@ -2930,10 +3048,10 @@ test('宿題の4つの欄は、同じ骨組みで組む', ()=>{
     assert.ok(next > at, part + ' の位置が違う');
     at = next;
   }
-  /* 件数の出しかたも4つで揃える */
+  /* 件数の出しかたも3つで揃える */
   assert.match(sec, /o\.rows\.length\}件/);
-  assert.match(view, /note:'子ども画面の「つぎに やる」に出ます。'/,
-    '任意の宿題の説明は表示先だけを簡潔に伝えること');
+  assert.match(view, /note:'子ども画面の「つぎに やる」に出ます。読書の記録も、項目の中の「進め方」で選べます。'/,
+    '任意の宿題の説明は表示先と、読書もここで足せることだけを伝えること');
   assert.doesNotMatch(view, /必須の宿題が終わったあとに取り組み/,
     '任意の宿題の説明に削除指定された補足を戻さないこと');
 });
@@ -3407,11 +3525,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260824a',
+    'assets/style.css': '20260824b',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260824a',
+    'assets/app.js': '20260824b',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a'
   };
