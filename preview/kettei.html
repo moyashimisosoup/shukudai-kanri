@@ -892,23 +892,36 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
      が 22度のなかに密集し、線の端が3つあるように読める。
      巻きに入っていない山の頂上（55度）から始め、**ぴったり1周で閉じる**。
      55度は真下から右回りに少し進んだところなので「下から」も保てる。 */
-  const CLOUD_START = Math.PI / 2 + 55 * Math.PI / 180;
+  const CLOUD_START = Math.PI / 2;
+  /* 2画目。**極座標 r(θ) で書く。** ここが起点問題の急所。
+     以前はエピトロコイド（x=C·cosψ+P·cos(Lψ)）で描いていた。あれは
+     つなぎ目で **角度が逆行する**（小さく巻く）ので、描いている点が
+     そのたびに戻り、線が別の場所から生えたように見える。実測で
+     一周のうち 270点が逆行していた。極座標なら θ が単調に増えるかぎり
+     角度は絶対に戻らないので、**起点がひとつであることを数学で保証できる**。
+     実測：逆行 0 回、始点と終点の距離 0.0000。
+
+     r(θ) = (.70 + .26cos5θ - .11cos10θ) × 揺らぎ × 非対称
+       第1項〜第3項 … 5枚の花びらと、先の切れこみ
+         （第3項が第2項の 1/4 を下回ると切れこみが消えてただの5弁になる）
+       揺らぎ … 手描きらしさ。**整数の周波数にすること。**
+         3.1 や 7.9 のような端数だと一周して戻ったとき半径が合わず、
+         始点と終点に段差ができて、そこがまた「もうひとつの端」に見える。
+       非対称 … 花びらごとに大きさを変える（実測 .754〜.977）。 */
   function hanamaruCloud() {
-    const C = .62, P = .115, L = 6, N = 360, pts = [];
+    const N = 380, pts = [];
     for (let i = 0; i <= N; i++) {
-      /* ちょうど1周。描き越さないので、余った尾が始点の隣に残らない */
-      const psi = CLOUD_START + (i / N) * Math.PI * 2;
-      /* 山の大きさをひとつずつ変える。5の約数でない周期を混ぜるのが肝で、
-         周期3や1にすると5つのうち同じ大きさの山ができて対称に戻る。
-         実測：山の半径 .617〜.826（対称版は5つとも .735 でそろっていた） */
-      const m = 1 + .10 * Math.sin(psi + .8) + .06 * Math.sin(psi * 2 + 2.1);
-      const w = wob(psi) * m;
-      const x = (C * Math.cos(psi) + P * Math.cos(psi * L)) * w * R;
-      /* 縦を .86 に潰す。手で描く花丸は横長になる（実測 横長比1.26） */
-      const y = (C * Math.sin(psi) + P * Math.sin(psi * L)) * w * R * .86;
-      pts.push(x.toFixed(2) + ',' + y.toFixed(2));
+      const t = (i / N) * Math.PI * 2;
+      const petal = .70 + .26 * Math.cos(5 * t) - .11 * Math.cos(10 * t);
+      const wobble = 1 + .020 * Math.sin(3 * t + .7) + .012 * Math.sin(8 * t + 2.2);
+      const asym = 1 + .10 * Math.sin(t + .8) + .06 * Math.sin(2 * t + 2.1);
+      const r = petal * wobble * asym * R;
+      /* 真下から始めて、角度が増える向き＝画面では右回り */
+      const psi = CLOUD_START + t;
+      pts.push((Math.cos(psi) * r).toFixed(2) + ',' +
+               (Math.sin(psi) * r * .78).toFixed(2));   /* .78 … 手で描く花丸は横長 */
     }
-    return 'M' + pts.join('L');
+    return 'M' + pts.join('L') + 'Z';
   }
   function hanamaruSVG(cls) {
     return `<svg class="hanamaru${cls ? ' ' + cls : ''}" viewBox="-100 -100 200 200" aria-hidden="true">
