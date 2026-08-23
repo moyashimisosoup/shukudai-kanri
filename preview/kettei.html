@@ -1,0 +1,674 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!DOCTYPE html>
+<html lang="ja" data-theme="notebook" data-motion="auto">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>決定案｜4段階と渦の光条</title>
+<link rel="stylesheet" href="../tokens.css">
+<style>
+/* ------------------------------------------------------------------
+   検討用のサンプル。どこからもリンクせず noindex。
+
+   利用者が決めた4段階を、実際の順で組んだページ。
+     毎回      … できた！スタンプのみ（動きなし）
+     A 項目完了 … ぜんぶできた！スタンプ ＋ きらきら
+     B 分類完了 … 光条を強めたきらきら（＋渦）
+     C 完全制覇 … 暗転してスターマイン
+   暗転は C だけ。
+
+   加えて「渦巻いていく光条」を3種類。経路に沿って粒を置き、
+   置く時刻を経路の進みに合わせてずらすことで、帯が自分で
+   描かれていくように見せている。
+   ------------------------------------------------------------------ */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+html,body{overflow-x:clip}
+body{min-height:100vh;margin:0;color:var(--ai);background-color:var(--sora);font-family:var(--font-body);line-height:1.55}
+button,select{font:inherit;color:inherit}
+button:focus-visible,select:focus-visible{outline:4px solid var(--focus);outline-offset:3px}
+
+:root{--v1:var(--himawari);--v2:var(--asagao);--v3:var(--wakaba);--v4:var(--suika);--v5:var(--ai)}
+@supports (color: oklch(from white l c h)){
+  :root{
+    --v1:oklch(from var(--himawari) clamp(.42,l,.74) calc(c * 1.35) h);
+    --v2:oklch(from var(--asagao)   clamp(.48,l,.86) calc(c * 1.35) h);
+    --v3:oklch(from var(--wakaba)   clamp(.48,l,.86) calc(c * 1.35) h);
+    --v4:oklch(from var(--suika)    clamp(.48,l,.86) calc(c * 1.35) h);
+    --v5:oklch(from var(--ai)       clamp(.46,l,.86) calc(c * 1.9)  h);
+  }
+}
+.page{width:min(1180px,calc(100% - 28px));margin-inline:auto;padding:var(--space-lg) 0 var(--space-2xl)}
+.eyebrow{margin:0 0 var(--space-2xs);color:var(--ai-usu);font-size:var(--text-xs);font-weight:900;letter-spacing:.08em}
+h1{margin:0;font-family:var(--font-display);font-size:clamp(1.7rem,4.6vw,3rem);font-weight:900;line-height:1.1;letter-spacing:-.03em}
+.lead{max-width:52rem;margin:var(--space-sm) 0 0;color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+.lead a{color:var(--asagao)}
+.bar{position:sticky;top:0;z-index:40;display:flex;flex-wrap:wrap;gap:var(--space-xs);align-items:center;margin:var(--space-lg) 0;padding:var(--space-sm) var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r-s);box-shadow:var(--shadow)}
+.bar-lab{color:var(--ai-usu);font-size:var(--text-xs);font-weight:900}
+.bar select,.bar .mini{min-height:44px;padding:0 var(--space-sm);background:var(--surface-soft);border:2px solid var(--ai);border-radius:var(--r-button);font-weight:800;cursor:pointer}
+.bar .spacer{flex:1 1 auto}
+
+.mock{position:relative;padding:var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.mock-band{margin:calc(var(--space-md) * -1) calc(var(--space-md) * -1) var(--space-md);padding:var(--space-sm) var(--space-md);background:var(--band,var(--ai));color:var(--kami);border-radius:var(--r) var(--r) 0 0;font-family:var(--font-display);font-weight:900}
+.mock-count{display:flex;gap:var(--space-xs);align-items:baseline;margin:0;font-family:var(--font-num);font-weight:900}
+.mock-count b{font-size:clamp(2rem,7vw,3rem);line-height:1}
+.mock-track{height:16px;margin:var(--space-sm) 0;background:var(--bar-track);border:2px solid var(--ai);border-radius:var(--r-pill);overflow:hidden}
+.mock-fill{height:100%;width:78%;background:var(--wakaba)}
+.mock-list{display:grid;gap:var(--space-2xs);margin:var(--space-sm) 0 0;padding:0;list-style:none}
+.mock-list li{display:flex;gap:var(--space-xs);align-items:center;padding:var(--space-xs) var(--space-sm);background:var(--surface-soft);border:2px solid var(--hougan);border-radius:var(--r-s);font-weight:800}
+.mock-list li b{margin-left:auto;color:var(--ai-usu);font-size:var(--text-xs)}
+.mock-list li.done{background:var(--wakaba-usu);border-color:var(--wakaba)}
+.status{margin:var(--space-sm) 0 0;min-height:1.5em;color:var(--ai-usu);font-size:var(--text-xs);font-weight:900}
+
+h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);font-size:var(--text-lg);font-weight:900}
+.sec-note{margin:0 0 var(--space-md);max-width:56rem;color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:var(--space-md)}
+.card{min-width:0;padding:var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.card h3{margin:0 0 var(--space-2xs);font-family:var(--font-display);font-size:var(--text-md);font-weight:900}
+.card .why{margin:0 0 var(--space-xs);color:var(--ai);font-size:var(--text-sm);font-weight:900}
+.card p{margin:0 0 var(--space-sm);color:var(--ai-usu);font-size:var(--text-sm);font-weight:700}
+.card .how{margin:0 0 var(--space-sm);padding:var(--space-xs) var(--space-sm);background:var(--surface-soft);border-left:5px solid var(--asagao);border-radius:var(--r-s);color:var(--ai-usu);font-size:var(--text-xs);font-weight:700}
+.badge{display:inline-block;padding:1px var(--space-xs);margin-bottom:var(--space-xs);background:var(--himawari-usu);border:2px solid var(--himawari);border-radius:var(--r-pill);color:var(--on-option);font-size:var(--text-xs);font-weight:900}
+.badge.c{background:var(--asagao-usu);border-color:var(--asagao);color:var(--ai)}
+.play{width:100%;min-height:50px;padding:0 var(--space-md);color:var(--kami);background:var(--wakaba);border:var(--line) solid var(--ai);border-radius:var(--r-button);font-weight:900;cursor:pointer;box-shadow:0 4px 0 var(--ai);transition:transform var(--dur-short) var(--ease-out),box-shadow var(--dur-short) var(--ease-out)}
+.play:hover{transform:translateY(-2px)}
+.play:active{transform:translateY(3px);box-shadow:none}
+
+/* ---- はんこ。本体（assets/style.css の .stamp-mark）と同じ言葉づかい ---- */
+.stamp{position:fixed;inset:0;z-index:80;display:grid;place-items:center;pointer-events:none}
+.stamp-mark{
+  font-size:clamp(30px,8vw,44px);font-weight:900;color:var(--suika);
+  border:8px solid var(--suika);border-radius:24px;
+  padding:22px 40px;background:rgba(252,252,249,.94);
+  transform:rotate(-11deg);
+  animation:stamping .85s cubic-bezier(.2,1.4,.4,1) forwards;
+}
+/* 「ぜんぶできた！」は同じはんこの言葉づかいのまま、二重の輪郭にして
+   格を上げる。色も傾きも変えないので、並べても別物には見えない。
+   （いまの本体は文字だけ差し替えていて、見た目がまったく同じ） */
+.stamp-mark.all{
+  box-shadow:0 0 0 6px rgba(252,252,249,.94), 0 0 0 13px var(--suika);
+  padding:24px 44px;
+}
+@keyframes stamping{
+  0%{transform:rotate(-24deg) scale(2.6);opacity:0}
+  22%{transform:rotate(-11deg) scale(1);opacity:1}
+  70%{transform:rotate(-11deg) scale(1);opacity:1}
+  100%{transform:rotate(-11deg) scale(1);opacity:0}
+}
+.stamp-row{display:flex;flex-wrap:wrap;gap:var(--space-xl);align-items:center;justify-content:center;padding:var(--space-xl) var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.stamp-row .stamp-mark{position:static;animation:none;font-size:clamp(22px,5vw,34px);padding:16px 28px}
+.stamp-row .stamp-mark.all{padding:18px 32px}
+.stamp-cap{display:block;margin-top:var(--space-sm);color:var(--ai-usu);font-size:var(--text-xs);font-weight:900;text-align:center;transform:rotate(11deg)}
+
+.fx{position:fixed;inset:0;z-index:60;pointer-events:none}
+.fx canvas{position:absolute;inset:0;width:100%;height:100%}
+.fx-close{position:fixed;right:12px;top:12px;z-index:81;min-height:44px;padding:0 var(--space-md);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r-button);font-weight:900;cursor:pointer}
+.still{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid;gap:var(--space-2xs);place-items:center;padding:var(--space-md) var(--space-lg);color:var(--kami);background:var(--wakaba);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow-lift);font-family:var(--font-display);font-weight:900;font-size:var(--text-lg)}
+.still span{font-size:2.6rem;line-height:1}
+
+.memo{margin-top:var(--space-md);padding:var(--space-md) var(--space-lg);background:var(--kami);border:var(--line) solid var(--ai);border-radius:var(--r);box-shadow:var(--shadow)}
+.memo h3{margin:var(--space-md) 0 var(--space-2xs);font-size:var(--text-md);font-weight:900}
+.memo h3:first-child{margin-top:0}
+.memo p,.memo li{font-size:var(--text-sm);font-weight:700;color:var(--ai-usu)}
+.memo strong{color:var(--ai)}
+.memo ul{margin:var(--space-2xs) 0;padding-left:1.2em}
+@media(max-width:620px){.bar{position:static}}
+</style>
+</head>
+<body>
+<main class="page">
+  <header>
+    <p class="eyebrow">検討用のサンプル · しゅくだいノート本体の画面ではありません</p>
+    <h1>4段階と、渦の光条。</h1>
+    <p class="lead">
+      決めていただいた4段階を、実際に出る順で組みました。<strong>暗転は C だけ</strong>です。
+      あわせて、いただいた画像の「渦巻いていく光条」を3種類つくりました（下の方にあります）。
+    </p>
+    <p class="lead">
+      前のページ → <a href="hikari.html">光り方</a>
+      <a href="hanabi.html">花火のかたち</a>
+      <a href="anim-lab.html">きらきら</a>　／　本体は <a href="../start/">しゅくだいノートの紹介</a>
+    </p>
+  </header>
+
+  <div class="bar">
+    <span class="bar-lab">色</span>
+    <select id="pal" aria-label="色">
+      <option value="rainbow">虹（いただいた画像に近い）</option>
+      <option value="real">本物の花火の色</option>
+      <option value="theme">テーマの色</option>
+    </select>
+    <span class="spacer"></span>
+    <span class="bar-lab">テーマ</span>
+    <select id="theme" aria-label="テーマ">
+      <option value="notebook">ノート</option><option value="sunny">おひさま</option>
+      <option value="soda">ソーダ</option><option value="berry">ベリー</option>
+      <option value="block">ブロック</option><option value="cat">ネコ</option>
+    </select>
+    <button class="mini" id="motion" type="button">軽減表示を試す</button>
+  </div>
+
+  <div class="mock">
+    <div class="mock-band">なつやすみ おわりまで</div>
+    <p class="mock-count"><b>12</b>にち <b>7</b>じかん</p>
+    <div class="mock-track"><div class="mock-fill"></div></div>
+    <ul class="mock-list">
+      <li class="done">✓ かんじドリル <b>おわり</b></li>
+      <li class="done">✓ けいさんドリル <b>おわり</b></li>
+      <li>・ どくしょかんそうぶん <b>のこり1</b></li>
+    </ul>
+  </div>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+
+  <h2 class="sec">4段階</h2>
+  <p class="sec-note">上から順に、出る回数が減って、演出が強くなります。</p>
+  <div class="cards">
+    <article class="card">
+      <span class="badge">毎回</span>
+      <h3>「できた」を押すたび</h3>
+      <p class="why">動きなし。はんこだけ。</p>
+      <p>1日に何度も出るので、ここに動きを足すと必ず邪魔になります。いまの本体と同じです。</p>
+      <div class="how"><strong>出るもの：</strong>「できた！」のはんこ 0.9秒。</div>
+      <button class="play" type="button" data-run="tap">再生する</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">A</span>
+      <h3>項目をひとつ終えた</h3>
+      <p class="why">はんこの格を上げて、きらきらを足す。</p>
+      <p>
+        「ぜんぶできた！」のはんこを<strong>二重の輪郭</strong>にしました。
+        同じはんこの言葉づかいのまま、格だけ上がります。
+      </p>
+      <div class="how"><strong>いまの本体：</strong>文字だけ差し替えで、見た目は「できた！」と<strong>まったく同じ</strong>です。</div>
+      <button class="play" type="button" data-run="a">再生する</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">B</span>
+      <h3>分類をぜんぶ終えた</h3>
+      <p class="why">光条を強め、渦を足す。</p>
+      <p>必須がぜんぶ終わった、などのとき。A と同じきらきらですが、<strong>光条が長く鋭く</strong>なり、渦が1本流れます。</p>
+      <div class="how"><strong>渦の種類は下で選べます。</strong>いまは「弧」を使っています。</div>
+      <button class="play" type="button" data-run="b">再生する</button>
+    </article>
+
+    <article class="card">
+      <span class="badge c">C</span>
+      <h3>完全制覇</h3>
+      <p class="why">ここだけ暗転します。</p>
+      <p>照明が落ちて、スターマインが上がり、渦ときらきらが重なります。一度きりの演出です。</p>
+      <div class="how"><strong>暗転はここだけ。</strong>数秒間ノートが見えなくなるので、ほかの段階では使いません。</div>
+      <button class="play" type="button" data-run="c">再生する（約6.5秒）</button>
+    </article>
+
+    <article class="card">
+      <span class="badge">比較</span>
+      <h3>4段階を続けて</h3>
+      <p class="why">強さの段が付いているか。</p>
+      <p>毎回 → A → B → C の順に、間をあけて流します。段が足りない・付きすぎているところを見てください。</p>
+      <button class="play" type="button" data-run="all">続けて再生（約18秒）</button>
+    </article>
+  </div>
+
+  <h2 class="sec">はんこの見くらべ</h2>
+  <p class="sec-note">動かない状態で並べたものです。左がいまの本体、右が新しく作った「ぜんぶできた！」です。</p>
+  <div class="stamp-row">
+    <div><div class="stamp-mark">できた！</div><span class="stamp-cap">毎回</span></div>
+    <div><div class="stamp-mark all">ぜんぶ できた！</div><span class="stamp-cap">A（新規）</span></div>
+  </div>
+
+  <h2 class="sec">渦巻いていく光条（ご質問の件）</h2>
+  <p class="sec-note">
+    できます。仕組みは「<strong>経路の上に粒を並べ、置く時刻を経路の進みに合わせてずらす</strong>」だけです。
+    帯が端から端へ自分で描かれていくように見えます。上の「色」を<strong>虹</strong>にすると、
+    いただいた画像にいちばん近くなります。3種類つくったので、B と C にどれを使うか選んでください。
+  </p>
+  <div class="cards">
+    <article class="card">
+      <span class="badge">渦1</span>
+      <h3>弧（画像にいちばん近い）</h3>
+      <p class="why">大きな三日月形に流れます。</p>
+      <p>画面の外から入って、大きく曲がって外へ抜けます。色が流れに沿って緑→青→紫→桃と変わります。</p>
+      <div class="how"><strong>経路：</strong>半径いっぱいの円弧を約270度。</div>
+      <button class="play" type="button" data-run="arc">再生する</button>
+    </article>
+    <article class="card">
+      <span class="badge">渦2</span>
+      <h3>渦巻き</h3>
+      <p class="why">中心から外へ、ぐるぐる開きます。</p>
+      <p>内側から始まって2周半しながら広がります。いちばん「渦」らしい形です。</p>
+      <div class="how"><strong>経路：</strong>回りながら半径が増える（アルキメデスの渦）。</div>
+      <button class="play" type="button" data-run="spiral">再生する</button>
+    </article>
+    <article class="card">
+      <span class="badge">渦3</span>
+      <h3>二重の渦</h3>
+      <p class="why">2本が反対まわりに絡みます。</p>
+      <p>渦巻きを2本、向きと色をずらして重ねます。いちばん派手なので C 向きです。</p>
+      <div class="how"><strong>経路：</strong>渦巻き2本を180度ずらし、片方は逆回り。</div>
+      <button class="play" type="button" data-run="double">再生する</button>
+    </article>
+  </div>
+
+  <h2 class="sec">確かめていただきたいこと</h2>
+  <div class="memo">
+    <h3>この4段階でよいか</h3>
+    <ul>
+      <li><strong>A は1日に何度も出ます。</strong> 項目数だけ出るので、きらきらが「またか」に
+        ならないか。うるさければ、A も はんこだけにできます。</li>
+      <li><strong>B は期間中に3回しか出ません</strong>（必須・任意・毎日）。
+        ここは思いきり派手でよいはずです。</li>
+      <li><strong>C の暗転が長すぎないか。</strong> いまは約6.5秒です。</li>
+    </ul>
+
+    <h3>はんこについて</h3>
+    <p>
+      いまの本体は、項目を終えたとき <code>ぜんぶ できた！</code>、
+      それ以外は <code>できた！</code> と<strong>文字だけ</strong>変えていて、
+      はんこの見た目は同じです。二重の輪郭にすると、文字を読まなくても
+      「いつもより大きいことが起きた」と分かります。
+      色も傾きも変えていないので、並べても別物には見えません。
+    </p>
+
+    <h3>虹色について</h3>
+    <p>
+      渦の色を虹にすると画像にいちばん近くなりますが、
+      <strong>虹はテーマの外の色</strong>です。6テーマとも切りかえて、
+      浮いて見えないか確かめてください。浮くようなら「テーマの色」でも
+      流れは同じに出せます（色の変化がゆるやかになります）。
+    </p>
+
+    <h3>まだ作っていないもの</h3>
+    <p>
+      B の判定（分類ごとの完了）と A の判定（項目の完了）は、
+      本体では別の関数になります。4b で入れるときに、
+      進捗サマリーの計算（<code>overall()</code>）には触れずに、
+      判定だけ新しく足します。
+    </p>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const root = document.documentElement;
+  const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const status = document.querySelector('#status');
+  const say = t => { status.textContent = t; };
+  const rand = (a,b) => a + Math.random() * (b - a);
+  const MODES = ['auto','reduce','full'];
+  const MODE_TEXT = { auto:'軽減表示を試す', reduce:'通常表示を試す', full:'OS設定に戻す' };
+  let mode = 'auto';
+  const reduced = () => mode === 'reduce' || (mode === 'auto' && mq.matches);
+
+  const probe = document.createElement('span');
+  probe.style.display = 'none';
+  document.body.append(probe);
+  const px = document.createElement('canvas'); px.width = px.height = 1;
+  const pxCtx = px.getContext('2d', { willReadFrequently:true });
+  function rgbOf(v) {
+    probe.style.color = ''; probe.style.color = v;
+    pxCtx.fillStyle = '#000'; pxCtx.fillStyle = getComputedStyle(probe).color;
+    pxCtx.fillRect(0,0,1,1);
+    const d = pxCtx.getImageData(0,0,1,1).data;
+    return [d[0], d[1], d[2]];
+  }
+  const REAL = [[255,198,96],[255,198,96],[255,198,96],[255,146,54],[255,146,54],[255,86,64],[255,240,208],[128,255,168],[116,190,255]];
+  const themeColors = () => ['--v1','--v2','--v3','--v4','--v5'].map(n => rgbOf(`var(${n})`));
+  /* 虹。いただいた画像は 緑→水色→青→紫→桃 の順に流れていた。
+     hue 135 から 210 度ぶん回すと、その並びになる */
+  function hsl(h, s, l) {
+    const f = n => { const k = (n + h / 30) % 12; const a = s * Math.min(l, 1 - l);
+      return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1))))); };
+    return [f(0), f(8), f(4)];
+  }
+  const rainbowAt = u => hsl((135 + u * 210) % 360, .95, .62);
+  let palMode = 'rainbow';
+  let PAL = REAL;
+  /* 経路上の位置 u（0〜1）から色を決める。虹だけが u に依存する */
+  function colorAt(u) {
+    if (palMode === 'rainbow') return rainbowAt(u);
+    const p = PAL;
+    return p[Math.floor(u * p.length * 2.5) % p.length];
+  }
+
+  /* ================= 光の粒の絵 ================= */
+  const sprites = new Map();
+  function glow(rgb, kind, power) {
+    const pw = power || 1;
+    const key = kind + pw + rgb.join(',');
+    if (sprites.has(key)) return sprites.get(key);
+    const size = kind === 'bokeh' ? 256 : 128;
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d'); const r = size / 2; const [R,G,B] = rgb;
+    const g = x.createRadialGradient(r, r, 0, r, r, r);
+    if (kind === 'bokeh') {
+      g.addColorStop(0,`rgba(${R},${G},${B},.36)`); g.addColorStop(.62,`rgba(${R},${G},${B},.30)`);
+      g.addColorStop(.80,`rgba(${R},${G},${B},.42)`); g.addColorStop(.93,`rgba(${R},${G},${B},.10)`);
+      g.addColorStop(1,`rgba(${R},${G},${B},0)`);
+    } else {
+      /* かさを内側3割へ詰める。広げると、次に足す光条がかさに埋もれて
+         「光条の先より光条の間のほうが明るい」状態になる（実測で確認した） */
+      g.addColorStop(0,'rgba(255,255,255,1)'); g.addColorStop(.04,'rgba(255,255,255,.95)');
+      g.addColorStop(.09,`rgba(${R},${G},${B},.9)`); g.addColorStop(.18,`rgba(${R},${G},${B},.34)`);
+      g.addColorStop(.30,`rgba(${R},${G},${B},.07)`); g.addColorStop(1,`rgba(${R},${G},${B},0)`);
+    }
+    x.fillStyle = g; x.fillRect(0, 0, size, size);
+    if (kind === 'star') {
+      x.translate(r, r);
+      const spike = (len, wide, alpha) => {
+        const lg = x.createLinearGradient(0, 0, len, 0);
+        lg.addColorStop(0, `rgba(255,255,255,${alpha})`);
+        lg.addColorStop(.18, `rgba(${R},${G},${B},${alpha * .75})`);
+        lg.addColorStop(1, `rgba(${R},${G},${B},0)`);
+        x.fillStyle = lg; x.beginPath();
+        x.moveTo(0, -wide); x.lineTo(len, 0); x.lineTo(0, wide); x.closePath(); x.fill();
+      };
+      for (let i = 0; i < 4; i++) {
+        x.rotate(Math.PI / 2);
+        /* power で光条だけを強める。B は A と同じ粒のまま、ここが伸びる */
+        spike(r * .99, r * .053 * pw, Math.min(1, .8 * pw));
+        x.save(); x.rotate(Math.PI / 4);
+        spike(r * .47 * pw, r * .032 * pw, Math.min(1, .45 * pw));
+        x.restore();
+      }
+    }
+    sprites.set(key, c);
+    return c;
+  }
+
+  /* ================= エンジン ================= */
+  let layer = null, closeBtn = null, raf = 0, timers = [], ctx = null;
+  let W = 0, H = 0, S = 0, parts = [], stages = [], endAt = 0, t0 = 0, last = 0;
+  let fade = .12, dark = false;
+
+  function stop() {
+    timers.forEach(clearTimeout); timers = [];
+    if (raf) cancelAnimationFrame(raf); raf = 0;
+    if (layer) layer.remove();
+    if (closeBtn) closeBtn.remove();
+    document.querySelectorAll('.stamp:not(.keep)').forEach(s => s.remove());
+    layer = null; closeBtn = null; parts = []; stages = [];
+  }
+  function open(darkMode) {
+    stop();
+    PAL = palMode === 'theme' ? themeColors() : REAL;
+    dark = !!darkMode;
+    layer = document.createElement('div'); layer.className = 'fx';
+    document.body.append(layer);
+    closeBtn = document.createElement('button');
+    closeBtn.className = 'fx-close'; closeBtn.type = 'button'; closeBtn.textContent = '閉じる';
+    closeBtn.addEventListener('click', stop);
+    document.body.append(closeBtn);
+    const cv = document.createElement('canvas'); layer.append(cv);
+    const r = Math.min(window.devicePixelRatio || 1, 2);
+    W = layer.clientWidth; H = layer.clientHeight; S = Math.min(W, H);
+    cv.width = Math.round(W * r); cv.height = Math.round(H * r);
+    ctx = cv.getContext('2d'); ctx.setTransform(r, 0, 0, r, 0, 0);
+    return layer;
+  }
+  function add(o) {
+    parts.push(Object.assign({
+      x:0, y:0, vx:0, vy:0, g:0, drag:.1, life:1, age:0, wait:0,
+      size:S * .01, rgb:[255,198,96], kind:'glow', power:1, rot:0, spin:0, fadeIn:.12
+    }, o));
+  }
+  function begin(sec, f) {
+    fade = f == null ? .13 : f;
+    t0 = performance.now(); last = 0; endAt = t0 + sec * 1000;
+    raf = requestAnimationFrame(frame);
+    timers.push(setTimeout(stop, sec * 1000 + 400));
+  }
+  function frame(now) {
+    if (!ctx) return;
+    const dt = Math.min((now - (last || now)) / 1000, .05);
+    last = now;
+    const el = (now - t0) / 1000;
+    while (stages.length && el >= stages[0].at) stages.shift().run();
+
+    ctx.globalCompositeOperation = 'source-over';
+    if (dark) {
+      const rise = Math.min(1, el / .28);
+      ctx.fillStyle = `rgba(9,7,16,${fade + (1 - rise) * .34})`;
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillStyle = `rgba(0,0,0,${fade + .05})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over';
+
+    for (const p of parts) {
+      p.age += dt;
+      /* wait … 生まれる時刻をずらす。渦はこれだけで「描かれていく」ように見える */
+      if (p.age < p.wait) continue;
+      const own = p.age - p.wait;
+      if (own >= p.life) continue;
+      p.vy += p.g * dt;
+      const k = Math.pow(p.drag, dt);
+      p.vx *= k; p.vy *= k;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.rot += p.spin * dt;
+      const t = own / p.life;
+      let a = t < p.fadeIn ? t / p.fadeIn : Math.pow(1 - (t - p.fadeIn) / (1 - p.fadeIn), 1.7);
+      if (!dark) a *= .85;
+      const img = glow(p.rgb, p.kind, p.power);
+      const d = p.size * (p.kind === 'bokeh' ? 1 : (.6 + (1 - t) * .7)) * 2;
+      ctx.globalAlpha = Math.max(0, Math.min(1, a));
+      if (p.rot) {
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.drawImage(img, -d/2, -d/2, d, d); ctx.restore();
+      } else {
+        ctx.drawImage(img, p.x - d/2, p.y - d/2, d, d);
+      }
+    }
+    parts = parts.filter(p => p.age - p.wait < p.life);
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    if (now < endAt || parts.length) raf = requestAnimationFrame(frame);
+  }
+
+  /* ================= はんこ ================= */
+  function showStamp(text, isAll) {
+    document.querySelectorAll('.stamp').forEach(s => s.remove());
+    const wrap = document.createElement('div');
+    wrap.className = 'stamp';
+    wrap.innerHTML = `<div class="stamp-mark${isAll ? ' all' : ''}">${text}</div>`;
+    document.body.append(wrap);
+    setTimeout(() => wrap.remove(), 950);
+  }
+
+  /* ================= 渦 =================
+     経路 path(u) の上に粒を並べ、wait を u に比例させる。
+     これだけで「端から端へ描かれていく」ように見える。
+     粒を毎コマ産む方式より、総数が最初から決まるぶん軽い。 */
+  const PATHS = {
+    /* 弧。画面の外から入り、大きく曲がって外へ抜ける（いただいた画像） */
+    arc(u, cx, cy, R) {
+      const a = -2.5 + u * 4.7;
+      return [cx + Math.cos(a) * R * 1.02, cy + Math.sin(a) * R * .92];
+    },
+    /* 渦巻き。回りながら半径が増える */
+    spiral(u, cx, cy, R) {
+      const a = u * Math.PI * 5;
+      const r = R * (.08 + .92 * u);
+      return [cx + Math.cos(a) * r, cy + Math.sin(a) * r * .9];
+    },
+    spiralRev(u, cx, cy, R) {
+      const a = Math.PI - u * Math.PI * 5;
+      const r = R * (.08 + .92 * u);
+      return [cx + Math.cos(a) * r, cy + Math.sin(a) * r * .9];
+    }
+  };
+  function ribbon(kind, opt) {
+    const o = Object.assign({ count:190, travel:1.35, life:1.5, R:S * .46,
+      cx:W / 2, cy:H * .46, power:1, hueShift:0, spread:.055, big:9 }, opt);
+    const path = PATHS[kind];
+    for (let i = 0; i < o.count; i++) {
+      const u = i / o.count;
+      const [bx, by] = path(u, o.cx, o.cy, o.R);
+      /* 帯に厚みを出す。中心が濃く、外へいくほどまばら */
+      const j = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+      const j2 = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+      const isBig = i % o.big === 0;
+      add({
+        x:bx + j * S * o.spread, y:by + j2 * S * o.spread,
+        vx:j * S * .05, vy:j2 * S * .05 - S * .02,
+        drag:.5, life:o.life * rand(.75, 1.25),
+        wait:u * o.travel + rand(0, .05),
+        size:S * (isBig ? rand(.022, .04) : rand(.006, .016)),
+        rgb:colorAt((u + o.hueShift) % 1),
+        kind:isBig ? 'star' : (i % 4 === 0 ? 'bokeh' : 'glow'),
+        power:o.power, fadeIn:.14,
+        rot:rand(0, Math.PI), spin:rand(-.35, .35)
+      });
+    }
+  }
+
+  /* ================= きらきら・花火 ================= */
+  function sparkleField(count, sec, power) {
+    for (let i = 0; i < count; i++) {
+      const big = i % 5 === 0;
+      add({
+        x:rand(.03,.97) * W, y:rand(.04,.96) * H,
+        vx:rand(-.02,.02) * S, vy:rand(-.05,.01) * S,
+        drag:.7, life:rand(sec * .45, sec * .85), wait:rand(0, sec * .45),
+        size:S * (big ? rand(.045,.08) : rand(.011,.028)),
+        rgb:colorAt(Math.random()), kind:big ? 'star' : 'glow',
+        power:power || 1, fadeIn:.2, rot:rand(0, Math.PI), spin:rand(-.5,.5)
+      });
+    }
+  }
+  function bokehField(count, sec) {
+    for (let i = 0; i < count; i++) {
+      const near = i % 3 === 0;
+      add({
+        x:rand(-.1,1.1) * W, y:rand(-.05,1.05) * H,
+        vx:rand(-.03,.03) * S, vy:rand(-.06,-.01) * S,
+        drag:.9, life:rand(sec * .55, sec), wait:rand(0, sec * .3),
+        size:S * (near ? rand(.07,.14) : rand(.025,.055)),
+        rgb:colorAt(Math.random()), kind:'bokeh', fadeIn:.28
+      });
+    }
+  }
+  const GOLD = [[255,198,96],[255,214,130],[255,146,54],[255,240,208]];
+  function shell(sx, sy, n, delay) {
+    for (let i = 0; i < 16; i++) {
+      add({ x:sx, y:H + i * (S * .01), vx:rand(-.01,.01) * S, vy:-(H - sy) / .5,
+            g:S * .3, drag:.5, life:.52 - i * .012, wait:delay,
+            size:S * rand(.009,.015), rgb:[255,224,150], fadeIn:.05 });
+    }
+    stages.push({ at:delay + .52, run:()=>{
+      for (let i = 0; i < n; i++) {
+        const a = Math.PI * 2 * i / n + rand(-.05,.05);
+        const s = rand(.55,.9) * S;
+        add({ x:sx, y:sy, vx:Math.cos(a) * s, vy:Math.sin(a) * s * .82 - S * .06,
+              g:S * .6, drag:.28, life:rand(1.7,2.5), size:S * rand(.010,.018),
+              rgb:GOLD[i % GOLD.length], fadeIn:.03 });
+      }
+      add({ x:sx, y:sy, life:.34, size:S * .1, rgb:[255,246,222], fadeIn:.06 });
+    }});
+    stages.sort((a,b)=>a.at-b.at);
+  }
+
+  /* ================= 4段階 ================= */
+  let ribbonKind = 'arc';
+  function levelTap() { showStamp('できた！', false); say('毎回：はんこだけ'); }
+  /* open() は stop() を通り、stop() ははんこも消す（案を切りかえたとき
+     前のはんこを残さないため）。**必ず open() を先に呼ぶこと。**
+     逆にすると、出したはんこが同じ処理の中で消える。 */
+  function levelA() {
+    open(false);
+    showStamp('ぜんぶ できた！', true);
+    sparkleField(34, 1.9, 1); begin(2.2, .15);
+    say('A 項目完了：はんこ（二重）＋きらきら');
+  }
+  function levelB() {
+    open(false);
+    showStamp('ぜんぶ できた！', true);
+    /* 光条を 1.7倍。粒は A と同じなので、強くなったのが光条だと分かる */
+    sparkleField(44, 2.4, 1.7);
+    ribbon(ribbonKind, { count:170, travel:1.2, life:1.5, power:1.7 });
+    begin(3.0, .13);
+    say('B 分類完了：光条を強めたきらきら＋渦');
+  }
+  function levelC() {
+    open(true);
+    stages = [];
+    [.2,.75,.45,.9,.14,.62,.34,.8].forEach((fx,i)=>shell(W*fx, H*rand(.15,.32), 68, i*.32));
+    [.28,.5,.72].forEach((fx,i)=>shell(W*fx, H*rand(.13,.25), 92, 3.0 + i*.05));
+    stages.push({ at:.1, run:()=>bokehField(20, 5.8) });
+    stages.push({ at:1.2, run:()=>ribbon('spiral', { count:200, travel:1.5, life:1.7, power:1.9 }) });
+    stages.push({ at:2.6, run:()=>ribbon('spiralRev', { count:200, travel:1.5, life:1.7, power:1.9, hueShift:.5 }) });
+    stages.push({ at:3.4, run:()=>sparkleField(52, 2.9, 1.9) });
+    stages.push({ at:4.2, run:()=>showStamp('ぜんぶ できた！', true) });
+    stages.sort((a,b)=>a.at-b.at);
+    begin(6.5, .1);
+    say('C 完全制覇：暗転＋スターマイン＋二重の渦');
+  }
+
+  function ribbonOnly(kind) {
+    open(true);
+    ribbonKind = kind;
+    bokehField(16, 2.8);
+    if (kind === 'double') {
+      ribbon('spiral',    { count:200, travel:1.5, life:1.8, power:1.8 });
+      ribbon('spiralRev', { count:200, travel:1.5, life:1.8, power:1.8, hueShift:.5 });
+      begin(4.0, .1);
+    } else {
+      ribbon(kind, { count:210, travel:1.5, life:1.8, power:1.8 });
+      begin(3.8, .1);
+    }
+    say({ arc:'渦1 弧', spiral:'渦2 渦巻き', double:'渦3 二重の渦' }[kind] + ' を再生しました');
+  }
+
+  const RUN = {
+    tap:levelTap, a:levelA, b:levelB, c:levelC,
+    arc:()=>ribbonOnly('arc'), spiral:()=>ribbonOnly('spiral'), double:()=>ribbonOnly('double')
+  };
+  let chain = 0;
+  document.querySelectorAll('[data-run]').forEach(btn => btn.addEventListener('click', () => {
+    clearTimeout(chain);
+    const k = btn.dataset.run;
+    if (reduced()) {
+      stop();
+      const box = open(false);
+      const el = document.createElement('div');
+      el.className = 'still';
+      el.innerHTML = `<span aria-hidden="true">✓</span>${k === 'c' ? 'ぜんぶ できた！' : 'できた！'}`;
+      box.append(el);
+      timers.push(setTimeout(stop, 1500));
+      say('軽減表示（静止の印）'); return;
+    }
+    if (k === 'all') {
+      const seq = [['tap',2000],['a',3200],['b',4200],['c',7200]];
+      let i = 0;
+      const next = () => {
+        const [kind, wait] = seq[i];
+        RUN[kind]();
+        say(`続けて再生 ${i + 1}/4：${['毎回','A 項目完了','B 分類完了','C 完全制覇'][i]}`);
+        if (++i < seq.length) chain = setTimeout(next, wait);
+      };
+      next(); return;
+    }
+    RUN[k]();
+  }));
+
+  document.querySelector('#pal').addEventListener('change', e => {
+    palMode = e.target.value; sprites.clear(); clearTimeout(chain); stop();
+  });
+  document.querySelector('#theme').addEventListener('change', e => {
+    root.dataset.theme = e.target.value; sprites.clear(); clearTimeout(chain); stop();
+  });
+  const motionBtn = document.querySelector('#motion');
+  motionBtn.addEventListener('click', () => {
+    mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+    motionBtn.textContent = MODE_TEXT[mode];
+    clearTimeout(chain); stop();
+  });
+})();
+</script>
+</body>
+</html>
