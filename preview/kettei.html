@@ -137,19 +137,24 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
 /* 真上に重ねず、はんこの **右下** へ置く。left/top:100% が
    はんこの右下角。そこから自分の 58%/62% ぶん戻すので、
    右へ約42%・下へ約38%だけはみ出す。 */
-.stamp-b{--hm:clamp(230px,78vw,480px)}
+/* はんこは画面の中央のまま動かさない。花丸は **その右下の余白** に、
+   ぎりぎり重ならないところへ置く。
+   花丸の墨の半径は 横 0.38H・縦 0.34H（縦は .86 に潰してあるため）。
+   はんこは -11度 傾いているので、実効の半分の高さは
+   (S*sin11 + Sh*cos11)/2 + 二重の輪 ≒ 66.5px。そこへ 8px の隙間を足す。
+   横へ逃がすと画面幅に負けるが、縦は余っているので下へ多めに逃がす
+   （結果、右下 68度あたり）。 */
+.stamp-b{--hm:clamp(200px,72vw,400px)}
 .hanamaru{
-  position:absolute;left:100%;top:100%;
+  position:absolute;left:50%;top:50%;
   width:var(--hm);aspect-ratio:1;overflow:visible;
-  transform:translate(-58%,-62%) rotate(-5deg);
+  transform:
+    translate(calc(-50% + var(--hm) * .24),
+              calc(-50% + 74px + var(--hm) * .34))
+    rotate(-5deg);
   pointer-events:none;
 }
-/* 花丸が右下へ出るぶん、かたまり全体が右へ寄る。
-   墨の中心は  x + S - 0.08H （S=はんこ幅、H=花丸幅）。
-   グリッドは はんこを中央に置く（x + S/2 = 画面中心）ので、
-   余分に (0.08H - S/2) だけ寄せると墨の中心が画面中心に来る。
-   % は自分の幅（S）に対して解決されるので -50% が -S/2 になる。 */
-.stamp-b{transform:translateX(calc(var(--hm) * 0.08 - 50%))}
+
 .hanamaru path{
   fill:none;stroke:var(--suika);stroke-width:6.5;
   stroke-linecap:round;stroke-linejoin:round;
