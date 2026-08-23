@@ -3394,11 +3394,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260823a',
+    'assets/style.css': '20260823b',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260823a',
+    'assets/app.js': '20260823b',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a'
   };
@@ -3422,19 +3422,19 @@ test('招待QRは端末内で読み取り、既存の共有参加だけへ渡す
   assert.match(STYLE, /@media \(max-width:360px\)/);
 });
 
-test('公開版番号v1.10.0をアプリ・HTML・package・変更履歴でそろえる', ()=>{
-  assert.match(APP, /const RELEASE_VERSION = '1\.10\.0';/);
-  assert.match(INDEX, /<meta name="application-version" content="1\.10\.0">/);
-  assert.equal(PACKAGE.version, '1.10.0');
-  assert.equal(PACKAGE_LOCK.version, '1.10.0');
-  assert.equal(PACKAGE_LOCK.packages[''].version, '1.10.0');
+test('公開版番号v1.11.0をアプリ・HTML・package・変更履歴でそろえる', ()=>{
+  assert.match(APP, /const RELEASE_VERSION = '1\.11\.0';/);
+  assert.match(INDEX, /<meta name="application-version" content="1\.11\.0">/);
+  assert.equal(PACKAGE.version, '1.11.0');
+  assert.equal(PACKAGE_LOCK.version, '1.11.0');
+  assert.equal(PACKAGE_LOCK.packages[''].version, '1.11.0');
   /* 「バージョン番号の見方」は最小限にとどめ、版ごとに書きかえる例は置かない。
      置くと、公開のたびに直す場所が1つ増えるわりに、読む人の役には立たない。 */
   assert.doesNotMatch(UPDATES, /<b>v1\.\d+\.\d+<\/b> の3つの数字は/,
     '凡例に今の版の番号を書かないこと');
   /* 各版の中身は項目名だけを公開する（詳細は手元の控えに残す）。
      ここでは「その版の行があること」だけを確かめ、本文の言い回しは縛らない。 */
-  ['1.10.0', '1.9.0', '1.8.0', '1.7.0', '1.6.7', '1.6.6', '1.6.5', '1.6.4', '1.6.3', '1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
+  ['1.11.0', '1.10.0', '1.9.0', '1.8.0', '1.7.0', '1.6.7', '1.6.6', '1.6.5', '1.6.4', '1.6.3', '1.6.2', '1.6.1', '1.6.0', '1.5.4', '1.5.3', '1.5.2', '1.5.1', '1.5.0', '1.4.5', '1.4.4', '1.4.3', '1.4.2', '1.4.1', '1.4.0', '1.3.33', '1.3.32', '1.3.31', '1.3.30', '1.3.29', '1.3.28', '1.3.27', '1.3.26', '1.3.24', '1.3.23', '1.3.22', '1.3.21', '1.3.20', '1.3.19', '1.3.18', '1.3.0', '1.2.0', '1.1.0', '1.0.0']
     .forEach(v=>{
       assert.match(UPDATES, new RegExp('v' + v.replace(/\./g, '\.') + '：'),
         'v' + v + ' の行を履歴から落とさないこと');
@@ -4757,12 +4757,13 @@ test('小4以上と「漢字のまま」でだけ、言い方を切りかえる'
    「完了！」に集約し、訂正だけは達成の合図と混ざらないよう別の語にする。
    低学年側は今までどおり行為ごとに分けたまま変えない。 */
 test('大人びた言い方のスタンプは行為をまたいで集約し、訂正だけ別の語にする', ()=>{
-  assert.match(APP, /stamp\(after\.isDone \? wording\('ぜんぶ できた！', '完了！'\) : wording\('できた！', 'できた'\)\)/,
+  /* 2引数めは 祝いの段（celebrateLevel の 返り値）。言い方の 表は 触らない */
+  assert.match(APP, /stamp\(after\.isDone \? wording\('ぜんぶ できた！', '完了！'\) : wording\('できた！', 'できた'\),/,
     '毎日の記録と全部終わったときのスタンプを「できた」「完了！」に集約すること');
   assert.match(APP, /stamp\(wording\('かけたね！', 'できた'\)\)/,
     '作文のスタンプも「できた」に集約すること');
   assert.match(APP,
-    /stamp\(adultOrigin \? '修正が完了しました' : sheetBookId \? wording\('なおしたよ', 'なおした'\)\s*\n\s*: \(done \? wording\('ぜんぶ よんだ！', '完了！'\) : wording\('よめたね！', 'できた'\)\)\);/,
+    /stamp\(adultOrigin \? '修正が完了しました' : sheetBookId \? wording\('なおしたよ', 'なおした'\)\s*\n\s*: \(done \? wording\('ぜんぶ よんだ！', '完了！'\) : wording\('よめたね！', 'できた'\)\),/,
     '読書は記録・完読を「できた」「完了！」に集約しつつ、訂正だけ「なおした」に分けること');
 });
 
@@ -5200,6 +5201,221 @@ test('何も書きかわらなくても、押したことは伝える', ()=>{
     '押しても 何も 起きないように 見せないこと');
   assert.ok(save.indexOf('if(unchanged) toast(') < save.indexOf('else stamp('),
     '何も 変わっていない ときに「できた！」の はんこを 出さないこと');
+});
+
+/* ---------------------------------------------------------
+   完了アニメーション（docs/completion-animation-design.md）
+   --------------------------------------------------------- */
+/* 判定だけを 取り出して 動かす。isDone は done で 差しかえる */
+function celebrationHarness(tasks, done, shownKey){
+  const config = { tasks };
+  const state = { resetAt:'' };
+  const prog = t => ({ isDone: !!done[t.id] });
+  const getLocal = () => shownKey || '';
+  return new Function('config','state','prog','getLocal','K_FINALE_DONE', `
+    ${grab(APP, 'celebrateTargets')}
+    ${grab(APP, 'celebrateGroupDone')}
+    ${grab(APP, 'celebrateAllDone')}
+    ${grab(APP, 'celebrateBefore')}
+    ${grab(APP, 'finaleSignature')}
+    ${grab(APP, 'finaleAlreadyShown')}
+    ${grab(APP, 'celebrateLevel')}
+    return { celebrateBefore, celebrateLevel, celebrateGroupDone, celebrateAllDone, finaleSignature };
+  `)(config, state, prog, getLocal, 'natsu.finale.shown.v1');
+}
+const CELEB_TASKS = [
+  { id:'m1', group:'must',   type:'count' },
+  { id:'m2', group:'must',   type:'count' },
+  { id:'md', group:'must',   type:'daily' },
+  { id:'o1', group:'option', type:'count' },
+  { id:'d1', group:'daily',  type:'daily' }
+];
+
+test('祝いの段は、出る回数の少ないものほど強くする', ()=>{
+  const done = {};
+  const h = celebrationHarness(CELEB_TASKS, done);
+  const finish = id => {
+    const task = CELEB_TASKS.find(t => t.id === id);
+    const before = h.celebrateBefore(task);
+    done[id] = true;
+    return h.celebrateLevel(task, before);
+  };
+  assert.equal(finish('m1').level, 'a', '課題を1つ終えたら A');
+  assert.equal(finish('o1').level, 'b',
+    '任意が ぜんぶ 終わったら B（必須は のこっているので C では ない）');
+  assert.equal(finish('m2').level, 'c',
+    '必須も 任意も ぜんぶ 終わったら C。A・B と 同時に 成立するので 強いほうだけ 出す');
+});
+
+test('必須をぜんぶ終えても、任意が残っていれば花丸どまり', ()=>{
+  const done = {};
+  const h = celebrationHarness(CELEB_TASKS, done);
+  const finish = id => {
+    const task = CELEB_TASKS.find(t => t.id === id);
+    const before = h.celebrateBefore(task);
+    done[id] = true;
+    return h.celebrateLevel(task, before);
+  };
+  finish('m1');
+  assert.equal(finish('m2').level, 'b',
+    'C は 必須・任意（読書の記録も ふくむ）が ぜんぶ 済んでから');
+  assert.equal(finish('o1').level, 'c', '最後の 1つで 完走');
+});
+
+test('任意の課題が1つも無ければ、必須をぜんぶ終えた時点で完走', ()=>{
+  const tasks = CELEB_TASKS.filter(t => t.group !== 'option');
+  const done = { m1:true };
+  const h = celebrationHarness(tasks, done);
+  const task = tasks.find(t => t.id === 'm2');
+  const before = h.celebrateBefore(task);
+  done.m2 = true;
+  assert.equal(h.celebrateLevel(task, before).level, 'c',
+    '空の 分類は「済んだ」として 数える。でないと 完走できない 家庭が 出る');
+});
+
+test('毎日の項目では祝いを出さない', ()=>{
+  const done = {};
+  const h = celebrationHarness(CELEB_TASKS, done);
+  const daily = CELEB_TASKS.find(t => t.id === 'd1');
+  const before = h.celebrateBefore(daily);
+  done.d1 = true;
+  assert.equal(h.celebrateLevel(daily, before), null,
+    'まいにちの isDone は 今日ぶんなので 毎日 成立する。入れると 毎日 出る');
+
+  /* 必須の中に まぎれた 毎日の項目も、分類の 達成を さまたげない */
+  const done2 = { m1:true, m2:true, md:false, o1:true };
+  const h2 = celebrationHarness(CELEB_TASKS, done2);
+  assert.equal(h2.celebrateGroupDone('must'), true,
+    '毎日の項目は 分類の かぞえから 外すこと');
+});
+
+test('取り消しでは祝いを出さない', ()=>{
+  const done = { m1:true, m2:true, o1:true };
+  const h = celebrationHarness(CELEB_TASKS, done);
+  const task = CELEB_TASKS.find(t => t.id === 'm1');
+
+  /* チェックを 外した（できた → まだ） */
+  const before = h.celebrateBefore(task);
+  done.m1 = false;
+  assert.equal(h.celebrateLevel(task, before), null, '取り消しで 祝わないこと');
+
+  /* もともと できていた ものを 開いて 直しただけ */
+  done.m1 = true;
+  const before2 = h.celebrateBefore(task);
+  assert.equal(h.celebrateLevel(task, before2), null,
+    'すでに できていた ものを 保存し直しても 祝わないこと');
+});
+
+test('「完走！」は同じ達成状態では出し直さない', ()=>{
+  const done = { m1:true, o1:true };
+  const sig = celebrationHarness(CELEB_TASKS, { m1:true, m2:true }).finaleSignature();
+  const h = celebrationHarness(CELEB_TASKS, done, sig);
+  const task = CELEB_TASKS.find(t => t.id === 'm2');
+  const before = h.celebrateBefore(task);
+  done.m2 = true;
+  assert.equal(h.celebrateLevel(task, before).level, 'b',
+    '出したしるしが あれば C ではなく B へ落とす');
+  assert.match(grab(APP, 'showFinale'), /setLocal\(K_FINALE_DONE, finaleSignature\(\)\)/,
+    'しるしは **実際に 出したとき** に 端末内キーへ 残すこと。押した 時点で 残すと、'
+    + '途中で 画面を 閉じられた ときに 一度も 見ていないのに「見た」ことに なる');
+});
+
+test('「完走！」のしるしは端末の中だけに置く', ()=>{
+  const cfgKeys = JSON.parse(grabConst(APP, 'SHARED_CONFIG_KEYS')
+    .replace(/^const\s+SHARED_CONFIG_KEYS\s*=\s*/, '').replace(/;\s*$/, '').replace(/'/g, '"'));
+  const stKeys = JSON.parse(grabConst(APP, 'SHARED_STATE_KEYS')
+    .replace(/^const\s+SHARED_STATE_KEYS\s*=\s*/, '').replace(/;\s*$/, '').replace(/'/g, '"'));
+  for(const key of cfgKeys.concat(stKeys)){
+    assert.doesNotMatch(key, /finale/i,
+      '祝いを 見たかどうかは 家族で 合わせる 記録では ない。allowlist に 足さないこと');
+  }
+  assert.match(APP, /const K_FINALE_DONE = TEST_MODE \?/, '端末内キーとして 持つこと');
+  assert.doesNotMatch(APP, /state\.finale|config\.finale/,
+    'state / config に のせると 同期に 乗ってしまう');
+});
+
+test('演出の色はテーマのトークンから作る', ()=>{
+  assert.match(STYLE, /:root\{\s*--v1:var\(--himawari\);/,
+    'oklch(from …) を 読めない 環境では 素の トークンへ 落とすこと');
+  assert.match(STYLE, /@supports \(color: oklch\(from white l c h\)\)/);
+  assert.match(STYLE, /--v1:oklch\(from var\(--himawari\) clamp\(\.42,l,\.74\)/,
+    '黄だけは 明度の 上限を 下げること（紙の上で ほぼ 見えないため）');
+  assert.match(APP, /\['--v2','--v3'\]\.map\(n => fxMix\(fxRGB\('var\(' \+ n \+ '\)'\)/,
+    'テーマらしさは 紫系と 緑系。全色に 混ぜると 6テーマとも 同じ色に なる');
+  /* canvas は CSS変数も oklch(from …) も 読めない。1×1 に 塗って 読み返す。
+     getPropertyValue は oklch(…) のまま 返るので、そこから 数を 3つ 拾うと
+     **全部の色が 同じ 嘘の値に なる** */
+  assert.match(grab(APP, 'fxRGB'), /getImageData\(0, 0, 1, 1\)/);
+  assert.doesNotMatch(APP, /getPropertyValue\('--v[1-5]'\)/,
+    'CSS変数を 文字列の まま 色として 使わないこと');
+});
+
+test('動きを減らす設定では、静止の印に置きかえる', ()=>{
+  assert.match(grab(APP, 'celebrateReduced'),
+    /matchMedia\('\(prefers-reduced-motion: reduce\)'\)\.matches/,
+    '判定は 再生の たびに 読むこと（設定は 途中で 変わる）');
+  assert.match(grab(APP, 'stamp'), /if\(level && celebrateReduced\(\)\)\{ celebrateStill\(false\); return; \}/);
+  assert.match(grab(APP, 'celebrateFinale'), /if\(celebrateReduced\(\)\)\{[^}]*celebrateStill\(true\); return; \}/,
+    '完全制覇も 静止の 印に 置きかえること（文字だけ「ぜんぶ できた！」）');
+  assert.match(grab(APP, 'celebrateStill'), /ぜんぶ できた！/);
+  assert.match(STYLE, /@media \(prefers-reduced-motion:reduce\)\{[^}]*\.stamp\{ transition:none/);
+});
+
+test('はんこは狭い画面でも収まる', ()=>{
+  assert.match(STYLE, /\.stamp-mark\{[\s\S]{0,200}font-size:clamp\(24px,6\.4vw,44px\)/,
+    '固定の 44px だと「ぜんぶ できた！」の 8文字で iPhone の 幅に ぎりぎり');
+  assert.match(STYLE, /\.stamp-mark\{[\s\S]{0,300}padding:clamp\(12px,3\.4vw,22px\) clamp\(18px,5\.6vw,40px\)/);
+  assert.match(STYLE, /\.stamp-line-a, \.stamp-line-b\{ white-space:nowrap/,
+    '2行は 先に 決めて 各行を nowrap にすること（語の 途中で 割れる）');
+  assert.match(STYLE, /\[data-theme="cat"\] \.stamp-mark::before\{[\s\S]{0,160}width:clamp\(42px,11vw,72px\)/,
+    '肉球は 実寸。em だと 2行はんこで いちばん 小さくなる');
+});
+
+test('花丸は線を隠して切り出す方式で描かない', ()=>{
+  const stroke = grab(APP, 'hanamaruStroke');
+  assert.doesNotMatch(stroke, /dasharray|dashoffset/,
+    'dash は 窓が 複数箇所で 開き、線が 複数の 起点から 生えたように 見える');
+  assert.match(stroke, /el\.setAttribute\('d', hanamaruD\(pts, Math\.round\(k \* pts\.length\)\)\)/,
+    'd 属性を 描いた 点までで 作り直すこと');
+  /* 途中経過は 完成形の 文字列としての 接頭辞に なる */
+  const pts = [[0,0],[1,1],[2,2],[3,3],[4,4],[5,5]];
+  const d = new Function(`${grabConst(APP, 'hanamaruD')} return hanamaruD;`)();
+  for(const n of [2,3,4,5]) assert.ok(d(pts, 6).startsWith(d(pts, n)), n + '点目までが 接頭辞であること');
+});
+
+test('花丸のV字頂点さがしは端をまたいでも落ちない', ()=>{
+  const cloud = new Function(`
+    const HM_R = 92;
+    const HM_START = Math.PI / 2;
+    ${grab(APP, 'hanamaruCloudPts')}
+    return hanamaruCloudPts;
+  `)();
+  const pts = cloud();
+  assert.ok(pts.length > 400);
+  /* 素で pts[i+3] と 書くと 末尾で 範囲外に なり、例外で 花丸が 出なくなる */
+  assert.ok(pts.every(p => Number.isFinite(p[0]) && Number.isFinite(p[1])));
+  assert.deepEqual(pts[0], pts[pts.length - 1], '閉じた 曲線に すること');
+});
+
+test('演出の片づけは一箇所にまとめる', ()=>{
+  const stop = grab(APP, 'stopCelebration');
+  assert.match(stop, /\$\$\('\.finale, \.celebrate-still'\)\.forEach/);
+  assert.match(stop, /endFxCanvas\(\)/);
+  assert.match(stop, /box\.innerHTML = ''/, 'はんこの 中身も ここで 片づけること');
+  assert.match(grab(APP, 'applyTheme'), /stopCelebration\(\)/,
+    'テーマを 切りかえたら 古い色の 粒を 残さないこと');
+});
+
+test('祝いの判定は進捗サマリーの計算に触れない', ()=>{
+  assert.match(grab(APP, 'overall'),
+    /config\.tasks\.filter\(t => t\.group === group && t\.type !== 'daily'\)\.forEach/,
+    'overall() は これまでどおり');
+  assert.doesNotMatch(grab(APP, 'celebrateLevel'), /overall\(/,
+    '判定は 必須だけを 数える 別の 関数で 行うこと');
+  assert.match(grab(APP, 'showFinale'), /periodWord\(true\)/,
+    '期間の 呼び名は 変数。文字列を 直に 書かないこと');
+  assert.doesNotMatch(grab(APP, 'showFinale'), /location\.hash/,
+    'URL の # を 汚さないこと');
 });
 
 test('しあげの印を外したときも、書きかわったものとして残す', ()=>{

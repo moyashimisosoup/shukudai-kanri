@@ -17,7 +17,7 @@ const APP_VER = (function(){
   return m ? decodeURIComponent(m[1]) : '（不明）';
 })();
 /* 公開向けのアプリ版。APP_VER はキャッシュ更新のための内部配信番号。 */
-const RELEASE_VERSION = '1.10.0';
+const RELEASE_VERSION = '1.11.0';
 function appVersionHTML(version){
   const text = String(version || '');
   const match = text.match(/^(.*?)([A-Za-z]+)$/);
@@ -113,6 +113,11 @@ const K_HOME_INSTALL_DONE = TEST_MODE ? 'natsu.preview.prompt.install.v1' : 'nat
 const K_METRIC = 'natsu.metric.registered.v1';
 /* 新しい版を静かに取り込む仕組み用。前回いつ index.html を確認したかを
    端末に持ち、visibilitychange のたびに毎回問い合わせないようにする。 */
+/* 「完走！」を もう 出したか。**この端末の 中だけ** の しるしで、
+   SHARED_CONFIG_KEYS / SHARED_STATE_KEYS の allowlist には 足さない。
+   祝いを 見たかどうかは 家族で 合わせる 記録では ないし、
+   合わせると 片方の 端末で 見た だけで もう片方に 出なくなる。 */
+const K_FINALE_DONE = TEST_MODE ? 'natsu.preview.finale.shown.v1' : 'natsu.finale.shown.v1';
 const K_UPDATE_CHECKED = TEST_MODE ? 'natsu.preview.update.checked.v1' : 'natsu.update.checked.v1';
 /* GitHub Pages は公開直後、古い index.html をしばらく返し続けることがある。
    歯止めが無いと、まだ新しくなっていないサーバーへ向けて読み直しを
@@ -262,6 +267,14 @@ function refreshTaskRow(t){
 }
 function applyTheme(theme){
   const id = THEME_IDS.includes(theme) ? theme : 'notebook';
+  /* 演出の 粒は 切りかえる 前の テーマの 色で 描かれている。
+     残すと 古い色の 粒だけが 新しい 画面に 浮く。片づけは
+     stopCelebration() の 一箇所に まとめてある。
+     **「変わったとき だけ」に すること。** applyTheme() は 描き直しの
+     たびに 呼ばれるので、素で 呼ぶと 保存の 60ms あとの render() が
+     出したばかりの 演出を 消す（実際に 踏んだ：完走が 出なかった）。 */
+  if(document.documentElement.dataset.theme !== id
+     && typeof stopCelebration === 'function') stopCelebration();
   document.documentElement.dataset.theme = id;
   const meta = document.querySelector('meta[name="theme-color"]');
   if(meta) meta.setAttribute('content', THEME_META[id]);
@@ -1488,14 +1501,621 @@ function toast(msg){
   const wait = Math.max(2200, Math.min(7000, String(msg || '').length * 160));
   toast._t = setTimeout(()=>{ t.hidden = true; }, wait);
 }
-function stamp(text){
-  const el = $('#stamp');
-  $('#stampText').textContent = text || 'できた！';
-  el.hidden = false;
-  clearTimeout(stamp._t);
-  // アニメーションを やりなおす
-  const m = $('.stamp-mark'); m.style.animation = 'none'; void m.offsetWidth; m.style.animation = '';
-  stamp._t = setTimeout(()=>{ el.hidden = true; }, 900);
+/* =========================================================
+   はんこと 祝いの演出
+   仕様は docs/completion-animation-design.md（4a 校了版）。
+
+   段は4つ。出る回数が 減るほど 強くなる。
+     毎回 … はんこだけ（0.9秒）
+     A 項目完了 … 二重の輪の はんこ ＋ きらきら（1.6秒）
+     B 分類完了 … 2行の はんこ ＋ 花丸 ＋ 光条を 強めた きらきら ＋ 弧の渦（4.3秒）
+     C 完全制覇 … 暗転 ＋ スターマイン ＋ 弧の渦2本 ＋「完走！」（そのあと止まる）
+
+   **暗転するのは C だけ。** A と B は 紙の上のまま。
+   加算合成は「下にある色に 光を足す」ので、真っ白な紙には それ以上 足せない。
+   だから 光そのものを 見せる C だけ 暗くする。
+   ========================================================= */
+
+/* 演出の対象。**毎日の項目は 外す。**
+   必須・任意の isDone は「全部の 回数／段階／ページが 済んだか」で
+   いちど 成立すると 期間の 終わりまで 成立したままだが、毎日の項目は
+   「今日ぶんが 済んだか」なので **毎日 成立する**。入れると
+   「ひと夏に 数回」の つもりの 演出が 毎日 出る。
+   すすみぐあいの 計算（overall()）には 触れない。あちらは 表示の 割合で、
+   こちらは 祝いの 判定。同じ 関数を 使い回すと 片方の 都合で 両方が 動く。 */
+function celebrateTargets(group){
+  return config.tasks.filter(t => t.group === group && t.type !== 'daily');
+}
+function celebrateGroupDone(group){
+  const list = celebrateTargets(group);
+  return list.length > 0 && list.every(t => prog(t).isDone);
+}
+/* 保存する **前** に 撮っておく。あとから「変わったか」を 見るため */
+/* C は **必須も 任意も（読書の記録も ふくめて）ぜんぶ** 終わったとき。
+   読書の記録は 必須か 任意の どちらかに 入る 課題なので、
+   2つの 分類を 見れば おのずと 入る。
+   **課題が 1つも 無い 分類は「済んだ」として 数える。** 任意を 1つも
+   登録していない 家庭で、いつまでも 完走できなく なるのを 防ぐ
+   （B は これと ちがい、空の 分類では 出さない）。 */
+function celebrateAllDone(){
+  const groups = ['must','option'].filter(g => celebrateTargets(g).length > 0);
+  return groups.length > 0 && groups.every(celebrateGroupDone);
+}
+function celebrateBefore(task){
+  return {
+    task: !!(task && prog(task).isDone),
+    must: celebrateGroupDone('must'),
+    option: celebrateGroupDone('option'),
+    all: celebrateAllDone()
+  };
+}
+/* 「完走！」の しるし。課題の 顔ぶれが 変われば 別の 達成なので、
+   出したときの 顔ぶれごと 覚える（同じ 達成状態では 出し直さない）。 */
+function finaleSignature(){
+  return ['must','option'].map(g => celebrateTargets(g).map(t => t.id).sort().join(',')).join('/')
+    + '|' + (state && state.resetAt || '');
+}
+function finaleAlreadyShown(){ return getLocal(K_FINALE_DONE) === finaleSignature(); }
+
+/* どの段を 出すか。C ＞ B ＞ A ＞ 毎回。同時に 成立したときは
+   強いほうだけを 出す（C は 暗転するので、B を 重ねると
+   紙と 夜空が 入れかわって 見える）。 */
+function celebrateLevel(task, before){
+  if(!task || !before) return null;
+  if(task.type === 'daily') return null;
+  const group = task.group === 'must' || task.group === 'option' ? task.group : '';
+  if(!group) return null;
+  /* 取り消し（チェックを 外した）でも、もともと 済んでいた ものでも 出さない。
+     押しまちがいを 直しに 来た 人に、できたと 言わない */
+  if(before.task || !prog(task).isDone) return null;
+  if(!before.all && celebrateAllDone() && !finaleAlreadyShown()) return { level:'c', group };
+  if(!before[group] && celebrateGroupDone(group)) return { level:'b', group };
+  return { level:'a', group };
+}
+
+/* 分類の 呼び名。子ども画面と 保護者ページで 言葉が ちがう */
+const CELEBRATE_GROUP_KANA = { must:'かならず やる', option:'つぎに やる' };
+
+/* ---- 演出の 置き場と 片づけ ----
+   かけらは この 入れ物の 中だけに 作る。片づけは stopCelebration() の
+   **一箇所** に まとめる。種類を 増やすたびに 書き足す 形にすると
+   必ず 消し忘れ、テーマを 切りかえたとき 古い色の 粒だけが 画面に 残る。 */
+let fxLayer = null, fxCtx = null, fxRaf = 0, fxTimers = [];
+let fxW = 0, fxH = 0, fxS = 0, fxParts = [], fxStages = [];
+let fxEndAt = 0, fxT0 = 0, fxLast = 0, fxFade = .12, fxDark = false;
+let fxProbe = null, fxPixel = null, fxPalette = null;
+const fxSprites = new Map();
+
+/* 判定は **再生のたびに** 読む。設定は途中で変わる */
+function celebrateReduced(){
+  try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  catch(e){ return false; }
+}
+/* 粒だけを 止める。はんこは 自分の 時計で 引きあげる（B は 4.3秒 出したいのに
+   粒が 3.4秒で 終わる ―― ここを 一緒にすると はんこが 途中で 消える） */
+function endFxCanvas(){
+  if(fxRaf) cancelAnimationFrame(fxRaf);
+  fxRaf = 0; fxParts = []; fxStages = []; fxCtx = null;
+  if(fxLayer){ fxLayer.remove(); fxLayer = null; }
+}
+function stopCelebration(){
+  fxTimers.forEach(clearTimeout); fxTimers = [];
+  endFxCanvas();
+  $$('.finale, .celebrate-still').forEach(el => el.remove());
+  const box = $('#stamp');
+  if(box){ box.hidden = true; box.classList.remove('is-out'); box.innerHTML = ''; }
+}
+
+/* canvas は CSS変数も oklch(from …) も 読めない。1×1 の canvas に 塗って
+   読み返す。getComputedStyle().getPropertyValue() は oklch(0.48 0.16 150) の
+   形で 返るので、そこから 数を3つ 拾って RGB として 扱うと
+   **全部の色が 同じ 嘘の値に なる**（4a で 実際に 踏んだ）。 */
+function fxRGB(value){
+  if(!fxProbe){
+    fxProbe = document.createElement('span');
+    fxProbe.style.display = 'none';
+    document.body.append(fxProbe);
+    const c = document.createElement('canvas'); c.width = c.height = 1;
+    fxPixel = c.getContext('2d', { willReadFrequently:true });
+  }
+  fxProbe.style.color = ''; fxProbe.style.color = value;
+  fxPixel.fillStyle = '#000';
+  fxPixel.fillStyle = getComputedStyle(fxProbe).color;
+  fxPixel.fillRect(0, 0, 1, 1);
+  const d = fxPixel.getImageData(0, 0, 1, 1).data;
+  return [d[0], d[1], d[2]];
+}
+const FX_REAL = [[255,198,96],[255,198,96],[255,198,96],[255,146,54],[255,146,54],
+                 [255,86,64],[255,240,208],[128,255,168],[116,190,255]];
+const FX_EMBER = [255,246,226];
+function fxMix(a, b, w){ return [0,1,2].map(i => Math.round(a[i]*(1-w) + b[i]*w)); }
+/* 花火の色を 主に、テーマの色を 弱く。
+   全色に テーマを 22% 混ぜる案は 失敗だった ―― **6テーマとも 同じ
+   rgb(250,188,75) に なる。** 金に テーマの 黄を 混ぜていて、
+   6テーマの 黄が ほぼ 同じだから。テーマらしさは 紫系（--v2）と
+   緑系（--v3）に ある。そのまま 足すと UI の色が 飛んで 見えるので、
+   白熱側へ 28% 寄せて「火の粉」に する。11色中 2色。 */
+function fxBuildPalette(){
+  return FX_REAL.concat(['--v2','--v3'].map(n => fxMix(fxRGB('var(' + n + ')'), FX_EMBER, .28)));
+}
+function fxColorAt(u){
+  const p = fxPalette && fxPalette.length ? fxPalette : FX_REAL;
+  return p[Math.floor(u * p.length * 2.5) % p.length];
+}
+
+/* 粒の絵。白熱した 芯 → 色の かさ → 透明。ただの丸では ない。
+   芯を「円盤」に しないこと。白を 平らに 置くと 穴の 空いた ビーズに 見える。
+   かさは 内側3割に 詰める。広げると 光条が かさに 埋もれ、
+   「光条の 先より 光条の 間の ほうが 明るい」状態に なる。 */
+function fxGlow(rgb, kind, power){
+  const pw = power || 1;
+  const key = kind + pw + rgb.join(',');
+  if(fxSprites.has(key)) return fxSprites.get(key);
+  const size = kind === 'bokeh' ? 256 : 128;
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const x = c.getContext('2d'); const r = size / 2; const R = rgb[0], G = rgb[1], B = rgb[2];
+  const g = x.createRadialGradient(r, r, 0, r, r, r);
+  if(kind === 'bokeh'){
+    g.addColorStop(0, `rgba(${R},${G},${B},.36)`);  g.addColorStop(.62, `rgba(${R},${G},${B},.30)`);
+    g.addColorStop(.80, `rgba(${R},${G},${B},.42)`); g.addColorStop(.93, `rgba(${R},${G},${B},.10)`);
+    g.addColorStop(1, `rgba(${R},${G},${B},0)`);
+  }else{
+    g.addColorStop(0,   'rgba(255,255,255,.95)');
+    g.addColorStop(.03, `rgba(255,${Math.round((255+G)/2)},${Math.round((255+B)/2)},.7)`);
+    g.addColorStop(.10, `rgba(${R},${G},${B},.34)`);
+    g.addColorStop(.22, `rgba(${R},${G},${B},.11)`);
+    g.addColorStop(1,   `rgba(${R},${G},${B},0)`);
+  }
+  x.fillStyle = g; x.fillRect(0, 0, size, size);
+  if(kind === 'star'){
+    x.translate(r, r);
+    /* 光条は「中心が 最も 太い 三角形」で 描いては いけない。4本が 重なって
+       中央に 菱形が でき、その中に 芯が 乗ると「◯の 穴」に 見えて 毒々しくなる。
+       細い 一定幅の 帯にして、強さは **長さと 明るさだけ** に 効かせる
+       （幅にも 掛けると、強い段ほど 汚くなる）。 */
+    const spike = (len, alpha) => {
+      const wide = r * .018;
+      const lg = x.createLinearGradient(0, 0, len, 0);
+      lg.addColorStop(0,   `rgba(255,255,255,${alpha})`);
+      lg.addColorStop(.10, `rgba(${R},${G},${B},${alpha * .8})`);
+      lg.addColorStop(1,   `rgba(${R},${G},${B},0)`);
+      x.fillStyle = lg; x.fillRect(0, -wide, len, wide * 2);
+    };
+    for(let i = 0; i < 4; i++){
+      x.rotate(Math.PI / 2);
+      spike(r * Math.min(.99, .62 * pw), Math.min(.95, .62 * pw));
+      x.save(); x.rotate(Math.PI / 4);
+      spike(r * Math.min(.5, .28 * pw), Math.min(.5, .3 * pw));
+      x.restore();
+    }
+  }
+  fxSprites.set(key, c);
+  return c;
+}
+
+function fxOpen(darkMode){
+  endFxCanvas();
+  fxPalette = fxBuildPalette();
+  fxDark = !!darkMode;
+  fxLayer = document.createElement('div');
+  fxLayer.className = 'fx';
+  fxLayer.setAttribute('aria-hidden', 'true');
+  document.body.append(fxLayer);
+  const cv = document.createElement('canvas'); fxLayer.append(cv);
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  fxW = fxLayer.clientWidth; fxH = fxLayer.clientHeight; fxS = Math.min(fxW, fxH);
+  cv.width = Math.round(fxW * ratio); cv.height = Math.round(fxH * ratio);
+  fxCtx = cv.getContext('2d');
+  fxCtx.setTransform(ratio, 0, 0, ratio, 0, 0);
+}
+const fxRand = (a, b) => a + Math.random() * (b - a);
+function fxAdd(o){
+  fxParts.push(Object.assign({
+    x:0, y:0, vx:0, vy:0, g:0, drag:.1, life:1, age:0, wait:0,
+    size:fxS * .01, rgb:[255,198,96], kind:'glow', power:1, rot:0, spin:0, fadeIn:.12
+  }, o));
+}
+/* hold … 終わっても 自動で 消さない。C は 眺めていたいので 最後のコマを 残す */
+function fxBegin(sec, fade, hold){
+  fxFade = fade == null ? .13 : fade;
+  fxT0 = performance.now(); fxLast = 0; fxEndAt = fxT0 + sec * 1000;
+  fxRaf = requestAnimationFrame(fxFrame);
+  if(!hold) fxTimers.push(setTimeout(endFxCanvas, sec * 1000 + 400));
+}
+/* いま 出ている 粒の 寿命を 縮めて 画面を 静める。**消すのでは なく
+   早く 終わらせる** ので ぷつっと 切れない。完走が 押される 直前に 呼ぶ。
+   まわりが 動いている 最中に 押すと、いちばん 見てほしい 0.7秒が 埋もれる。 */
+function fxHush(sec){
+  for(const p of fxParts){
+    const left = p.life - p.age;
+    if(left > sec) p.life = p.age + sec;
+  }
+}
+function fxFrame(now){
+  if(!fxCtx) return;
+  const dt = Math.min((now - (fxLast || now)) / 1000, .05);
+  fxLast = now;
+  const el = (now - fxT0) / 1000;
+  while(fxStages.length && el >= fxStages[0].at) fxStages.shift().run();
+
+  fxCtx.globalCompositeOperation = 'source-over';
+  if(fxDark){
+    const rise = Math.min(1, el / .28);
+    fxCtx.fillStyle = `rgba(9,7,16,${fxFade + (1 - rise) * .34})`;
+    fxCtx.fillRect(0, 0, fxW, fxH);
+  }else{
+    fxCtx.globalCompositeOperation = 'destination-out';
+    fxCtx.fillStyle = `rgba(0,0,0,${fxFade + .05})`;
+    fxCtx.fillRect(0, 0, fxW, fxH);
+  }
+  fxCtx.globalCompositeOperation = fxDark ? 'lighter' : 'source-over';
+
+  for(const p of fxParts){
+    p.age += dt;
+    /* wait … 生まれる 時刻を ずらす。渦は これだけで「描かれていく」ように 見える */
+    if(p.age < p.wait) continue;
+    const own = p.age - p.wait;
+    if(own >= p.life) continue;
+    p.vy += p.g * dt;
+    const k = Math.pow(p.drag, dt);
+    p.vx *= k; p.vy *= k;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.rot += p.spin * dt;
+    const t = own / p.life;
+    let a = t < p.fadeIn ? t / p.fadeIn : Math.pow(1 - (t - p.fadeIn) / (1 - p.fadeIn), 1.7);
+    if(!fxDark) a *= .85;
+    const img = fxGlow(p.rgb, p.kind, p.power);
+    const d = p.size * (p.kind === 'bokeh' ? 1 : (.6 + (1 - t) * .7)) * 2;
+    fxCtx.globalAlpha = Math.max(0, Math.min(1, a));
+    if(p.rot){
+      fxCtx.save(); fxCtx.translate(p.x, p.y); fxCtx.rotate(p.rot);
+      fxCtx.drawImage(img, -d/2, -d/2, d, d); fxCtx.restore();
+    }else{
+      fxCtx.drawImage(img, p.x - d/2, p.y - d/2, d, d);
+    }
+  }
+  fxParts = fxParts.filter(p => p.age - p.wait < p.life);
+  fxCtx.globalAlpha = 1; fxCtx.globalCompositeOperation = 'source-over';
+  if(now < fxEndAt || fxParts.length) fxRaf = requestAnimationFrame(fxFrame);
+  else fxRaf = 0;   /* hold の ときは ここで 止まり、最後のコマが 残る */
+}
+
+/* 渦。経路の 上に 粒を 並べ、wait を 経路の 進みに 比例させる。
+   これだけで「端から 端へ 描かれていく」ように 見える。 */
+const FX_PATHS = {
+  arc(u, cx, cy, R){
+    const a = -2.5 + u * 4.7;
+    return [cx + Math.cos(a) * R * 1.02, cy + Math.sin(a) * R * .92];
+  }
+};
+function fxRibbon(kind, opt){
+  const o = Object.assign({ count:190, travel:1.35, life:1.5, R:fxS * .46,
+    cx:fxW / 2, cy:fxH * .46, power:1, hueShift:0, spread:.055, big:9 }, opt);
+  const path = FX_PATHS[kind] || FX_PATHS.arc;
+  for(let i = 0; i < o.count; i++){
+    const u = i / o.count;
+    const at = path(u, o.cx, o.cy, o.R);
+    /* 帯に 厚みを 出す。中心が 濃く、外へ いくほど まばら */
+    const j  = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+    const j2 = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+    const isBig = i % o.big === 0;
+    fxAdd({
+      x:at[0] + j * fxS * o.spread, y:at[1] + j2 * fxS * o.spread,
+      vx:j * fxS * .05, vy:j2 * fxS * .05 - fxS * .02,
+      drag:.5, life:o.life * fxRand(.75, 1.25),
+      wait:u * o.travel + fxRand(0, .05),
+      size:fxS * (isBig ? fxRand(.022, .04) : fxRand(.006, .016)),
+      rgb:fxColorAt((u + o.hueShift) % 1),
+      kind:isBig ? 'star' : (i % 4 === 0 ? 'bokeh' : 'glow'),
+      power:o.power, fadeIn:.14,
+      rot:fxRand(0, Math.PI), spin:fxRand(-.35, .35)
+    });
+  }
+}
+function fxSparkle(count, sec, power){
+  for(let i = 0; i < count; i++){
+    const big = i % 5 === 0;
+    fxAdd({
+      x:fxRand(.03,.97) * fxW, y:fxRand(.04,.96) * fxH,
+      vx:fxRand(-.02,.02) * fxS, vy:fxRand(-.05,.01) * fxS,
+      drag:.7, life:fxRand(sec * .45, sec * .85), wait:fxRand(0, sec * .45),
+      size:fxS * (big ? fxRand(.045,.08) : fxRand(.011,.028)),
+      rgb:fxColorAt(Math.random()), kind:big ? 'star' : 'glow',
+      power:power || 1, fadeIn:.2, rot:fxRand(0, Math.PI), spin:fxRand(-.5,.5)
+    });
+  }
+}
+function fxBokeh(count, sec){
+  for(let i = 0; i < count; i++){
+    const near = i % 3 === 0;
+    fxAdd({
+      x:fxRand(-.1,1.1) * fxW, y:fxRand(-.05,1.05) * fxH,
+      vx:fxRand(-.03,.03) * fxS, vy:fxRand(-.06,-.01) * fxS,
+      drag:.9, life:fxRand(sec * .55, sec), wait:fxRand(0, sec * .3),
+      size:fxS * (near ? fxRand(.07,.14) : fxRand(.025,.055)),
+      rgb:fxColorAt(Math.random()), kind:'bokeh', fadeIn:.28
+    });
+  }
+}
+const FX_GOLD = [[255,198,96],[255,214,130],[255,146,54],[255,240,208]];
+function fxShell(sx, sy, n, delay){
+  for(let i = 0; i < 16; i++){
+    fxAdd({ x:sx, y:fxH + i * (fxS * .01), vx:fxRand(-.01,.01) * fxS, vy:-(fxH - sy) / .5,
+            g:fxS * .3, drag:.5, life:.52 - i * .012, wait:delay,
+            size:fxS * fxRand(.009,.015), rgb:[255,224,150], fadeIn:.05 });
+  }
+  fxStages.push({ at:delay + .52, run:()=>{
+    for(let i = 0; i < n; i++){
+      const a = Math.PI * 2 * i / n + fxRand(-.05,.05);
+      const s = fxRand(.55,.9) * fxS;
+      fxAdd({ x:sx, y:sy, vx:Math.cos(a) * s, vy:Math.sin(a) * s * .82 - fxS * .06,
+              g:fxS * .6, drag:.28, life:fxRand(1.7,2.5), size:fxS * fxRand(.010,.018),
+              rgb:FX_GOLD[i % FX_GOLD.length], fadeIn:.03 });
+    }
+    fxAdd({ x:sx, y:sy, life:.34, size:fxS * .1, rgb:[255,246,222], fadeIn:.06 });
+  }});
+  fxStages.sort((a,b)=>a.at-b.at);
+}
+
+/* ---- 花丸（B）----
+   2画。1画目＝外から 中心へ 向かう 渦。2画目＝もこもこ。
+   もこもこは エピトロコイド x = C·cosψ + P·cos(Lψ)。**山の数は L−1** なので
+   5つ 欲しければ L=6（L=5 だと 黙って 4つに なる）。
+   極座標 r(θ) で 書いては いけない ―― 先の 切れこみが 尖った 花びらを 作り、
+   **構造的に 桜に なる。** もこもこは 丸い 山。 */
+const HM_R = 92;
+const HM_START = Math.PI / 2;   /* 真下。ここから 角度が 増える 向きが 右回り */
+const hmWob = a => 1 + .024 * Math.sin(a * 3.1 + .7) + .015 * Math.sin(a * 7.9 + 2.2);
+function hanamaruCloudPts(){
+  const C = .62, P = .115, L = 6, N = 420, pts = [];
+  for(let i = 0; i <= N; i++){
+    const t = (i / N) * Math.PI * 2;
+    /* 揺らぎの 周波数は **整数**。3.1 のような 端数だと 一周して 戻ったとき
+       半径が 合わず、始点と 終点に 段差が 出て「もうひとつの 端」に 見える */
+    const wobble = 1 + .020 * Math.sin(3 * t + .7) + .012 * Math.sin(8 * t + 2.2);
+    const asym = 1 + .10 * Math.sin(t + .8) + .06 * Math.sin(2 * t + 2.1);
+    const w = wobble * asym;
+    const psi = HM_START + t;
+    pts.push([(C * Math.cos(psi) + P * Math.cos(psi * L)) * w * HM_R,
+              (C * Math.sin(psi) + P * Math.sin(psi * L)) * w * HM_R * .78]);
+  }
+  pts.pop();                       /* 末尾は 先頭と 同じ点。回す前に 落とす */
+  /* 描き始めを **跳ね返りの V字頂点**（半径の 極小）のうち、画面で
+     いちばん 下の ものへ。形は 変えず、点列を 回すだけ。
+     閉じた 曲線なので 端を またぐ 比較は **剰余で 回す。** pts[i+3] と
+     素で 書くと 末尾で 範囲外に なり、例外で 点列生成ごと 止まる
+     （症状は「花丸が 出ない」）。 */
+  const rAt = k => {
+    const q = pts[((k % pts.length) + pts.length) % pts.length];
+    return Math.hypot(q[0], q[1]);
+  };
+  let vi = 0, best = -Infinity;
+  for(let i = 0; i < pts.length; i++){
+    const r = rAt(i);
+    let low = true;
+    for(let k = 1; k <= 3; k++) if(r > rAt(i - k) || r > rAt(i + k)) low = false;
+    if(!low) continue;
+    if(pts[i][1] > best){ best = pts[i][1]; vi = i; }   /* y が 大きい＝画面の下 */
+  }
+  const rot = pts.slice(vi).concat(pts.slice(0, vi));
+  rot.push(rot[0]);
+  return rot;
+}
+function hanamaruSpiralPts(){
+  const N = 200, TURNS = 2.2, pts = [];
+  for(let i = 0; i <= N; i++){
+    const t = i / N;
+    const psi = Math.PI * .1 + t * Math.PI * 2 * TURNS;
+    const r = (.36 - .32 * t) * hmWob(psi) * HM_R;
+    pts.push([Math.cos(psi) * r, Math.sin(psi) * r * .82]);
+  }
+  return pts;
+}
+const hanamaruD = (pts, n) => 'M' + pts.slice(0, Math.max(2, n))
+  .map(q => q[0].toFixed(2) + ',' + q[1].toFixed(2)).join('L');
+function hanamaruSVG(){
+  return `<svg class="hanamaru" viewBox="-100 -100 200 200" aria-hidden="true">
+      <path class="hm-spiral" d=""/><path class="hm-cloud" d=""/>
+    </svg>`;
+}
+/* **stroke-dasharray / stroke-dashoffset は 使わない。**
+   dash は「長い パターンを 窓で 切り出す」やり方で、線は 最初から 全部
+   そこに あり 隠されているだけ。マスクの 計算が 少しでも ズレると 窓が
+   複数箇所で 開き、**線が 複数の 起点から 生えたように 見える。**
+   ここでは **d 属性そのものを、描いた 点までで 毎フレーム 作り直す。**
+   その 瞬間に 画面に ある 線は いつでも「先頭から n 点目まで」だけなので、
+   起点が 増えることが 原理的に 起こらない。 */
+function hanamaruStroke(el, pts, dur, delay){
+  if(!el) return;
+  if(celebrateReduced()){ el.setAttribute('d', hanamaruD(pts, pts.length)); return; }
+  el.setAttribute('d', hanamaruD(pts, 2));
+  el.style.visibility = 'hidden';
+  let t0 = null;
+  const step = now => {
+    if(!el.isConnected) return;
+    if(t0 === null) t0 = now;
+    const e = now - t0 - delay;
+    if(e < 0){ requestAnimationFrame(step); return; }
+    el.style.visibility = 'visible';
+    const u = Math.min(1, e / dur);
+    /* 書き出しだけ 少し ためて、あとは 一定の 速さで 運ぶ */
+    const k = u < .18 ? (u / .18) * (u / .18) * .18 : u;
+    el.setAttribute('d', hanamaruD(pts, Math.round(k * pts.length)));
+    if(u < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function drawHanamaru(svg){
+  if(!svg) return;
+  /* はんこ着地（0.56秒）→ 1画目（0.7秒）→ 0.25秒あける → 2画目（1.7秒）。
+     もこもこは 巻きが あるぶん、ゆっくり 運ばないと 一筆に 見えない */
+  const START = 560, D1 = 700, PAUSE = 250, D2 = 1700;
+  hanamaruStroke(svg.querySelector('.hm-spiral'), hanamaruSpiralPts(), D1, START);
+  hanamaruStroke(svg.querySelector('.hm-cloud'), hanamaruCloudPts(), D2, START + D1 + PAUSE);
+}
+
+/* ---- 字面（インク）で 中央に そろえる ----
+   text-align:center が そろえるのは **文字の 送り幅** であって、
+   実際に 見えている インクでは ない。「完走！」の「！」は 全角の 枠を 取るのに
+   インクが 左寄りで、73px の 字で 15.9px ずれる。canvas で 測って 差分だけ 寄せる。
+   補正は **transform では なく left** で 入れる（transform だと 登場アニメと
+   同じ 性質を 奪い合い、動きが 消える）。 */
+let inkCanvas = null;
+function inkCenter(el){
+  if(!el) return;
+  if(!inkCanvas) inkCanvas = document.createElement('canvas').getContext('2d');
+  el.classList.remove('ink-centered');
+  el.style.removeProperty('--ink-shift');
+  const cs = getComputedStyle(el);
+  inkCanvas.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  if('letterSpacing' in inkCanvas) inkCanvas.letterSpacing = cs.letterSpacing;
+  const m = inkCanvas.measureText(el.textContent);
+  if(!(m.actualBoundingBoxRight > 0)) return;
+  const shift = m.width / 2 - (m.actualBoundingBoxRight - m.actualBoundingBoxLeft) / 2;
+  /* 測れなかった・桁が 異常な ときは 何も しない（ずらさない ほうが 安全） */
+  if(Math.abs(shift) < .3 || Math.abs(shift) > parseFloat(cs.fontSize)) return;
+  el.style.setProperty('--ink-shift', shift.toFixed(2) + 'px');
+  el.classList.add('ink-centered');
+}
+
+/* ---- はんこを 出す ----
+   **表示時間は 出る回数の 逆に する。** 毎回の ものを のばすと 必ず 邪魔になり、
+   ひと夏に 数回の ものは 短いと 読み終わる 前に 消える。
+   入りと 出は 分ける（1つの キーフレームに ぜんぶ 入れると
+   とどまる 長さを 段ごとに 変えられない）。 */
+function raiseStamp(html, hold){
+  const box = $('#stamp');
+  if(!box) return null;
+  box.classList.remove('is-out');
+  box.innerHTML = '<div class="stamp-stack">' + html + '</div>';
+  box.hidden = false;
+  fxTimers.push(setTimeout(()=> box.classList.add('is-out'), hold));
+  fxTimers.push(setTimeout(()=>{
+    box.hidden = true; box.classList.remove('is-out'); box.innerHTML = '';
+  }, hold + 400));
+  return box;
+}
+/* 動きを 減らす 設定では、演出を **出さない** のでは なく 動かない 印に
+   置きかえる。「できた」ことが 伝わらなく なるのは、動きが 苦手な 人にとっても 損。
+   透過も 拡大縮小も しない。 */
+function celebrateStill(full){
+  const el = document.createElement('div');
+  el.className = 'celebrate-still';
+  el.setAttribute('role', 'status');
+  el.innerHTML = '<span aria-hidden="true">✓</span>'
+    + (full ? 'ぜんぶ できた！' : 'できた！');
+  document.body.append(el);
+  fxTimers.push(setTimeout(()=> el.remove(), 1400));
+}
+
+function celebrateItem(text){
+  fxOpen(false);
+  raiseStamp('<div class="stamp-mark is-all">' + esc(text) + '</div>', 1600);
+  fxSparkle(34, 1.9, 1);
+  fxBegin(2.2, .15);
+}
+/* B。A と 同じ はんこの まま 2行に して、その 右下に 花丸を 描く。
+   **はんこを 差し替えないこと。** 分類の 最後の1課題を 終えた 瞬間は
+   A と B が 同時に 成立する。別の はんこに すると そこで A の はんこが 消える。
+   足すだけなら、いつもの はんこの まま「今回は 特別」が 伝わる。 */
+function celebrateGroup(group){
+  fxOpen(false);
+  const name = wording(CELEBRATE_GROUP_KANA[group] || '', GROUP_LABEL[group] || '');
+  const box = raiseStamp(
+    '<div class="stamp-b">'
+    + '<div class="stamp-mark is-all is-two"><span class="stamp-text">'
+    + '<span class="stamp-line-a">「' + esc(name) + '」</span>'
+    + '<span class="stamp-line-b">' + esc(wording('ぜんぶ おわったよ！', 'すべて完了')) + '</span>'
+    + '</span></div>' + hanamaruSVG() + '</div>', 4300);
+  if(box){
+    /* はんこの 実寸を 測って 花丸の たてオフセットを 決め直す。
+       **固定 px を 決め打ちしない。** はんこ幅が 160→331px へ 伸びたのに
+       オフセットが 旧サイズ前提の 75px の ままで、実際に 食いこんだ。
+       はんこは -11度 傾くので 外接する 高さは (S·sin11 + Sh·cos11)。 */
+    const wrap = box.querySelector('.stamp-b');
+    const mark = wrap && wrap.querySelector('.stamp-mark');
+    if(wrap && mark){
+      const rad = 11 * Math.PI / 180, ring = 11, gap = 8;
+      const halfH = (mark.offsetWidth * Math.sin(rad) + mark.offsetHeight * Math.cos(rad)) / 2 + ring;
+      wrap.style.setProperty('--hm-oy', (halfH + gap) + 'px');
+    }
+    drawHanamaru(box.querySelector('.hanamaru'));
+  }
+  /* 光条を 1.7倍。粒は A と 同じなので、強くなったのが 光条だと 分かる */
+  fxSparkle(44, 2.4, 1.7);
+  fxRibbon('arc', { count:170, travel:1.2, life:1.5, power:1.7 });
+  fxBegin(3.0, .13);
+}
+/* C。「完走！」は はんこの 延長線上に 置くが、暗転した 夜空に 赤い はんこを
+   置くと 警告に 見えるので 色だけ 金にする。自動では 消さない。 */
+function celebrateFinale(){
+  stopCelebration();
+  /* しるしは **実際に 出したとき** に 残す（showFinale の 中）。
+     押した 時点で 残すと、途中で 画面を 閉じられた ときに
+     一度も 見ていないのに「見た」ことに なる */
+  if(celebrateReduced()){ setLocal(K_FINALE_DONE, finaleSignature()); celebrateStill(true); return; }
+  fxOpen(true);
+  fxStages = [];
+  [.2,.75,.45,.9,.14,.62,.34,.8].forEach((fx,i)=> fxShell(fxW*fx, fxH*fxRand(.15,.32), 68, i*.32));
+  [.28,.5,.72].forEach((fx,i)=> fxShell(fxW*fx, fxH*fxRand(.13,.25), 92, 3.0 + i*.05));
+  fxStages.push({ at:.1, run:()=> fxBokeh(20, 6.6) });
+  fxStages.push({ at:1.1, run:()=> fxRibbon('arc', { count:200, travel:1.5, life:1.8, power:1.9 }) });
+  fxStages.push({ at:2.9, run:()=> fxRibbon('arc', { count:200, travel:1.5, life:1.8, power:1.9,
+                                                     cy:fxH * .56, R:fxS * .40 }) });
+  fxStages.push({ at:3.4, run:()=> fxSparkle(52, 3.2, 1.9) });
+  /* 完走は 花火の ピークを 過ぎてから。かぶせると 文字が 読めない。
+     さらに **押される 直前に まわりを 静める。** */
+  fxStages.push({ at:4.15, run:()=> fxHush(.45) });
+  fxStages.push({ at:4.3, run:showFinale });
+  fxStages.sort((a,b)=>a.at-b.at);
+  fxBegin(7.4, .1, true);   /* hold。自動では 消さず「もういちど／とじる」に まかせる */
+}
+function showFinale(){
+  $$('.finale').forEach(f => f.remove());
+  setLocal(K_FINALE_DONE, finaleSignature());
+  const el = document.createElement('div');
+  el.className = 'finale';
+  /* 期間の 呼び名は 設定で 変わる。**文字列を 直に 書かない。** */
+  el.innerHTML =
+    '<div class="finale-seal"><p class="finale-word">完走！</p></div>'
+    + '<p class="finale-sub">' + esc(periodWord(true)) + '、ぜんぶ やりきったね！</p>'
+    + '<div class="finale-acts"><button type="button" data-finale="again">'
+    + '<svg viewBox="0 0 24 24" aria-hidden="true">'
+    + '<path d="M19.6 7.4A8.6 8.6 0 1 0 20.6 13.4"/><path d="M20.9 2.6l-1.3 4.9-4.9-1.3"/>'
+    + '</svg>もういちど</button></div>';
+  const close = document.createElement('button');
+  close.className = 'finale-close';
+  close.type = 'button';
+  close.setAttribute('aria-label', 'とじる');
+  close.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  close.addEventListener('click', stopCelebration);
+  el.append(close);
+  document.body.append(el);
+  el.querySelector('[data-finale="again"]').addEventListener('click', celebrateFinale);
+  /* 押しこみの 開始倍率は **画面から 逆算する。** ねらいは 開始時の 幅が
+     画面幅の 約1.35倍（ふつうの「できた！」は 105〜141% で、そこは
+     動きが 見えている）。固定の 3.2倍だと iPhone で 246〜355% になり、
+     動きの 大半が 画面の 外で 起きていた。 */
+  const seal = el.querySelector('.finale-seal');
+  const sw = seal.offsetWidth || 1;
+  seal.style.setProperty('--seal-in',
+    Math.max(1.3, Math.min(1.9, window.innerWidth * 1.35 / sw)).toFixed(2));
+  inkCenter(el.querySelector('.finale-word'));
+  inkCenter(el.querySelector('.finale-sub'));
+}
+
+/* はんこ。celebration は celebrateLevel() の 返り値（無ければ 毎回の はんこ） */
+function stamp(text, celebration){
+  stopCelebration();
+  const level = celebration && celebration.level || '';
+  /* C は 動きを 減らす 設定でも celebrateFinale() を 通す。
+     「出した」しるしを 残すのは あちらなので、ここで 分岐を 増やすと
+     軽減表示の 人だけ 何度も 判定に 引っかかる */
+  if(level === 'c'){ celebrateFinale(); return; }
+  if(level && celebrateReduced()){ celebrateStill(false); return; }
+  if(level === 'b'){ celebrateGroup(celebration.group); return; }
+  if(level === 'a'){ celebrateItem(text || 'ぜんぶ できた！'); return; }
+  raiseStamp('<div class="stamp-mark">' + esc(text || 'できた！') + '</div>', 900);
 }
 
 /* ---------------------------------------------------------
@@ -5408,6 +6028,8 @@ function saveBookSheet(){
     memo, memoOut: out
   };
 
+  /* 祝いの 判定に つかう「保存する 前の 姿」（saveSheet と 同じ 撮りかた） */
+  const celebrateWas = celebrateBefore(t);
   if(sheetBookId){
     // 訂正。冊数は変わらないので進捗はそのまま
     const i = state.books.findIndex(x=>x.id===sheetBookId);
@@ -5433,7 +6055,10 @@ function saveBookSheet(){
   const adultOrigin = sheetAdultOrigin;
   closeSheet();
   stamp(adultOrigin ? '修正が完了しました' : sheetBookId ? wording('なおしたよ', 'なおした')
-    : (done ? wording('ぜんぶ よんだ！', '完了！') : wording('よめたね！', 'できた')));
+    : (done ? wording('ぜんぶ よんだ！', '完了！') : wording('よめたね！', 'できた')),
+    /* 訂正と 保護者からの 修正では 祝わない。冊数が 増えていないので
+       celebrateLevel() も null を 返すが、意図を ここにも 残す */
+    (adultOrigin || sheetBookId) ? null : celebrateLevel(t, celebrateWas));
   setTimeout(()=> render({ keepScroll:true }), 60);
 }
 
@@ -5603,6 +6228,9 @@ function saveSheet(){
   if(isBook(t)){ saveBookSheet(); return; }
   if(isFree(t)){ saveFreeSheet(); return; }
   /* 保存する前に 取る。順番を 入れかえないこと */
+  /* 祝いの 判定に つかう「保存する 前の 姿」。しつもんの 答えも
+     isDone に 効くので、saveQuestionAnswers() より 先に 撮る */
+  const celebrateWas = celebrateBefore(t);
   const answerChanges = answerChangesForLog();
   if(!saveQuestionAnswers(true)) return;
   const p = prog(t);
@@ -5746,7 +6374,8 @@ function saveSheet(){
   /* 進みを 変えずに 答えだけ のこした ときに「できた！」と 出すと、
      宿題が 進んだと 読めてしまう。したことを そのまま 伝える */
   else if(answersOnly) stamp(wording('こたえを きろくしたよ', '答えを記録した'));
-  else stamp(after.isDone ? wording('ぜんぶ できた！', '完了！') : wording('できた！', 'できた'));
+  else stamp(after.isDone ? wording('ぜんぶ できた！', '完了！') : wording('できた！', 'できた'),
+             celebrateLevel(t, celebrateWas));
   setTimeout(()=> render({ keepScroll:true }), 60);
   return ok;
 }
