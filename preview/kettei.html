@@ -110,8 +110,10 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
 .stamp-stack{display:grid;justify-items:center;gap:clamp(10px,3vw,20px);max-width:min(92vw,560px)}
 /* ネコのときは肉球。本体（assets/style.css）と同じ扱いを残す */
 [data-theme="cat"] .stamp-mark{display:flex;align-items:center;gap:12px;border-radius:var(--r);padding:20px 28px}
+/* 本体は 56px / font-size 44px ＝ 1.27em。ここを .9em にしていたので
+   本体より小さく見えていた。指示により さらに大きく 1.75em にする */
 [data-theme="cat"] .stamp-mark::before{
-  content:"";flex:none;width:.9em;height:.9em;background:currentColor;
+  content:"";flex:none;width:1.75em;height:1.75em;background:currentColor;
   -webkit-mask:url("../assets/paw.svg") center / contain no-repeat;
   mask:url("../assets/paw.svg") center / contain no-repeat;
 }
@@ -125,20 +127,31 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
    花丸の輪郭は起伏の深い版 r(θ)=.70+.26cos5θ-.11cos10θ。
    中に文字を入れないので、谷が深くても困らない。
    第3項が第2項の 1/4 を超えていないと花びらの先の切れこみが消える。 */
-/* いちばん狭い画面（320px級）では、はんこだけで幅を使いきる。
-   そこは花丸を下へ落とす。横に無理やり並べて字を縮めるより読める */
-.stamp-group{
-  display:flex;flex-wrap:wrap;align-items:center;justify-content:center;
-  gap:clamp(4px,1.6vw,14px);
-}
+/* 花丸は はんこの **上** に描く。横に並べると、はんこ 265px ＋ 花丸 140px で
+   iPhone の幅に入らない（実測済み）。上に重ねれば横幅は増えず、
+   しかも「先生が答案に花丸を書きこむ」いつもの絵になる。
+   線は細い輪郭なので、下の字は透けて読める。 */
+.stamp-b{position:relative;display:inline-grid;place-items:center}
 .hanamaru{
-  flex:none;width:clamp(56px,16vw,112px);aspect-ratio:1;overflow:visible;
-  transform:rotate(5deg);
+  position:absolute;left:50%;top:50%;
+  width:clamp(190px,52vw,360px);aspect-ratio:1;overflow:visible;
+  transform:translate(-46%,-52%) rotate(-4deg);
+  pointer-events:none;
 }
 .hanamaru path{
-  fill:none;stroke:var(--suika);stroke-width:7.5;
+  fill:none;stroke:var(--suika);stroke-width:6.5;
   stroke-linecap:round;stroke-linejoin:round;
+  /* はんこの字の上に来るので、少しだけ透かす。
+     完全な不透明だと字が読めず、薄すぎると手描きの勢いが死ぬ */
+  opacity:.9;
 }
+/* 見くらべ欄では単体で置くので、重ねの位置指定を打ち消す */
+.hanamaru.solo{position:static;transform:rotate(-4deg);width:clamp(120px,30vw,190px)}
+/* 2行のはんこ。1行めが分類名、2行めが結果 */
+.stamp-mark.two{font-size:clamp(19px,4.8vw,30px);line-height:1.34;text-align:center}
+.sm-text{display:grid;justify-items:center;gap:1px}
+.sm-a,.sm-b{white-space:nowrap}
+.sm-a{font-size:.92em}
 /* B の一言。**2行で組むことを前提**にする。分類名は設定で変わるうえ、
    iPhone の幅では1行に入りきらない。入るかどうかに賭けて自動改行に
    まかせると「ぜん／ぶ おわったよ！」のように語の途中で割れる。
@@ -207,11 +220,14 @@ h2.sec{margin:var(--space-xl) 0 var(--space-xs);font-family:var(--font-display);
   margin-top:clamp(14px,4vw,28px);pointer-events:auto;
   opacity:0;animation:finale-sub .6s ease-out 1.6s forwards;
 }
+/* つや（グラデーション）をやめて平らな色に。少し小さくもする。
+   完走！のほうが主役なので、ボタンが光っていると視線を取り合う */
 .finale-acts button{
   display:inline-flex;align-items:center;gap:9px;
-  min-height:48px;padding:0 22px;cursor:pointer;
-  color:#2b1c05;background:linear-gradient(180deg,#ffe7b4,#f6c069);
-  border:2px solid #ffeec9;border-radius:999px;font-weight:900;
+  min-height:42px;padding:0 18px;cursor:pointer;
+  font-size:clamp(14px,3.8vw,16px);font-weight:800;
+  color:#3a2a10;background:#e6cd9c;
+  border:0;border-radius:999px;
 }
 /* flex の中で svg がつぶれるので、伸縮を止めて実寸を固定する */
 .finale-acts svg{
@@ -284,9 +300,9 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     </select>
     <span class="bar-lab">完走の中央</span>
     <select id="center" aria-label="完走！の中央のとりかた">
-      <option value="0.5">中間（既定）</option>
+      <option value="1">インクぞろえ（既定）</option>
+      <option value="0.5">中間</option>
       <option value="0">送り幅ぞろえ</option>
-      <option value="1">インクぞろえ</option>
     </select>
     <span class="bar-lab">期間の呼び名</span>
     <input id="period" type="text" value="なつやすみ" maxlength="12" size="8"
@@ -341,16 +357,17 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     <article class="card">
       <span class="badge">B</span>
       <h3>分類をぜんぶ終えた</h3>
-      <p class="why">期間中に2回だけ。はんこの横に花丸。</p>
+      <p class="why">期間中に2回だけ。大きなはんこに花丸を重ねる。</p>
       <p>
-        はんこは <strong>A とおなじ「ぜんぶ できた！」</strong>のまま。
-        その横に<strong>花丸が2画で描かれ</strong>（外から中心へ渦 → 下から右回りにもこもこ）、
-        描き終わってから下に一言が出ます。表示は約3秒。
+        <strong>2行のはんこ</strong>（分類名／ぜんぶ おわったよ！）に、
+        <strong>花丸を大きく重ねて</strong>描きます。花丸は2画（外から中心へ渦 →
+        下から右回りにもこもこ）。表示は約3.2秒。
       </p>
-      <div class="how"><strong>はんこを差し替えないのが肝。</strong>
-        分類の最後の1項目を終えた瞬間は A と B が同時に成立します。
-        別のはんこにすると、そこで A のはんこが消えてしまう。
-        <strong>足すだけ</strong>なら、いつものはんこのまま「今回は特別」が伝わります。</div>
+      <div class="how"><strong>3つ出すのをやめました。</strong>
+        はんこ＋花丸＋吹き出しに背景の演出が加わると4つになってくどい。
+        一言をはんこの中へ入れて<strong>2つ</strong>にし、花丸ははんこの上に重ねたので
+        横幅も増えていません。</div>
+
       <button class="play" type="button" data-run="b">再生する</button>
     </article>
 
@@ -795,7 +812,7 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
        中間   … その半分
      「完走！」の「！」は全角の枠を取るのに墨が左寄りなので、
      この2つは 73px の字で 15.9px ずれる。上の選択でその割合を決める。 */
-  let centerWeight = .5;
+  let centerWeight = 1;
   function opticalCenter(el) {
     if (!el) return;
     el.classList.remove('ink-centered');
@@ -850,13 +867,19 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
      ψ を π/2 から始めると開始点が画面の下、増やすと右回りになる
      （画面座標は y が下向きなので、角度が増える＝時計回り）。 */
   function hanamaruCloud() {
-    const C = .62, P = .115, L = 6, N = 320, pts = [];
+    const C = .62, P = .115, L = 6, N = 340, pts = [];
     for (let i = 0; i <= N; i++) {
-      /* 1.05 … 一周より少し描き越す。人の手はぴたりで止まらない */
-      const psi = Math.PI / 2 + (i / N) * 1.05 * Math.PI * 2;
-      const w = wob(psi);
+      /* 1.02 … ほんの少しだけ重ねて閉じる。1.05 まで描き越すと、
+         始点と終点が並んで見えて「2箇所から生えている」ように読める */
+      const psi = Math.PI / 2 + (i / N) * 1.02 * Math.PI * 2;
+      /* 山の大きさをひとつずつ変える。5の約数でない周期を混ぜるのが肝で、
+         周期3や1にすると5つのうち同じ大きさの山ができて対称に戻る。
+         実測：山の半径 .617〜.826（対称版は5つとも .735 でそろっていた） */
+      const m = 1 + .10 * Math.sin(psi + .8) + .06 * Math.sin(psi * 2 + 2.1);
+      const w = wob(psi) * m;
       const x = (C * Math.cos(psi) + P * Math.cos(psi * L)) * w * R;
-      const y = (C * Math.sin(psi) + P * Math.sin(psi * L)) * w * R;
+      /* 縦を .86 に潰す。手で描く花丸は横長になる（実測 横長比1.26） */
+      const y = (C * Math.sin(psi) + P * Math.sin(psi * L)) * w * R * .86;
       pts.push(x.toFixed(2) + ',' + y.toFixed(2));
     }
     return 'M' + pts.join('L');
@@ -886,19 +909,20 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
      （完走！の下の文と同じ関係）。ここを固定位置の吹き出しにすると、
      ほかの要素と重なるし、系統の違うシステム通知に見える。 */
   function showGroupDone(groupName) {
+    /* はんこ・花丸・吹き出しの3つを出すと、背景の演出とあわせて4つになり
+       くどい。**一言をはんこの中へ入れて2行のはんこにし**、花丸を大きく
+       する（2つだけにする）。花丸ははんこの上に描くので、横幅は増えない。 */
     const wrap = raiseStamp(
-      `<div class="stamp-group">
-         <div class="stamp-mark all">ぜんぶ できた！</div>
-         ${hanamaruSVG()}
-       </div>
-       <div class="stamp-msg">
-         <span class="stamp-msg-name">「${groupName}」</span>
-         <span class="stamp-msg-line">ぜんぶ おわったよ！</span>
-       </div>`, 3000);
-    const done = drawHanamaru(wrap.querySelector('.hanamaru'));
-    /* 一言は花丸を描き終えてから。同時に出すと、どちらも見られない */
-    const msg = wrap.querySelector('.stamp-msg');
-    msg.style.animationDelay = (reduced() ? 0 : done - 120) + 'ms';
+      `<div class="stamp-b">
+         <div class="stamp-mark all two">
+           <span class="sm-text">
+             <span class="sm-a">「${groupName}」</span>
+             <span class="sm-b">ぜんぶ おわったよ！</span>
+           </span>
+         </div>
+         ${hanamaruSVG('big')}
+       </div>`, 3200);
+    drawHanamaru(wrap.querySelector('.hanamaru'));
     return wrap;
   }
   /* 完走。はんこではないので .stamp とは別の要素にする。
@@ -916,7 +940,7 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
       `<div class="finale-acts">
          <button type="button" data-finale="again">
            <svg viewBox="0 0 24 24" aria-hidden="true">
-             <path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5V9H15"/>
+             <path d="M19.6 7.4A8.6 8.6 0 1 0 20.6 13.4"/><path d="M20.9 2.6l-1.3 4.9-4.9-1.3"/>
            </svg>
            もういちど
          </button>
@@ -1148,8 +1172,8 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
     host.innerHTML =
       `<div class="stamp-group">
          <div class="stamp-mark all" style="animation:none">ぜんぶ できた！</div>
-         ${hanamaruSVG()}
-       </div><span class="stamp-cap">B 分類完了（花丸は2画で描かれる）</span>`;
+         ${hanamaruSVG('solo')}
+       </div><span class="stamp-cap">B 分類完了（花丸は2画。実際はんこに重なる）</span>`;
   })();
 })();
 </script>
