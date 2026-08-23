@@ -866,88 +866,84 @@ html[data-motion="reduce"] .finale-sub{animation:none;opacity:1;transform:none}
      「その子の花丸」として安定する）。 */
   const wob = a => 1 + .024 * Math.sin(a * 3.1 + .7) + .015 * Math.sin(a * 7.9 + 2.2);
   const R = 92;
-  /* 1画目。外側 .36 から中心 .04 へ、2.2周まきこむ。右回り */
-  function hanamaruSpiral() {
-    const N = 170, TURNS = 2.2, pts = [];
+  /* もこもこの描き始め。真下（画面の下）。ここから角度が増える向きが右回り */
+  const CLOUD_START = Math.PI / 2;
+  /* 2画目。もこもこ。形は「巻きのある」版（利用者の指定）。
+     x = C·cosψ + P·cos(Lψ) のエピトロコイド。山の数は L-1 なので L=6 で5つ。
+     P を上げるとつなぎ目が巻く。巻くと極角が逆行するが、**描画方式を
+     dash から「点を継ぎ足す」方式へ変えたので、逆行しても線は1本のまま**。
+     一周でぴったり閉じるよう、揺らぎの周波数は整数にしてある
+     （3.1 のような端数だと戻ったとき半径が合わず、端に段差が出る）。 */
+  function hanamaruCloudPts() {
+    const C = .62, P = .115, L = 6, N = 420, pts = [];
+    for (let i = 0; i <= N; i++) {
+      const t = (i / N) * Math.PI * 2;
+      const wobble = 1 + .020 * Math.sin(3 * t + .7) + .012 * Math.sin(8 * t + 2.2);
+      const asym = 1 + .10 * Math.sin(t + .8) + .06 * Math.sin(2 * t + 2.1);
+      const w = wobble * asym;
+      /* 真下から、角度が増える向き＝画面では右回り */
+      const psi = CLOUD_START + t;
+      const x = (C * Math.cos(psi) + P * Math.cos(psi * L)) * w * R;
+      const y = (C * Math.sin(psi) + P * Math.sin(psi * L)) * w * R * .78;
+      pts.push([x, y]);
+    }
+    return pts;
+  }
+  function hanamaruSpiralPts() {
+    const N = 200, TURNS = 2.2, pts = [];
     for (let i = 0; i <= N; i++) {
       const t = i / N;
       const psi = Math.PI * .1 + t * Math.PI * 2 * TURNS;
       const r = (.36 - .32 * t) * wob(psi) * R;
-      pts.push((Math.cos(psi) * r).toFixed(2) + ',' + (Math.sin(psi) * r).toFixed(2));
+      pts.push([Math.cos(psi) * r, Math.sin(psi) * r * .82]);
     }
-    return 'M' + pts.join('L');
+    return pts;
   }
-  /* 2画目。エピトロコイド。x = C·cosψ + P·cos(Lψ)。
-     山の数は L-1 なので、もこもこ5つなら **L=6**（L=5 では4つになる）。
-     P を上げるとつなぎ目が巻く。巻かないと ただの波、巻きすぎると花びら。
-     C=.62 P=.115 L=6 で「山5つ＋つなぎ目に小さな巻き」を実測で確認した。
-     ψ を π/2 から始めると開始点が画面の下、増やすと右回りになる
-     （画面座標は y が下向きなので、角度が増える＝時計回り）。 */
-  /* 開始角。ここを間違えると「起点が3つある」ように見える。
-     つなぎ目の巻きは 開始点から 14〜22 / 86〜94 / 158〜166 / 230〜238 /
-     302〜310度 にある（実測）。開始点を 0度（真下）に置くと、
-       ・始点（0度）
-       ・描き越した終端（7度）
-       ・最初の巻き（14〜22度）
-     が 22度のなかに密集し、線の端が3つあるように読める。
-     巻きに入っていない山の頂上（55度）から始め、**ぴったり1周で閉じる**。
-     55度は真下から右回りに少し進んだところなので「下から」も保てる。 */
-  const CLOUD_START = Math.PI / 2;
-  /* 2画目。**極座標 r(θ) で書く。** ここが起点問題の急所。
-     以前はエピトロコイド（x=C·cosψ+P·cos(Lψ)）で描いていた。あれは
-     つなぎ目で **角度が逆行する**（小さく巻く）ので、描いている点が
-     そのたびに戻り、線が別の場所から生えたように見える。実測で
-     一周のうち 270点が逆行していた。極座標なら θ が単調に増えるかぎり
-     角度は絶対に戻らないので、**起点がひとつであることを数学で保証できる**。
-     実測：逆行 0 回、始点と終点の距離 0.0000。
+  const dOf = (pts, n) => 'M' + pts.slice(0, Math.max(2, n))
+    .map(q => q[0].toFixed(2) + ',' + q[1].toFixed(2)).join('L');
 
-     r(θ) = (.70 + .26cos5θ - .11cos10θ) × 揺らぎ × 非対称
-       第1項〜第3項 … 5枚の花びらと、先の切れこみ
-         （第3項が第2項の 1/4 を下回ると切れこみが消えてただの5弁になる）
-       揺らぎ … 手描きらしさ。**整数の周波数にすること。**
-         3.1 や 7.9 のような端数だと一周して戻ったとき半径が合わず、
-         始点と終点に段差ができて、そこがまた「もうひとつの端」に見える。
-       非対称 … 花びらごとに大きさを変える（実測 .754〜.977）。 */
-  function hanamaruCloud() {
-    const N = 380, pts = [];
-    for (let i = 0; i <= N; i++) {
-      const t = (i / N) * Math.PI * 2;
-      const petal = .70 + .26 * Math.cos(5 * t) - .11 * Math.cos(10 * t);
-      const wobble = 1 + .020 * Math.sin(3 * t + .7) + .012 * Math.sin(8 * t + 2.2);
-      const asym = 1 + .10 * Math.sin(t + .8) + .06 * Math.sin(2 * t + 2.1);
-      const r = petal * wobble * asym * R;
-      /* 真下から始めて、角度が増える向き＝画面では右回り */
-      const psi = CLOUD_START + t;
-      pts.push((Math.cos(psi) * r).toFixed(2) + ',' +
-               (Math.sin(psi) * r * .78).toFixed(2));   /* .78 … 手で描く花丸は横長 */
-    }
-    return 'M' + pts.join('L') + 'Z';
-  }
   function hanamaruSVG(cls) {
     return `<svg class="hanamaru${cls ? ' ' + cls : ''}" viewBox="-100 -100 200 200" aria-hidden="true">
-      <path class="hm-spiral" d="${hanamaruSpiral()}"/>
-      <path class="hm-cloud"  d="${hanamaruCloud()}"/>
+      <path class="hm-spiral" d=""/>
+      <path class="hm-cloud"  d=""/>
     </svg>`;
   }
-  /* 2画を順に描く。1画目→間→2画目。同時に描くと一筆に見えてしまう */
-  function drawHanamaru(svg) {
-    /* はんこが着地して（0.5秒）から描きはじめる。
-       1画目を描き終えてから 200ms あけて2画目。ゆっくりでよい。
-       gap を 3倍にしてあるのは念のため。dash と gap が同じ長さだと
-       パターンが1周して、線が2箇所から生えることが理屈のうえではありうる */
-    const START = 560;
-    const seq = [['.hm-spiral', 0, 620], ['.hm-cloud', 820, 950]];
-    for (const [sel, delay, dur] of seq) {
-      const p = svg.querySelector(sel);
-      const len = p.getTotalLength();
-      p.style.strokeDasharray = `${len} ${len * 3}`;
-      p.style.strokeDashoffset = reduced() ? 0 : len;
-      if (reduced()) continue;
-      p.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
-        { duration: dur, delay: START + delay, easing: 'cubic-bezier(.3,.05,.35,1)', fill: 'forwards' });
-    }
-    return START + 820 + 950;
+  /* 2画を順に描く。
+     **dash（stroke-dasharray / dashoffset）は使わない。**
+     dash は「長いパターンを窓で切り出す」やり方なので、パスの実長と
+     getTotalLength のわずかな食い違いや、線が自分と交わるところの描画で、
+     線が複数箇所から生えたように見えることがあった。
+     ここでは **パスの d 属性そのものを、描いた点までで作り直す**。
+     その瞬間に画面にある線は、いつでも「先頭から n 点目まで」の1本だけなので、
+     起点が増えることが原理的に起こらない。 */
+  function strokePoints(el, pts, dur, delay) {
+    if (reduced()) { el.setAttribute('d', dOf(pts, pts.length)); return; }
+    el.setAttribute('d', dOf(pts, 2));
+    el.style.visibility = 'hidden';
+    let t0 = null;
+    const step = now => {
+      if (!el.isConnected) return;
+      if (t0 === null) t0 = now;
+      const e = now - t0 - delay;
+      if (e < 0) { requestAnimationFrame(step); return; }
+      el.style.visibility = 'visible';
+      const u = Math.min(1, e / dur);
+      /* 書き出しだけ少しためて、あとは一定の速さで運ぶ */
+      const k = u < .18 ? (u / .18) * (u / .18) * .18 : u;
+      el.setAttribute('d', dOf(pts, Math.round(k * pts.length)));
+      if (u < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
+  function drawHanamaru(svg) {
+    /* はんこが着地して（0.56秒）から。1画目 → 250ms あけて → 2画目。
+       もこもこは巻きがあるぶん、ゆっくり運ばないと一筆に見えない */
+    const START = 560, D1 = 700, PAUSE = 250, D2 = 1700;
+    strokePoints(svg.querySelector('.hm-spiral'), hanamaruSpiralPts(), D1, START);
+    strokePoints(svg.querySelector('.hm-cloud'), hanamaruCloudPts(), D2, START + D1 + PAUSE);
+    return START + D1 + PAUSE + D2;
+  }
+
   /* B。A と同じはんこを出し、その横に花丸を2画で描き、下に一言を添える。
      一言は「浮いた吹き出し」ではなく、はんこと同じ中央の積み木の一部にする
      （完走！の下の文と同じ関係）。ここを固定位置の吹き出しにすると、
