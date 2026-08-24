@@ -897,7 +897,7 @@ function homeInstallGuideHTML(){
   <aside class="paper home-install-notice">
     <div class="home-install-notice-body">
       <h2>ホーム画面に追加</h2>
-      <p>ホーム画面に追加すると、次から見つけやすくなります。保護者の端末に設定していれば保護者ページ、設定していなければ子ども画面から開きます。</p>
+      <p>追加をおすすめします。ホーム画面からアプリのように使用できるようになります。</p>
       <p class="set-note home-install-guide" id="homeInstallGuide" hidden>${esc(text)}</p>
     </div>
     <div class="home-install-actions">
@@ -5212,7 +5212,8 @@ function syncSectionHTML(opts){
         <summary>共有をやめる・つなぎ直す</summary>
         <div class="set-advanced-body">
           <h3 class="sync-subhead">べつの合言葉につなぎ直す</h3>
-          <p class="set-note">いま入っているグループから離れ、入力した合言葉のグループにつなぎ直します。この端末の記録は残ります。</p>
+          <p class="set-note">入力した合言葉のグループにつなぎ直します。<b>記録（やったこと・本）は消えません。</b>つないだ先の記録と合わさります。</p>
+          <p class="set-note">名前・宿題・デザインは、<b>つないだ先のグループの内容に変わります</b>。この端末の設定は使われません。</p>
           <div class="set-row"><span class="lab">つなぎ直す合言葉</span>
             <input type="text" id="syncRejoinCode" value="" spellcheck="false"
                    autocapitalize="off" autocorrect="off" placeholder="受け取った合言葉"></div>
@@ -7348,7 +7349,9 @@ function readingContextText(body, grade){
   if(Number(grade) === 0){
     text = text.replace(/（([日月火水木金土])）/g,
       (all, day)=>'（' + WD_READING[day] + '）');
-    text = text.replace(/(\d{1,2})月(?=\d{1,2}日)/g, '$1がつ');
+    /* 「日」が つづかない ときも、数字の あとの 月は「がつ」。
+       カレンダーの 見出し（2026年 8月）が「つき」に なっていた */
+    text = text.replace(/(\d{1,2})月/g, '$1がつ');
   }
   return text;
 }

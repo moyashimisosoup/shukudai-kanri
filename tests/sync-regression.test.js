@@ -2127,6 +2127,10 @@ test('曜日と日付の月を文脈に合う読みへ直す', ()=>{
     '小学1年生以上では既習の月日と曜日を漢字のまま残す');
   assert.equal(context('8月11日（水）', 2), '8月11日（水）',
     '小学2年生まで読める設定では曜日の漢字をひらがなへ先置換しない');
+  /* 「日」がつづかない月も「がつ」。カレンダーの見出し（2026年 8月）が
+     辞書の既定で「つき」と読まれていた（実機で再発） */
+  assert.equal(context('2026年 8月', 0), '2026年 8がつ');
+  assert.equal(context('2026年 8月', 1), '2026年 8月');
 });
 
 test('端末の呼び名には自明な変更範囲の説明を重ねない', ()=>{
@@ -2693,7 +2697,9 @@ test('共有欄は、作る・参加する・増やす・整える・やめる�
   /* 90日・管理者確認はここでは言わない。保護者ページ最下部の注意事項と
      紹介ページが持っている。重ねると警告が読み流される */
   const dialog = INDEX.slice(INDEX.indexOf('id="syncHelpDialog"'), INDEX.indexOf('id="posterHelpDialog"'));
-  assert.doesNotMatch(dialog, /90日|管理者/, 'iに保持期限の話まで重ねないこと');
+  /* 「管理者側では読み取れません」は暗号化の説明として正しく出る。
+     禁じたいのは保持期限（90日で削除対象）の話を重ねること */
+  assert.doesNotMatch(dialog, /90日|管理者確認|削除対象/, 'iに保持期限の話まで重ねないこと');
   assert.match(dialog, /すべての端末で合言葉を忘れると/, '戻せなくなる条件はiに残すこと');
   /* 図の 語は 1つだけ。手順と 注意で 言っていることを キャプションで 重ねない */
   assert.doesNotMatch(dialog, /<small>合言葉をつくる<\/small>|<small>合言葉そのもの<\/small>/,
@@ -2712,7 +2718,12 @@ test('共有欄は、作る・参加する・増やす・整える・やめる�
 test('狭い画面の収まり：点線を枠から離し、対のボタンは左右にならべる', ()=>{
   /* 紙の枠と区切りの点線が同じ太さで接すると、囲みの線と見分けがつかない */
   assert.match(STYLE, /\.sync-code-row\{ margin-inline:16px;/);
-  assert.match(STYLE, /#syncSection \.set-advanced-body::before\{[\s\S]{0,120}inset-inline:16px/);
+  /* たたみの中の区切りは中の見出しが持つ。body の上端に引くと、中身が
+     囲みの箱のとき背景に隠れ、角の丸みのぶん両端だけがのぞく */
+  assert.match(STYLE, /#syncSection \.set-advanced-body\{ border-top:0; \}/);
+  assert.match(STYLE, /#syncSection \.set-advanced-body > \.sync-subhead:first-child\{ border-top:2px dashed/);
+  assert.doesNotMatch(STYLE, /#syncSection \.set-advanced-body::before/,
+    '囲みの箱に隠れる線を引かないこと');
   assert.match(STYLE, /\.sync-subhead\{\s*margin-inline:16px;/);
   assert.match(STYLE, /#syncSection > \.paper > \.sync-start:first-child > \.sync-subhead\{ border-top:0; \}/,
     '欄のいちばん上に区切りを引かないこと');
@@ -2897,10 +2908,15 @@ test('ミニコンテンツは低学年設定でも漢字とルビを保つ', ()
 /* 追加すれば二度と出ない一時的な案内なので、i マーク（常設項目の補足）と
    目次には載せない。どちらも buildAdultSectionToc() が `.sec-head > h2` から
    作るため、枠だけの aside にすれば両方まとめて外れる。 */
-test('ホーム画面追加の案内は、どちらの画面が開くかを本文に書く', ()=>{
+test('ホーム画面追加の案内は、常設項目と同じ形にしない', ()=>{
   const f = grab(APP, 'homeInstallGuideHTML');
-  assert.match(f, /保護者の端末に設定していれば保護者ページ/);
-  assert.match(f, /設定していなければ子ども画面から開きます/);
+  /* 本文は利用者の裁定（2026-08-24）で「追加をおすすめします。ホーム画面から
+     アプリのように使用できるようになります。」へ差し替えた。追加後にどちらの
+     画面が開くかの説明はこの判断で落としている。文言そのものは縛らず、
+     本文が1文だけであること（案内を伸ばさないこと）を見る */
+  assert.match(f, /追加をおすすめします/);
+  assert.doesNotMatch(f, /保護者の端末に設定していれば/,
+    '説明を足し戻すときは利用者へ確認すること');
   assert.doesNotMatch(f, /adultSectionHelpAttr\(/,
     '一時的な案内を i マークの説明ダイアログへ入れないこと');
   assert.doesNotMatch(f, /<div class="sec-head"/,
@@ -3651,11 +3667,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260824g',
+    'assets/style.css': '20260824h',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260824e',
+    'assets/app.js': '20260824f',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a'
   };

@@ -409,11 +409,12 @@ button{ font:inherit; color:inherit; }
    区切りは 左右 16px ぶん 内へ 入れ、文字の 頭と 同じ 位置で 始める。
    .set-advanced-body は 中身の 余白を 動かせないので ::before で 引く */
 .sync-code-row{ margin-inline:16px; padding:10px 0 12px; border-bottom:2px dashed var(--hougan); }
-#syncSection .set-advanced-body{ border-top:0; position:relative; }
-#syncSection .set-advanced-body::before{
-  content:""; position:absolute; inset-inline:16px; top:0;
-  border-top:2px dashed var(--hougan);
-}
+/* たたみの 中の 区切りは、**中の 見出しに 持たせる。**
+   body の 上端に 引くと、中身が 囲みの 箱（招待の 欄）だと その 背景に
+   隠れ、角の 丸みの ぶん **両端だけが のぞく**（実機の 指摘）。
+   見出しが 先に 来る たたみでは、見出しの 点線が そのまま 区切りに なる */
+#syncSection .set-advanced-body{ border-top:0; }
+#syncSection .set-advanced-body > .sync-subhead:first-child{ border-top:2px dashed var(--hougan); }
 /* 欄の いちばん 上に 区切りは 要らない。上の 帯が すでに 区切っている */
 #syncSection > .paper > .sync-start:first-child > .sync-subhead{ border-top:0; }
 .sync-code-row > .lab{ display:block; margin-bottom:6px; font-size:15px; font-weight:900; }
