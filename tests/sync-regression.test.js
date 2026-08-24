@@ -2708,6 +2708,19 @@ test('共有欄は、作る・参加する・増やす・整える・やめる�
      禁じたいのは保持期限（90日で削除対象）の話を重ねること */
   assert.doesNotMatch(dialog, /90日|管理者確認|削除対象/, 'iに保持期限の話まで重ねないこと');
   assert.match(dialog, /すべての端末で合言葉を忘れると/, '戻せなくなる条件はiに残すこと');
+  /* 注意は4項目まで。増やすと読み流され、本当の警告が働かなくなる
+     （憲章5節）。操作の直前に置けるものは、i ではなくそちらへ置く */
+  const facts = dialog.slice(dialog.indexOf('<ul class="poster-facts">'), dialog.indexOf('</ul>'));
+  assert.ok((facts.match(/<li>/g) || []).length <= 4,
+    'i の注意は4項目まで。増えるときは利用者へ確認すること');
+  /* 一覧から外す・役割の説明は、i ではなく操作の直下に置く（利用者の裁定）。
+     憲章2節が操作画面に求めている2項目なので、消えていないことを見る */
+  assert.doesNotMatch(dialog, /外した端末|保護者の端末/,
+    '操作の直下に置ける説明を i へ重ねないこと');
+  assert.match(grab(APP, 'deviceListHTML'), /一覧から外しても、合言葉を入れ直せば再参加できます。/,
+    '外しても戻れることを、端末の一覧の直下に書くこと');
+  assert.match(grab(APP, 'syncSectionHTML'), /開いたときの画面と記録者名の設定です。利用の制限ではありません。/,
+    '役割が利用の制限でないことを、役割をえらぶ欄の直下に書くこと');
   /* 図の 語は 1つだけ。手順と 注意で 言っていることを キャプションで 重ねない */
   assert.doesNotMatch(dialog, /<small>合言葉をつくる<\/small>|<small>合言葉そのもの<\/small>/,
     '図のキャプションで手順と同じことを繰り返さないこと');
@@ -3674,11 +3687,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260824i',
+    'assets/style.css': '20260824j',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260824g',
+    'assets/app.js': '20260824h',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a'
   };
