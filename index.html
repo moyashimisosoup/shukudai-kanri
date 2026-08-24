@@ -24,7 +24,7 @@
 <!-- Webフォントの通信で初期描画を止めない。読み込み中は端末内の丸ゴシックを使う -->
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/style.css?v=20260824f">
+<link rel="stylesheet" href="assets/style.css?v=20260824g">
 <link rel="stylesheet" href="tokens.css?v=20260813a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
 </head>
@@ -88,8 +88,11 @@
   </div>
   <p class="poster-lead">同じ合言葉の端末どうしで、宿題・設定・記録を共有します。</p>
   <p class="poster-seal"><b>中身はこの端末で暗号化して送ります。預け先からは読めません。</b></p>
-  <!-- 3コマの図。**文字は文字のままHTMLに置く。** SVGの中に入れると、図を画面幅に
-       合わせて縮めたぶん字も縮み、320pxでは読めなくなる（写真の説明で実測ずみ） -->
+  <!-- **2コマだけの 見立て。** 仕組みの 図解は 置かない（利用者の 裁定）。
+       QR や リンクで 渡すことは すでに 広く 知られた 前提なので、
+       「この端末 ⇄ ほかの端末」だけを 示す。
+       文字は 文字のまま HTML に 置く。SVG の 中に 入れると、図を 画面幅に
+       合わせて 縮めたぶん 字も 縮み、320px では 読めなくなる -->
   <figure class="poster-figure">
     <div class="poster-flow">
       <div class="poster-flow-step">
@@ -103,28 +106,15 @@
         </svg>
         <b>この端末</b>
       </div>
-      <svg class="poster-flow-arrow" viewBox="0 0 24 24" aria-hidden="true">
-        <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="3" y1="12" x2="20" y2="12"/><polyline points="14,6 20,12 14,18"/>
-        </g>
-      </svg>
-      <div class="poster-flow-step">
-        <svg class="poster-flow-ico" viewBox="0 0 56 72" aria-hidden="true">
+      <div class="poster-flow-link">
+        <svg class="poster-flow-arrow" viewBox="0 0 48 24" aria-hidden="true">
           <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="6" y="14" width="44" height="44" rx="5"/>
-            <rect x="14" y="22" width="12" height="12" rx="2"/>
-            <rect x="30" y="22" width="12" height="12" rx="2"/>
-            <rect x="14" y="38" width="12" height="12" rx="2"/>
-            <line x1="32" y1="40" x2="42" y2="40"/><line x1="32" y1="48" x2="42" y2="48"/>
+            <line x1="6" y1="12" x2="42" y2="12"/>
+            <polyline points="12,6 6,12 12,18"/><polyline points="36,6 42,12 36,18"/>
           </g>
         </svg>
-        <b>QR・招待リンク</b>
+        <b>共有</b>
       </div>
-      <svg class="poster-flow-arrow" viewBox="0 0 24 24" aria-hidden="true">
-        <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="3" y1="12" x2="20" y2="12"/><polyline points="14,6 20,12 14,18"/>
-        </g>
-      </svg>
       <div class="poster-flow-step">
         <svg class="poster-flow-ico" viewBox="0 0 60 72" aria-hidden="true">
           <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -133,7 +123,7 @@
             <line x1="18" y1="26" x2="42" y2="26"/><line x1="18" y1="34" x2="42" y2="34"/>
           </g>
         </svg>
-        <b>相手の端末</b><small>QR読み取りで共有</small>
+        <b>ほかの端末</b>
       </div>
     </div>
   </figure>

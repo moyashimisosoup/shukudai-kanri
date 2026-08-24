@@ -2698,7 +2698,11 @@ test('共有欄は、作る・参加する・増やす・整える・やめる�
   /* 図の 語は 1つだけ。手順と 注意で 言っていることを キャプションで 重ねない */
   assert.doesNotMatch(dialog, /<small>合言葉をつくる<\/small>|<small>合言葉そのもの<\/small>/,
     '図のキャプションで手順と同じことを繰り返さないこと');
-  assert.match(dialog, /<b>相手の端末<\/b><small>QR読み取りで共有<\/small>/);
+  /* 図は 2コマだけ。しくみの 図解は 置かない（利用者の 裁定）。
+     QR で 渡すことは すでに 広く 知られた 前提 */
+  assert.match(dialog, /<b>この端末<\/b>[\s\S]{0,600}<b>共有<\/b>[\s\S]{0,600}<b>ほかの端末<\/b>/);
+  assert.equal((dialog.match(/class="poster-flow-step"/g) || []).length, 2,
+    '図のコマは2つまで（3つならべると狭い画面で語が折れる）');
   assert.match(STYLE, /#syncHelpDialog \.poster-facts li\{/,
     '注意は1つずつ囲んで、どこで切れるかを読めるようにすること');
 });
@@ -3647,7 +3651,7 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260824f',
+    'assets/style.css': '20260824g',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
