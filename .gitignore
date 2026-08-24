@@ -28,3 +28,7 @@ local/
 
 # エージェントの作業メモ（引継ぎ・検討待ち・設計の下書き）。公開リポジトリへ入れない。
 docs/superpowers/
+
+# 実装前・未実装の設計メモ。利用者向けの案内ではないので公開リポジトリへ入れない。
+docs/data-retention-design.md
+docs/period-label-customization-design.md
