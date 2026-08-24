@@ -6906,7 +6906,12 @@ test('クリック統計は1日120種類・14日で打ち切る', ()=>{
   for(let d=1; d<=20; d++) api.note('posteropen', new Date(2026, 7, d, 10, 0, 0));
   const days = Object.keys(api.snapshot().days).sort();
   assert.equal(days.length, 14);
-  assert.equal(days[days.length - 1], '20260824', '新しい日から14日ぶんを残す');
+  /* metrics.js は読みこんだ時点で「今日」ぶんの入れ物を作る（day_open）。
+     だからいちばん新しい日は **実行日で変わる**。期待値に日付を直に書くと、
+     書いたその日だけ通るテストになる（2026-08-25 に踏んだ） */
+  assert.ok(days.includes('20260824'), '新しい日は残る');
+  assert.ok(!days.includes('20260801'), '古い日から落とす');
+  assert.ok(days[days.length - 1] >= '20260824', '新しい日から14日ぶんを残す');
 });
 
 test('クリック統計は1つの名前を100000で頭打ちにする', ()=>{
