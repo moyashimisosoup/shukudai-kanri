@@ -13,6 +13,7 @@ const RULES = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
 const DATA = fs.readFileSync(path.join(ROOT, 'assets', 'data.js'), 'utf8');
 const INDEX = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const PHOTOS = fs.readFileSync(path.join(ROOT, 'assets', 'photos.js'), 'utf8');
+const METRICS = fs.readFileSync(path.join(ROOT, 'assets', 'metrics.js'), 'utf8');
 const DOCS_INDEX = fs.readFileSync(path.join(ROOT, 'start', 'index.html'), 'utf8');
 const GUIDE = fs.readFileSync(path.join(ROOT, 'start', 'getting-started.html'), 'utf8');
 const UPDATES = fs.readFileSync(path.join(ROOT, 'start', 'updates.html'), 'utf8');
@@ -3693,7 +3694,8 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'assets/data.js': '20260817f',
     'assets/app.js': '20260824i',
     'assets/sync.js': '20260822a',
-    'assets/photos.js': '20260821a'
+    'assets/photos.js': '20260821a',
+    'assets/metrics.js': '20260824b'
   };
   for(const [file, version] of Object.entries(versions)){
     assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=' + version));
@@ -5999,7 +6001,7 @@ test('縮めても収まらない写真は、荒くして通さずに断る', ()
    app.js が丸ごと動かなくなったのに、テストは全部通った。
    壊れたら画面が真っ白になるところなので、ここで止める。 */
 test('配信するスクリプトは、まるごと構文が通る', ()=>{
-  const files = { 'app.js':APP, 'photos.js':PHOTOS, 'sync.js':SYNC, 'data.js':DATA };
+  const files = { 'app.js':APP, 'photos.js':PHOTOS, 'sync.js':SYNC, 'data.js':DATA, 'metrics.js':METRICS };
   for(const [name, src] of Object.entries(files)){
     assert.doesNotThrow(()=> new vm.Script(src, { filename:name }), name + ' の構文が通ること');
   }
@@ -6671,4 +6673,497 @@ test('進捗サマリーは必須・任意・毎日で区分名をそろえる',
   assert.match(APP, /sectionHTML\('opt','つぎに やる'/);
   assert.match(APP, /sectionHTML\('daily','まいにち すこしずつ'/);
   assert.match(APP, /<span class="pace-key pace-key--opt"><\/span>つぎに やる/);
+});
+
+/* =========================================================
+   クリック統計（段階1と3：数えて端末内に貯め、終わった日ぶんを送る）
+
+   docs/click-metrics-design.md の 9節-1 と 9節-3。
+   芯は「文字を一切読まない」こと。材料は id・data属性の名前・class だけで、
+   値を見てよいのは 2026-08-24 に固定文字列だと1つずつ確かめた9属性に限る。
+
+   段階3で「何も送らない」の見張りは外れた。代わりに、**送る欄は5つだけ**・
+   **宛先は2つだけ**・**鍵を端末に残さない**・**失敗を画面に出さない** を見張る。
+   ========================================================= */
+
+/* metrics.js を本物のまま動かす。抜き出した断片ではなく、
+   index.html が読むのと同じ1ファイルを走らせること */
+function metricsSandbox(options = {}){
+  const store = new Map(Object.entries(options.storage || {}));
+  const listeners = [];
+  const timers = [];
+  let seed = 0;
+  const sandbox = {
+    URLSearchParams,
+    location:{ search: options.search || '' },
+    localStorage:{
+      getItem(k){ return store.has(k) ? store.get(k) : null; },
+      setItem(k, v){ store.set(k, String(v)); },
+      removeItem(k){ store.delete(k); }
+    },
+    document:{
+      addEventListener(type, handler, capture){ listeners.push({ type, handler, capture }); }
+    },
+    crypto:{ getRandomValues(arr){ for(let i=0;i<arr.length;i++) arr[i] = (seed++ * 37 + 11) % 256; return arr; } },
+    /* 本物のタイマーは動かさない。まとめ書きの先送りをここで観察する */
+    setTimeout(fn){ timers.push(fn); return timers.length; },
+    clearTimeout(){},
+    /* 渡さなければ undefined。metrics.js は typeof で見て、黙って何もしない */
+    fetch: options.fetch
+  };
+  sandbox.window = sandbox;
+  vm.runInNewContext(METRICS, sandbox);
+  return { api: sandbox.window.NatsuMetrics, listeners, timers, store };
+}
+
+/* 本物の DOM と同じ読み口だけを持つ最小の札。
+   metrics.js が textContent などに触れたら、ここに無いので必ず落ちる */
+function metricsEl(tag, attrs, parent){
+  return {
+    tagName: String(tag).toUpperCase(),
+    attributes: Object.entries(attrs || {}).map(([name, value])=>({ name, value:String(value) })),
+    parentElement: parent || null
+  };
+}
+
+/* 送り先の代わり。応答は steps の順に返す（1つ目は匿名の鍵取り）。
+   **vm から来た値をそのまま assert へ渡さない。** 別の窓で作られた配列や
+   オブジェクトは、こちらの Array / Object の子ではない（実際に踏んだ）。
+   body は文字なので、こちら側で JSON.parse して写してから見る */
+function metricsNet(steps = []){
+  const calls = [];
+  let n = 0;
+  const fetch = (url, init)=>{
+    const opts = init || {};
+    calls.push({
+      url: String(url),
+      body: opts.body ? JSON.parse(String(opts.body)) : null,
+      auth: opts.headers ? String(opts.headers.Authorization || '') : ''
+    });
+    const step = steps[n++] || {};
+    const status = step.status || 200;
+    return Promise.resolve({
+      ok: status >= 200 && status < 300,
+      status,
+      json: ()=> Promise.resolve(step.json || {})
+    });
+  };
+  return { fetch, calls };
+}
+
+/* 「もう終わった日」を1日ぶん貯めた状態から始める。今日ぶんは読みこみ時に
+   day_open が作るので、送ってよい日と送ってはいけない日が両方そろう */
+const METRICS_OLD_DAY = '20200102';
+const METRICS_OLD_ID  = 'abcdefghij0123456789';
+function metricsStored(ev, sh){
+  return { 'natsu.metrics.v1': JSON.stringify({ v:1, days:{
+    [METRICS_OLD_DAY]: { id:METRICS_OLD_ID, sh:!!sh, ev:ev || { posteropen:3, day_open:1 } }
+  }}) };
+}
+
+test('クリック統計は文字を読む経路を持たない', ()=>{
+  assert.doesNotMatch(METRICS, /textContent|innerText|innerHTML|placeholder|ariaLabel|aria-label/,
+    '本文・ラベル・下書き文字を読む経路を作らないこと');
+  assert.doesNotMatch(METRICS, /getAttribute|\.title\b|querySelector/,
+    '属性は attributes からしか見ない。名指しで title を取りにいかないこと');
+  assert.doesNotMatch(METRICS, /preventDefault|stopPropagation/,
+    '既存の46か所のリスナーの動きを1つも変えないこと');
+});
+
+test('クリック統計は捕捉フェーズに1つだけ耳を置く', ()=>{
+  const { listeners } = metricsSandbox();
+  const clicks = listeners.filter(l=>l.type === 'click');
+  assert.equal(clicks.length, 1, 'click の耳は1つだけ');
+  assert.equal(clicks[0].capture, true, 'capture で拾う（bubble で止めている3か所より前に走る）');
+});
+
+test('クリック統計は個人情報を名前に混ぜない', ()=>{
+  const { api } = metricsSandbox();
+  const html = metricsEl('html', { 'data-theme':'notebook' });
+  const body = metricsEl('body', {}, html);
+  const sec = metricsEl('section', { class:'sec', 'data-adult-section-help':'ゆうたの記録を消します' }, body);
+  const act = metricsEl('div', { class:'task-act' }, sec);
+  const btn = metricsEl('button', {
+    class:'btn btn-do',
+    'data-open':'こくごのドリル',
+    title:'ゆうたの こくご',
+    'aria-label':'はじめの本だな',
+    value:'ひみつのあいことば',
+    placeholder:'やったことを書く'
+  }, act);
+
+  const name = api.nameFor(btn);
+  assert.equal(name, 'open');
+  assert.match(name, /^[a-z0-9_]{1,32}$/, '名前は英数字と _ だけ');
+  for(const leak of ['ゆうた','こくご','ドリル','はじめ','本だな','ひみつ','あいことば','やった']){
+    assert.equal(name.includes(leak), false, leak + ' が名前に混ざらないこと');
+  }
+});
+
+test('クリック統計は許可していない属性の値を名前に入れない', ()=>{
+  const { api } = metricsSandbox();
+  /* vm の 中で 作られた 配列は こちらの Array の 子では ないので 写しとる */
+  assert.deepEqual(Array.from(api.VALUE_OK),
+    ['tab','f','bf','role','welcome-role','welcome-mode','join-role','fun','sharing'],
+    '値を見てよい属性は、値が固定文字列だと確かめた9つだけ');
+
+  const del = metricsEl('button', { class:'icon-btn del', 'data-delbook':'book-abc' });
+  assert.equal(api.nameFor(del), 'delbook');
+
+  const day = metricsEl('button', { class:'cal-day', 'data-day':'2026-08-24' });
+  assert.equal(api.nameFor(day), 'day', '日付という生活の跡も値としては入れない');
+
+  const tab = metricsEl('button', { class:'tab is-on', 'data-tab':'log' });
+  assert.equal(api.nameFor(tab), 'tab_log', '許可した属性の値だけが後ろに付く');
+});
+
+test('クリック統計は日本語の目印を名前にしない', ()=>{
+  const { api } = metricsSandbox();
+  const jp = metricsEl('button', { id:'こくご', class:'ドリル' });
+  assert.equal(api.nameFor(jp), '', '日本語しか材料が無ければ、その要素は数えない');
+});
+
+test('クリック統計は同じ属性名の別機能を名前で分ける', ()=>{
+  const { api } = metricsSandbox();
+  const num   = metricsEl('button', { class:'num sel', 'data-n':'7' });
+  const tally = metricsEl('button', { class:'tally-btn sel', 'data-n':'3' });
+  assert.equal(api.nameFor(num), 'n_num');
+  assert.equal(api.nameFor(tally), 'n_tally_btn');
+  assert.notEqual(api.nameFor(num), api.nameFor(tally));
+
+  const step = metricsEl('button', { class:'step on', 'data-i':'2' });
+  assert.equal(api.nameFor(step), 'i_step');
+
+  const openTask = metricsEl('button', { class:'btn btn-do', 'data-open':'daily-1' });
+  const openBook = metricsEl('button', { class:'btn btn-sm btn-ghost', 'data-open':'t-1', 'data-book':'b-1' });
+  assert.equal(api.nameFor(openTask), 'open');
+  assert.equal(api.nameFor(openBook), 'open_book');
+});
+
+test('クリック統計は4桁以上の数字を含む目印を使わない', ()=>{
+  const { api } = metricsSandbox();
+  const generated = metricsEl('button', { id:'t1724387000', class:'btn btn-do', 'data-open':'x' });
+  assert.equal(api.nameFor(generated), 'open', '生成 id は捨てて次の材料へ落ちること');
+
+  const onlyGenerated = metricsEl('button', { id:'t1724387000' });
+  assert.equal(api.nameFor(onlyGenerated), '', '材料が生成 id だけなら数えない');
+
+  const short = metricsEl('button', { id:'icon180' });
+  assert.equal(api.nameFor(short), 'icon180', '3桁までは通す');
+});
+
+test('クリック統計は押せるものでないクリックを数えない', ()=>{
+  const { api } = metricsSandbox();
+  const html = metricsEl('html', { 'data-theme':'notebook' });
+  const body = metricsEl('body', {}, html);
+
+  /* 上帯のタイトル。中身は「〈子の名前〉の夏休みの宿題」 */
+  const header = metricsEl('header', { class:'topband' }, body);
+  const inner  = metricsEl('div', { class:'topband-inner' }, header);
+  const title  = metricsEl('h1', { id:'appTitle' }, inner);
+  assert.equal(api.targetFor(title), null, '背景のクリックが <html data-theme> に当たらないこと');
+
+  /* 保護者ページの区画。data- を持つが操作ではない */
+  const sec = metricsEl('section', { class:'sec', 'data-adult-section-help':'説明' }, body);
+  const list = metricsEl('div', { class:'task-list' }, sec);
+  assert.equal(api.targetFor(list), null);
+
+  /* 画面ぜんたいの入れ物。tabindex="-1" は焦点用であって操作ではない */
+  const view = metricsEl('main', { id:'view', class:'view', tabindex:'-1' }, body);
+  assert.equal(api.targetFor(view), null);
+
+  /* 開閉の記憶。<details> ではなく <summary> を数える */
+  const details = metricsEl('details', { class:'set-task', 'data-i':'0', 'data-details-key':'task:daily-1' }, body);
+  assert.equal(api.targetFor(details), null);
+  const summary = metricsEl('summary', { class:'set-task-summary' }, details);
+  assert.equal(api.nameFor(api.targetFor(summary)), 'set_task_summary');
+});
+
+test('クリック統計は5階層までしかさかのぼらない', ()=>{
+  const { api } = metricsSandbox();
+  const body = metricsEl('body', {});
+  const btn  = metricsEl('button', { id:'posterOpen' }, body);
+  let node = btn;
+  for(let i=0;i<4;i++) node = metricsEl('span', { class:'deep' }, node);
+  assert.equal(api.targetFor(node), btn, '4階層下からは届く');
+  node = metricsEl('span', { class:'deep' }, node);
+  assert.equal(api.targetFor(node), null, '5階層をこえたら諦める');
+});
+
+test('クリック統計は1日120種類・14日で打ち切る', ()=>{
+  const { api } = metricsSandbox();
+  const at = new Date(2026, 7, 24, 10, 0, 0);
+  for(let i=0;i<130;i++) api.note('name' + String.fromCharCode(97 + i % 26) + Math.floor(i / 26), at);
+  const day = api.snapshot().days['20260824'];
+  assert.equal(Object.keys(day.ev).length, 120, '新しい名前は120で打ち切る');
+
+  const first = Object.keys(day.ev)[0];
+  api.note(first, at);
+  assert.equal(day.ev[first], 2, '打ち切ったあとも、すでにある名前は数え続ける');
+
+  for(let d=1; d<=20; d++) api.note('posteropen', new Date(2026, 7, d, 10, 0, 0));
+  const days = Object.keys(api.snapshot().days).sort();
+  assert.equal(days.length, 14);
+  assert.equal(days[days.length - 1], '20260824', '新しい日から14日ぶんを残す');
+});
+
+test('クリック統計は1つの名前を100000で頭打ちにする', ()=>{
+  const { api } = metricsSandbox();
+  const at = new Date(2026, 7, 24, 10, 0, 0);
+  api.note('posteropen', at);
+  api.snapshot().days['20260824'].ev.posteropen = 100000;
+  api.note('posteropen', at);
+  assert.equal(api.snapshot().days['20260824'].ev.posteropen, 100000);
+});
+
+test('クリック統計は壊れた貯めを数え続けない', ()=>{
+  const { api } = metricsSandbox({ storage:{
+    'natsu.metrics.v1':'{"v":1,"days":{"20260824":{"id":"aaaaaaaaaaaaaaaaaaaa","sh":false,"ev":{"posteropen":"こわれた"}}}}'
+  }});
+  api.note('posteropen', new Date(2026, 7, 24, 10, 0, 0));
+  assert.equal(api.snapshot().days['20260824'].ev.posteropen, 1,
+    '数でない値は0へ戻してから数える。段階3で送るのはこの数なので');
+});
+
+test('クリック統計はその日ぶんに20字の乱数の名前を1つだけ決める', ()=>{
+  const { api } = metricsSandbox();
+  const at = new Date(2026, 7, 24, 10, 0, 0);
+  api.note('posteropen', at);
+  const id = api.snapshot().days['20260824'].id;
+  assert.match(id, /^[a-z0-9]{20}$/, 'firestore.rules の id.matches に合う形');
+  api.note('todaylabel', at);
+  assert.equal(api.snapshot().days['20260824'].id, id, '同じ日は同じ名前を使いまわす');
+  api.note('posteropen', new Date(2026, 7, 25, 10, 0, 0));
+  assert.notEqual(api.snapshot().days['20260825'].id, id);
+});
+
+test('クリック統計は day_open をその日1回だけ数える', ()=>{
+  const { api } = metricsSandbox();
+  const at = new Date(2026, 7, 24, 10, 0, 0);
+  api.noteDayOpen(at);
+  api.noteDayOpen(at);
+  api.noteDayOpen(new Date(2026, 7, 24, 22, 30, 0));
+  assert.equal(api.snapshot().days['20260824'].ev.day_open, 1);
+  api.noteDayOpen(new Date(2026, 7, 25, 6, 0, 0));
+  assert.equal(api.snapshot().days['20260825'].ev.day_open, 1);
+});
+
+test('クリック統計は時刻を持たない', ()=>{
+  const { api, store } = metricsSandbox();
+  api.note('posteropen', new Date(2026, 7, 24, 22, 47, 13));
+  api.flush();
+  const saved = store.get('natsu.metrics.v1');
+  assert.match(saved, /"20260824"/);
+  assert.doesNotMatch(saved, /22:47|T22|\b1[0-9]{12}\b/, '日付までにする。生活の時間帯を残さない');
+});
+
+test('クリック統計は ?new=1 のおためしでは数えない', ()=>{
+  const { api, listeners, store } = metricsSandbox({ search:'?new=1' });
+  const btn = metricsEl('button', { id:'posterOpen' });
+  listeners.filter(l=>l.type === 'click').forEach(l=> l.handler({ target: btn }));
+  api.flush();
+  assert.equal(store.has('natsu.metrics.v1'), false, 'preview 用の別物なので、本番の貯めに触れないこと');
+  assert.deepEqual(Object.keys(api.snapshot().days), []);
+});
+
+test('クリック統計は押されたら数えて端末内に貯める', ()=>{
+  const { api, listeners, timers, store } = metricsSandbox();
+  const body = metricsEl('body', {});
+  const btn = metricsEl('button', { class:'topband-poster', id:'posterOpen' }, body);
+  const span = metricsEl('span', { class:'topband-poster-txt', id:'posterOpenText' }, btn);
+  const click = listeners.find(l=>l.type === 'click').handler;
+  click({ target: span });
+  click({ target: btn });
+
+  assert.equal(store.has('natsu.metrics.v1'), false,
+    'クリックのたびには書かない。まとめて書く');
+  timers.forEach(fn=> fn());
+  const saved = JSON.parse(store.get('natsu.metrics.v1'));
+  assert.equal(saved.v, 1);
+  const day = saved.days[api.dayKey(new Date())];
+  assert.equal(day.ev.posteropen, 2, '中の span を押しても、外の押せるものとして数える');
+  assert.equal(day.ev.posteropentext, undefined);
+  assert.equal(typeof day.sh, 'boolean', '共有の有無は真偽で1日ぶんに持つ');
+});
+
+test('クリック統計は合言葉そのものを見ない', ()=>{
+  const shared = metricsSandbox({ storage:{ 'natsu.sync.code.v1':'himitsunoaikotoba' } });
+  shared.api.note('posteropen', new Date(2026, 7, 24, 10, 0, 0));
+  shared.api.flush();
+  const saved = shared.store.get('natsu.metrics.v1');
+  assert.match(saved, /"sh":true/);
+  assert.equal(saved.includes('himitsu'), false, '合言葉の文字を1字も残さないこと');
+
+  const solo = metricsSandbox();
+  solo.api.note('posteropen', new Date(2026, 7, 24, 10, 0, 0));
+  solo.api.flush();
+  assert.match(solo.store.get('natsu.metrics.v1'), /"sh":false/);
+});
+
+test('クリック統計は端末だけの値で、共有の対象に入れない', ()=>{
+  const at = APP.indexOf('const SHARED_CONFIG_KEYS');
+  const shared = APP.slice(at, at + 900);
+  assert.equal(shared.includes('metrics'), false, 'natsu.metrics.v1 を共有の鍵の表へ足さないこと');
+  assert.doesNotMatch(SYNC, /natsu\.metrics/);
+  assert.match(METRICS, /'natsu\.metrics\.v1'/);
+});
+
+/* --- 段階3：送り出しの見張り ----------------------------------------
+   「何も送らない」の見張りは外れた。代わりに、外へ出るものを1つずつ縛る。
+   静かに落ちる設計（設計 5.5節）なので、壊れてもテスト以外に気づく口が無い */
+
+test('クリック統計は決めた2つの宛先へしか送らない', ()=>{
+  const urls = METRICS.match(/https?:\/\/[^'"\s)]+/g) || [];
+  assert.ok(urls.length >= 2, '送り先がコードに書いてあること');
+  urls.forEach(url=>{
+    assert.match(url, /^https:\/\/(identitytoolkit|firestore)\.googleapis\.com\//,
+      '匿名の鍵取りと Firestore のほかへは出さないこと: ' + url);
+  });
+  assert.doesNotMatch(METRICS, /XMLHttpRequest|sendBeacon|WebSocket|EventSource|import\(/,
+    'fetch 以外の通信の経路を作らないこと');
+});
+
+test('クリック統計は送信の失敗を画面に出さない', ()=>{
+  assert.doesNotMatch(METRICS, /alert\(|confirm\(|console\.|setStatus|noteTrouble|document\.body|classList/,
+    '統計が届かないだけで「つながりません」を出すのは事故。同期の状態にも触らないこと');
+});
+
+test('クリック統計が送るのは決めた5つの欄だけ', async ()=>{
+  const net = metricsNet([{ json:{ idToken:'kagi' } }]);
+  const { api } = metricsSandbox({ fetch:net.fetch, storage:metricsStored() });
+  assert.equal(await api.send(), true);
+
+  const create = net.calls[1];
+  assert.match(create.url, /\/documents\/metrics_days\?documentId=abcdefghij0123456789$/,
+    'その日ぶんに決めた20字の名前で作る。再送しても同じ名前の文書は2つ作れない');
+  assert.deepEqual(Object.keys(create.body.fields).sort(), ['d','ev','expiresAt','sh','v'],
+    'firestore.rules の hasOnly と同じ5つ。端末を追える値をあとから足さないこと');
+  assert.equal(create.body.fields.d.stringValue, METRICS_OLD_DAY);
+  assert.equal(create.body.fields.v.integerValue, '1');
+  assert.equal(create.body.fields.sh.booleanValue, false);
+  assert.deepEqual(Object.keys(create.body.fields.ev.mapValue.fields).sort(), ['day_open','posteropen']);
+  assert.equal(create.body.fields.ev.mapValue.fields.posteropen.integerValue, '3');
+});
+
+test('クリック統計は終わった日ぶんだけを送り、今日ぶんは送らない', async ()=>{
+  const net = metricsNet([{ json:{ idToken:'kagi' } }]);
+  const { api } = metricsSandbox({ fetch:net.fetch, storage:metricsStored() });
+  const today = api.dayKey(new Date());
+  assert.deepEqual(Array.from(api.dueDays()), [METRICS_OLD_DAY],
+    '今日ぶんはまだ増える。送ると統計と使用実態がずれる');
+  await api.send();
+  assert.equal(net.calls.filter(c=>c.url.includes('metrics_days')).length, 1);
+  assert.deepEqual(Object.keys(api.snapshot().days), [today], '届いた日だけ端末内から消える');
+});
+
+test('クリック統計は匿名で入って毎回消し、鍵を端末に残さない', async ()=>{
+  const net = metricsNet([{ json:{ idToken:'himitsunokagi' } }]);
+  const { api, store } = metricsSandbox({ fetch:net.fetch, storage:metricsStored() });
+  await api.send();
+  assert.equal(net.calls.length, 3, 'tools/analytics-admin.js の registrationCount() と同じ3往復');
+  assert.match(net.calls[0].url, /identitytoolkit\.googleapis\.com\/v1\/accounts:signUp\?key=/);
+  assert.equal(net.calls[1].auth, 'Bearer himitsunokagi');
+  assert.match(net.calls[2].url, /identitytoolkit\.googleapis\.com\/v1\/accounts:delete\?key=/,
+    '匿名アカウントを毎回消す。Firebase 側にも端末を追える値を残さない');
+  Array.from(store.values()).forEach(value=>{
+    assert.equal(String(value).includes('himitsunokagi'), false, '鍵は記憶の中だけ。端末へ書かないこと');
+  });
+  assert.deepEqual(Array.from(store.keys()), ['natsu.metrics.v1'], '端末に増やす値はこの1つだけ');
+});
+
+test('クリック統計の期限は日付から決まり、送った時刻を残さない', async ()=>{
+  const net = metricsNet([{ json:{ idToken:'kagi' } }]);
+  const { api } = metricsSandbox({ fetch:net.fetch, storage:metricsStored() });
+  await api.send();
+  const at = net.calls[1].body.fields.expiresAt.timestampValue;
+  assert.match(at, /T00:00:00\.000Z$/,
+    '送ったときの時計から数えると、400日先の値の中に送信の時間帯が残ってしまう');
+  assert.equal(at, new Date(Date.UTC(2020, 0, 2) + 400 * 86400000).toISOString());
+});
+
+test('クリック統計は ALREADY_EXISTS を届いたものとして扱う', async ()=>{
+  const net = metricsNet([{ json:{ idToken:'kagi' } }, { status:409 }]);
+  const { api } = metricsSandbox({ fetch:net.fetch, storage:metricsStored() });
+  await api.send();
+  assert.equal(api.snapshot().days[METRICS_OLD_DAY], undefined,
+    '規則が作るだけを許すので、409 はすでに届いている証拠。端末内から消す');
+});
+
+test('クリック統計は送れなかった日ぶんを端末内に残す', async ()=>{
+  const net = metricsNet([{ json:{ idToken:'kagi' } }, { status:403 }]);
+  const { api, store } = metricsSandbox({ fetch:net.fetch, storage:metricsStored() });
+  assert.equal(await api.send(), false);
+  assert.equal(api.snapshot().days[METRICS_OLD_DAY].ev.posteropen, 3, '次の起動でやり直す');
+  assert.match(store.get('natsu.metrics.v1'), new RegExp(METRICS_OLD_DAY));
+});
+
+test('クリック統計は送るものが無ければ通信しない', async ()=>{
+  const net = metricsNet([{ json:{ idToken:'kagi' } }]);
+  const { api, timers } = metricsSandbox({ fetch:net.fetch });
+  timers.forEach(fn=> fn());
+  assert.equal(await api.send(), false);
+  assert.equal(net.calls.length, 0, '今日ぶんしか無い端末は、起動しても外へ1度も出ない');
+});
+
+test('クリック統計は ?new=1 のおためしでは送らない', async ()=>{
+  const net = metricsNet([{ json:{ idToken:'kagi' } }]);
+  const { api } = metricsSandbox({ fetch:net.fetch, search:'?new=1', storage:metricsStored() });
+  assert.equal(await api.send(), false);
+  assert.equal(net.calls.length, 0, 'preview 用の別物なので、通信を1回も起こさないこと');
+});
+
+test('クリック統計は index.html から読みこむ', ()=>{
+  assert.match(INDEX, /<script src="assets\/metrics\.js\?v=20260824b"><\/script>/);
+  assert.match(INDEX, /assets\/metrics\.js[\s\S]{0,400}assets\/app\.js/,
+    'app.js より先に耳を置く');
+});
+
+/* =========================================================
+   クリック統計（段階2：置き場の規則だけ）
+
+   docs/click-metrics-design.md の 9節-2。**送信はまだ無い。**
+   規則は Firebase コンソールへ貼るまで効かないので、ここで見るのは
+   「貼るべき文面が firestore.rules に入っているか」だけになる。
+   ========================================================= */
+
+/* 規則は1つの match ごとに読む。ほかの区画の allow を取りちがえて
+   「閉じている」と誤って通さないため、次の match の手前で切る */
+function rulesBlock(name){
+  const at = RULES.indexOf('match /' + name + '/');
+  assert.notEqual(at, -1, 'ルールに ' + name + ' の区画があること');
+  const next = RULES.indexOf('\n    match /', at + 1);
+  return RULES.slice(at, next === -1 ? RULES.length : next);
+}
+
+test('クリック統計の1日ぶんは、作るだけを許して読ませない', ()=>{
+  const block = rulesBlock('metrics_days');
+  assert.match(block, /^match \/metrics_days\/\{id\} \{/,
+    '1文書＝1端末の1日ぶん。名前は端末が決めた20字の乱数');
+  assert.match(block, /allow get, list:\s+if false;/,
+    '既存の metrics\/registrations より閉じる。管理ツールはサービスアカウントの鍵で読み、'
+    + 'その経路は規則を通らないので、クライアントに読みを許す理由が無い');
+  assert.match(block, /allow update, delete:\s+if false;/,
+    '一度届いた1日ぶんを、書きかえも巻き戻しも消去もできないこと');
+  assert.match(block, /allow create:\s+if request\.auth != null/,
+    '匿名トークンを取ってから作る（tools/analytics-admin.js と同じ3往復）');
+  assert.equal((block.match(/allow /g) || []).length, 3,
+    'create と、閉じている2行だけ。ほかの許しを足さないこと');
+});
+
+/* 再送しても同じ名前の文書は2つ作れない。段階3の「二重に数えない仕掛け」は
+   サーバ側に何も置かず、この create だけの規則に寄りかかっている */
+test('クリック統計の1日ぶんは、送る中身の形を規則でしばる', ()=>{
+  const block = rulesBlock('metrics_days');
+  assert.match(block, /id\.matches\('\[a-z0-9\]\{20\}'\)/,
+    'assets/metrics.js が日ごとに決める20字の名前と同じ形にすること');
+  assert.match(block, /hasOnly\(\['d', 'ev', 'sh', 'v', 'expiresAt'\]\)/,
+    '5つの欄だけ。端末を追える値をあとから足せないこと');
+  assert.match(block, /data\.d is string\s+&& request\.resource\.data\.d\.matches\('\[0-9\]\{8\}'\)/,
+    '日付は8桁まで。時刻を持たせない（生活の時間帯が読めてしまう）');
+  assert.match(block, /data\.v == 1/, '形の版を固定して、別の形の文書を混ぜさせない');
+  assert.match(block, /data\.sh is bool/, '共有の有無は真偽だけ。合言葉の手がかりを置かない');
+  assert.match(block, /data\.ev\.keys\(\)\.size\(\) <= 120/,
+    '1日120種類の打ち切りを、端末側だけでなく規則でも見る');
+  assert.match(block, /data\.expiresAt is timestamp/,
+    'TTL が消せる形で期限を持たせること（コンソールで expiresAt に設定する）');
 });

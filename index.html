@@ -326,6 +326,11 @@ window.natsuBootProgress = function(value, label){
 <script>window.natsuBootProgress(88, 'この端末の記録を読み込んでいます');</script>
 <!-- 写真の置き場（端末ごと）。読めなくてもアプリはそのまま動く -->
 <script src="assets/photos.js?v=20260821a"></script>
+<!-- どの機能がどれだけ使われているかを端末の中で数え、終わった日ぶんだけを
+     1日1回、匿名で送る。名前・宿題・記録は読まない（文字を読む経路が無い）。
+     捕捉フェーズに耳を1つ置くので、既存のリスナーより先に走る。
+     読めなくても・送れなくても、クリックはそのまま通る -->
+<script src="assets/metrics.js?v=20260824b"></script>
 <script src="assets/app.js?v=20260824i"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
