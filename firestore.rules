@@ -127,6 +127,42 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /* ---------- 機能ごとの利用回数（1端末の1日ぶん） ----------
+       docs/click-metrics-design.md の6節。押せるものの名前と回数だけを、
+       終わった日ぶんだけ1日1回、匿名で1文書として置く。
+       名前はコードに書いてある英字だけで、利用者の入力は原理的に通らない。
+       端末を識別する値も時刻も持たない（日付までにする）。
+
+       **既存の metrics/registrations より閉じている。** あちらは get を
+       許しているが、こちらは読みを全面禁止にできる。管理ツールは
+       サービスアカウントの鍵で読み、その経路はこの規則を通らないため。
+
+       文書の名前は端末が決めた20字の乱数で、その日ぶんを最初に貯めたときに
+       1つ決めて端末内に控える。作成だけを許すので、**再送しても同じ名前の
+       文書は2つ作れない**。二重に数えない仕掛けはこれで足りる。
+
+       規則で見られないこと（正直に書いておく）。ev の各値が整数であることは、
+       規則が map の値を走査できないため検査できない。ただし作るだけで
+       書きかえも削除もできないので、被害は「他人が偽の1日ぶんを足せる」に
+       留まり、metrics/registrations と同程度である。巻き戻しはできない。
+
+       expiresAt の TTL は設定ずみ（2026-08-24。Blaze へ切りかえて作成）。
+       400日たった1日ぶんは自動で消える。 */
+    match /metrics_days/{id} {
+      allow get, list:      if false;
+      allow create:         if request.auth != null
+                            && id.matches('[a-z0-9]{20}')
+                            && request.resource.data.keys()
+                                 .hasOnly(['d', 'ev', 'sh', 'v', 'expiresAt'])
+                            && request.resource.data.d is string
+                            && request.resource.data.d.matches('[0-9]{8}')
+                            && request.resource.data.v == 1
+                            && request.resource.data.sh is bool
+                            && request.resource.data.ev.keys().size() <= 120
+                            && request.resource.data.expiresAt is timestamp;
+      allow update, delete: if false;
+    }
+
     /* ---------- 写真の受け渡し箱（一時） ----------
        宿題の一覧の写真を、親の端末から子の端末へその場で渡すための箱。
        写真の本体は各端末の中（IndexedDB）にあり、ここは運ぶだけ。
@@ -137,7 +173,7 @@ service cloud.firestore {
 
        **このパスだけ delete を許す。** ほかは全部禁止しているが、
        ここは受け取った側が自分で片づけられる必要がある。消し忘れても
-       expiresAt の TTL が消す（Console で TTL を設定すること）。 */
+       expiresAt の TTL が消す（2026-08-24 に設定ずみ）。 */
     match /photo_handoff/{boxId} {
       allow get:            if request.auth != null && validHandoffId(boxId);
       allow list:           if false;
