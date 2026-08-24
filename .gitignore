@@ -25,3 +25,6 @@ tests/retention-admin.test.js
 
 # ローカル専用の運用ページ。公開リポジトリ（main直配信）へ入れない。
 local/
+
+# エージェントの作業メモ（引継ぎ・検討待ち・設計の下書き）。公開リポジトリへ入れない。
+docs/superpowers/
