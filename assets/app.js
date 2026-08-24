@@ -8900,7 +8900,12 @@ document.addEventListener('click', e=>{
     if(!canDeleteLog()) return;      // 画面に のこっていても、切ってあれば 消さない
     const id = delLog.dataset.dellog;
     const l = (state.logs || []).find(x=> x.id === id);
-    if(l && confirm('この記録を消しますか？\n「' + (l.what || '') + '」\nすすみぐあいの数字は そのままです。')){
+    /* 消える 範囲と、もどせるかを 先に 言う（憲章9節 Pass）。
+       共有していない グループは 端末が 1つなので、
+       「すべての端末」とは 言わずに 実態どおり 書く。 */
+    if(l && confirm('この記録を消しますか？\n「' + (l.what || '') + '」\n'
+      + (sharingOn() ? '共有している すべての端末から 消えます。' : 'この端末から 消えます。')
+      + 'もとには もどせません。\nすすみぐあいの数字は そのままです。')){
       pushGone(id);
       state.logs = state.logs.filter(x=> x.id !== id);
       saveSt(); render({ keepScroll:true }); toast('消しました');
@@ -8911,7 +8916,9 @@ document.addEventListener('click', e=>{
   const delBook = e.target.closest('[data-delbook]');
   if(delBook){
     const b = state.books.find(x=>x.id===delBook.dataset.delbook);
-    if(b && confirm('「'+b.title+'」の記録を削除しますか？\n冊数も1つ戻ります。')){
+    if(b && confirm('「'+b.title+'」の記録を削除しますか？\n'
+      + (sharingOn() ? '共有しているすべての端末から削除されます。' : 'この端末から削除されます。')
+      + '元には戻せません（消した内容の控えは保護者ページに残ります）。\n冊数も1つ戻ります。')){
       /* 消した中身を おうちの人むけに のこす。
          同時に、これが 相手の端末へ「消した」ことを つたえる 墓標に なる */
       pushTrash({

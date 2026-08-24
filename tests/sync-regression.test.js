@@ -167,6 +167,29 @@ test('1件削除設定は端末内だけに保存し旧共有値を安全OFFへ�
   assert.equal(child.canDeleteLog(), false, '子端末は端末内設定があっても常に削除不可');
 });
 
+/* 憲章9節 Pass「削除・共有・読込の確認文に、対象端末と復旧可否がある」。
+   文面そのものは固定しない（言い回しを直すたびに落ちる見張りは邪魔になる）。
+   共有の有無で対象端末を出し分けているか、復旧可否を言っているかだけを見る。 */
+test('1件削除の確認文は、消える端末の範囲と、もどせないことを先に言う', ()=>{
+  for(const [anchor, label] of [["closest('[data-dellog]')", '宿題の記録'],
+                                ["closest('[data-delbook]')", '本の記録']]){
+    const at = APP.indexOf(anchor);
+    assert.ok(at > 0, label + 'の削除を受ける所が見つかること');
+    const block = APP.slice(at, at + 900);
+    const asked = block.indexOf('confirm(');
+    assert.ok(asked > 0, label + 'の削除は確認をとること');
+    const ask = block.slice(asked, asked + 500);
+    assert.match(ask, /sharingOn\(\)\s*\?/,
+      label + 'は共有の有無で対象端末を出し分けること');
+    assert.match(ask, /共有している\s*すべての端末|共有しているすべての端末/,
+      label + 'は共有中なら全端末から消えると言うこと');
+    assert.match(ask, /この端末から/,
+      label + 'は共有していないなら この端末だけと言うこと');
+    assert.match(ask, /もどせません|戻せません/,
+      label + 'は復旧できないことを言うこと');
+  }
+});
+
 test('任意質問の端末内控えは削除世代とデータ置換を越えない', ()=>{
   const read = grab(APP, 'localAnswerMap');
   const save = grab(APP, 'saveQuestionAnswerRow');
@@ -3692,7 +3715,7 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260824j',
+    'assets/app.js': '20260825a',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a',
     'assets/metrics.js': '20260824b'
@@ -5092,7 +5115,7 @@ test('使い方ページは最初に目次を出し、各項目へ飛べる', ()
     'アプリの説明は紹介ページにあると案内すること');
 
   const links = [...GUIDE.matchAll(/<li><a href="#([\w-]+)">/g)].map(m=>m[1]);
-  assert.equal(links.length, 11, '目次は本文の11項目ぶんを並べること');
+  assert.equal(links.length, 12, '目次は本文の12項目ぶんを並べること');
   links.forEach(id=>{
     assert.match(GUIDE, new RegExp('<h2 id="' + id + '">'),
       '目次の ' + id + ' に対応する見出しがあること');
@@ -5105,7 +5128,7 @@ test('使い方ページは最初に目次を出し、各項目へ飛べる', ()
     '告知帯の無い案内ページでは、飛んだ見出しの上に1画面ぶん空けないこと');
 });
 
-/* 目次は 11項目に なった。平らに ならべると 縦に 伸びて、
+/* 目次は 12項目に なった。平らに ならべると 縦に 伸びて、
    どこに 何が あるか 一目で 取れない。枝ごとに まとめ、1項目は 1行に 詰める。
    **枝の 見出しは h3。** h2 を 名乗ると 本文の 見出しと 見分けが つかなくなる
    （上の テストが h2 id= で 本文の 並びを 取っている）。 */
@@ -5121,7 +5144,7 @@ test('使い方ページの目次は、枝ごとにまとめて出す', ()=>{
 
   const perGroup = nav.split('class="guide-menu__group"').slice(1)
     .map(part => (part.match(/<li><a href="#/g) || []).length);
-  assert.deepEqual(perGroup, [3, 2, 3, 3], '枝ごとの項目数を保つこと');
+  assert.deepEqual(perGroup, [3, 2, 3, 4], '枝ごとの項目数を保つこと');
 
   assert.match(DOCS_STYLE, /\.guide-menu__group \.guide-menu__list \{[^}]*border-inline-start/,
     '枝の縦罫を出すこと');
