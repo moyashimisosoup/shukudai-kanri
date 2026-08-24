@@ -1486,6 +1486,22 @@ blockquote {
   }
 }
 
+/* アプリから別のタブで開いたときの、戻る入口。狭い画面だけに出す
+   （広い画面は上帯の「しゅくだいノートを開く」が見えている） */
+.back-to-app {
+  margin: var(--space-sm) auto 0;
+}
+
+.back-to-app .button {
+  width: 100%;
+}
+
+@media (min-width: 40rem) {
+  .back-to-app {
+    display: none;
+  }
+}
+
 @media print {
   .site-header,
   .skip-link,

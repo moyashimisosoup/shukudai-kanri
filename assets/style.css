@@ -405,7 +405,17 @@ button{ font:inherit; color:inherit; }
 .sync-status{ display:inline-flex; align-items:center; justify-content:flex-end; gap:4px; min-width:0; }
 .sync-state-icon{ display:inline-grid; place-items:center; flex:none; width:20px; height:20px; color:var(--ai); }
 .sync-state-icon .codex-icon{ width:20px; height:20px; }
-.sync-code-row{ padding:10px 16px 12px; border-bottom:2px dashed var(--hougan); }
+/* 点線が 紙の 枠に くっつくと、囲みの 線と 見分けが つかない（実機の 指摘）。
+   区切りは 左右 16px ぶん 内へ 入れ、文字の 頭と 同じ 位置で 始める。
+   .set-advanced-body は 中身の 余白を 動かせないので ::before で 引く */
+.sync-code-row{ margin-inline:16px; padding:10px 0 12px; border-bottom:2px dashed var(--hougan); }
+#syncSection .set-advanced-body{ border-top:0; position:relative; }
+#syncSection .set-advanced-body::before{
+  content:""; position:absolute; inset-inline:16px; top:0;
+  border-top:2px dashed var(--hougan);
+}
+/* 欄の いちばん 上に 区切りは 要らない。上の 帯が すでに 区切っている */
+#syncSection > .paper > .sync-start:first-child > .sync-subhead{ border-top:0; }
 .sync-code-row > .lab{ display:block; margin-bottom:6px; font-size:15px; font-weight:900; }
 .sync-code-control{ display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:8px; }
 .sync-code-control > input{ width:100%; min-width:0; height:44px; padding-block:6px; }
@@ -913,6 +923,35 @@ button{ font:inherit; color:inherit; }
 }
 .poster-facts li{ margin-top:6px; }
 .poster-facts b{ color:var(--ai); }
+/* 共有の「i」だけ、図の 語が まん中で 折れていた（375px の 実機）。
+   字を 1段 落とし、区切り文字より 内側で 折らせない */
+#syncHelpDialog .poster-flow{ gap:4px; }
+#syncHelpDialog .poster-flow-arrow{ width:14px; height:14px; }
+#syncHelpDialog .poster-flow-step b{ font-size:12px; }
+#syncHelpDialog .poster-flow-step small{ font-size:11px; }
+#syncHelpDialog .poster-flow-step b,
+#syncHelpDialog .poster-flow-step small{ word-break:keep-all; overflow-wrap:break-word; }
+/* 横に 3つ ならべると、狭い 画面では 1コマが 73px しか なく、
+   「QR・招待リンク」が 途中で 折れて はみ出した（375px で 実測）。
+   狭い ときは 縦に 積み、1行ずつ 絵と 言葉を 横に ならべる。
+   矢印は 回すだけ（別の 図を 増やさない） */
+@media (max-width:560px){
+  #syncHelpDialog .poster-flow{ flex-direction:column; align-items:stretch; gap:2px; }
+  #syncHelpDialog .poster-flow-step{
+    display:flex; align-items:center; gap:10px; text-align:start;
+    padding:4px 8px; border-radius:var(--r-s); background:var(--surface-soft);
+  }
+  #syncHelpDialog .poster-flow-ico{ flex:none; height:34px; }
+  #syncHelpDialog .poster-flow-arrow{ transform:rotate(90deg); margin-inline:auto; }
+}
+/* 注意は 4つ ある。地つづきの 文に すると どこで 切れるか 読めないので、
+   1つずつ 囲む（アプリの ほかの 欄と 同じ 囲み） */
+#syncHelpDialog .poster-facts{ list-style:none; padding-inline-start:0; display:grid; gap:8px; }
+#syncHelpDialog .poster-facts li{
+  margin:0; padding:8px 12px;
+  border:2px solid var(--hougan); border-radius:var(--r-s);
+  background:var(--surface-soft);
+}
 .poster-more{ margin-top:16px; border-top:2px dashed var(--hougan); padding-top:12px; }
 .poster-more > summary{
   cursor:pointer; font-size:16px; font-weight:900; line-height:1.5; color:var(--ai);
@@ -1434,6 +1473,14 @@ select{ appearance:auto; -webkit-appearance:menulist; }
   .theme-name{ font-size:15px; }
   .set-actions{ display:grid; grid-template-columns:minmax(0,1fr); }
   .set-actions .btn{ width:100%; }
+  /* 対に なる 2つだけ 左右に ならべる（書き出す／読み込む、使い方／更新履歴）。
+     **一括削除は ならべない。** 消す ボタンを 隣どうしに すると 押し間違える。
+     **grid では 効かない。** 下の 2546行の `.set-actions{ display:flex }` が
+     あとに 来るので、この段の display:grid は 順序で 負けている。
+     幅は `.set-actions .btn{ width:100% }` が 決めているので、そこを 外す */
+  .set-actions--pair{ flex-wrap:wrap; width:100%; }
+  .set-actions--pair > .btn{ width:auto; flex:1 1 0; min-width:0; }
+  .set-actions--pair > .set-actions-full{ flex:1 1 100%; }
 }
 @media (min-width:640px){
   .theme-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); }
@@ -2315,7 +2362,7 @@ textarea{ min-height:88px; resize:vertical; line-height:1.6; }
   align-items:end;
 }
 .sync-subhead{
-  margin:0; padding:14px 16px 8px;
+  margin-inline:16px; padding:14px 0 8px;
   font-size:17px; font-weight:900; color:var(--ai);
   border-top:2px dashed var(--hougan);
 }

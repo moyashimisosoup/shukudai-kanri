@@ -2297,7 +2297,7 @@ test('設定画面の共有は、作成でそのままつながり、参加は�
   assert.match(section, /押した時点で、この端末の宿題・設定・記録がグループの内容になります/,
     '作成で何が起きるかを画面に書くこと');
   assert.match(INDEX, /id="syncHelpDialog"/, '共有の i は専用ダイアログにすること');
-  assert.match(INDEX, /当てられにくい16文字をこの端末が作ります/,
+  assert.match(INDEX, /「おまかせ」を押すと16文字ができます/,
     '16文字の話は i の中に残すこと');
   assert.match(section, /id="syncVerify"[^>]*>接続を確認/);
   /* 設定からも 自分で 決められる（最初の設定と そろえる） */
@@ -2695,6 +2695,50 @@ test('共有欄は、作る・参加する・増やす・整える・やめる�
   const dialog = INDEX.slice(INDEX.indexOf('id="syncHelpDialog"'), INDEX.indexOf('id="posterHelpDialog"'));
   assert.doesNotMatch(dialog, /90日|管理者/, 'iに保持期限の話まで重ねないこと');
   assert.match(dialog, /すべての端末で合言葉を忘れると/, '戻せなくなる条件はiに残すこと');
+  /* 図の 語は 1つだけ。手順と 注意で 言っていることを キャプションで 重ねない */
+  assert.doesNotMatch(dialog, /<small>合言葉をつくる<\/small>|<small>合言葉そのもの<\/small>/,
+    '図のキャプションで手順と同じことを繰り返さないこと');
+  assert.match(dialog, /<b>相手の端末<\/b><small>QR読み取りで共有<\/small>/);
+  assert.match(STYLE, /#syncHelpDialog \.poster-facts li\{/,
+    '注意は1つずつ囲んで、どこで切れるかを読めるようにすること');
+});
+
+/* 実機（375px）で出た収まりの指摘。どれも「枠にくっつく」「変な位置で折れる」
+   「縦に長い」のどれかで、要素を足して直すのではなく置き方で直す。 */
+test('狭い画面の収まり：点線を枠から離し、対のボタンは左右にならべる', ()=>{
+  /* 紙の枠と区切りの点線が同じ太さで接すると、囲みの線と見分けがつかない */
+  assert.match(STYLE, /\.sync-code-row\{ margin-inline:16px;/);
+  assert.match(STYLE, /#syncSection \.set-advanced-body::before\{[\s\S]{0,120}inset-inline:16px/);
+  assert.match(STYLE, /\.sync-subhead\{\s*margin-inline:16px;/);
+  assert.match(STYLE, /#syncSection > \.paper > \.sync-start:first-child > \.sync-subhead\{ border-top:0; \}/,
+    '欄のいちばん上に区切りを引かないこと');
+
+  /* 狭い画面の既定は1列（.set-actions）。対になる2つだけ上書きする */
+  const narrow = STYLE.slice(STYLE.indexOf('.set-actions{ display:grid; grid-template-columns:minmax(0,1fr); }'));
+  /* display:grid では効かない。あとに来る `.set-actions{ display:flex }` が
+     順序で勝つため、幅を決めている `.set-actions .btn{ width:100% }` を外す形で書く */
+  assert.match(narrow.slice(0, 900), /\.set-actions--pair > \.btn\{ width:auto; flex:1 1 0; min-width:0; \}/,
+    '1列の既定のすぐ後ろ（狭い画面の段の中）で上書きすること');
+  assert.match(narrow.slice(0, 900), /\.set-actions--pair > \.set-actions-full\{ flex:1 1 100%; \}/);
+  const cfg = grab(APP, 'viewConfig');
+  assert.match(cfg, /class="set-actions app-info-actions set-actions--pair"[\s\S]{0,400}使い方[\s\S]{0,200}更新履歴/);
+  assert.match(cfg, /set-actions-full" id="appUpdate"/, '更新は1つだけの操作なので全幅にすること');
+  assert.match(cfg, /class="set-actions set-actions--pair"><button[^>]*id="expBtn"[\s\S]{0,120}id="impBtn"/);
+  /* **消すボタンは隣どうしにしない。** 押し間違えると戻せない */
+  const danger = cfg.slice(cfg.indexOf('data-danger-zone'));
+  assert.doesNotMatch(danger.slice(0, 600), /set-actions--pair/,
+    '一括削除のボタンを左右にならべないこと');
+});
+
+/* 使い方・変更履歴はアプリから別のタブで開く。新しいタブには戻る操作が無く、
+   狭い画面では上帯の入口もメニューの中にたたまれていた（実機の指摘）。 */
+test('別のタブで開いた案内ページから、アプリへ戻れる', ()=>{
+  for(const [name, page] of [['使い方', GUIDE], ['変更履歴', UPDATES]]){
+    assert.match(page, /<div class="shell back-to-app"><a class="button" href="\.\.\/">← しゅくだいノートへ戻る<\/a><\/div>/,
+      name + 'のページに戻る入口を置くこと');
+  }
+  assert.match(DOCS_STYLE, /@media \(min-width: 40rem\) \{\s*\.back-to-app \{\s*display: none;/,
+    '広い画面では上帯に出ているので重ねないこと');
 });
 
 test('アプリ情報から使い方と更新履歴を状態を保ったまま開ける', ()=>{
@@ -3588,11 +3632,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260824d',
+    'assets/style.css': '20260824e',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260824d',
+    'assets/app.js': '20260824e',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a'
   };

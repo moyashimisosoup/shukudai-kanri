@@ -7256,8 +7256,11 @@ function viewConfig(){
     <div class="paper">
       <p class="set-note app-version-line">この端末：<b>v${esc(RELEASE_VERSION)}</b>（配信 ${appVersionHTML(APP_VER)}）</p>
       ${newVersionAvailable ? `<p class="set-note" id="appUpdateNote">あたらしい版が あります</p>` : ''}
-      <div class="set-actions app-info-actions">
-        <button class="btn btn-sm" id="appUpdate" type="button">最新に更新する</button>
+      ${/* 更新は 1つだけの 操作なので 全幅。読みものの 2つは 対なので 左右に ならべる。
+            狭い 画面の 既定は 1列（style.css の @media max-width:560px）なので、
+            そろえる 側に --pair を 足して 上書きする */''}
+      <div class="set-actions app-info-actions set-actions--pair">
+        <button class="btn btn-sm set-actions-full" id="appUpdate" type="button">最新に更新する</button>
         <a class="btn btn-sm btn-ghost" href="start/getting-started.html" target="_blank" rel="noopener"
           aria-label="使い方を新しいタブで開く">使い方</a>
         <a class="btn btn-sm btn-ghost" href="start/updates.html" target="_blank" rel="noopener"
@@ -7278,7 +7281,7 @@ function viewConfig(){
         : ''}
       <div class="data-management-row">
         <div class="data-management-copy"><b>バックアップ</b><small>データをファイルへ書き出すか、保存したファイルを読み込みます。</small></div>
-        <div class="set-actions"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
+        <div class="set-actions set-actions--pair"><button class="btn btn-sm" id="expBtn" type="button">書き出す</button><button class="btn btn-sm" id="impBtn" type="button">読み込む</button><input type="file" id="impFile" accept="application/json,.json" hidden></div>
       </div>
       <div class="data-danger-zone">
         <div class="data-management-copy"><b>一括削除</b><small>必要なら先にバックアップを書き出してください。</small></div>

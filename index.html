@@ -24,7 +24,7 @@
 <!-- Webフォントの通信で初期描画を止めない。読み込み中は端末内の丸ゴシックを使う -->
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/style.css?v=20260824d">
+<link rel="stylesheet" href="assets/style.css?v=20260824e">
 <link rel="stylesheet" href="tokens.css?v=20260813a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
 </head>
@@ -86,8 +86,8 @@
     <h2 id="syncHelpTitle">ほかの端末と共有</h2>
     <button class="btn btn-sm poster-close" id="syncHelpClose" type="button">とじる</button>
   </div>
-  <p class="poster-lead">同じ合言葉を使う端末どうしで、宿題・設定・記録を共有します。</p>
-  <p class="poster-seal"><b>中身はこの端末で暗号化して送ります。預けているサーバー側からは読めません。</b></p>
+  <p class="poster-lead">同じ合言葉の端末どうしで、宿題・設定・記録を共有します。</p>
+  <p class="poster-seal"><b>中身はこの端末で暗号化して送ります。預け先からは読めません。</b></p>
   <!-- 3コマの図。**文字は文字のままHTMLに置く。** SVGの中に入れると、図を画面幅に
        合わせて縮めたぶん字も縮み、320pxでは読めなくなる（写真の説明で実測ずみ） -->
   <figure class="poster-figure">
@@ -101,7 +101,7 @@
             <line x1="17" y1="32" x2="31" y2="32"/><line x1="17" y1="39" x2="31" y2="39"/>
           </g>
         </svg>
-        <b>いまの端末</b><small>合言葉をつくる</small>
+        <b>この端末</b>
       </div>
       <svg class="poster-flow-arrow" viewBox="0 0 24 24" aria-hidden="true">
         <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -118,7 +118,7 @@
             <line x1="32" y1="40" x2="42" y2="40"/><line x1="32" y1="48" x2="42" y2="48"/>
           </g>
         </svg>
-        <b>QR・招待リンク</b><small>合言葉そのもの</small>
+        <b>QR・招待リンク</b>
       </div>
       <svg class="poster-flow-arrow" viewBox="0 0 24 24" aria-hidden="true">
         <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -133,24 +133,24 @@
             <line x1="18" y1="26" x2="42" y2="26"/><line x1="18" y1="34" x2="42" y2="34"/>
           </g>
         </svg>
-        <b>もう一方の端末</b><small>読み取るだけ</small>
+        <b>相手の端末</b><small>QR読み取りで共有</small>
       </div>
     </div>
   </figure>
   <ol class="poster-steps">
     <li><span class="poster-step-num" aria-hidden="true">1</span><div><b>合言葉をつくる</b>
-      <p>「おまかせ」を押すと、当てられにくい16文字をこの端末が作ります。押した時点で共有が始まり、この端末の内容がグループの内容になります。</p></div></li>
-    <li><span class="poster-step-num" aria-hidden="true">2</span><div><b>QRコードか招待リンクを渡す</b>
-      <p>もう一方の端末で読み取ると、合言葉を打たずにつながります。すでに合言葉を持っているときは、入力しても入れます。</p></div></li>
-    <li><span class="poster-step-num" aria-hidden="true">3</span><div><b>どちらで記録しても合わさります</b>
-      <p>通信が切れている間の記録は端末に残り、つながると送信を再開します。送る前に端末のデータを消さないでください。</p></div></li>
+      <p>「おまかせ」を押すと16文字ができます。押した時点で共有が始まります。</p></div></li>
+    <li><span class="poster-step-num" aria-hidden="true">2</span><div><b>QR・招待リンク</b>
+      <p>相手の端末で読み取ると、合言葉を打たずにつながります。</p></div></li>
+    <li><span class="poster-step-num" aria-hidden="true">3</span><div><b>記録は合わさる</b>
+      <p>通信が切れている間の記録も、つながると送ります。</p></div></li>
   </ol>
   <h3 class="poster-sub">気をつけること</h3>
   <ul class="poster-facts">
-    <li>合言葉とQR・招待リンクは<b>同じもの</b>です。渡した人は記録を読めます</li>
-    <li>すべての端末で合言葉を忘れると、<b>共有した記録は戻せません</b></li>
-    <li>「保護者の端末」「子どもの端末」は<b>表示の設定</b>で、利用の制限ではありません</li>
-    <li>一覧から外した端末も、合言葉を入れ直せば戻れます。読めなくするには、書き出してから共有を解除し、新しい合言葉で作り直します</li>
+    <li>合言葉とQR・招待リンクは<b>同じもの</b>。渡した人は記録を読めます</li>
+    <li>すべての端末で合言葉を忘れると、<b>記録は戻せません</b></li>
+    <li>「保護者の端末」「子どもの端末」は<b>表示の設定</b>。利用の制限ではありません</li>
+    <li>外した端末も、合言葉を入れ直せば戻れます。読めなくするには、書き出して共有を解除し、合言葉を作り直します</li>
   </ul>
 </dialog>
 
@@ -336,7 +336,7 @@ window.natsuBootProgress = function(value, label){
 <script>window.natsuBootProgress(88, 'この端末の記録を読み込んでいます');</script>
 <!-- 写真の置き場（端末ごと）。読めなくてもアプリはそのまま動く -->
 <script src="assets/photos.js?v=20260821a"></script>
-<script src="assets/app.js?v=20260824d"></script>
+<script src="assets/app.js?v=20260824e"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
 <script type="module" src="assets/sync.js?v=20260822a"></script>
