@@ -2291,8 +2291,14 @@ test('設定画面の共有は、作成でそのままつながり、参加は�
 
   const section = grab(APP, 'syncSectionHTML');
   assert.match(section, /合言葉をつくる（おまかせ）/);
-  assert.match(section, /当てられにくい16文字の合言葉をこの端末が作ります/,
-    '作成で何が起きるかを書くこと');
+  /* 押すと何が起きるかは画面に書く。ただし「16文字」「そのあとQRを渡す」は
+     しくみの話なので i の中へ移した（画面の説明は他の節と同じ密度にそろえる）。
+     どちらも消したわけではないので、移した先も見る。 */
+  assert.match(section, /押した時点で、この端末の宿題・設定・記録がグループの内容になります/,
+    '作成で何が起きるかを画面に書くこと');
+  assert.match(INDEX, /id="syncHelpDialog"/, '共有の i は専用ダイアログにすること');
+  assert.match(INDEX, /当てられにくい16文字をこの端末が作ります/,
+    '16文字の話は i の中に残すこと');
   assert.match(section, /id="syncVerify"[^>]*>接続を確認/);
   /* 設定からも 自分で 決められる（最初の設定と そろえる） */
   assert.match(section, /id="syncOwnCode"/);
@@ -2627,11 +2633,68 @@ test('共有ずみの合言葉は見せるだけ。つなぎ直しはたたむ',
     'syncCode は参加の欄だけにすること');
   /* 注釈の中でこの語に触れるのは構わない。ボタンとして出ないことを見る */
   assert.doesNotMatch(f, /<button[^>]*>この合言葉で接続<\/button>/);
-  assert.match(f, /<summary>べつの合言葉につなぎ直す<\/summary>/);
+  /* つなぎ直しは「共有をやめる・つなぎ直す」のたたみへ移した。
+     たたむ（ふだんは見せない）という意図は変えていないので、
+     たたみの中にあることを見る。 */
+  assert.match(f, /<summary>共有をやめる・つなぎ直す<\/summary>[\s\S]{0,900}id="syncRejoinCode"/,
+    'つなぎ直しはたたんだ中に置くこと');
   assert.match(f, /id="syncRejoinCode"/, 'つなぎ直しは専用の欄から読むこと');
   const bind = grab(APP, 'bindSync');
   assert.match(bind, /\$\('#syncRejoinCode'\) \|\| \$\('#syncCode'\)/);
   assert.match(bind, /const shown = \$\('#syncCodeShown'\);/, 'コピーは表示中の合言葉から取ること');
+});
+
+/* 継ぎ足しで育った共有欄を、全体から組み直したときの決めごと。
+   ここが崩れると「どれから押すのか分からない」状態へ戻る。 */
+test('共有欄は、作る・参加する・増やす・整える・やめるの順で主を1つにする', ()=>{
+  const f = grab(APP, 'syncSectionHTML');
+
+  /* 未接続。入口は2つ、それぞれ主のボタンは1つだけ。
+     参加側の実際の道すじはQRなので、いちばん強いボタンをQRにする */
+  assert.match(f, /btn btn-go" id="syncMake"[^>]*>合言葉をつくる（おまかせ）/);
+  assert.match(f, /btn btn-go" type="button" data-qr-invite-scan>QRコードを読み取る/,
+    '参加はQRを主にすること');
+  assert.match(f, /<summary>合言葉を入力して参加する<\/summary>[\s\S]{0,600}id="syncVerify"/,
+    '合言葉の手入力と確認はたたみの中へ入れること');
+  assert.match(f, /btn btn-sm" id="syncMakeOwn"/,
+    'たたみの中のボタンを主のボタンと同じ強さにしないこと');
+
+  /* 共有ずみ。使う順に3つ。招待がいちばん奥にあった状態へ戻さない */
+  const folds = (f.match(/<summary>(?:<span[^>]*>)?([^<]+)/g) || []).join('|');
+  const order = ['ほかの端末を増やす', '端末と表示の設定', '共有をやめる・つなぎ直す'];
+  let at = -1;
+  for(const name of order){
+    const next = folds.indexOf(name);
+    assert.ok(next > at, name + ' の順序が入れかわっている');
+    at = next;
+  }
+  assert.match(f, /data-details-key="syncInvite"\$\{opts && opts\.openDetails \? ' open' : ''\}/,
+    '作成直後はQR・招待リンクのたたみを開くこと');
+
+  /* 安全に関わる1行は、操作のすぐそばに残す（憲章2節・8節）。
+     くわしい手順や背景は i の中だが、この3つは画面から動かさない */
+  assert.match(grab(APP, 'deviceListHTML'), /一覧から外しても、合言葉を入れ直せば再参加できます。/,
+    '「外す」をアクセスの取り消しと読ませないこと');
+  assert.match(f, /「保護者の端末」「子どもの端末」は、開いたときの画面と記録者名の設定です。/,
+    '役割を権限と読ませないこと');
+  assert.match(grab(APP, 'inviteHTML'), /このリンクは<b>合言葉そのもの<\/b>です。SNSなどに貼らないでください。/,
+    '招待リンクが合言葉そのものであることを、リンクのそばに書くこと');
+
+  /* i は写真の説明と同じ作り。平文1段落の共通ダイアログは使わない。
+     buildAdultSectionToc() は既にボタンがある見出し帯には足さないので、
+     自前のボタンを置いても i は1つのまま */
+  assert.doesNotMatch(f, /adultSectionHelpAttr\(/,
+    '図と番号を出す説明を、平文1段落のダイアログへ入れないこと');
+  assert.match(grab(APP, 'syncHeadHTML'), /data-sync-help[\s\S]{0,200}aria-controls="syncHelpDialog"/);
+  assert.match(grab(APP, 'buildAdultSectionToc'), /!\$\('\.adult-section-head-help', head\)/,
+    '自前のiがある見出しに、もう1つiを足さないこと');
+  assert.match(INDEX, /id="syncHelpDialog"[\s\S]{0,4000}<ul class="poster-facts">/,
+    '注意はiの中に箇条書きで置くこと');
+  /* 90日・管理者確認はここでは言わない。保護者ページ最下部の注意事項と
+     紹介ページが持っている。重ねると警告が読み流される */
+  const dialog = INDEX.slice(INDEX.indexOf('id="syncHelpDialog"'), INDEX.indexOf('id="posterHelpDialog"'));
+  assert.doesNotMatch(dialog, /90日|管理者/, 'iに保持期限の話まで重ねないこと');
+  assert.match(dialog, /すべての端末で合言葉を忘れると/, '戻せなくなる条件はiに残すこと');
 });
 
 test('アプリ情報から使い方と更新履歴を状態を保ったまま開ける', ()=>{
@@ -3525,11 +3588,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260824c',
+    'assets/style.css': '20260824d',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260824c',
+    'assets/app.js': '20260824d',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a'
   };

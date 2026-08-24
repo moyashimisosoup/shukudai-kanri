@@ -4832,7 +4832,7 @@ function inviteHTML(){
   if(!url) return '';
   return `
   <div class="invite">
-    <p class="set-note"><b>べつの端末に わたす</b>：このリンクを送ると、受け取った人は開くだけでつながります。あいことばの入力は要りません。</p>
+    <p class="set-note">このリンクかQRコードを、もう一方の端末で読み取ります。合言葉の入力は要りません。</p>
     <div class="set-row">
       <input type="text" id="inviteUrl" value="${esc(url)}" readonly onfocus="this.select()">
     </div>
@@ -4840,7 +4840,10 @@ function inviteHTML(){
       <button class="btn btn-sm" id="inviteCopy" type="button">リンクをコピー</button>
     </div>
     ${inviteQrHTML(url)}
-    <p class="set-note">このリンクは<b>「あいことば」そのもの</b>です。見た人は誰でもつながれるので、SNSなどに貼らないでください。受け取る側は、開いたあと<b>ホーム画面に追加</b>しておくと、次からは一度で開けます。</p>
+    ${/* **この1行は 残す。** 憲章2節が 操作画面に 求めている 注意で、
+          リンクを コピーする 指の 直前に ある。
+          「受け取る側は ホーム画面に 追加」は 専用の 案内欄が 別に あるので 消した */''}
+    <p class="set-note">このリンクは<b>合言葉そのもの</b>です。SNSなどに貼らないでください。</p>
   </div>`;
 }
 
@@ -5102,30 +5105,38 @@ function deviceListHTML(){
         ? '<span class="dev-me">この端末</span>'
         : `<button class="btn btn-sm btn-ghost dev-off" data-devoff="${esc(r.id)}" type="button">一覧から外す</button>`}
     </li>`).join('')}</ul>
-    ${/* 説明が 4段落 続くと 一覧そのものが 押し出される。ふだんは たたむ。
-          data-details-key を 付けないと、detailsKey() が 見出しの 文字を
-          鍵に してしまい、同じ 文の 折りたたみが 巻きぞえで 開く */''}
-    <details class="set-advanced sync-help" data-details-key="deviceHelp">
-      <summary>この一覧の見かた</summary>
-      <div class="set-advanced-body">
-        <p class="set-note">「親」「子」は、開いたときの画面と記録者名を決める表示設定です。ロックや利用権限の設定ではありません。合言葉を知る人は、どちらの端末からでも共有データを扱えます。</p>
-        <p class="set-note">使わなくなった端末は「一覧から外す」で整理できます。外した端末は次に開いたときに合言葉が消えますが、合言葉を入れ直すと再参加できます。アクセスを止めたい場合は、データを書き出して共有を解除し、新しい合言葉で共有を作り直してください。</p>
-      </div>
-    </details>
+    ${/* 「一覧から外す」を 紛失した 端末の アクセス取り消しと 読ませない
+          （憲章8節の 4）。**これは 消さない。** ただし 押す ボタンの すぐ下に
+          1行だけ 置き、止めたい ときの 手順は i の 中へ 寄せる。
+          以前は 説明が 2段落 続く たたみで、一覧そのものが 押し出されていた */''}
+    <p class="set-note">一覧から外しても、合言葉を入れ直せば再参加できます。</p>
     ${/* 版ちがいの 注意は 実害の 警告なので たたまない */''}
     ${[...new Set(rows.map(r=> r.ver).filter(Boolean))].length > 1
       ? '<p class="set-note dev-warn">古いバージョンの端末があります。その端末で「アプリ情報」の<b>最新に更新する</b>を実行してください。古いままだと、修正や削除がその端末から元に戻されることがあります。</p>'
       : ''}`;
 }
 
+/* 見出しの「i」は、写真の説明（#posterHelpDialog）と同じ作り。
+   data-adult-section-help は **平文1段落しか 入らない**（textContent で 入れる）ので、
+   図と 番号を 出す ここでは 使わない。buildAdultSectionToc() は
+   `.adult-section-head-help` が すでに ある 見出し帯には 足さないので、
+   自前の ボタンを 置いても i は 1つの まま。目次には これまで どおり 載る。
+   **id では なく data 属性で 拾う。** この欄は 保護者ページの 案内と
+   設定ページの 2か所から 呼ばれ、id だと 重複する 危険が ある */
+function syncHeadHTML(extra){
+  return `<div class="sec-head has-help"><h2>ほかの端末と共有</h2>${extra || ''}
+      <button class="adult-section-head-help" type="button" data-sync-help
+        title="共有のしくみ" aria-label="ほかの端末と共有のしくみを見る" aria-haspopup="dialog"
+        aria-controls="syncHelpDialog"><span class="adult-section-head-info" aria-hidden="true">i</span></button></div>`;
+}
+
 function syncSectionHTML(opts){
   const lead = opts && opts.lead;
   const S = window.NatsuSync;
-  const help = '同じ合言葉を使う端末どうしで、宿題・設定・記録を共有します。端末の追加、役割、共有の解除もここで行います。';
   if(!S){
     return `
-  <section class="sec" id="syncSection"${adultSectionHelpAttr(help)}>
-    <div class="sec-head"><h2>ほかの端末と共有</h2></div>
+  <section class="sec" id="syncSection">
+    ${syncHeadHTML()}
     <div class="paper">
       <p class="set-note">同期の読み込みに失敗しました。記録はこの端末に保存されています。</p>
     </div>
@@ -5134,8 +5145,8 @@ function syncSectionHTML(opts){
 
   if(!S.configured()){
     return `
-  <section class="sec" id="syncSection"${adultSectionHelpAttr(help)}>
-    <div class="sec-head"><h2>ほかの端末と共有</h2></div>
+  <section class="sec" id="syncSection">
+    ${syncHeadHTML()}
     <div class="paper">
       <p class="set-note">同期機能は未設定です。<code>assets/sync.js</code> の
       <code>FIREBASE_CONFIG</code> に Firebase の設定を貼り付けると、この欄が使えるようになります。
@@ -5147,12 +5158,10 @@ function syncSectionHTML(opts){
   const code = S.getCode();
 
   return `
-  <section class="sec" id="syncSection"${adultSectionHelpAttr(help)}>
-    <div class="sec-head"><h2>ほかの端末と共有</h2>
-      <span class="sec-note sync-status" id="syncStatus" role="status" aria-live="polite">${syncStatusHTML(S.status(), S.statusText())}</span></div>
+  <section class="sec" id="syncSection">
+    ${syncHeadHTML(`<span class="sec-note sync-status" id="syncStatus" role="status" aria-live="polite">${syncStatusHTML(S.status(), S.statusText())}</span>`)}
     <div class="paper">
-       ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
-       ${opts && opts.dismissPrompt ? `<div class="set-actions"><button class="btn btn-sm btn-ghost" id="syncPromptDismiss" type="button">接続せず使う</button></div><p class="set-note">1台の端末で使う場合などは、接続せずにこの端末だけで続けられます。</p>` : ''}
+      ${lead ? `<p class="set-note sync-lead">${esc(lead)}</p>` : ''}
       ${code ? `
       ${/* 共有ずみの 画面。ここに 出ているのは **すでに 使っている**
             合言葉で、これから つなぐ ものでは ない。以前は
@@ -5167,10 +5176,42 @@ function syncSectionHTML(opts){
         <div class="sync-code-control"><input type="text" id="syncCodeShown" value="${esc(code)}" spellcheck="false"
                autocapitalize="off" autocorrect="off" placeholder="未設定" readonly>
           <button class="btn btn-sm" id="syncCopy" type="button">コピー</button></div></div>
-      <p class="set-note">ほかの端末では、この合言葉を入力するか、下の「ほかの端末から読み取る」のQRコード・招待リンクを使ってください。</p>
-      <details class="set-advanced" data-details-key="syncRejoin">
-        <summary>べつの合言葉につなぎ直す</summary>
+      ${/* 共有ずみの 3つは **使う 順**に 並べる。増やす → 整える → やめる。
+            以前は 1つの たたみに 招待・一覧・呼び名・役割・解除が 全部 入っていて、
+            いちばん よく 使う 招待が いちばん 奥に あった。
+            招待の QR は 合言葉そのものなので、たたんだ ままに して 常時は 出さない */''}
+      <details class="set-advanced sync-detail" data-details-key="syncInvite"${opts && opts.openDetails ? ' open' : ''}>
+        <summary>ほかの端末を増やす（QR・招待リンク）</summary>
         <div class="set-advanced-body">
+          ${inviteHTML()}
+        </div>
+      </details>
+      <details class="set-advanced sync-detail" data-details-key="syncDevices">
+        <summary><span class="sync-device-count" id="syncDeviceCount">端末と表示の設定（設定済み：${S.deviceCount()}台）</span></summary>
+        <div class="set-advanced-body">
+          <h3 class="sync-subhead">接続中の端末</h3>
+          <div id="syncDeviceList">${deviceListHTML()}</div>
+          <h3 class="sync-subhead">この端末の表示と役割</h3>
+          <div class="sync-local-settings">
+            <div class="set-row"><span class="lab">この端末の呼び名</span>
+              <input type="text" id="deviceLabel" maxlength="12"
+                     value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></div>
+            <div class="set-row"><span class="lab">この端末は</span>
+              <select id="deviceRole">
+                <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>未選択</option>
+                <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>子どもの端末</option>
+                <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>保護者の端末</option>
+              </select></div>
+            ${/* 役割を 権限と 読ませない（憲章8節の 3）。**この1行は 消さない。**
+                  えらぶ 欄の すぐ下に 置く。呼び名の 決め方など 残りは i の 中 */''}
+            <p class="set-note">「保護者の端末」「子どもの端末」は、開いたときの画面と記録者名の設定です。</p>
+          </div>
+        </div>
+      </details>
+      <details class="set-advanced sync-detail" data-details-key="syncLeave">
+        <summary>共有をやめる・つなぎ直す</summary>
+        <div class="set-advanced-body">
+          <h3 class="sync-subhead">べつの合言葉につなぎ直す</h3>
           <p class="set-note">いま入っているグループから離れ、入力した合言葉のグループにつなぎ直します。この端末の記録は残ります。</p>
           <div class="set-row"><span class="lab">つなぎ直す合言葉</span>
             <input type="text" id="syncRejoinCode" value="" spellcheck="false"
@@ -5178,6 +5219,11 @@ function syncSectionHTML(opts){
           <div class="set-actions qr-scan-entry"><button class="btn btn-sm btn-ghost" type="button" data-qr-invite-scan>QRコードを読み取る</button></div>
           <div class="set-actions">
             <button class="btn btn-sm" id="syncSave" type="button">入力した合言葉につなぎ直す</button>
+          </div>
+          <h3 class="sync-subhead">共有を解除する</h3>
+          <p class="set-note">この端末だけを共有から外します。ほかの端末や記録はそのまま残ります。もう一度参加するには、合言葉を入力し直してください。</p>
+          <div class="set-actions">
+            <button class="btn btn-sm btn-danger" id="syncOff" type="button">共有を解除する</button>
           </div>
         </div>
       </details>` : `
@@ -5188,12 +5234,15 @@ function syncSectionHTML(opts){
            そろえ、文言も そう書く -->
       <div class="sync-start">
         <h3 class="sync-subhead">はじめて共有する</h3>
-        <p class="set-note">「おまかせ」を押すと、当てられにくい16文字の合言葉をこの端末が作ります。押した時点でこの端末の宿題・設定・記録がグループの内容になり、ほかの端末から読み取れるようになります。そのあとに出るQRコード・招待リンクを、ほかの端末で読み取ってください。</p>
+        ${/* 何が 起きるかは 書く（押すと 共有が 始まる）。
+              16文字・そのあと QR を 渡す、といった しくみの 話は i の 中へ */''}
+        <p class="set-note">「おまかせ」を押すと、この端末が合言葉を作ります。押した時点で、この端末の宿題・設定・記録がグループの内容になります。</p>
         <div class="set-actions">
           <button class="btn btn-go" id="syncMake" type="button">合言葉をつくる（おまかせ）</button>
         </div>
         ${/* 最初の設定と同じく、ここでも 自分で 決められるように する。
-              決め方が ちがっても、押した 時点で 共有が 始まるのは 同じ */''}
+              決め方が ちがっても、押した 時点で 共有が 始まるのは 同じ。
+              **主の ボタンを 1つに する**ため、たたみの 中は btn-sm に 落とす */''}
         <details class="set-advanced" data-details-key="syncOwnCode">
           <summary>合言葉を自分でつくる</summary>
           <div class="set-advanced-body">
@@ -5202,59 +5251,34 @@ function syncSectionHTML(opts){
               <input type="text" id="syncOwnCode" value="" spellcheck="false"
                      autocapitalize="off" autocorrect="off" placeholder="8文字以上"></div>
             <div class="set-actions">
-              <button class="btn btn-go" id="syncMakeOwn" type="button">この合言葉でつくる</button>
+              <button class="btn btn-sm" id="syncMakeOwn" type="button">この合言葉でつくる</button>
             </div>
           </div>
         </details>
       </div>
       <div class="sync-start">
         <h3 class="sync-subhead">ほかの端末で作った合言葉に参加する</h3>
-        <div class="set-row"><span class="lab">合言葉</span>
-          <input type="text" id="syncCode" value="" spellcheck="false"
-                 autocapitalize="off" autocorrect="off" placeholder="受け取った合言葉"></div>
-        <div class="set-actions qr-scan-entry"><button class="btn btn-sm btn-ghost" type="button" data-qr-invite-scan>QRコードを読み取る</button></div>
-        <div class="set-actions">
-          <button class="btn btn-sm" id="syncVerify" type="button">接続を確認</button>
-        </div>
-        <p class="set-note" id="syncJoinStatus" aria-live="polite"></p>
-        <div class="set-actions">
-          <button class="btn btn-go" id="syncSave" type="button" hidden>このグループに参加する</button>
-        </div>
+        ${/* 実際に 使うのは QR。以前は QR が いちばん 弱い ボタンで、
+              合言葉の 手入力・確認・参加の 3つと 同じ 強さで 並んでいた */''}
+        <div class="set-actions qr-scan-entry"><button class="btn btn-go" type="button" data-qr-invite-scan>QRコードを読み取る</button></div>
+        <details class="set-advanced" data-details-key="syncJoinCode">
+          <summary>合言葉を入力して参加する</summary>
+          <div class="set-advanced-body">
+            <div class="set-row"><span class="lab">合言葉</span>
+              <input type="text" id="syncCode" value="" spellcheck="false"
+                     autocapitalize="off" autocorrect="off" placeholder="受け取った合言葉"></div>
+            <div class="set-actions">
+              <button class="btn btn-sm" id="syncVerify" type="button">接続を確認</button>
+            </div>
+            <p class="set-note" id="syncJoinStatus" aria-live="polite"></p>
+            <div class="set-actions">
+              <button class="btn btn-go" id="syncSave" type="button" hidden>このグループに参加する</button>
+            </div>
+          </div>
+        </details>
       </div>`}
-      ${code ? `<details class="set-advanced sync-detail" data-details-key="syncDevices"${opts && opts.openDetails ? ' open' : ''}>
-        <summary><span class="sync-device-count" id="syncDeviceCount">共有リンク・端末ごとの設定（設定済み：${S.deviceCount()}台）</span></summary>
-        <div class="set-advanced-body">
-          <h3 class="sync-subhead">ほかの端末から読み取る</h3>
-          ${inviteHTML()}
-          <h3 class="sync-subhead">接続中の端末</h3>
-           <div id="syncDeviceList">${deviceListHTML()}</div>
-           <h3 class="sync-subhead">この端末の表示と役割</h3>
-           <div class="sync-local-settings">
-             <div class="set-row"><span class="lab">この端末の呼び名</span>
-               <input type="text" id="deviceLabel" maxlength="12"
-                      value="${esc(getLocal(K_DEVICE_LABEL))}" placeholder="例：父、母"></div>
-             <div class="set-row"><span class="lab">この端末は</span>
-               <select id="deviceRole">
-                 <option value=""${getLocal(K_ROLE) ? '' : ' selected'}>未選択</option>
-                 <option value="child"${getLocal(K_ROLE) === 'child' ? ' selected' : ''}>子どもの端末</option>
-                 <option value="parent"${getLocal(K_ROLE) === 'parent' ? ' selected' : ''}>保護者の端末</option>
-               </select></div>
-             <details class="set-advanced sync-help" data-details-key="deviceOwnHelp">
-               <summary>呼び名と役割のくわしい説明</summary>
-               <div class="set-advanced-body">
-                 <p class="set-note">呼び名と役割は、この端末で決めます。共有中は、ほかの端末の一覧にも見分けるための情報として表示されますが、ほかの端末から変更されることはありません。</p>
-                 <p class="set-note">呼び名は、共有中の端末一覧で見分けるための名前です（父、母など）。未設定のときは「${esc(deviceKindLabel(navigator.userAgent, navigator.maxTouchPoints))}」のように端末の種類で表示されます。ブラウザは機種名（iPhone SE など）までは通知しないため、細かく分けたいときは呼び名を入れてください。</p>
-                 <p class="set-note">この端末を使う人を選ぶと、最初に開く画面と、保護者ページの記録に表示する入力者名が変わります。「保護者の端末」では、記録を1件ずつ削除する設定も使えます。これは認証やアクセス制限ではありません。</p>
-               </div>
-             </details>
-           </div>
-           <h3 class="sync-subhead">共有を解除する</h3>
-           <p class="set-note">この端末だけを共有から外します。ほかの端末や記録はそのまま残ります。この端末をもう一度参加させるには、合言葉を入力し直してください。</p>
-           <div class="set-actions">
-             <button class="btn btn-sm btn-danger" id="syncOff" type="button">共有を解除する</button>
-           </div>
-        </div>
-      </details>` : ''}
+      ${/* いちばん 弱い 選択肢なので 最後に 置く。案内として 出した ときだけ */''}
+      ${opts && opts.dismissPrompt ? `<div class="set-actions sync-dismiss"><button class="btn btn-sm btn-ghost" id="syncPromptDismiss" type="button">接続せず使う</button></div>` : ''}
     </div>
   </section>`;
 }
@@ -7250,7 +7274,7 @@ function viewConfig(){
         <input type="checkbox" id="allowLogDelete"${logDeleteAllowed() ? ' checked' : ''}>
       </label>
       ${logDeleteAllowed() && getLocal(K_ROLE) !== 'parent'
-        ? '<p class="set-note dev-warn"><b>この端末は「保護者の端末」に設定されていません。</b>「ほかの端末と共有」→「共有リンク・端末ごとの設定」→「この端末は」で選択してください。</p>'
+        ? '<p class="set-note dev-warn"><b>この端末は「保護者の端末」に設定されていません。</b>「ほかの端末と共有」→「端末と表示の設定」→「この端末は」で選択してください。</p>'
         : ''}
       <div class="data-management-row">
         <div class="data-management-copy"><b>バックアップ</b><small>データをファイルへ書き出すか、保存したファイルを読み込みます。</small></div>
@@ -7939,7 +7963,7 @@ function bindSync(){
       const st = $('#syncStatus');
       if(st) st.innerHTML = syncStatusHTML(S.status(), S.statusText());
       const el = $('#syncDeviceCount');
-      if(el) el.textContent = '共有リンク・端末ごとの設定（設定済み：' + count + '台）';
+      if(el) el.textContent = '端末と表示の設定（設定済み：' + count + '台）';
     });
   }
   /* 端末の 一覧は とどくのが 遅れる ことが ある。
@@ -8728,6 +8752,18 @@ document.addEventListener('click', e=>{
   if(e.target.closest('#posterHelp')){
     const dialog = $('#posterHelpDialog');
     if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+    return;
+  }
+  /* 共有の「i」。写真の 説明と 同じ 作りで、開く・閉じるを ここに そろえる。
+     **id では なく data 属性で 拾う**（この欄は 2か所から 描かれる） */
+  if(e.target.closest('[data-sync-help]')){
+    const dialog = $('#syncHelpDialog');
+    if(typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open', '');
+    return;
+  }
+  if(e.target.closest('#syncHelpClose')){
+    const dialog = $('#syncHelpDialog');
+    if(typeof dialog.close === 'function') dialog.close(); else dialog.removeAttribute('open');
     return;
   }
   if(e.target.closest('#posterSend')){ posterHandAll(); return; }
