@@ -3715,10 +3715,10 @@ test('公開アセットのキャッシュ版を一式そろえる', ()=>{
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260825a',
+    'assets/app.js': '20260825b',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a',
-    'assets/metrics.js': '20260824b'
+    'assets/metrics.js': '20260825a'
   };
   for(const [file, version] of Object.entries(versions)){
     assert.match(INDEX, new RegExp(file.replace(/[.]/g, '\\.') + '\\?v=' + version));
@@ -6825,12 +6825,51 @@ test('クリック統計は個人情報を名前に混ぜない', ()=>{
   }
 });
 
+test('クリック統計はたたみの見出しを親のたたみの名前で数える', ()=>{
+  const { api } = metricsSandbox();
+  /* 見出しは 自分の 材料を 1つも 持たない。親の data-details-key を 身代わりに する */
+  const withKey = metricsEl('summary', {},
+    metricsEl('details', { class:'set-advanced sync-detail', 'data-details-key':'syncInvite' }));
+  assert.equal(api.nameFor(withKey), 'syncinvite');
+
+  /* 目次の たたみは 画面ごとに 分かれる。混ざらないこと */
+  const toc = metricsEl('summary', {},
+    metricsEl('details', { class:'adult-section-toc-disclosure', 'data-details-key':'adultSectionToc:config' }));
+  assert.equal(api.nameFor(toc), 'adultsectiontoc_config');
+
+  /* key の 無い たたみは、親の class の 1語目へ 落とす */
+  assert.equal(api.nameFor(metricsEl('summary', {}, metricsEl('details', { class:'poster-more' }))), 'poster_more');
+
+  /* 親を 見るのは **summary の ときだけ**。ほかの 押せるものは 親へ 逃げない */
+  assert.equal(api.nameFor(metricsEl('button', {}, metricsEl('details', { 'data-details-key':'syncInvite' }))), '');
+
+  /* 見出しが 自分の 材料を 持つなら、そちらが 勝つ */
+  const own = metricsEl('summary', { class:'set-task-summary' },
+    metricsEl('details', { 'data-details-key':'syncInvite' }));
+  assert.equal(api.nameFor(own), 'set_task_summary');
+
+  /* 親が たたみで ないなら 何も しない */
+  assert.equal(api.nameFor(metricsEl('summary', {}, metricsEl('div', { class:'paper' }))), '');
+});
+
+test('クリック統計は色とデザインの選択を配色ごとに数える', ()=>{
+  const { api } = metricsSandbox();
+  for(const id of ['notebook','sunny','soda','berry','block','cat']){
+    assert.equal(api.nameFor(metricsEl('input', { type:'radio', name:'theme', value:id, 'data-design':id })),
+      'design_' + id);
+  }
+  /* 目印が 無いと 名前を 作れず、押しても 1回も 数えられない（実際に そうだった） */
+  assert.equal(api.nameFor(metricsEl('input', { type:'radio', name:'theme', value:'sunny' })), '');
+  assert.match(APP, /<input type="radio"[^>]*data-design="\$\{t\.id\}"/,
+    '色とデザインのラジオに目印を残す');
+});
+
 test('クリック統計は許可していない属性の値を名前に入れない', ()=>{
   const { api } = metricsSandbox();
   /* vm の 中で 作られた 配列は こちらの Array の 子では ないので 写しとる */
   assert.deepEqual(Array.from(api.VALUE_OK),
-    ['tab','f','bf','role','welcome-role','welcome-mode','join-role','fun','sharing'],
-    '値を見てよい属性は、値が固定文字列だと確かめた9つだけ');
+    ['tab','f','bf','role','welcome-role','welcome-mode','join-role','fun','sharing','design'],
+    '値を見てよい属性は、値が固定文字列だと確かめた10だけ');
 
   const del = metricsEl('button', { class:'icon-btn del', 'data-delbook':'book-abc' });
   assert.equal(api.nameFor(del), 'delbook');
@@ -7143,7 +7182,7 @@ test('クリック統計は ?new=1 のおためしでは送らない', async ()=
 });
 
 test('クリック統計は index.html から読みこむ', ()=>{
-  assert.match(INDEX, /<script src="assets\/metrics\.js\?v=20260824b"><\/script>/);
+  assert.match(INDEX, /<script src="assets\/metrics\.js\?v=20260825a"><\/script>/);
   assert.match(INDEX, /assets\/metrics\.js[\s\S]{0,400}assets\/app\.js/,
     'app.js より先に耳を置く');
 });

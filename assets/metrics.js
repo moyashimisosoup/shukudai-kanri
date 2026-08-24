@@ -54,8 +54,11 @@
 
   /* 値を 見てよい 属性。値が コードの 固定文字列だと 確かめた ものだけ。
      ここに 無い 属性の 値へは 触れない。規則で 弾くより 触れない ほうが 強い。
-     data-theme は <html> にしか 付かず 押せないので、確認のうえ 落とした */
-  const VALUE_OK = ['tab','f','bf','role','welcome-role','welcome-mode','join-role','fun','sharing'];
+     data-theme は <html> にしか 付かず 押せないので、確認のうえ 落とした。
+     design は 色とデザインの 選択。値は THEMES の id（notebook・sunny ほか）で、
+     コードの 中の 固定文字列。**data-theme とは 別の 名前に して ある**
+     （<html> の 着せかえ用 属性と 取りちがえない ため） */
+  const VALUE_OK = ['tab','f','bf','role','welcome-role','welcome-mode','join-role','fun','sharing','design'];
 
   /* data- を 持つが 操作では ない 目印。名前の 材料に しない */
   const SKIP_DATA = ['no-reading','details-key','adult-section-help','cf-beacon','mic-status'];
@@ -141,6 +144,24 @@
     return null;
   }
 
+  /* たたみ（details）の 見出しは、自分の 材料を 1つも 持たない ことが 多い。
+     **summary の ときだけ 親を 1段 見る。** 親の data-details-key は
+     「開いた ままを 覚える」ための 目印で、どの たたみかを そのまま 表す。
+     SKIP_DATA で 材料から 外して あるのは、この 属性が **押せない 箱**の 上に
+     あるためで、値そのものが 悪いからでは ない。ここでは 押せる summary の
+     身代わりとして 使うので、外す 理由が 当てはまらない。
+     key が 無い たたみは 親の class の 1語目に 落とす */
+  function metricsFromDetails(el){
+    if(String(el.tagName || '').toUpperCase() !== 'SUMMARY') return '';
+    const parent = el.parentElement;
+    if(!parent || String(parent.tagName || '').toUpperCase() !== 'DETAILS') return '';
+    const list = metricsAttrs(parent);
+    const key = metricsClean(metricsAttr(list, 'data-details-key'));
+    if(key) return key;
+    const classes = String(metricsAttr(list, 'class')).split(/\s+/).filter(Boolean);
+    return classes.length ? metricsClean(classes[0]) : '';
+  }
+
   function metricsNameFor(el){
     if(!el) return '';
     const list = metricsAttrs(el);
@@ -154,6 +175,7 @@
     let from = 'id';
     if(!main && names.length){ main = metricsClean(names[0]); from = 'data'; }
     if(!main){ main = firstClass; from = 'class'; }
+    if(!main){ main = metricsFromDetails(el); from = 'details'; }
     if(!main) return '';
 
     /* うしろに 足すのは 多くとも 1つ。名前は 最大でも 2語に する */

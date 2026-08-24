@@ -5318,7 +5318,7 @@ function trashSectionHTML(){
   <section class="sec"${adultSectionHelpAttr(
     '削除した記録の控えを確認します。本の冊数などは削除時に戻っていますが、記録そのものは元に戻せません。')}>
     <div class="sec-head"><h2>消した記録</h2><span class="sec-note">${rows.length}件</span></div>
-    <details class="paper set-advanced">
+    <details class="paper set-advanced" data-details-key="trashItems">
       <summary>消した中身を見る</summary>
       <div class="set-advanced-body">
         ${rows.map(r=>`
@@ -6768,7 +6768,7 @@ function themeChoicesHTML(fieldName, selected){
     : (THEME_IDS.includes(config.theme) ? config.theme : 'notebook');
   return THEMES.map(t=>`
     <label class="theme-choice theme-choice--${t.id}">
-      <input type="radio" name="${esc(name)}" value="${t.id}"${t.id===current?' checked':''}>
+      <input type="radio" name="${esc(name)}" value="${t.id}" data-design="${t.id}"${t.id===current?' checked':''}>
       <span class="theme-swatch" aria-hidden="true"><i></i><i></i><i></i></span>
       <span class="theme-name">${esc(t.name)}</span>
       <small>${esc(t.note)}</small>
