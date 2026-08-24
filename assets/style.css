@@ -960,8 +960,15 @@ button{ font:inherit; color:inherit; }
 .poster-more > summary:focus-visible{ outline:3px solid var(--focus); outline-offset:2px; }
 .poster-more > .poster-note:first-of-type{ margin-top:8px; }
 
+/* **中身が 画面より 長い ときは、ここが スクロールする。**
+   `<dialog>` は 既定で あふれを 切るだけ なので、指定しないと 下が 読めない。
+   `vh` は iOS で アドレスバーを ふくむ 大きい ほうの 高さに なるため、
+   92vh の ダイアログは 画面から はみ出し、末尾まで たどれない（実機で 出た）。
+   `dvh` を あとに 置いて 上書きする（読めない ブラウザは vh のまま）。
+   記念日の ダイアログが すでに dvh を 使っている */
 .poster-dialog{
-  width:min(96vw, 900px); max-height:92vh; padding:14px;
+  width:min(96vw, 900px); max-height:92vh; max-height:92dvh; padding:14px;
+  overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
   border:var(--line) solid var(--ai); border-radius:var(--r);
   background:var(--kami); color:var(--ai);
 }
@@ -969,7 +976,7 @@ button{ font:inherit; color:inherit; }
 .poster-head{ display:flex; align-items:center; gap:12px; margin-bottom:10px; }
 .poster-head h2{ flex:1 1 auto; min-width:0; font-size:20px; font-weight:900;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.poster-body{ overflow:auto; max-height:80vh; }
+.poster-body{ overflow:auto; max-height:80vh; max-height:80dvh; }
 /* 写真は 端末の 幅に そろえる。文字が 小さくて 読めない ときは
    端末の 拡大（ピンチ）で 見る */
 .poster-body img{ display:block; width:100%; height:auto; border-radius:var(--r-s); }

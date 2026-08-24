@@ -2730,6 +2730,21 @@ test('狭い画面の収まり：点線を枠から離し、対のボタンは�
     '一括削除のボタンを左右にならべないこと');
 });
 
+/* 「i」の中身は1画面に収まらない。実機（iPhone）で下端が切れ、末尾まで
+   たどれなかった。原因は2つで、どちらもダイアログの箱の側にあった。 */
+test('説明のダイアログは、中身が長くても末尾まで読める', ()=>{
+  const box = STYLE.slice(STYLE.indexOf('.poster-dialog{'), STYLE.indexOf('.poster-dialog::backdrop'));
+  assert.match(box, /overflow-y:auto/,
+    '<dialog> は既定であふれを切るだけなので、ここでスクロールさせること');
+  /* vh は iOS でアドレスバーをふくむ大きいほうの高さになる。
+     dvh を後ろに置いて上書きする（読めないブラウザは vh のまま） */
+  assert.match(box, /max-height:92vh; max-height:92dvh;/,
+    'iOS で画面からはみ出さないよう dvh で上書きすること');
+  assert.match(STYLE, /\.poster-body\{ overflow:auto; max-height:80vh; max-height:80dvh; \}/);
+  /* とじるは、末尾まで送っても押せる位置にある（前から） */
+  assert.match(STYLE, /\.poster-help \.poster-head\{\s*position:sticky/);
+});
+
 /* 使い方・変更履歴はアプリから別のタブで開く。新しいタブには戻る操作が無く、
    狭い画面では上帯の入口もメニューの中にたたまれていた（実機の指摘）。 */
 test('別のタブで開いた案内ページから、アプリへ戻れる', ()=>{
@@ -3632,7 +3647,7 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260824e',
+    'assets/style.css': '20260824f',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
