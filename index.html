@@ -24,7 +24,7 @@
 <!-- Webフォントの通信で初期描画を止めない。読み込み中は端末内の丸ゴシックを使う -->
 <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/style.css?v=20260824h">
+<link rel="stylesheet" href="assets/style.css?v=20260824i">
 <link rel="stylesheet" href="tokens.css?v=20260813a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌻</text></svg>">
 </head>
@@ -113,7 +113,7 @@
             <polyline points="12,6 6,12 12,18"/><polyline points="36,6 42,12 36,18"/>
           </g>
         </svg>
-        <b>共有</b>
+        <b>共有</b><small class="poster-flow-tag">あいことば</small>
       </div>
       <div class="poster-flow-step">
         <svg class="poster-flow-ico" viewBox="0 0 60 72" aria-hidden="true">
@@ -129,7 +129,7 @@
   </figure>
   <ol class="poster-steps">
     <li><span class="poster-step-num" aria-hidden="true">1</span><div><b>合言葉をつくる</b>
-      <p>「おまかせ」を押すと16文字ができます。押した時点で共有が始まります。</p></div></li>
+      <p>合言葉を作成するとグループが作成され、データ共有が始まります。</p></div></li>
     <li><span class="poster-step-num" aria-hidden="true">2</span><div><b>共有グループに参加</b>
       <p>QRあるいは招待リンクから、作成したグループに参加します。</p></div></li>
     <li><span class="poster-step-num" aria-hidden="true">3</span><div><b>共有開始</b>
@@ -328,7 +328,7 @@ window.natsuBootProgress = function(value, label){
 <script>window.natsuBootProgress(88, 'この端末の記録を読み込んでいます');</script>
 <!-- 写真の置き場（端末ごと）。読めなくてもアプリはそのまま動く -->
 <script src="assets/photos.js?v=20260821a"></script>
-<script src="assets/app.js?v=20260824f"></script>
+<script src="assets/app.js?v=20260824g"></script>
 <!-- 端末間の共有。module なので app.js のあとに動く。
      読めなくても・未設定でも アプリは localStorage だけで そのまま動く -->
 <script type="module" src="assets/sync.js?v=20260822a"></script>

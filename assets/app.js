@@ -4821,7 +4821,7 @@ function inviteQrHTML(url){
                                   title:'べつの端末に わたす まねきリンクの QRコード' });
     return `
     <div class="invite-qr">${svg}</div>
-    <p class="set-note">となりに ある端末なら、この QR を カメラで 読むだけでも つながります。</p>`;
+    <p class="set-note">端末のカメラ／QR読み取り機能で読み取ってもOK</p>`;
   }catch(e){
     return '';
   }
@@ -4832,18 +4832,16 @@ function inviteHTML(){
   if(!url) return '';
   return `
   <div class="invite">
-    <p class="set-note">このリンクかQRコードを、もう一方の端末で読み取ります。合言葉の入力は要りません。</p>
-    <div class="set-row">
+    ${/* **合言葉が 入っている ことは、URL を 見る より 先に 言う。**
+          憲章2節が 操作画面に 求めている 注意で、渡す 前に 読める 位置に 置く */''}
+    <p class="set-note">共有したい相手の端末に、次のURLかQRコードを共有してください。（リンクには<b>合言葉が含まれています</b>。ご注意ください。）</p>
+    ${/* 欄と コピーは 同じ 行の 操作の まとまりに する（合言葉の 欄と 同じ 形）。
+          欄を 縮めても コピーの 44px は 守る */''}
+    <div class="sync-code-control">
       <input type="text" id="inviteUrl" value="${esc(url)}" readonly onfocus="this.select()">
-    </div>
-    <div class="set-actions">
-      <button class="btn btn-sm" id="inviteCopy" type="button">リンクをコピー</button>
+      <button class="btn btn-sm" id="inviteCopy" type="button">コピー</button>
     </div>
     ${inviteQrHTML(url)}
-    ${/* **この1行は 残す。** 憲章2節が 操作画面に 求めている 注意で、
-          リンクを コピーする 指の 直前に ある。
-          「受け取る側は ホーム画面に 追加」は 専用の 案内欄が 別に あるので 消した */''}
-    <p class="set-note">このリンクは<b>合言葉そのもの</b>です。SNSなどに貼らないでください。</p>
   </div>`;
 }
 

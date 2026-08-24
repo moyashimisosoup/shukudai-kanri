@@ -940,6 +940,13 @@ button{ font:inherit; color:inherit; }
   flex:none; display:grid; justify-items:center; gap:2px; color:var(--ai);
 }
 #syncHelpDialog .poster-flow-link b{ font-size:12px; font-weight:900; }
+/* 矢印に そえる 札。渡って いるのは あいことば だと 図の 中で 分かるように する。
+   白抜き（地色を 敷いて 紙の 色で 抜く）で、まわりの 説明文と 見分ける */
+#syncHelpDialog .poster-flow-tag{
+  padding:1px 6px; border-radius:var(--r-pill);
+  color:var(--kami); background:var(--ai);
+  font-size:10px; font-weight:900; line-height:1.6; white-space:nowrap;
+}
 #syncHelpDialog .poster-flow-arrow{ width:38px; height:18px; }
 /* 注意は 4つ ある。地つづきの 文に すると どこで 切れるか 読めないので、
    1つずつ 囲む（アプリの ほかの 欄と 同じ 囲み） */
@@ -3254,6 +3261,7 @@ input.is-need, textarea.is-need{
 }
 .invite .set-row{ padding:10px 12px; border-bottom:0; }
 .invite .set-note,.invite .set-actions{ padding:10px 12px; }
+.invite .sync-code-control{ margin:0 12px 10px; }
 .invite #inviteUrl{ font-size:14px; }
 .inapp-note{
   border:2px solid var(--suika); background:var(--suika-usu);

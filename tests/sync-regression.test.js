@@ -2301,8 +2301,10 @@ test('設定画面の共有は、作成でそのままつながり、参加は�
   assert.match(section, /押した時点で、この端末の宿題・設定・記録がグループの内容になります/,
     '作成で何が起きるかを画面に書くこと');
   assert.match(INDEX, /id="syncHelpDialog"/, '共有の i は専用ダイアログにすること');
-  assert.match(INDEX, /「おまかせ」を押すと16文字ができます/,
-    '16文字の話は i の中に残すこと');
+  /* i には「押すと何が起きるか」を書く。16文字という中身は画面側
+     （はじめて共有する の説明）にあり、そちらは上で見ている */
+  assert.match(INDEX, /合言葉を作成するとグループが作成され、データ共有が始まります/,
+    '作成した時点で共有が始まることを i にも書くこと');
   assert.match(section, /id="syncVerify"[^>]*>接続を確認/);
   /* 設定からも 自分で 決められる（最初の設定と そろえる） */
   assert.match(section, /id="syncOwnCode"/);
@@ -2681,8 +2683,13 @@ test('共有欄は、作る・参加する・増やす・整える・やめる�
     '「外す」をアクセスの取り消しと読ませないこと');
   assert.match(f, /「保護者の端末」「子どもの端末」は、開いたときの画面と記録者名の設定です。/,
     '役割を権限と読ませないこと');
-  assert.match(grab(APP, 'inviteHTML'), /このリンクは<b>合言葉そのもの<\/b>です。SNSなどに貼らないでください。/,
-    '招待リンクが合言葉そのものであることを、リンクのそばに書くこと');
+  /* 合言葉が入っていることは、URL を見るより先に言う（利用者の裁定で
+     末尾の1行から先頭の案内へ移した）。憲章2節が操作画面に求める注意 */
+  const invite = grab(APP, 'inviteHTML');
+  assert.match(invite, /リンクには<b>合言葉が含まれています<\/b>/,
+    '招待リンクに合言葉が入ることを、リンクを渡す前に書くこと');
+  assert.match(invite, /class="sync-code-control"[\s\S]{0,300}id="inviteUrl"[\s\S]{0,200}id="inviteCopy"/,
+    'URL の欄とコピーを同じ行の操作グループにすること');
 
   /* i は写真の説明と同じ作り。平文1段落の共通ダイアログは使わない。
      buildAdultSectionToc() は既にボタンがある見出し帯には足さないので、
@@ -3667,11 +3674,11 @@ test('残り種類・区分完了・毎日の連続表示を共通の位置に�
 
 test('公開アセットのキャッシュ版を一式そろえる', ()=>{
   const versions = {
-    'assets/style.css': '20260824h',
+    'assets/style.css': '20260824i',
     'tokens.css': '20260813a',
     'assets/kanji.js': '20260813a',
     'assets/data.js': '20260817f',
-    'assets/app.js': '20260824f',
+    'assets/app.js': '20260824g',
     'assets/sync.js': '20260822a',
     'assets/photos.js': '20260821a'
   };
