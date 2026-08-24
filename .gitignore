@@ -15,6 +15,7 @@ tools/analytics-admin.html
 tools/analytics-admin.css
 tools/analytics-admin-tokens.css
 tools/analytics-admin-client.js
+tools/analytics-admin-names.js
 tools/ANALYTICS_ADMIN_SETUP.md
 tools/retention-admin.js
 tools/retention-admin-lib.js
@@ -22,6 +23,12 @@ tools/retention-admin.html
 tools/RETENTION_ADMIN.md
 tests/analytics-admin.test.js
 tests/retention-admin.test.js
+
+# サービスアカウントの鍵。置き場所は環境変数で渡すが、
+# うっかり repo の中へ置いても公開されないようにしておく。
+*service-account*.json
+*.sa.json
+keys/
 
 # ローカル専用の運用ページ。公開リポジトリ（main直配信）へ入れない。
 local/
