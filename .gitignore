@@ -10,6 +10,9 @@ docs/OPEN_QUESTIONS.md
 
 # ローカル運用・広報の作業素材。公開リポジトリや配信対象へ追加しない。
 promo/
+# 案内動画のネコの絵（生成画像）。アプリの配信物ではなく動画の材料なので、
+# promo/ と同じ扱いにする。アプリ本体へ採るときは、そのとき改めて決める。
+artwork/
 tools/analytics-admin.js
 tools/analytics-admin.html
 tools/analytics-admin.css
