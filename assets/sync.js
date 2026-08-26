@@ -1001,9 +1001,7 @@ async function getRegistrationCount(){
    ・中身は これまでと 同じ 合言葉の 鍵で 包む。AAD に 'photo' を 使うので、
      config / state の 暗号文と 取りちがえない。
 
-   **Firebase コンソールで expiresAt に TTL を 設定すること。**
-   90日の 保持期限の しくみ（手動ツール・未デプロイの Function）は
-   この パスを 見ないので、TTL が 無いと 消し忘れが たまる。 */
+   **expiresAt の TTL は Firebase コンソールで 設定ずみ。** */
 const HANDOFF_PATH = 'photo_handoff';
 const HANDOFF_MS = 24 * 60 * 60 * 1000;
 /* 1家庭あたり 4つまで（0〜3まいめ）。**0まいめの 箱の ID は、これまでと
